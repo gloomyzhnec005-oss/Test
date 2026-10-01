@@ -1,0 +1,98 @@
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+  background: #11151c; color: #f1f1f1;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  user-select: none; -webkit-user-select: none; touch-action: none;
+}
+.hidden { display: none !important; }
+#game { position: fixed; inset: 0; }
+
+/* ---------- Выбор персонажа ---------- */
+.screen {
+  position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center;
+  padding: 24px 16px; overflow-y: auto; touch-action: pan-y;
+  background: radial-gradient(circle at 50% 20%, #2b3a55 0%, #11151c 70%);
+}
+.screen h1 { margin: 8px 0 4px; font-size: 28px; letter-spacing: 1px; }
+.subtitle { margin: 0 0 16px; color: #a9b4c8; }
+.classes { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 420px; }
+.class-card {
+  display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 14px;
+  background: #1d2533; border: 2px solid transparent; cursor: pointer; transition: .15s;
+}
+.class-card.active { border-color: #ffcc4d; background: #273248; }
+.class-card canvas { flex: none; width: 64px; height: 64px; image-rendering: pixelated; background: #2c3a2c; border-radius: 10px; }
+.class-card h3 { margin: 0 0 4px; font-size: 18px; }
+.class-card p { margin: 0 0 6px; font-size: 13px; color: #a9b4c8; }
+.class-card .meta { font-size: 12px; color: #ffcc4d; }
+#guestName {
+  margin-top: 16px; width: 100%; max-width: 420px; padding: 12px; border-radius: 10px; border: none;
+  background: #1d2533; color: #fff; font-size: 16px;
+}
+.btn-primary {
+  margin-top: 16px; width: 100%; max-width: 420px; padding: 14px; font-size: 18px; font-weight: bold;
+  border: none; border-radius: 12px; background: #ffcc4d; color: #2a2000; cursor: pointer;
+}
+.btn-primary:disabled { opacity: .5; }
+.status { color: #ff8c8c; min-height: 20px; }
+
+/* ---------- HUD ---------- */
+#hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+#hud > * { pointer-events: auto; }
+.panel { background: rgba(10, 14, 22, .72); border-radius: 10px; padding: 6px 8px; }
+.top {
+  position: absolute; top: calc(8px + env(safe-area-inset-top)); left: 8px; right: 8px;
+  display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none;
+}
+.stats { width: 190px; font-size: 13px; }
+.stats .row { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+.stats .row.small { justify-content: space-between; margin: 4px 0 0; font-size: 12px; }
+.lvl { background: #ffcc4d; color: #222; border-radius: 6px; padding: 0 6px; font-weight: bold; }
+.bar { position: relative; height: 14px; background: #333; border-radius: 7px; overflow: hidden; margin-top: 3px; }
+.bar > div { height: 100%; width: 100%; transition: width .2s; }
+.bar span { position: absolute; inset: 0; text-align: center; font-size: 10px; line-height: 14px; text-shadow: 0 0 2px #000; }
+.bar.hp > div { background: linear-gradient(#e85b5b, #b02a2a); }
+.bar.xp { height: 8px; }
+.bar.xp > div { background: linear-gradient(#8ad3ff, #3a8fd8); }
+.bar.xp span { font-size: 8px; line-height: 8px; }
+#minimap { border-radius: 10px; border: 2px solid rgba(255,255,255,.25); background: #000; width: 96px; height: 96px; }
+.target {
+  position: absolute; top: calc(110px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  width: 160px; text-align: center; font-size: 12px;
+}
+.chat-log {
+  position: absolute; left: 8px; bottom: 170px; width: 60%; max-width: 320px; max-height: 110px;
+  overflow: hidden; font-size: 12px; pointer-events: none !important; display: flex; flex-direction: column; justify-content: flex-end;
+}
+.chat-log div { background: rgba(0,0,0,.4); margin-top: 2px; padding: 2px 6px; border-radius: 6px; width: fit-content; }
+.chat-log .sys { color: #ffcc4d; }
+.chat-form { position: absolute; left: 8px; right: 8px; bottom: 140px; }
+.chat-form input { width: 100%; padding: 10px; border-radius: 10px; border: none; font-size: 16px; background: #1d2533; color: #fff; }
+.round { border: none; border-radius: 50%; color: #fff; font-size: 22px; }
+.small-btn {
+  position: absolute; width: 40px; height: 40px; background: rgba(10,14,22,.72);
+  top: calc(118px + env(safe-area-inset-top));
+}
+#chatBtn { right: 8px; }
+#exitBtn { right: 56px; }
+.joystick {
+  position: absolute; left: 24px; bottom: calc(28px + env(safe-area-inset-bottom));
+  width: 120px; height: 120px; border-radius: 50%;
+  background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.2);
+}
+#stick {
+  position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px;
+  border-radius: 50%; background: rgba(255,255,255,.35);
+}
+.attack {
+  position: absolute; right: 24px; bottom: calc(36px + env(safe-area-inset-bottom));
+  width: 86px; height: 86px; font-size: 36px;
+  background: radial-gradient(circle at 35% 30%, #ff7a6b, #a8231a); box-shadow: 0 4px 12px rgba(0,0,0,.5);
+}
+.attack:active, .attack.pressed { transform: scale(.93); }
+
+.overlay {
+  position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(60, 0, 0, .55); text-align: center;
+}
