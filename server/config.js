@@ -9,19 +9,22 @@ module.exports = {
   CLASSES: {
     warrior: {
       name: 'Воин',
-      desc: 'Много здоровья, бьёт мечом вблизи',
+      role: 'Танк · ближний бой', difficulty: 1,
+      desc: 'Закован в броню и не боится толпы монстров. Рубит мечом всех, кто подойдёт близко.',
       hp: 160, dmg: 20, range: 56, cooldown: 650, speed: 150,
       color: 0xd9534f, projectile: null,
     },
     mage: {
       name: 'Маг',
-      desc: 'Огненные шары издалека, мало здоровья',
+      role: 'Маг · дальний бой', difficulty: 3,
+      desc: 'Сжигает врагов огненными шарами с большого расстояния. Мощный, но хрупкий.',
       hp: 95, dmg: 30, range: 230, cooldown: 1100, speed: 140,
       color: 0x5b7cfa, projectile: 'fireball',
     },
     archer: {
       name: 'Лучник',
-      desc: 'Быстрый, частые выстрелы из лука',
+      role: 'Стрелок · дальний бой', difficulty: 2,
+      desc: 'Самый быстрый герой. Держит дистанцию и осыпает врагов градом стрел.',
       hp: 115, dmg: 15, range: 270, cooldown: 550, speed: 170,
       color: 0x3fa34d, projectile: 'arrow',
     },

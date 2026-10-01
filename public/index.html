@@ -14,7 +14,12 @@
   <div id="select" class="screen">
     <h1>⚔️ Telegram Quest</h1>
     <p class="subtitle">Выбери героя</p>
-    <div id="classes" class="classes"></div>
+    <div class="carousel">
+      <button id="prevHero" class="car-arrow left" aria-label="Предыдущий герой">‹</button>
+      <div id="classes" class="car-track"></div>
+      <button id="nextHero" class="car-arrow right" aria-label="Следующий герой">›</button>
+    </div>
+    <div id="carDots" class="car-dots"></div>
     <input id="guestName" maxlength="16" placeholder="Имя героя" />
     <button id="playBtn" class="btn-primary" disabled>В бой!</button>
     <p id="status" class="status"></p>
