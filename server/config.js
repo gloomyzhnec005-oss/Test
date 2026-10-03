@@ -13,8 +13,25 @@ module.exports = {
     legendary: { name: 'Легендарный', weight: 5,  color: '#ffb340' },
   },
 
-  // Гача: первая крутка бесплатная, дальше — за Telegram Stars
-  GACHA: { spinPrice: 25 },
+  // Гача: первая крутка бесплатная, дальше — за Telegram Stars.
+  // Выпавший повторно герой — дубликат: +5% к здоровью и урону за копию (до 10) и раньше открывает умения
+  GACHA: { spinPrice: 25, heroDupeMax: 10 },
+  // Умения героя открываются постепенно: по уровню ИЛИ по числу дубликатов
+  SKILL_UNLOCK: [{ lvl: 1, dup: 0 }, { lvl: 8, dup: 1 }, { lvl: 18, dup: 3 }],
+  // Добыча с монстров: шанс предмета и веса редкостей по миру (1–3). Боссы роняют 2 предмета без обычных
+  DROPS: {
+    chance: 0.06,
+    weights: {
+      1: { common: 72, rare: 23, epic: 4.4, legendary: 0.55, mythic: 0.05 },
+      2: { common: 50, rare: 35, epic: 12, legendary: 2.6, mythic: 0.4 },
+      3: { common: 30, rare: 40, epic: 22, legendary: 6.5, mythic: 1.5 },
+    },
+    boss: {
+      1: { rare: 70, epic: 25, legendary: 4.6, mythic: 0.4 },
+      2: { rare: 50, epic: 37, legendary: 11, mythic: 2 },
+      3: { rare: 30, epic: 45, legendary: 20, mythic: 5 },
+    },
+  },
 
   // Уникальные герои. У каждого своё имя, оружие, ресурс и умение (skill.id обрабатывается в server/skills.js).
   // look — параметры процедурного спрайта (public/js/textures.js)

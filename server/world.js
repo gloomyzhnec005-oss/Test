@@ -74,12 +74,14 @@ const PLACES = {
   auction: { name: 'Аукционный дом', icon: '🏛️' },
   market: { name: 'Рынок', icon: '🏪' },
   events: { name: 'Доска событий', icon: '📜' },
+  arena: { name: 'PvP-арена', icon: '🏟️' },
+  survival: { name: 'Данж выживания', icon: '💀' },
 };
 // Здания: левый верхний тайл, размер 4×3, дверь снизу посередине
 const BUILDINGS = [
   ['warehouse', 3, 9], ['equip', 3, 15], ['alchemy', 3, 21], ['smith', 3, 27],
   ['auction', 41, 9], ['market', 41, 15], ['runes', 41, 21], ['trainer', 41, 27],
-  ['gacha', 15, 31], ['events', 29, 31],
+  ['gacha', 15, 31], ['events', 29, 31], ['arena', 13, 10], ['survival', 31, 10],
 ];
 const TOWN_W = 48, TOWN_H = 40;
 
@@ -200,6 +202,26 @@ function buildWorld() {
     });
   });
 
+  // Данж выживания: отдельная копия арены на каждый заход (игрок или группа)
+  let instSeq = 1;
+  const addSurvival = (townId) => {
+    const town = byId.get(townId);
+    const W = 30, H = 30, tiles = new Array(W * H).fill(T.PLAZA);
+    const rand = mulberry32(instSeq * 31);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const d = Math.hypot(x - 14.5, y - 14.5);
+      if (d > 13.5) tiles[y * W + x] = T.ROCK;
+      else if (d > 11) tiles[y * W + x] = T.DIRT;
+      else if (d > 4 && rand() < 0.035) tiles[y * W + x] = T.ROCK; // укрытия
+    }
+    const z = add({ id: `surv${instSeq++}`, kind: 'survival', name: 'Данж выживания', sub: `${town.name} · волны монстров`, theme: town.theme, tier: town.tier,
+      w: W, h: H, tiles, spawnTile: { tx: 15, ty: 15 }, town: townId, objs: [], power: TIER_POWER[town.tier] });
+    const back = z.abs(15, 13);
+    z.objs.push({ id: 'back', kind: 'portal', to: townId, name: `Выйти в ${town.name}`, icon: '🏰', x: back.x, y: back.y });
+    return z;
+  };
+  const removeZone = (z) => { byId.delete(z.id); zones[z.idx] = null; };
+
   const zoneAtX = (px) => zones[Math.floor(px / ZONE_STRIDE)] || null;
   const isSolidAt = (px, py) => {
     const z = zoneAtX(px);
@@ -221,7 +243,7 @@ function buildWorld() {
   const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
     town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, solid: [...SOLID] });
 
-  return { zones, byId, zoneAtX, isSolidAt, freeSpot, payload, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level })) };
+  return { zones, byId, zoneAtX, isSolidAt, freeSpot, payload, addSurvival, removeZone, TIER_POWER, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level })) };
 }
 
 module.exports = { buildWorld, T, SOLID: [...SOLID], ZONE_STRIDE, PLACES };

@@ -241,8 +241,9 @@ window.Lobby = (() => {
   function gachaSheet() {
     const box = document.createElement('div');
     box.className = 'gacha';
-    // Реальные шансы: сумма весов ещё не полученных героев каждой редкости
-    const pool = Object.keys(heroes).filter((id) => !profile.heroes.includes(id));
+    // Реальные шансы: все герои, кроме собранных полностью (10 дубликатов)
+    const dupes = (id) => (profile.chars[id] || {}).dupes || 0;
+    const pool = Object.keys(heroes).filter((id) => !profile.heroes.includes(id) || dupes(id) < (profile.dupeMax || 10));
     const total = pool.reduce((s, id) => s + rarityOf(id).weight, 0);
     const chances = Object.entries(rarities)
       .map(([key, r]) => [r, pool.filter((id) => heroes[id].rarity === key).reduce((s, id) => s + r.weight, 0)])
@@ -252,7 +253,7 @@ window.Lobby = (() => {
     box.innerHTML = `
       <div class="reel-wrap"><div class="reel-marker"></div><div id="reel" class="reel"></div></div>
       <button id="spinBtn" class="l2-btn spin-btn" ${disabled ? 'disabled' : ''}>${label}</button>
-      <p class="sheet-hint">Каждый герой уникален: своё имя, оружие и умения. Повторов нет — выпадают только новые герои. Шансы — для героев, которых у вас ещё нет.</p>
+      <p class="sheet-hint">Каждый герой уникален: своё имя, оружие и умения. Повторно выпавший герой — дубликат: +5% к здоровью и урону (до 10 копий) и раньше открытые умения.</p>
       <p class="chances">${chances}</p>
       <div class="sheet-sub">Все герои · получено ${profile.heroes.length} из ${Object.keys(heroes).length}</div>
       <div class="hero-grid"></div>`;
@@ -266,7 +267,7 @@ window.Lobby = (() => {
       card.style.setProperty('--rarity', r.color);
       card.style.setProperty('--hero', hex(h.color));
       card.appendChild(heroCanvas(id));
-      const lvl = owned ? `Ур. ${(profile.chars[id] || {}).level || 1}` : '🔒';
+      const lvl = owned ? `Ур. ${(profile.chars[id] || {}).level || 1}${dupes(id) ? ` ★${dupes(id)}` : ''}` : '🔒';
       card.insertAdjacentHTML('beforeend', `<b>${h.name}</b><span>${r.name}</span><em>${lvl}</em>`);
       card.onclick = () => (owned ? (select(id), closeSheet()) : showHeroInfo(id, false));
       grid.appendChild(card);
@@ -336,7 +337,7 @@ window.Lobby = (() => {
       opts.store.set('lastHero', data.hero);
       buildStage();
       haptic('notificationOccurred', 'success');
-      showHeroInfo(data.hero, true);
+      showHeroInfo(data.hero, true, data.dupe);
     }, 4400);
   }
 
@@ -357,7 +358,7 @@ window.Lobby = (() => {
   }
 
   // Карточка героя: после призыва (isNew) или при просмотре ещё не полученного
-  function showHeroInfo(id, isNew) {
+  function showHeroInfo(id, isNew, dupe = 0) {
     const h = heroes[id], r = rarityOf(id);
     const box = $('reveal');
     box.style.setProperty('--rarity', r.color);
@@ -367,7 +368,7 @@ window.Lobby = (() => {
     // У оборотня тип боя свой в каждом облике
     const atk = h.forms ? Object.values(h.forms).map((f) => `${f.name.toLowerCase()}: ${rangeLabel(f.range)}`).join(', ') : rangeLabel(h.range);
     box.querySelector('.reveal-card').innerHTML = `
-      ${isNew ? '<div class="reveal-new">Новый герой!</div>' : ''}
+      ${dupe ? `<div class="reveal-new">Дубликат! ★${dupe} — +${dupe * 5}% к статам</div>` : isNew ? '<div class="reveal-new">Новый герой!</div>' : ''}
       <div class="reveal-rarity">${r.name}</div>
       <div class="reveal-art"></div>
       <h2>${h.name}</h2>
@@ -501,5 +502,6 @@ window.Lobby = (() => {
     setBusy: (b) => { $('playBtn').disabled = b; },
     hide: () => { running = false; $('lobby').classList.add('hidden'); },
     openGacha: () => openGacha(),
+    api: (url, body) => api(url, body),
   };
 })();

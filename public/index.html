@@ -74,10 +74,16 @@
     <form id="chatForm" class="chat-form hidden"><input id="chatInput" maxlength="120" placeholder="Сообщение..." /></form>
     <button id="chatBtn" class="round small-btn">💬</button>
     <button id="exitBtn" class="round small-btn">🏠</button>
-    <!-- Только в городе: события и призыв -->
+    <button id="bagBtn" class="round small-btn">🎒</button>
+    <button id="partyBtn" class="round small-btn">👥</button>
+    <div id="partyFrame" class="party-frame hidden"></div>
+    <div id="waveBadge" class="wave-badge hidden"></div>
+    <!-- Только в городе: события, призыв, пропуск, магазин -->
     <div id="townBar" class="town-bar hidden">
       <button id="evBtn" class="town-btn"><span>📜</span><em>События</em></button>
       <button id="gachaBtn" class="town-btn"><span>🎰</span><em>Призыв</em></button>
+      <button id="passBtn" class="town-btn"><span>🎟️</span><em>Пропуск</em></button>
+      <button id="storeBtn" class="town-btn"><span>💎</span><em>Магазин</em></button>
     </div>
     <div id="zoneBanner" class="zone-banner hidden"><b></b><small></small></div>
     <button id="actBtn" class="act-btn hidden"></button>
@@ -100,6 +106,12 @@
     <!-- Карточка героя (после призыва) -->
     <div id="reveal" class="reveal hidden"><div class="reveal-rays"></div><div class="reveal-card l2-panel"></div></div>
     <div id="toast" class="toast hidden"></div>
+    <!-- Карточка предмета -->
+    <div id="itemCard" class="item-card-wrap hidden"><div class="l2-panel item-card"></div></div>
+    <!-- Приглашение в группу -->
+    <div id="partyInvite" class="item-card-wrap hidden"><div class="l2-panel item-card"><b></b><div class="ic-btns"><button class="l2-btn" id="piYes">Вступить</button><button class="l2-btn ghost" id="piNo">Отказаться</button></div></div></div>
+    <!-- Реклама (заглушка) -->
+    <div id="adOverlay" class="ad-overlay hidden"><div>📺 Реклама</div><small>Здесь будет ролик рекламной сети</small><b>15</b></div>
   </div>
 
   <div id="deathScreen" class="overlay hidden">
@@ -111,6 +123,7 @@
   <script src="js/backgrounds.js"></script>
   <script src="js/lobby.js"></script>
   <script src="js/town.js"></script>
+  <script src="js/bag.js"></script>
   <script src="js/game.js"></script>
   <script src="js/main.js"></script>
 </body>

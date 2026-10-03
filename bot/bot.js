@@ -29,7 +29,7 @@ module.exports = function startBot({ onPaid, isValidPayload } = {}) {
   });
   bot.on('successful_payment', (ctx) => {
     const payload = ctx.message.successful_payment.invoice_payload;
-    if (onPaid && onPaid(payload)) return ctx.reply('Покупка получена! Новый фон уже доступен в лобби.', playButton());
+    if (onPaid && onPaid(payload)) return ctx.reply('Покупка получена! Она уже доступна в игре.', playButton());
     console.error('Неизвестная оплата:', payload);
   });
 

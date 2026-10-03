@@ -90,7 +90,7 @@ window.Gfx = (() => {
   }
 
   // Здания города (128×112): основание 4×3 тайла + крыша над ним. Вид зависит от места и мира.
-  const ROOFS = { warehouse: '#8a5a2a', equip: '#a03a2a', alchemy: '#3a7a5a', smith: '#4a4a52', runes: '#3a5aa0', trainer: '#7a3a8a', auction: '#b08a2a', market: '#c0603a' };
+  const ROOFS = { warehouse: '#8a5a2a', equip: '#a03a2a', alchemy: '#3a7a5a', smith: '#4a4a52', runes: '#3a5aa0', trainer: '#7a3a8a', auction: '#b08a2a', market: '#c0603a', arena: '#9a2a2a', survival: '#3a3a3a' };
   function building(place, theme = 'green') {
     const [c, ctx] = canvas(128, 112);
     const wall = { green: '#e8d8b0', abyss: '#3a3040', sky: '#fffaf0' }[theme];
@@ -146,6 +146,8 @@ window.Gfx = (() => {
     if (place === 'alchemy') { circle(ctx, 30, 98, 5, '#7ad84a'); circle(ctx, 42, 100, 4, '#c070ff'); circle(ctx, 98, 98, 5, '#ff6a8a'); }
     if (place === 'runes') { rect(ctx, 61, 20, 6, 16, glow); rect(ctx, 56, 26, 16, 3, glow); }
     if (place === 'warehouse') { rect(ctx, 92, 90, 16, 16, '#8a6a3a'); rect(ctx, 92, 97, 16, 2, '#5a3a1a'); rect(ctx, 18, 92, 14, 14, '#8a6a3a'); }
+    if (place === 'arena') { rect(ctx, 54, 18, 20, 4, '#e8d070'); rect(ctx, 50, 14, 4, 12, '#c0c8d0'); rect(ctx, 74, 14, 4, 12, '#c0c8d0'); }
+    if (place === 'survival') { circle(ctx, 64, 26, 8, '#e8e2cc'); rect(ctx, 60, 24, 3, 3, '#1a1a1a'); rect(ctx, 66, 24, 3, 3, '#1a1a1a'); rect(ctx, 61, 30, 6, 2, '#1a1a1a'); }
     if (place === 'trainer') { circle(ctx, 64, 26, 9, glow); rect(ctx, 63, 18, 2, 16, beam); }
     return c;
   }

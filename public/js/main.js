@@ -103,6 +103,8 @@
     $('kills').textContent = s.kills;
     $('dmg').textContent = s.dmg;
     if (s.form !== undefined || s.formKeys) applyForm(s);
+    // Закрытые умения (откроются с уровнем или дубликатами)
+    if (s.unlocked !== undefined) for (const btn of Object.values(skillBtns)) btn.el.classList.toggle('locked', btn.idx >= s.unlocked);
     if (passiveDef) {
       const parts = [];
       const sg = (v) => (v > 0 ? '+' + v : '−' + Math.abs(v));
@@ -171,7 +173,7 @@
       b.addEventListener('pointerup', up);
       b.addEventListener('pointerleave', up);
       box.appendChild(b);
-      skillBtns[sk.id] = { el: b, cd: b.querySelector('.sk-cd'), timer: 0, sk };
+      skillBtns[sk.id] = { el: b, cd: b.querySelector('.sk-cd'), timer: 0, sk, idx: i };
     });
   }
   function startSkillCd(id, ms, total = ms) {
@@ -232,7 +234,56 @@
       setStats(w.stats);
       let zone = w.zone;
       buildMinimap(zone);
-      Town.setContext({ socket, towns: w.towns, hero, onGacha: () => Lobby.openGacha() });
+      Town.setContext({ socket, towns: w.towns, hero, heroes: w.heroes, skillUnlock: w.skillUnlock, onGacha: () => Lobby.openGacha(), api: Lobby.api, tg });
+      Bag.init({ socket });
+      $('bagBtn').onclick = () => Bag.open();
+      $('passBtn').onclick = () => Town.openPlace('pass');
+      $('storeBtn').onclick = () => Town.openPlace('store');
+      // ---------- Группа ----------
+      let party = null, inviteId = null;
+      const renderParty = () => {
+        const f = $('partyFrame');
+        f.classList.toggle('hidden', !party);
+        if (party) f.innerHTML = party.members.map((m) => `<div>${m.id === party.leader ? '👑 ' : ''}${m.name} <small>${m.hero} · ${m.lvl} · ${m.zone}</small></div>`).join('');
+      };
+      socket.on('party', (p) => { party = p; renderParty(); });
+      socket.on('partyInvite', (d) => {
+        inviteId = d.id;
+        const box = $('partyInvite');
+        box.querySelector('b').textContent = `👥 ${d.from} приглашает вас в группу`;
+        box.classList.remove('hidden');
+        vibrate('medium');
+      });
+      $('piYes').onclick = () => { socket.emit('party', { op: 'accept', id: inviteId }); $('partyInvite').classList.add('hidden'); };
+      $('piNo').onclick = () => $('partyInvite').classList.add('hidden');
+      $('partyBtn').onclick = () => {
+        const box = document.createElement('div');
+        const me = socket.id;
+        box.innerHTML = `<p class="sheet-hint">Группа до 4 игроков: общий опыт (70% каждому рядом), добыча с боссов — каждому, данж выживания — вместе.</p>
+          ${party ? `<div class="ic-sec">Ваша группа</div>${party.members.map((m) => `<div class="tw-ev"><div><b>${m.id === party.leader ? '👑 ' : ''}${m.name}</b><small>${m.hero} · ур. ${m.lvl} · ${m.zone}</small></div></div>`).join('')}
+            <button class="l2-btn wide" id="pLeave">Покинуть группу</button>` : ''}
+          <div class="ic-sec">Игроки рядом</div>`;
+        const near = window.gameScene ? [...window.gameScene.players.values()].map((e) => e.data).filter((d) => d && d.id !== me) : [];
+        if (!near.length) box.insertAdjacentHTML('beforeend', '<div class="tw-soon">В этой зоне больше никого нет</div>');
+        for (const d of near) {
+          const inParty = party && party.members.some((m) => m.id === d.id);
+          const row = document.createElement('div');
+          row.className = 'tw-ev';
+          row.innerHTML = `<div><b>${d.name}</b><small>${w.heroes[d.hero].name} · ур. ${d.lvl}</small></div><button class="l2-btn" ${inParty ? 'disabled' : ''}>${inParty ? 'В группе' : 'Пригласить'}</button>`;
+          row.querySelector('button').onclick = () => { socket.emit('party', { op: 'invite', target: d.id }); Town.close(); };
+          box.append(row);
+        }
+        const lv = box.querySelector('#pLeave');
+        if (lv) lv.onclick = () => { socket.emit('party', { op: 'leave' }); Town.close(); };
+        Town.open('👥 Группа', box);
+      };
+      // ---------- Данж выживания: номер волны ----------
+      socket.on('survival', (d) => {
+        const b = $('waveBadge');
+        b.textContent = `💀 Волна ${d.wave}${d.boss ? ' · ДРАКОН!' : ''}`;
+        b.classList.remove('hidden');
+        hudToast(`Волна ${d.wave}!`);
+      });
       // Кнопка действия рядом со зданием, порталом или телепортом
       let near = null;
       $('actBtn').onclick = () => {
@@ -249,7 +300,8 @@
           buildMinimap(z);
           Town.setContext({ zone: z });
           Town.close();
-          $('townBar').classList.toggle('hidden', z.kind !== 'town'); // события и призыв — только в городе
+          $('townBar').classList.toggle('hidden', z.kind !== 'town'); // события, призыв, пропуск, магазин — только в городе
+          if (z.kind !== 'survival') $('waveBadge').classList.add('hidden');
           const b = $('zoneBanner');
           b.querySelector('b').textContent = z.name;
           b.querySelector('small').textContent = z.kind === 'town' ? `${z.sub} · уровень ${z.level}` : z.sub;

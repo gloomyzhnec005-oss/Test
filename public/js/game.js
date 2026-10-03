@@ -575,6 +575,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (e) { this.floatText(e.c.x, e.c.y - 30, '+🛡 ' + f.amount, '#8ad3ff', 12); this.ring(e.c.x, e.c.y, 26, 0x8ad3ff, 500, 3); }
     } else if (f.t === 'petGone') {
       this.burst(f.x, f.y, 0x5fffb0, 10);
+    } else if (f.t === 'loot') {
+      // Выпавший предмет: название цветом редкости
+      this.floatText(f.x, f.y - 46, f.name, f.color, 13);
+      this.burst(f.x, f.y, parseInt(f.color.slice(1), 16), 14);
+      if (f.to === this.myId) this.ui.vibrate('success');
     } else if (f.t === 'miss') {
       this.floatText(f.x, f.y - 30, 'Промах', '#e8d49a', 11);
     } else if (f.t === 'dodge') {

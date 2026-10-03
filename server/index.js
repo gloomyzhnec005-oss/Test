@@ -10,6 +10,8 @@ const { buildWorld, ZONE_STRIDE } = require('./world');
 const { verifyInitData } = require('./auth');
 const { SKILLS, PASSIVES, NEEDS_TARGET, skillRange } = require('./skills');
 const { createPets, createSummon, rescalePets, updatePets, hurtPet } = require('./pets');
+const I = require('./items');
+const createMeta = require('./meta');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
@@ -34,6 +36,12 @@ function getProfile(uid) {
   pr.bgs ??= [];
   pr.paidSpins ??= 0;
   pr.freeSpinUsed ??= false;
+  // Предметы, экипировка, дубликаты героев, кошелёк аккаунта
+  pr.items ??= [];
+  pr.equip ??= {};
+  pr.heroDupes ??= {};
+  pr.itemSpins ??= 0;
+  if (pr.gold === undefined) pr.gold = Object.values(pr.chars).reduce((sum, c) => sum + (c.gold || 0), 0);
   // Удалённые из игры герои пропадают из профиля; если не осталось ни одного — возвращаем бесплатную крутку
   const before = pr.heroes.length;
   pr.heroes = pr.heroes.filter((id) => C.HEROES[id]);
@@ -58,12 +66,12 @@ function profileView(who) {
   const chars = {};
   for (const id of pr.heroes) {
     const ch = getChar(who.uid, id);
-    chars[id] = { ...ch, xpNext: xpForLevel(ch.level), ...statsFor(id, ch.level) };
+    chars[id] = { ...ch, xpNext: xpForLevel(ch.level), ...statsFor(id, ch.level, pr), dupes: pr.heroDupes[id] || 0, unlocked: unlockedSkills(pr, id) };
   }
   const bgs = C.LOBBY_BACKGROUNDS.filter((b) => b.price === 0 || pr.bgs.includes(b.id)).map((b) => b.id);
   return {
     name: who.name, heroes: pr.heroes, chars, bgs,
-    freeSpin: !pr.freeSpinUsed || FREE_SPINS, paidSpins: pr.paidSpins, spinPrice: C.GACHA.spinPrice,
+    freeSpin: !pr.freeSpinUsed || FREE_SPINS, paidSpins: pr.paidSpins, spinPrice: C.GACHA.spinPrice, gold: pr.gold, dupeMax: C.GACHA.heroDupeMax,
   };
 }
 app.post('/api/profile', (req, res) => {
@@ -79,8 +87,9 @@ app.post('/api/gacha/spin', (req, res) => {
   const who = resolveUid(initData, guestId);
   if (!who) return res.status(403).json({ error: 'Откройте игру через Telegram-бота' });
   const pr = getProfile(who.uid);
-  const pool = Object.keys(C.HEROES).filter((id) => !pr.heroes.includes(id));
-  if (!pool.length) return res.status(400).json({ error: 'Все герои уже получены' });
+  // В пуле все герои: новый — открывается, уже полученный — становится дубликатом (до 10 копий)
+  const pool = Object.keys(C.HEROES).filter((id) => !pr.heroes.includes(id) || (pr.heroDupes[id] || 0) < C.GACHA.heroDupeMax);
+  if (!pool.length) return res.status(400).json({ error: 'Все герои собраны полностью' });
   if (FREE_SPINS || !pr.freeSpinUsed) pr.freeSpinUsed = true;
   else if (pr.paidSpins > 0) pr.paidSpins -= 1;
   else return res.status(402).json({ error: 'Нет круток', needPayment: true });
@@ -89,24 +98,37 @@ app.post('/api/gacha/spin', (req, res) => {
   let roll = Math.random() * pool.reduce((sum, id) => sum + weight(id), 0);
   let hero = pool[pool.length - 1];
   for (const id of pool) { roll -= weight(id); if (roll < 0) { hero = id; break; } }
-  pr.heroes.push(hero);
+  let dupe = 0;
+  if (pr.heroes.includes(hero)) { dupe = pr.heroDupes[hero] = (pr.heroDupes[hero] || 0) + 1; refreshUid(who.uid); }
+  else pr.heroes.push(hero);
   getChar(who.uid, hero);
+  meta.addPassXp(pr, 10);
   saveProfiles();
-  res.json({ hero, profile: profileView(who) });
+  res.json({ hero, dupe, profile: profileView(who) });
 });
 app.get('/api/config', (req, res) => res.json({
-  heroes: C.HEROES, rarities: C.RARITIES, monsters: C.MONSTERS, backgrounds: C.LOBBY_BACKGROUNDS, gacha: C.GACHA,
+  heroes: C.HEROES, rarities: C.RARITIES, monsters: C.MONSTERS, backgrounds: C.LOBBY_BACKGROUNDS, gacha: C.GACHA, skillUnlock: C.SKILL_UNLOCK,
 }));
 
 // Покупки за Telegram Stars: фон лобби (item=bg) или крутка гачи (item=spin)
 let bot = null;
 app.post('/api/invoice', async (req, res) => {
-  const { initData, item, bgId } = req.body || {};
+  const { initData, guestId, item, bgId } = req.body || {};
+  // DEV_PAYMENTS=true — тестовый режим: покупка зачисляется сразу, без Telegram
+  if (process.env.DEV_PAYMENTS === 'true') {
+    const w = resolveUid(initData, guestId);
+    if (!w) return res.status(403).json({ error: 'Нет игрока' });
+    const ok = onPaid(item === 'bg' ? `bg:${w.uid}:${bgId}` : `${item}:${w.uid}`);
+    return ok ? res.json({ devPaid: true }) : res.status(400).json({ error: 'Неизвестный товар' });
+  }
   const who = resolveUid(initData, null);
   if (!who || !who.tg) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   if (!bot) return res.status(503).json({ error: 'Оплата временно недоступна' });
   let invoice;
-  if (item === 'spin') {
+  if (meta.INVOICES[item]) {
+    const v = meta.INVOICES[item];
+    invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
+  } else if (item === 'spin') {
     invoice = { title: 'Крутка призыва героя', description: 'Призыв случайного нового героя', payload: `spin:${who.uid}`,
       prices: [{ label: 'Крутка', amount: C.GACHA.spinPrice }] };
   } else {
@@ -128,7 +150,7 @@ app.post('/api/invoice', async (req, res) => {
 function isValidPayload(payload) {
   const [kind, uid, id] = String(payload).split(':');
   if (!uid) return false;
-  if (kind === 'spin') return true;
+  if (kind === 'spin' || meta.INVOICES[kind]) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
 }
 function onPaid(payload) {
@@ -136,6 +158,7 @@ function onPaid(payload) {
   const [kind, uid, id] = String(payload).split(':');
   const pr = getProfile(uid);
   if (kind === 'spin') pr.paidSpins += 1;
+  else if (meta.INVOICES[kind]) { meta.onPaid(kind, pr); refreshUid(uid); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
   else if (!pr.bgs.includes(id)) pr.bgs.push(id);
   saveProfiles();
   return true;
@@ -153,6 +176,13 @@ const pets = new Map(); // id -> зверь-спутник (Урсус)
 let monsterSeq = 1;
 let fx = []; // события за тик (удары, снаряды, смерти)
 
+// Мета-игра: предметы, рынок, аукцион, батл-пасс, подписка, арена (server/meta.js)
+const meta = createMeta({
+  C, getProfile, saveProfiles, players, profiles,
+  refreshPlayer: (p) => refreshPlayer(p), notifyUid: (uid, t) => notifyUid(uid, t),
+  statsFor: (...a) => statsFor(...a), unlockedSkills: (...a) => unlockedSkills(...a),
+});
+
 // Определяет игрока: Telegram (подпись initData) или гость
 function resolveUid(initData, guestId) {
   const tgUser = verifyInitData(initData, BOT_TOKEN);
@@ -165,14 +195,35 @@ function resolveUid(initData, guestId) {
 }
 
 const xpForLevel = (lvl) => Math.round(40 * Math.pow(lvl, 1.6));
-const statsFor = (heroId, lvl) => {
+// Статы героя: уровень + экипировка (pr.equip) + дубликаты героя (+5% за копию)
+const statsFor = (heroId, lvl, pr = null) => {
   const b = C.HEROES[heroId];
+  const g = pr ? I.gearStats(pr) : {};
+  const dk = 1 + I.DUPE_STEP * ((pr && pr.heroDupes && pr.heroDupes[heroId]) || 0);
   return {
-    maxHp: Math.round(b.hp * (1 + 0.12 * (lvl - 1))),
-    dmg: Math.round(b.dmg * (1 + 0.1 * (lvl - 1))),
+    maxHp: Math.round((b.hp * (1 + 0.12 * (lvl - 1)) + (g.hp || 0)) * (1 + (g.hpP || 0) / 100) * dk),
+    dmg: Math.round((b.dmg * (1 + 0.1 * (lvl - 1)) + (g.atk || 0)) * (1 + (g.atkP || 0) / 100) * dk),
     resMax: Math.round(b.resource.max * (1 + 0.05 * (lvl - 1))),
   };
 };
+// Сколько умений героя открыто: по уровню или по дубликатам (C.SKILL_UNLOCK)
+function unlockedSkills(pr, heroId) {
+  const lvl = (pr.chars[heroId] || { level: 1 }).level, dup = (pr.heroDupes || {})[heroId] || 0;
+  return Math.min(C.HEROES[heroId].skills.length, C.SKILL_UNLOCK.filter((u) => lvl >= u.lvl || dup >= u.dup).length);
+}
+// Пересчёт статов игрока после смены экипировки, уровня или дубликатов
+function refreshPlayer(p) {
+  const pr = getProfile(p.uid);
+  p.gear = I.gearStats(pr);
+  const k = p.hp / (p.maxHp || 1);
+  Object.assign(p, statsFor(p.heroId, p.char.level, pr));
+  p.hp = Math.min(p.maxHp, Math.max(1, Math.round(p.maxHp * k)));
+  p.unlocked = unlockedSkills(pr, p.heroId);
+  if (p.pets) rescalePets(p);
+  markDirty(p);
+}
+const refreshUid = (uid) => { for (const p of players.values()) if (p.uid === uid) refreshPlayer(p); };
+const notifyUid = (uid, text) => { for (const p of players.values()) if (p.uid === uid) p.socket.emit('chat', { sys: true, text }); };
 // Усиления урона и скорости атаки: временные эффекты навыков и пассивные навыки
 const startRes = (p) => (p.hero.resource.start ?? 1) * p.resMax;
 // Текущий облик героя (Талиесин): свои дальность, скорость атаки, бег и снаряд
@@ -191,7 +242,7 @@ const dmgMult = (p, now = Date.now()) => {
 };
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (p.blessUntil > now ? 1.2 : 1) * (p.songUntil > now ? 1 + 0.1 * (p.songPw || 1) : 1) * (p.hasteUntil > now ? 1.25 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
+  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (p.blessUntil > now ? 1.2 : 1) * (p.songUntil > now ? 1 + 0.1 * (p.songPw || 1) : 1) * (p.hasteUntil > now ? 1.25 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1) * (1 + ((p.gear && p.gear.aspd) || 0) / 100);
   return Math.round(formOf(p).cooldown / speed * (p.stoneArmorUntil > now ? 1.3 : 1)); // каменная броня Эмета замедляет
 };
 
@@ -209,10 +260,14 @@ function pickMonsterType(mix) {
 function spawnMonster(z, type = pickMonsterType(z.mix)) {
   const def = C.MONSTERS[type];
   const p = world.freeSpot(z, def.boss ? 20 : 7, Math.min(z.w, z.h) / 2 - 3);
-  const hp = Math.round(def.hp * z.power.hp);
+  return createMonster(z, type, p, 1, 1);
+}
+function createMonster(z, type, p, hpK, dmgK, extra = {}) {
+  const def = C.MONSTERS[type];
+  const hp = Math.round(def.hp * z.power.hp * hpK);
   const m = {
     id: monsterSeq++, type, x: p.x, y: p.y, homeX: p.x, homeY: p.y, zone: z.id, tier: z.tier,
-    dmgMult: z.power.dmg, xpMult: z.power.xp,
+    dmgMult: z.power.dmg * dmgK, xpMult: z.power.xp, ...extra,
     hp, maxHp: hp, target: null, lastAttack: 0, undead: !!def.undead, boss: !!def.boss,
     wander: null, nextWander: 0, stunUntil: 0, rootUntil: 0, dots: [],
   };
@@ -244,6 +299,7 @@ function moveToZone(p, zoneId, pos) {
   if (!z) return;
   if (p.zone) p.socket.leave('z:' + p.zone);
   p.zone = z.id;
+  p.zoneTier = z.tier;
   p.socket.join('z:' + z.id);
   wakeZone(z);
   const at = pos || { x: z.spawn.x + (Math.random() - 0.5) * 48, y: z.spawn.y + (Math.random() - 0.5) * 24 };
@@ -287,13 +343,13 @@ function publicPlayer(p) {
 }
 function privateStats(p) {
   return { level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills,
-    gold: p.char.gold, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
+    gold: getProfile(p.uid).gold, unlocked: p.unlocked, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
     formKeys: p.potion ? { potion: p.potion, sign: p.sign } : p.rune ? { rune: p.rune } : p.facet ? { facet: p.facet } : null,
     passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '',
     shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0, haste: p.hasteUntil > Date.now(), rooted: p.rootSelfUntil > Date.now(),
-    flyBoost: (p.flyUntil > Date.now() ? 1 + 0.03 * (p.blessings || 0) : 1) * (p.stoneArmorUntil > Date.now() ? 0.7 : 1) };
+    flyBoost: (1 + ((p.gear && p.gear.ms) || 0) / 100) * (p.flyUntil > Date.now() ? 1 + 0.03 * (p.blessings || 0) : 1) * (p.stoneArmorUntil > Date.now() ? 0.7 : 1) };
 }
 // Статы отправляются не чаще 4 раз в секунду (см. игровой цикл)
 const markDirty = (p) => { p.dirty = true; };
@@ -313,7 +369,9 @@ function damageMonster(p, m, raw, opt = {}) {
   if (opt.basic && ps && ps.forceCrit && ps.forceCrit(p, m)) crit = true; // соколиный глаз Фаэлина
   // fixed — урон без множителей (отражённый урон Малакора)
   const dmg = opt.fixed ? Math.max(1, Math.round(raw))
-    : Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
+    : Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 + ((p.gear && p.gear.critDmg) || 0) / 100 : 1)
+      * (!opt.basic && !opt.pet && p.gear && p.gear.skill ? 1 + p.gear.skill / 100 : 1))); // сила умений с экипировки
+  if (p.gear && p.gear.ls && !opt.pet && !opt.fixed && p.hp < p.maxHp && !p.dead) { p.hp = Math.min(p.maxHp, p.hp + Math.min(dmg, m.hp) * p.gear.ls / 100); markDirty(p); } // вампиризм
   if (ps && ps.onDealt) ps.onDealt(skillCtx, p, Math.min(dmg, m.hp), Date.now()); // вампиризм Кельт'о
   // Кровавая связь Сангвейна: 35% урона передаётся остальным связанным монстрам
   if (!opt.shared && m.bondUntil > now0) {
@@ -340,10 +398,12 @@ function damageMonster(p, m, raw, opt = {}) {
     corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type });
     if (corpses.length > 40) corpses.shift();
     grantXp(p, xp, gold);
+    shareKill(p, m, xp);
+    dropLoot(p, m);
     if (ps && ps.onKill) ps.onKill(skillCtx, p, Date.now(), m);
     if (def.boss) io.emit('chat', { sys: true, text: `${p.name} победил босса «${def.name}»!` });
     const mz = world.byId.get(m.zone);
-    setTimeout(() => { if (activeHunts.has(mz.id)) spawnMonster(mz); }, C.MONSTER_RESPAWN_MS);
+    if (mz && mz.kind === 'hunt') setTimeout(() => { if (activeHunts.has(mz.id)) spawnMonster(mz); }, C.MONSTER_RESPAWN_MS);
   }
   return dmg;
 }
@@ -429,6 +489,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
   let dmg = raw * (target.hero.dmgTaken || 1) * (target.packUntil > now ? 0.65 : 1)
     * (target.pactUntil > now && target.pactType === 'stone' ? 0.6 : 1)
     * (target.blessUntil > now ? 0.8 : 1) * (target.holyAuraUntil > now ? target.holyAuraMult : 1) * (ps && ps.dmgTakenMult ? ps.dmgTakenMult(target) : 1)
+    * (1 - ((target.gear && target.gear.def) || 0) / 100) // защита с экипировки
     * (m && target.hero.fireImmune && C.MONSTERS[m.type] && C.MONSTERS[m.type].fire ? 0.3 : 1); // Кальдеро не боится огня
   // Обет защиты (Брендан): 40% урона союзника принимает на себя защитник, остальное союзнику −20%
   const guardian = !viaVow && target.vowUntil > now ? players.get(target.vowBy) : null;
@@ -504,10 +565,15 @@ const skillCtx = {
   pushFx: (f) => fx.push(f),
 };
 
-function grantXp(p, amount, gold) {
+function grantXp(p, amount, gold, shared = false) {
+  const pr = getProfile(p.uid), now = Date.now();
+  const sub = meta.isSub(pr) ? meta.SHOP.sub.xpBonus : 0;
+  amount = Math.round(amount * (1 + ((p.gear && p.gear.xp) || 0) / 100 + sub + ((pr.buffs || {}).xp > now ? 0.5 : 0)));
+  gold = Math.round(gold * (1 + ((p.gear && p.gear.gold) || 0) / 100 + sub));
   p.char.xp += amount;
   p.char.gold += gold;
-  p.char.kills += 1;
+  pr.gold += gold; // общий кошелёк аккаунта
+  if (!shared) p.char.kills += 1;
   let leveled = false;
   while (p.char.xp >= xpForLevel(p.char.level)) {
     p.char.xp -= xpForLevel(p.char.level);
@@ -515,8 +581,11 @@ function grantXp(p, amount, gold) {
     leveled = true;
   }
   if (leveled) {
-    Object.assign(p, statsFor(p.heroId, p.char.level));
+    Object.assign(p, statsFor(p.heroId, p.char.level, pr));
     p.hp = p.maxHp;
+    const before = p.unlocked;
+    p.unlocked = unlockedSkills(pr, p.heroId);
+    if (p.unlocked > before) p.socket.emit('chat', { sys: true, text: `Открыто новое умение: ${p.hero.skills[p.unlocked - 1].icon} ${p.hero.skills[p.unlocked - 1].name}!` });
     if (p.pets) rescalePets(p);
     p.res = p.resMax;
     fx.push({ t: 'levelup', id: p.id, x: p.x, y: p.y, lvl: p.char.level });
@@ -524,6 +593,116 @@ function grantXp(p, amount, gold) {
   }
   markDirty(p);
 }
+
+// ---------- Группы (кооператив) ----------
+const parties = new Map();
+let partySeq = 1;
+const partyOf = (p) => (p.party ? parties.get(p.party) : null);
+const partyMembers = (p) => { const pt = partyOf(p); return pt ? [...pt.members].map((id) => players.get(id)).filter(Boolean) : [p]; };
+function sendParty(pt) {
+  const list = [...pt.members].map((id) => players.get(id)).filter(Boolean)
+    .map((m) => ({ id: m.id, name: m.name, hero: m.hero.name, lvl: m.char.level, zone: world.byId.get(m.zone)?.name || '' }));
+  for (const m of list) players.get(m.id).socket.emit('party', { id: pt.id, leader: pt.leader, members: list });
+}
+function leaveParty(p) {
+  const pt = partyOf(p);
+  if (!pt) return;
+  pt.members.delete(p.id);
+  p.party = null;
+  p.socket.emit('party', null);
+  if (pt.members.size <= 1) {
+    for (const id of pt.members) { const o = players.get(id); if (o) { o.party = null; o.socket.emit('party', null); } }
+    parties.delete(pt.id);
+  } else {
+    if (pt.leader === p.id) pt.leader = [...pt.members][0];
+    sendParty(pt);
+  }
+}
+// Опыт за убийство делится с группой рядом (каждый получает 70%)
+function shareKill(killer, m, xp) {
+  for (const o of partyMembers(killer)) {
+    if (o === killer || o.dead || o.zone !== killer.zone || Math.hypot(o.x - m.x, o.y - m.y) > 900) continue;
+    grantXp(o, Math.round(xp * 0.7), 0, true);
+  }
+}
+// Добыча: обычный монстр — шанс предмета убийце; босс — 2 предмета каждому из группы рядом
+function dropLoot(killer, m) {
+  const def = C.MONSTERS[m.type], tier = m.tier || 1, boss = def.boss;
+  const receivers = boss ? partyMembers(killer).filter((o) => o.zone === killer.zone && Math.hypot(o.x - m.x, o.y - m.y) < 900) : [killer];
+  for (const o of receivers) {
+    const pr = getProfile(o.uid);
+    meta.addPassXp(pr, boss ? 20 : 1);
+    const luck = (pr.buffs || {}).luck > Date.now() ? 1.3 : 1;
+    const rolls = boss ? 2 : Math.random() < C.DROPS.chance * luck * (m.lootMult || 1) ? 1 : 0;
+    for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, boss ? C.DROPS.boss[tier] : C.DROPS.weights[tier]), m);
+  }
+}
+function giveLoot(o, pr, item, at) {
+  const res = meta.grant(pr, item);
+  const v = I.itemView(res.item);
+  if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}${res.dupe ? ' ⇧' : ''}`, color: v.color });
+  o.socket.emit('chat', { sys: true, text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
+  if (res.dupe && Object.values(pr.equip).includes(res.item.id)) refreshPlayer(o);
+  return v;
+}
+
+// ---------- Данж выживания: волны монстров, отдельная копия на игрока или группу ----------
+const survivals = new Map();
+const SURV_TYPES = ['slime', 'wolf', 'skeleton', 'orc'];
+function startSurvival(p) {
+  const town = world.byId.get(p.zone);
+  const z = world.addSurvival(town.id);
+  const group = partyMembers(p).filter((o) => o.zone === p.zone && !o.dead);
+  survivals.set(z.id, { z, wave: 0, nextAt: Date.now() + 4000, cleared: true });
+  for (const o of group) {
+    moveToZone(o, z.id);
+    o.socket.emit('chat', { sys: true, text: `Данж выживания${group.length > 1 ? ` (группа: ${group.length})` : ''}: держитесь как можно дольше! Первая волна через 4 с` });
+  }
+}
+function spawnWave(s, inside) {
+  const z = s.z, w = s.wave;
+  const n = Math.min(30, Math.round((3 + w * 2) * (1 + 0.35 * (inside - 1))));
+  const c = z.abs(15, 15);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.3, r = 10.5 * C.TILE;
+    const pos = { x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r };
+    const type = SURV_TYPES[Math.min(3, Math.floor((w - 1) / 2) + (Math.random() < 0.3 ? 1 : 0))];
+    createMonster(z, type, pos, 1 + 0.15 * (w - 1), 1 + 0.06 * (w - 1), { aggro: 2000, lootMult: 0.5 });
+  }
+  if (w % 5 === 0) createMonster(z, 'dragon', { x: c.x, y: c.y - 9 * C.TILE }, (1 + 0.15 * (w - 1)) * (1 + 0.5 * (inside - 1)), 1 + 0.06 * (w - 1), { aggro: 2000 });
+}
+function rewardWave(s, inside) {
+  const z = s.z;
+  for (const o of inside) {
+    if (o.dead) continue;
+    const pr = getProfile(o.uid);
+    const gold = 25 * s.wave * z.tier;
+    pr.gold += gold;
+    meta.addPassXp(pr, 5);
+    pr.survivalBest = Math.max(pr.survivalBest || 0, s.wave);
+    o.socket.emit('chat', { sys: true, text: `Волна ${s.wave} пройдена! +${gold} 💰 · рекорд: ${pr.survivalBest}` });
+    if (s.wave % 5 === 0 || Math.random() < 0.25) giveLoot(o, pr, I.rollItem(z.tier, s.wave % 5 === 0 ? C.DROPS.boss[z.tier] : C.DROPS.weights[z.tier]), o);
+    markDirty(o);
+  }
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, s] of survivals) {
+    const inside = [...players.values()].filter((o) => o.zone === id);
+    if (!inside.length) {
+      for (const m of monsters.values()) if (m.zone === id) monsters.delete(m.id);
+      survivals.delete(id);
+      world.removeZone(s.z);
+      continue;
+    }
+    if ([...monsters.values()].some((m) => m.zone === id)) continue;
+    if (!s.cleared) { s.cleared = true; s.nextAt = now + 4000; rewardWave(s, inside); }
+    if (now < s.nextAt) continue;
+    s.wave++; s.cleared = false;
+    spawnWave(s, inside.length);
+    for (const o of inside) o.socket.emit('survival', { wave: s.wave, boss: s.wave % 5 === 0 });
+  }
+}, 500);
 
 // ---------- Сокеты ----------
 io.on('connection', (socket) => {
@@ -548,7 +727,7 @@ io.on('connection', (socket) => {
       x: 0, y: 0, zone: null,
       dir: 1, dead: false, lastAttack: 0, lastHurt: 0, lastMove: Date.now(),
       skillReadyAt: {}, wrath: 0, roarUntil: 0, frenzyUntil: 0, bloodStacks: 0, lastKill: 0, favor: 0, empoweredUntil: 0, cheatUsed: false, lastHit: 0, dirty: false, lastStats: 0,
-      ...statsFor(heroId, char.level),
+      ...statsFor(heroId, char.level, getProfile(uid)), gear: I.gearStats(getProfile(uid)), unlocked: unlockedSkills(getProfile(uid), heroId),
     };
     p.hp = p.maxHp;
     p.res = startRes(p);
@@ -567,7 +746,7 @@ io.on('connection', (socket) => {
     p.joinedAt = Date.now();
     // Вход в мир — в стартовом городе
     const start = world.byId.get('town1');
-    p.zone = start.id; socket.join('z:' + start.id);
+    p.zone = start.id; p.zoneTier = 1; socket.join('z:' + start.id);
     p.x = start.spawn.x + (Math.random() - 0.5) * 64; p.y = start.spawn.y + (Math.random() - 0.5) * 32;
     for (const pet of p.pets || []) { pet.x = p.x; pet.y = p.y + 16; }
     players.set(socket.id, p);
@@ -577,6 +756,7 @@ io.on('connection', (socket) => {
       tile: C.TILE,
       zone: world.payload(start),
       towns: world.towns,
+      skillUnlock: C.SKILL_UNLOCK,
       heroes: C.HEROES,
       monsters: C.MONSTERS,
       stats: privateStats(p),
@@ -595,7 +775,7 @@ io.on('connection', (socket) => {
     if (p.rootSelfUntil > now) { socket.emit('correct', { x: p.x, y: p.y }); return; } // укоренение Ву'гажа
     // Античит: ограничение скорости (у облика зверя бег быстрее; после смены облика даём запас)
     const flyBoost = p.flyUntil > now ? 1 + 0.03 * (p.blessings || 0) : 1; // полёт Талмиры
-    const maxDist = Math.max(formOf(p).speed, p.hero.speed) * (p.hasteUntil > now ? 1.25 : 1) * flyBoost * dt * 1.6 + 12;
+    const maxDist = Math.max(formOf(p).speed, p.hero.speed) * (p.hasteUntil > now ? 1.25 : 1) * flyBoost * (1 + ((p.gear && p.gear.ms) || 0) / 100) * dt * 1.6 + 12;
     const dist = Math.hypot(x - p.x, y - p.y);
     if (dist > maxDist || world.isSolidAt(x, y)) {
       socket.emit('correct', { x: p.x, y: p.y });
@@ -624,7 +804,7 @@ io.on('connection', (socket) => {
     let basic = ps1 && ps1.basicMult ? ps1.basicMult(p) : 1; // рвение Валериана, жар Блейза, трещины Эмета
     if (p.weaponRuneUntil > now && p.weaponRuneType === 'fire') { m.burnUntil = now + 3000; m.dots = (m.dots || []).concat({ until: now + 3000, dps: p.dmg * 0.3, by: p.id }); }
     if (p.nextAttackBoost) { basic *= p.nextAttackBoost; p.nextAttackBoost = 0; } // овация Джакомо
-    damageMonster(p, m, p.dmg * basic * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15, proj: formOf(p).projectile, basic: true });
+    damageMonster(p, m, p.dmg * basic * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15 + ((p.gear && p.gear.crit) || 0) / 100, proj: formOf(p).projectile, basic: true });
     if (ps1 && ps1.onBasicHit && monsters.has(m.id)) ps1.onBasicHit(skillCtx, p, m, now); // мороз Итилиора
     // Ресурс, который копится от ударов (ярость Вебранда)
     p.lastHit = now;
@@ -638,6 +818,9 @@ io.on('connection', (socket) => {
     const now = Date.now();
     const sk = p.hero.skills.find((k) => k.id === d.id) || p.hero.skills[0];
     const fail = (reason) => socket.emit('skillFail', reason);
+    // Умения открываются по уровню или дубликатам героя
+    const si = p.hero.skills.indexOf(sk);
+    if (si >= p.unlocked) { const u = C.SKILL_UNLOCK[si]; return fail(`🔒 Откроется на ${u.lvl} уровне или с ${u.dup} дубл.`); }
     if (now < (p.skillReadyAt[sk.id] || 0)) return fail('Умение ещё не готово');
     const ps = passiveOf(p);
     const cast = ps && ps.beforeCast ? ps.beforeCast(p, sk) : { free: false, power: 1 };
@@ -667,7 +850,7 @@ io.on('connection', (socket) => {
     if (hpCost) { p.hp -= hpCost; p.lastHurt = now; fx.push({ t: 'hit', kind: 'p', target: p.id, dmg: Math.round(hpCost), from: null }); }
     if (ps && ps.afterCast) ps.afterCast(skillCtx, p, cast.free, sk);
     // Успешная казнь (Кассиан) не уходит на перезарядку
-    const cd = p.skillNoCd ? 0 : sk.cooldown;
+    const cd = p.skillNoCd ? 0 : Math.round(sk.cooldown * (1 - ((p.gear && p.gear.cdr) || 0) / 100)); // перезарядка с экипировки
     p.skillNoCd = false;
     p.skillReadyAt[sk.id] = now + cd;
     socket.emit('skillUsed', { id: sk.id, cooldown: cd });
@@ -681,6 +864,7 @@ io.on('connection', (socket) => {
     const z = world.byId.get(p.zone);
     const obj = z && z.objs.find((o) => o.id === d.via);
     if (!obj || Math.hypot(obj.x - p.x, obj.y - p.y) > 110) return socket.emit('skillFail', 'Подойдите ближе');
+    if (obj.id === 'survival') return startSurvival(p);
     let to = obj.to;
     if (obj.id === 'teleport') {
       to = String(d.to || '');
@@ -693,6 +877,39 @@ io.on('connection', (socket) => {
     socket.emit('chat', { sys: true, text: nz.kind === 'town' ? `Вы прибыли в город ${nz.name}` : `Портал: ${nz.name} (${nz.sub})` });
   });
 
+  // Инвентарь, магазины, рынок, аукцион, пропуск, арена (server/meta.js)
+  socket.on('act', (d, cb) => {
+    const p = players.get(socket.id);
+    if (!p || typeof cb !== 'function') return;
+    try { cb(meta.handle(p, d || {})); markDirty(p); } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
+  });
+
+  // Группа: приглашение игрока из своей зоны, до 4 человек
+  socket.on('party', (d = {}) => {
+    const p = players.get(socket.id);
+    if (!p) return;
+    if (d.op === 'invite') {
+      const t = players.get(d.target);
+      if (!t || t === p) return socket.emit('skillFail', 'Игрок не найден');
+      if (t.party) return socket.emit('skillFail', `${t.name} уже в группе`);
+      let pt = partyOf(p);
+      if (!pt) { pt = { id: partySeq++, leader: p.id, members: new Set([p.id]), invited: new Set() }; parties.set(pt.id, pt); p.party = pt.id; sendParty(pt); }
+      if (pt.members.size >= 4) return socket.emit('skillFail', 'В группе уже 4 игрока');
+      pt.invited.add(t.id);
+      t.socket.emit('partyInvite', { id: pt.id, from: p.name });
+      socket.emit('chat', { sys: true, text: `Приглашение отправлено: ${t.name}` });
+    } else if (d.op === 'accept') {
+      const pt = parties.get(d.id);
+      if (!pt || !pt.invited.has(p.id)) return socket.emit('skillFail', 'Приглашение устарело');
+      if (pt.members.size >= 4) return socket.emit('skillFail', 'Группа заполнена');
+      leaveParty(p);
+      pt.invited.delete(p.id);
+      pt.members.add(p.id);
+      p.party = pt.id;
+      sendParty(pt);
+    } else if (d.op === 'leave') leaveParty(p);
+  });
+
   socket.on('chat', (text) => {
     const p = players.get(socket.id);
     if (!p || typeof text !== 'string') return;
@@ -703,6 +920,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const p = players.get(socket.id);
     if (!p) return;
+    leaveParty(p);
     players.delete(socket.id);
     (p.pets || []).forEach((pet) => pets.delete(pet.id));
     io.emit('chat', { sys: true, text: `${p.name} покинул мир` });
@@ -781,9 +999,9 @@ setInterval(() => {
     const taunter = m.tauntUntil > now ? players.get(m.tauntBy) : null;
     if (taunter && !taunter.dead) m.target = taunter.id;
     let target = m.target ? players.get(m.target) || pets.get(m.target) : null;
-    if (target && (target.dead || target.down || target.stealthUntil > now || target.flyUntil > now || Math.hypot(target.x - m.x, target.y - m.y) > def.aggro * 1.8)) target = null;
+    if (target && (target.dead || target.down || target.stealthUntil > now || target.flyUntil > now || Math.hypot(target.x - m.x, target.y - m.y) > (m.aggro || def.aggro) * 1.8)) target = null;
     if (!target) {
-      let best = null, bestD = def.aggro;
+      let best = null, bestD = m.aggro || def.aggro;
       for (const p of players.values()) {
         if (p.dead) continue;
         if (m.ignoreUntil > now && m.ignoreId === p.id) continue; // потерял из виду (дымовая завеса)
