@@ -30,10 +30,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
     Object.entries(this.heroes).forEach(([k, h]) => addTex('hero_' + k, Gfx.hero(h.look)));
     Object.keys(this.monsterDefs).forEach((k) => addTex('mon_' + k, Gfx.monster(k)));
     addTex('totem', Gfx.totem());
-    ['wolf', 'bear', 'hawk', 'skeleton'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
+    ['wolf', 'bear', 'hawk', 'skeleton', 'sprite'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
-    ['stone', 'spirit', 'spear', 'dagger', 'shadow'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -134,6 +134,18 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.c.addAt(e.aura, 0);
         this.tweens.add({ targets: e.aura, scale: 1.25, alpha: 0.5, duration: 300, yoyo: true, repeat: -1 });
       } else if (!p.rage && e.aura) { e.aura.destroy(); e.aura = null; }
+      // Пакт с духом (Зу'кра) — цветная аура; Облик древа (Нимуэ) — зелёная
+      const auraCol = p.pact ? { fury: 0xff3020, stone: 0x9aa3ad, wind: 0x8ad3ff }[p.pact] : p.tree ? 0x5fd17a : null;
+      if (auraCol !== (e.auraCol ?? null)) {
+        if (e.extraAura) { e.extraAura.destroy(); e.extraAura = null; }
+        e.auraCol = auraCol;
+        if (auraCol !== null) {
+          e.extraAura = this.add.circle(0, 4, 17, auraCol, 0.2).setStrokeStyle(2, auraCol, 0.9);
+          e.c.addAt(e.extraAura, 0);
+          this.tweens.add({ targets: e.extraAura, scale: 1.2, duration: 450, yoyo: true, repeat: -1 });
+        }
+      }
+      if (!!p.tree !== !!e.tree) { e.tree = !!p.tree; if (p.tree) e.sprite.setTint(0xb8ffb8); else e.sprite.clearTint(); }
       // Барьер (Брендан)
       if (p.sh && !e.bubble) {
         e.bubble = this.add.circle(0, -2, 20).setStrokeStyle(2, 0x8ad3ff, 1).setFillStyle(0x8ad3ff, 0.18);
@@ -176,7 +188,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
       const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '')
-        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '');
+        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -202,7 +214,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       seenP.add(pt.id);
       let e = this.pets.get(pt.id);
       if (!e) {
-        const names = { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга' };
+        const names = { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга', sprite: 'Дух леса' };
         e = this.makeEntity('pet_' + pt.kind, names[pt.kind], pt.owner === this.myId ? '#c8f0a0' : '#d8d0c0');
         e.c.setPosition(pt.x, pt.y);
         e.label.setFontSize(8);
@@ -213,7 +225,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       e.tx = pt.x; e.ty = pt.y; e.data = pt;
       this.setBar(e, pt.hp, pt.maxHp);
       e.c.setAlpha(pt.down ? 0.45 : 1);
-      e.label.setText(pt.down ? '💤' : { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга' }[pt.kind]);
+      e.label.setText(pt.down ? '💤' : { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга', sprite: 'Дух леса' }[pt.kind]);
       if (pt.boost && !e.glow) {
         e.glow = this.add.circle(0, 4, 13).setStrokeStyle(2, 0xff7ab0, 0.9);
         e.c.addAt(e.glow, 0);
@@ -267,7 +279,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         // Отражённый урон (возмездие Малакора) — фиолетовым
         this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
-        const col = f.reflect ? 0xb060ff : { spirit: 0x9ff0ff, shadow: 0xb060ff }[f.proj] || 0xff4040;
+        const col = f.reflect ? 0xb060ff : { spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
       const attacker = f.pet ? this.pets.get(f.pet) : this.players.get(f.from);
@@ -496,6 +508,50 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.burst(f.x, f.y, 0xff7ab0, 8);
         break;
       }
+      case 'darkFlame': {
+        const orb = this.add.image(f.fx, f.fy, 'proj_darkfire').setScale(2.2).setDepth(860);
+        this.tweens.add({ targets: orb, x: f.x, y: f.y, duration: f.flight, onComplete: () => {
+          orb.destroy();
+          this.ring(f.x, f.y, f.r, 0x7a2ab0, 500, 6);
+          this.burst(f.x, f.y, 0x1a0a20, 18); this.burst(f.x, f.y, 0xb06aff, 10);
+        } });
+        break;
+      }
+      case 'spiritPact': {
+        const names = { fury: 'Демон ярости', stone: 'Дух камня', wind: 'Дух ветра' };
+        const cols = { fury: 0xff3020, stone: 0x9aa3ad, wind: 0x8ad3ff };
+        this.ring(f.x, f.y, 45, cols[f.pact], 600, 5);
+        this.floatText(f.x, f.y - 58, `📜 Пакт: ${names[f.pact]}`, '#d8b0ff', 13);
+        break;
+      }
+      case 'bloodCurse':
+        this.ring(f.x, f.y, f.r, 0xa01020, 650, 4);
+        for (const id of f.ids || []) { const m = this.monsters.get(id); if (m) this.burst(m.c.x, m.c.y, 0xa01020, 6); }
+        break;
+      case 'spiritGiftUsed':
+        this.floatText(f.x, f.y - 66, '👹 Дар духов!', '#ffd03a', 13);
+        break;
+      case 'naturesThorns':
+        for (let i = 0; i < 10; i++) {
+          const a = Math.random() * Math.PI * 2, d = Math.random() * f.r;
+          const x = f.x + Math.cos(a) * d, y = f.y + Math.sin(a) * d * 0.6;
+          const sp = this.add.triangle(x, y, 0, 12, 4, 0, 8, 12, 0x3f8a2f).setDepth(820).setScale(0.2, 0.2);
+          this.tweens.add({ targets: sp, scaleX: 1, scaleY: 1.4, duration: 180, delay: i * 25, yoyo: true, hold: 1200, onComplete: () => sp.destroy() });
+        }
+        this.ring(f.x, f.y, f.r, 0x5fd17a, 500, 3);
+        break;
+      case 'forestBlessing':
+        this.ring(f.x, f.y, f.r, 0x9aff9a, 700, 3);
+        for (let i = 0; i < 12; i++) {
+          const x = f.x + (Math.random() - 0.5) * 80, y = f.y + Math.random() * 20;
+          const leaf = this.add.image(x, y, 'proj_leaf').setDepth(900);
+          this.tweens.add({ targets: leaf, y: y - 60, angle: 180, alpha: 0, delay: i * 40, duration: 900, onComplete: () => leaf.destroy() });
+        }
+        break;
+      case 'forestWrath':
+        this.ring(f.x, f.y, 60, 0x5fd17a, 600, 4);
+        this.floatText(f.x, f.y - 56, '🧚 Гнев леса!', '#9aff9a', 14);
+        break;
       case 'exposeStrike':
         this.ring(f.x, f.y, 26, 0xffde3a, 350, 4);
         this.floatText(f.x, f.y - 44, 'Уязвимость!', '#ffde3a', 13);

@@ -9,6 +9,8 @@ const PET_KINDS = {
   hawk: { name: 'Сокол', hp: 0.35, dmg: 0.3, cooldown: 700, speed: 230, reach: 26 },
   // Скелет-слуга Кельт'о: временный, при «падении» рассыпается
   skeleton: { name: 'Слуга', hp: 0.45, dmg: 0.55, cooldown: 1000, speed: 155, reach: 30 },
+  // Дух природы Нимуэ: временный, крепкий, отвлекает монстров на себя
+  sprite: { name: 'Дух леса', hp: 0.7, dmg: 0.4, cooldown: 900, speed: 170, reach: 30 },
 };
 const PET_ORDER = ['wolf', 'bear', 'hawk'];
 const LEASH = 230; // дальше этого от хозяина звери бросают бой и бегут к нему

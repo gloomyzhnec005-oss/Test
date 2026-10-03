@@ -412,6 +412,92 @@ const SKILLS = {
     }
     return null;
   },
+
+  // Зу'кра: тёмное пламя — сгусток по области + поджог
+  darkFlame(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, r = 80, x = t.x, y = t.y;
+    const flight = Math.min(450, dist(p, t) * 1.5);
+    ctx.pushFx({ t: 'skill', s: 'darkFlame', from: p.id, fx: p.x, fy: p.y, x, y, r, flight });
+    setTimeout(() => {
+      if (!alive(ctx, p)) return;
+      for (const m of inRadius(ctx, x, y, r)) {
+        m.burnUntil = Date.now() + 4000;
+        m.dots = (m.dots || []).concat({ until: Date.now() + 4000, dps: p.dmg * 0.35 * pw, by: p.id });
+        ctx.damageMonster(p, m, p.dmg * 1.6 * pw);
+      }
+    }, flight);
+    return null;
+  },
+
+  // Зу'кра: пакт с духом — бафф по очереди, плата энергией или здоровьем
+  spiritPact(ctx, p, _t, now) {
+    const PACTS = ['fury', 'stone', 'wind'];
+    if (!p.castFree) {
+      if (p.res >= 30) p.res -= 30;
+      else if (p.hp > p.maxHp * 0.15 + 1) { const cost = p.maxHp * 0.15; p.hp -= cost; ctx.pushFx({ t: 'hit', kind: 'p', target: p.id, dmg: Math.round(cost), from: null }); }
+      else return 'Нечем платить духу';
+    }
+    const type = PACTS[(p.pactIndex || 0) % PACTS.length];
+    p.pactIndex = (p.pactIndex || 0) + 1;
+    p.pactType = type;
+    p.pactUntil = now + 8000 * (p.castPower || 1);
+    ctx.pushFx({ t: 'skill', s: 'spiritPact', from: p.id, x: p.x, y: p.y, pact: type });
+    return null;
+  },
+
+  // Зу'кра: проклятие крови — урон со временем, половина урона возвращается ей
+  bloodCurse(ctx, p, _t, now) {
+    const pw = p.castPower || 1, r = 150;
+    const targets = inRadius(ctx, p.x, p.y, r);
+    for (const m of targets) {
+      m.bloodCurseUntil = now + 6000;
+      m.dots = (m.dots || []).concat({ until: now + 6000, dps: p.dmg * 0.4 * pw, by: p.id, leech: 0.5 });
+    }
+    ctx.pushFx({ t: 'skill', s: 'bloodCurse', from: p.id, x: p.x, y: p.y, r, ids: targets.map((m) => m.id) });
+    return null;
+  },
+
+  // Нимуэ: шипы природы — урон по области и обездвиживание
+  naturesThorns(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, r = 90;
+    ctx.pushFx({ t: 'skill', s: 'naturesThorns', from: p.id, x: t.x, y: t.y, r });
+    for (const m of inRadius(ctx, t.x, t.y, r)) {
+      m.rootUntil = Math.max(m.rootUntil || 0, now + 2000);
+      ctx.damageMonster(p, m, p.dmg * 1.3 * pw);
+    }
+    return null;
+  },
+
+  // Нимуэ: лесное благословение — лечение и регенерация себе и союзникам
+  forestBlessing(ctx, p, _t, now) {
+    const pw = p.castPower || 1, r = 160;
+    ctx.pushFx({ t: 'skill', s: 'forestBlessing', from: p.id, x: p.x, y: p.y, r });
+    for (const o of ctx.players.values()) {
+      if (o.dead || dist(o, p) > r) continue;
+      ctx.healPlayer(o, o.maxHp * 0.2 * pw);
+      o.regenUntil = now + 5000;
+      o.regenRate = 0.03 * pw;
+    }
+    return null;
+  },
+
+  // Нимуэ: гнев леса — два духа природы отвлекают монстров на себя
+  forestWrath(ctx, p, _t, now) {
+    const pw = p.castPower || 1;
+    for (const old of p.pets.filter((pet) => pet.kind === 'sprite')) ctx.removePet(old);
+    const spirits = [-1, 1].map((side) => {
+      const pet = createSummon(p, 'sprite', p.x + side * 30, p.y + 10, 12000, now);
+      pet.maxHp = Math.round(pet.maxHp * pw); pet.hp = pet.maxHp;
+      ctx.addPet(p, pet);
+      return pet;
+    });
+    // Монстры вокруг переключаются на духов
+    inRadius(ctx, p.x, p.y, 180).forEach((m, i) => { m.target = spirits[i % 2].id; });
+    ctx.pushFx({ t: 'skill', s: 'forestWrath', from: p.id, x: p.x, y: p.y });
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -570,10 +656,44 @@ const PASSIVES = {
     onKill(ctx, p) { p.reapStacks = Math.min(5, (p.reapStacks || 0) + 1); p.dirty = true; },
     note: (p) => `жатва ${p.reapStacks || 0}/5${p.stealthUntil > Date.now() ? ' · в тени' : ''}`,
   },
+
+  // Зу'кра: дар духов — убийства копят силу следующего заклинания; при нехватке энергии — бесплатный усиленный навык
+  spiritGift: {
+    beforeCast(p) {
+      const free = p.res < p.resMax * 0.25 && Date.now() >= (p.giftReadyAt || 0);
+      return { free, power: (1 + 0.15 * (p.giftStacks || 0)) * (free ? 1.5 : 1) };
+    },
+    afterCast(ctx, p, boosted) {
+      p.giftStacks = 0;
+      if (boosted) { p.giftReadyAt = Date.now() + 20000; ctx.pushFx({ t: 'skill', s: 'spiritGiftUsed', from: p.id, x: p.x, y: p.y, quiet: true }); }
+    },
+    onKill(ctx, p) { p.giftStacks = Math.min(5, (p.giftStacks || 0) + 1); p.dirty = true; },
+    note(p) {
+      const next = ['Демон ярости', 'Дух камня', 'Дух ветра'][(p.pactIndex || 0) % 3];
+      const gift = Date.now() >= (p.giftReadyAt || 0) ? 'дар готов' : 'дар через ' + Math.ceil((p.giftReadyAt - Date.now()) / 1000) + ' с';
+      return `сила +${15 * (p.giftStacks || 0)}% · ${gift} · след. пакт: ${next}`;
+    },
+  },
+
+  // Нимуэ: корни жизни — сила природы копится, пока она стоит на месте
+  rootsOfLife: {
+    beforeCast: (p) => ({ free: false, power: 1 + 0.5 * (p.nature || 0) / 100 }),
+    dmgTakenMult: (p) => ((p.nature || 0) >= 100 ? 0.75 : 1),
+    onTick(p, now) {
+      const dt = Math.min(0.5, (now - (p.natureTick || now)) / 1000);
+      p.natureTick = now;
+      const before = p.nature || 0;
+      const still = now - (p.movedAt || 0) > 800;
+      p.nature = Math.max(0, Math.min(100, before + (still ? 10 : -20) * dt));
+      if (p.nature > 0 && p.hp < p.maxHp) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.015 * (p.nature / 100) * dt);
+      if (Math.floor(before / 5) !== Math.floor(p.nature / 5)) p.dirty = true;
+    },
+    note: (p) => `сила природы ${Math.round(p.nature || 0)}%${(p.nature || 0) >= 100 ? ' · Облик древа' : ''}`,
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
 const SKILL_RANGE = { exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;

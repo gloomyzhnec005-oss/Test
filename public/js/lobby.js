@@ -374,7 +374,7 @@ window.Lobby = (() => {
       <p class="reveal-desc">${h.desc}</p>
       ${h.style ? `<p class="reveal-style"><b>Стиль боя:</b> ${h.style}</p>` : ''}
       ${h.skills.map((sk) => `<div class="reveal-skill"><span>${sk.icon}</span><div><b>${sk.name}</b>
-        <small>${sk.hpCost ? `${Math.round(sk.hpCost * 100)}% здоровья` : `${sk.cost} ${h.resource.name.toLowerCase()}`} · перезарядка ${sk.cooldown / 1000} с</small>
+        <small>${sk.costLabel || (sk.hpCost ? `${Math.round(sk.hpCost * 100)}% здоровья` : `${sk.cost} ${h.resource.name.toLowerCase()}`)} · перезарядка ${sk.cooldown / 1000} с</small>
         <p>${sk.desc}</p></div></div>`).join('')}
       ${h.passive ? `<div class="reveal-skill passive-skill"><span>${h.passive.icon}</span><div><b>${h.passive.name}</b>
         <small>Пассивный навык</small><p>${h.passive.desc}</p></div></div>` : ''}

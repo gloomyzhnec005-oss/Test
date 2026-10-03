@@ -62,6 +62,12 @@ window.Gfx = (() => {
     circle(ctx, 16, 29, 9, 'rgba(0,0,0,.25)'); // тень
     // Плащ за спиной
     if (L.cape) { rect(ctx, 8, 13, 12, 14, L.cape); }
+    if (L.wings) {
+      // Полупрозрачные крылья феи за спиной
+      ctx.fillStyle = 'rgba(180,255,220,.55)';
+      ctx.beginPath(); ctx.ellipse(6, 15, 5, 8, -0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(26, 15, 5, 8, 0.4, 0, Math.PI * 2); ctx.fill();
+    }
     // Оружие за спиной / в руке (рисуется до тела, если двуручное)
     if (L.weapon === 'scythe') {
       rect(ctx, 25, 2, 2, 27, '#3a2a1a');
@@ -147,6 +153,20 @@ window.Gfx = (() => {
         rect(ctx, 10, 4, 12, 3, L.hair); rect(ctx, 9, 6, 2, 13, L.hair); rect(ctx, 21, 6, 2, 13, L.hair);
         rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
         rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
+        break;
+      case 'orc':
+        // Орчиха: чёрные косы, клыки, золотые глаза, серьги
+        rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 12, L.hair); rect(ctx, 21, 5, 2, 12, L.hair);
+        rect(ctx, 9, 16, 2, 2, '#c9a64d'); rect(ctx, 21, 16, 2, 2, '#c9a64d');
+        rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes);
+        rect(ctx, 13, 12, 1, 2, '#f2ecd8'); rect(ctx, 18, 12, 1, 2, '#f2ecd8'); // клыки
+        rect(ctx, 15, 2, 2, 1, '#b06aff'); // руна на лбу
+        break;
+      case 'fae':
+        // Полуфея: длинные каштановые волосы, венок из цветов
+        rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 15, L.hair); rect(ctx, 21, 5, 2, 15, L.hair);
+        [[10, 2], [14, 1], [18, 2]].forEach(([x, y]) => rect(ctx, x, y, 3, 2, L.headColor));
+        rect(ctx, 12, 2, 2, 1, '#7fd36b'); rect(ctx, 16, 2, 2, 1, '#7fd36b');
         break;
       case 'bandana':
         // Рыжий хвост и тёмная повязка на голове
@@ -292,6 +312,10 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'darkfire') {
+      circle(ctx, 8, 8, 7, 'rgba(120,40,180,.45)'); circle(ctx, 8, 9, 5, '#1a0a20'); circle(ctx, 8, 7, 3, '#7a2ab0'); rect(ctx, 7, 2, 2, 3, '#b06aff');
+    } else if (kind === 'leaf') {
+      ctx.fillStyle = '#5fd17a'; ctx.beginPath(); ctx.ellipse(8, 8, 6, 3, -0.5, 0, Math.PI * 2); ctx.fill(); rect(ctx, 3, 10, 6, 1, '#2f7a4a');
     } else if (kind === 'shadow') {
       circle(ctx, 8, 8, 7, 'rgba(110,40,160,.45)'); circle(ctx, 8, 8, 4.5, '#1a0a24'); circle(ctx, 8, 8, 2, '#c070ff');
     } else if (kind === 'dagger') {
@@ -330,6 +354,14 @@ window.Gfx = (() => {
       rect(ctx, 21, 8, 10, 10, '#6b4a2c'); rect(ctx, 21, 6, 3, 3, '#5a3e24'); rect(ctx, 28, 6, 3, 3, '#5a3e24');
       rect(ctx, 27, 13, 4, 4, '#a07a52'); rect(ctx, 29, 13, 2, 1, '#1a0e06'); rect(ctx, 25, 10, 2, 2, '#1a0e06');
       rect(ctx, 6, 24, 5, 6, '#4a3420'); rect(ctx, 19, 24, 5, 6, '#4a3420');
+    } else if (kind === 'sprite') {
+      // Дух леса: светящаяся дриада из листьев
+      circle(ctx, 16, 28, 7, 'rgba(0,0,0,.2)');
+      circle(ctx, 16, 16, 13, 'rgba(120,255,160,.22)');
+      ctx.fillStyle = '#4fbf6a'; ctx.beginPath(); ctx.ellipse(16, 18, 6, 9, 0, 0, Math.PI * 2); ctx.fill();
+      circle(ctx, 16, 8, 5, '#9aff9a'); rect(ctx, 14, 7, 1, 2, '#1a4a2a'); rect(ctx, 17, 7, 1, 2, '#1a4a2a');
+      rect(ctx, 11, 3, 2, 4, '#3f8a4a'); rect(ctx, 19, 3, 2, 4, '#3f8a4a');
+      rect(ctx, 8, 14, 4, 2, '#3f8a4a'); rect(ctx, 20, 14, 4, 2, '#3f8a4a');
     } else if (kind === 'skeleton') {
       // Скелет-слуга с зелёным некротическим свечением
       circle(ctx, 16, 28, 8, 'rgba(0,0,0,.25)');

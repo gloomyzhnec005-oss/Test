@@ -179,11 +179,12 @@ const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
   return (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1) * (p.linkUntil > now ? 1.3 : 1)
+    * (p.pactUntil > now && p.pactType === 'fury' ? 1.5 : 1)
     * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
+  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
   return Math.round(p.hero.cooldown / speed);
 };
 
@@ -232,7 +233,8 @@ function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
-    sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(), vow: p.vowUntil > Date.now() ? p.vowBy : null,
+    sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
+    pact: p.pactUntil > Date.now() ? p.pactType : null, tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -340,7 +342,8 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
   if (target.dodgeUntil > now && Math.random() < (target.dodgeChance || 0.5)) { fx.push({ t: 'dodge', target: target.id }); return; }
   const ps = passiveOf(target);
   // Множители входящего урона: «в ущерб защите» (Вайалд), «Зов стаи» (Урсус), пассивки (Брендан)
-  let dmg = raw * (target.hero.dmgTaken || 1) * (target.packUntil > now ? 0.65 : 1) * (ps && ps.dmgTakenMult ? ps.dmgTakenMult(target) : 1);
+  let dmg = raw * (target.hero.dmgTaken || 1) * (target.packUntil > now ? 0.65 : 1)
+    * (target.pactUntil > now && target.pactType === 'stone' ? 0.6 : 1) * (ps && ps.dmgTakenMult ? ps.dmgTakenMult(target) : 1);
   // Обет защиты (Брендан): 40% урона союзника принимает на себя защитник, остальное союзнику −20%
   const guardian = !viaVow && target.vowUntil > now ? players.get(target.vowBy) : null;
   if (guardian && !guardian.dead && Math.hypot(guardian.x - target.x, guardian.y - target.y) < 400) {
@@ -475,6 +478,7 @@ io.on('connection', (socket) => {
       socket.emit('correct', { x: p.x, y: p.y });
       return;
     }
+    if (Math.hypot(x - p.x, y - p.y) > 0.5) p.movedAt = now;
     p.x = x; p.y = y;
     if (d.dir === -1 || d.dir === 1) p.dir = d.dir;
   });
@@ -525,8 +529,10 @@ io.on('connection', (socket) => {
     if (NEEDS_TARGET.has(sk.id) && !target) return fail('Нет цели рядом');
     if (target) p.dir = target.x < p.x ? -1 : 1;
     p.castPower = cast.power;
+    p.castFree = cast.free;
     const err = SKILLS[sk.id](skillCtx, p, target, now);
     p.castPower = 1;
+    p.castFree = false;
     if (err) return fail(err);
     if (sk.id !== 'shadowCloak') p.stealthUntil = 0; // навык выводит из тени
     if (!cast.free) p.res -= sk.cost;
@@ -575,7 +581,11 @@ setInterval(() => {
       for (const d of m.dots) {
         d.next ??= now + 1000;
         const owner = players.get(d.by);
-        if (now >= d.next && now <= d.until + 50 && owner) { d.next += 1000; damageMonster(owner, m, d.dps); }
+        if (now >= d.next && now <= d.until + 50 && owner) {
+          d.next += 1000;
+          const dealt = damageMonster(owner, m, d.dps);
+          if (d.leech && dealt > 0) healPlayer(owner, dealt * d.leech); // проклятие крови Зу'кры
+        }
       }
       m.dots = m.dots.filter((d) => now < d.until);
       if (!monsters.has(m.id)) continue;
@@ -642,6 +652,8 @@ setInterval(() => {
   // Регенерация: здоровье вне боя, ресурс (мана/энергия/ярость) всегда
   for (const p of players.values()) {
     if (p.dead) continue;
+    // Регенерация от «Лесного благословения» (Нимуэ)
+    if (p.regenUntil > now && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * p.regenRate * dt); markDirty(p); }
     if (p.hp < p.maxHp && now - p.lastHurt > 5000) {
       const before = p.hp;
       p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.04 * dt);
@@ -681,7 +693,8 @@ setInterval(() => {
       hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
       mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0,
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
-      ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0 })),
+      ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
+      bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0 })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
