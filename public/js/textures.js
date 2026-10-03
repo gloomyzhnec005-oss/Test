@@ -90,6 +90,13 @@ window.Gfx = (() => {
       ctx.fillStyle = '#c9d1e0'; ctx.beginPath(); ctx.moveTo(26, -1); ctx.lineTo(29, 5); ctx.lineTo(23, 5); ctx.fill();
       rect(ctx, 24, 6, 4, 2, '#c0301e'); // повязка
     }
+    if (L.weapon === 'lute') {
+      // Лютня в руках
+      ctx.fillStyle = '#b07a3a'; ctx.beginPath(); ctx.ellipse(20, 20, 5, 4, -0.5, 0, Math.PI * 2); ctx.fill();
+      circle(ctx, 20, 20, 1.3, '#3a2a1a');
+      rect(ctx, 23, 11, 2, 9, '#7a5230'); rect(ctx, 22, 10, 4, 2, '#5a3a1a');
+      rect(ctx, 19, 18, 6, 1, '#f2ecd8');
+    }
     if (L.weapon === 'pole') { rect(ctx, 26, 1, 2, 30, '#8a5a2a'); rect(ctx, 26, 1, 2, 2, '#c9a64d'); rect(ctx, 26, 29, 2, 2, '#c9a64d'); }
     if (L.weapon === 'axe') {
       rect(ctx, 25, 3, 2, 22, '#6b4423');
@@ -154,6 +161,13 @@ window.Gfx = (() => {
         rect(ctx, 10, 4, 12, 3, L.hair); rect(ctx, 9, 6, 2, 13, L.hair); rect(ctx, 21, 6, 2, 13, L.hair);
         rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
         rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
+        break;
+      case 'featherCap':
+        // Берет набок с длинным пером, кудри
+        rect(ctx, 9, 3, 14, 3, L.headColor); rect(ctx, 19, 2, 5, 2, L.headColor);
+        rect(ctx, 21, 0, 2, 3, '#e8c26a'); rect(ctx, 23, 0, 3, 1, '#e8c26a'); rect(ctx, 25, 1, 2, 1, '#c0301e');
+        rect(ctx, 10, 6, 2, 5, L.hair); rect(ctx, 20, 6, 2, 4, L.hair);
+        rect(ctx, 14, 12, 4, 1, '#8a3a2a'); // ухмылка
         break;
       case 'masquerade':
         // Тёмное каре и золотая маска-домино
@@ -261,6 +275,13 @@ window.Gfx = (() => {
       ctx.fillStyle = '#c9d1e0'; ctx.beginPath(); ctx.moveTo(26, -1); ctx.lineTo(29, 5); ctx.lineTo(23, 5); ctx.fill();
       rect(ctx, 24, 6, 4, 2, '#c0301e'); // повязка
     }
+    if (L.weapon === 'lute') {
+      // Лютня в руках
+      ctx.fillStyle = '#b07a3a'; ctx.beginPath(); ctx.ellipse(20, 20, 5, 4, -0.5, 0, Math.PI * 2); ctx.fill();
+      circle(ctx, 20, 20, 1.3, '#3a2a1a');
+      rect(ctx, 23, 11, 2, 9, '#7a5230'); rect(ctx, 22, 10, 4, 2, '#5a3a1a');
+      rect(ctx, 19, 18, 6, 1, '#f2ecd8');
+    }
     if (L.weapon === 'pole') { rect(ctx, 23, 17, 3, 3, L.skin); rect(ctx, 6, 17, 3, 3, L.skin); } // кулаки
     if (L.offhand === 'shield') { rect(ctx, 4, 14, 7, 10, '#7a5230'); rect(ctx, 5, 15, 5, 8, L.trim); rect(ctx, 7, 16, 1, 6, '#7a5230'); }
     return c;
@@ -320,6 +341,11 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'note') {
+      rect(ctx, 8, 3, 2, 9, '#ffe08a'); rect(ctx, 10, 3, 4, 2, '#ffe08a'); circle(ctx, 7, 12, 3, '#ffe08a');
+      circle(ctx, 8, 9, 7, 'rgba(255,224,138,.25)');
+    } else if (kind === 'necro') {
+      circle(ctx, 8, 8, 7, 'rgba(60,200,120,.35)'); circle(ctx, 8, 8, 4.5, '#0e1610'); circle(ctx, 8, 8, 2, '#5fffb0');
     } else if (kind === 'frost') {
       ctx.fillStyle = '#bfe8ff'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.lineTo(8, 4); ctx.lineTo(1, 8); ctx.lineTo(8, 12); ctx.fill();
       circle(ctx, 8, 8, 7, 'rgba(140,210,255,.3)'); rect(ctx, 6, 7, 6, 2, '#ffffff');

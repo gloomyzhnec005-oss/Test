@@ -13,6 +13,8 @@ const PET_KINDS = {
   sprite: { name: 'Дух леса', hp: 0.7, dmg: 0.4, cooldown: 900, speed: 170, reach: 30 },
   // Двойник Ле Блан: иллюзия, почти не наносит урона, принимает удары на себя
   clone: { name: 'Двойник', hp: 0.6, dmg: 0.2, cooldown: 1200, speed: 160, reach: 30 },
+  // Поднятый монстр Ориона: здоровье и урон задаются от самого монстра (maxHp, dmgAbs)
+  minion: { name: 'Слуга', hp: 0.5, dmg: 0.5, cooldown: 1100, speed: 140, reach: 32 },
 };
 const PET_ORDER = ['wolf', 'bear', 'hawk'];
 const LEASH = 230; // дальше этого от хозяина звери бросают бой и бегут к нему
@@ -54,7 +56,8 @@ function rescalePets(owner) {
 }
 
 function petDmg(pet, now) {
-  return pet.owner.dmg * PET_KINDS[pet.kind].dmg * (pet.boostUntil > now ? 1.5 : 1);
+  const base = pet.dmgAbs ?? pet.owner.dmg * PET_KINDS[pet.kind].dmg;
+  return base * (pet.boostUntil > now ? 1.5 : 1);
 }
 
 // «Падение» зверя: не смерть, а временное отступление
@@ -94,7 +97,7 @@ function nearestMonster(ctx, x, y, r) {
 
 function updatePets(ctx, owner, now, dt) {
   for (const pet of [...owner.pets]) {
-    const k = PET_KINDS[pet.kind];
+    const k = { ...PET_KINDS[pet.kind], ...(pet.speedAbs ? { speed: pet.speedAbs } : {}) };
     if (pet.temp && now >= pet.expires) { ctx.pushFx({ t: 'petGone', id: pet.id, x: pet.x, y: pet.y }); ctx.removePet(pet); continue; }
     // Позиция «у ног» хозяина: звери расходятся веером вокруг него
     const ang = (owner.pets.indexOf(pet) / owner.pets.length) * Math.PI * 2 + 0.6;

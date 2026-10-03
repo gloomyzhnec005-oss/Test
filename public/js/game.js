@@ -36,7 +36,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     ['wolf', 'bear', 'hawk', 'skeleton', 'sprite'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
-    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy', 'note', 'necro'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -141,8 +141,17 @@ window.GameScene = class GameScene extends Phaser.Scene {
       // ...и стихия Аурелиуса
       const ELEM = { fire: 0xff6a1a, ice: 0x8ad3ff, lightning: 0xffe94a, earth: 0xa07a4a };
       const VOW = { protection: 0x8ad3ff, retribution: 0xffb030, mercy: 0xffd0e0 };
+      const SONG = { inspire: 0xffb030, lullaby: 0x8a9aff, mock: 0xff6a9a };
       const auraCol = p.pact ? { fury: 0xff3020, stone: 0x9aa3ad, wind: 0x8ad3ff }[p.pact] : p.tree ? 0x5fd17a : p.elem ? ELEM[p.elem]
-        : p.bless ? 0xfff0a0 : p.vow ? VOW[p.vow] : null;
+        : p.bless ? 0xfff0a0 : p.vow ? VOW[p.vow] : p.song ? SONG[p.song] : null;
+      // Песня барда: по кругу 180 разлетаются ноты
+      if (p.song && (!e.nextNote || this.time.now > e.nextNote)) {
+        e.nextNote = this.time.now + 450;
+        const a = Math.random() * Math.PI * 2, d = 40 + Math.random() * 130;
+        const n = this.add.text(e.c.x + Math.cos(a) * d, e.c.y + Math.sin(a) * d * 0.6, Math.random() < 0.5 ? '♪' : '♫',
+          { fontSize: '13px', color: '#' + SONG[p.song].toString(16).padStart(6, '0') }).setOrigin(0.5).setDepth(900);
+        this.tweens.add({ targets: n, y: n.y - 26, alpha: 0, duration: 1200, onComplete: () => n.destroy() });
+      }
       if (auraCol !== (e.auraCol ?? null)) {
         if (e.extraAura) { e.extraAura.destroy(); e.extraAura = null; }
         e.auraCol = auraCol;
@@ -200,7 +209,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
       const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '')
-        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '');
+        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '') + (m.mo ? '🤡' : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -227,9 +236,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
       let e = this.pets.get(pt.id);
       if (!e) {
         const names = { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга', sprite: 'Дух леса', clone: 'Двойник' };
-        // Двойник рисуется спрайтом самого героя, полупрозрачным и с розовым оттенком
-        e = this.makeEntity(pt.skin ? 'hero_' + pt.skin : 'pet_' + pt.kind, names[pt.kind], pt.owner === this.myId ? '#c8f0a0' : '#d8d0c0');
-        if (pt.skin) { e.sprite.setAlpha(0.65).setTint(0xffb0e8); }
+        // Двойник рисуется спрайтом героя (розовый, полупрозрачный), поднятый монстр — своим спрайтом (зелёный)
+        e = this.makeEntity(pt.skin || 'pet_' + pt.kind, pt.label || names[pt.kind], pt.owner === this.myId ? '#c8f0a0' : '#d8d0c0');
+        e.skinTint = pt.kind === 'clone' ? 0xffb0e8 : pt.kind === 'minion' ? 0x8affc0 : null;
+        if (e.skinTint) e.sprite.setTint(e.skinTint);
+        if (pt.kind === 'clone') e.sprite.setAlpha(0.65);
         e.c.setPosition(pt.x, pt.y);
         e.label.setFontSize(8);
         e.c.setScale(0.85);
@@ -239,7 +250,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       e.tx = pt.x; e.ty = pt.y; e.data = pt;
       this.setBar(e, pt.hp, pt.maxHp);
       e.c.setAlpha(pt.down ? 0.45 : 1);
-      e.label.setText(pt.down ? '💤' : { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга', sprite: 'Дух леса', clone: 'Двойник' }[pt.kind]);
+      e.label.setText(pt.down ? '💤' : pt.label || { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга', sprite: 'Дух леса', clone: 'Двойник' }[pt.kind]);
       if (pt.boost && !e.glow) {
         e.glow = this.add.circle(0, 4, 13).setStrokeStyle(2, 0xff7ab0, 0.9);
         e.c.addAt(e.glow, 0);
@@ -301,7 +312,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         // Отражённый урон (возмездие Малакора) — фиолетовым
         this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
-        const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { holy: 0xfff0a0, spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
+        const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { note: 0xffe08a, necro: 0x5fffb0, holy: 0xfff0a0, spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
           illusion: 0xff7ad0, fireball: 0xff8c1a, frost: 0x8ad3ff, spark: 0xffe94a, stone: 0xa07a4a }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
@@ -349,7 +360,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.floatText(e.c.x, e.c.y - 16, '-' + f.dmg, '#ff9a7a', 11);
         e.sprite.setTint(0xff6060);
         // У двойника возвращаем его розовый оттенок
-        this.time.delayedCall(120, () => (e.data && e.data.skin ? e.sprite.setTint(0xffb0e8) : e.sprite.clearTint()));
+        this.time.delayedCall(120, () => (e.skinTint ? e.sprite.setTint(e.skinTint) : e.sprite.clearTint()));
       }
     } else if (f.t === 'absorb') {
       const e = this.players.get(f.target);
@@ -536,6 +547,42 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.burst(f.x, f.y, 0xff7ab0, 8);
         break;
       }
+      case 'songSwap': {
+        const S = { inspire: [0xffb030, '🎺 Вдохновение'], lullaby: [0x8a9aff, '🌙 Колыбельная'], mock: [0xff6a9a, '🤡 Насмешка'] }[f.song];
+        this.ring(f.x, f.y, 180, S[0], 700, 3);
+        this.floatText(f.x, f.y - 52, S[1], '#' + S[0].toString(16).padStart(6, '0'), 14);
+        break;
+      }
+      case 'resonantChord':
+        for (let i = 0; i < 3; i++) this.time.delayedCall(i * 90, () => this.ring(f.x, f.y, f.r, 0xffe08a, 450, 5 - i));
+        this.floatText(f.x, f.y - 56, f.pw > 1.3 ? '🎸 БРАВО!' : '🎸 Аккорд!', '#ffe08a', 15);
+        this.cameras.main.shake(140, 0.006);
+        break;
+      case 'ovation':
+        for (const id of f.ids || []) {
+          const e = this.players.get(id);
+          if (e) { this.floatText(e.c.x, e.c.y - 40, '👏', '#fff', 15); this.ring(e.c.x, e.c.y, 26, 0xffb030, 500, 3); }
+        }
+        break;
+      case 'raiseCorpse':
+        this.ring(f.x, f.y, 28, 0x5fffb0, 600, 4);
+        this.burst(f.x, f.y, 0x5fffb0, 16);
+        this.floatText(f.x, f.y - 34, f.auto ? '💀 Восстал!' : '🧟 Встань!', '#5fffb0', 13);
+        break;
+      case 'darkArrow': {
+        const orb = this.add.image(f.fx, f.fy, 'proj_necro').setScale(1.6).setDepth(860);
+        this.tweens.add({ targets: orb, x: f.x, y: f.y, duration: f.flight, onComplete: () => { orb.destroy(); this.burst(f.x, f.y, 0x3fbf7a, 12); } });
+        break;
+      }
+      case 'soulDevour':
+        this.ring(f.x, f.y, f.r, 0x3fbf7a, 700, 4);
+        for (const id of f.ids || []) {
+          const m = this.monsters.get(id);
+          if (!m) continue;
+          const o = this.add.image(m.c.x, m.c.y, 'proj_necro').setDepth(860).setScale(0.8);
+          this.tweens.add({ targets: o, x: f.x, y: f.y, duration: 500, onComplete: () => o.destroy() });
+        }
+        break;
       case 'holyVow': {
         const V = { protection: [0x8ad3ff, '🛡️ Обет защиты'], retribution: [0xffb030, '⚔️ Обет кары'], mercy: [0xffd0e0, '💛 Обет милосердия'] }[f.vow];
         this.ring(f.x, f.y, 38, V[0], 500, 4);

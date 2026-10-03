@@ -9,7 +9,7 @@ const C = require('./config');
 const { generateMap, SOLID } = require('./world');
 const { verifyInitData } = require('./auth');
 const { SKILLS, PASSIVES, NEEDS_TARGET, skillRange } = require('./skills');
-const { createPets, rescalePets, updatePets, hurtPet } = require('./pets');
+const { createPets, createSummon, rescalePets, updatePets, hurtPet } = require('./pets');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
@@ -184,11 +184,12 @@ const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
   return (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1) * (p.linkUntil > now ? 1.3 : 1)
     * (p.pactUntil > now && p.pactType === 'fury' ? 1.5 : 1) * (p.blessUntil > now ? 1.2 : 1)
+    * (p.songUntil > now ? 1 + 0.15 * (p.songPw || 1) : 1) // песнь вдохновения Джакомо
     * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (p.blessUntil > now ? 1.2 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
+  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (p.blessUntil > now ? 1.2 : 1) * (p.songUntil > now ? 1 + 0.1 * (p.songPw || 1) : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
   return Math.round(formOf(p).cooldown / speed);
 };
 
@@ -238,7 +239,8 @@ function publicPlayer(p) {
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
-    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(), tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
+    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
+    song: p.hero.songs ? p.form : null, tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -334,6 +336,22 @@ function giveShield(o, amount, until) {
   fx.push({ t: 'shield', target: o.id, amount: Math.round(amount) });
   markDirty(o);
 }
+// Поднятый монстр-слуга Ориона: облик и сила самого монстра, до 5 слуг
+function raiseMinion(owner, corpse, now, auto = false) {
+  const def = C.MONSTERS[corpse.type] || C.MONSTERS.slime;
+  const minions = owner.pets.filter((pet) => pet.kind === 'minion');
+  if (minions.length >= 5) removePet(minions[0]);
+  const pet = createSummon(owner, 'minion', corpse.x, corpse.y, 30000, now);
+  pet.maxHp = Math.round(def.hp * 0.8); pet.hp = pet.maxHp;
+  pet.dmgAbs = def.dmg * 1.2;
+  pet.speedAbs = Math.max(110, def.speed * 1.3);
+  pet.monsterType = corpse.type || 'slime';
+  pet.label = def.name;
+  addPet(owner, pet);
+  fx.push({ t: 'skill', s: 'raiseCorpse', from: owner.id, x: corpse.x, y: corpse.y, auto, quiet: auto });
+  markDirty(owner);
+  return pet;
+}
 function addPet(owner, pet) { owner.pets.push(pet); pets.set(pet.id, pet); }
 function removePet(pet) {
   pets.delete(pet.id);
@@ -407,6 +425,7 @@ function syncCooldowns(p, now) {
 const skillCtx = {
   moveEntity, syncCooldowns, passiveOf,
   isUndead: (m) => !!C.MONSTERS[m.type].undead,
+  raiseMinion,
   monsters, players, damageMonster, healPlayer, teleport, knockback, addTotem, addGround, takeCorpse, giveShield, addPet, removePet,
   isSolidAt: (x, y) => world.isSolidAt(x, y),
   pushFx: (f) => fx.push(f),
@@ -464,6 +483,7 @@ io.on('connection', (socket) => {
     if (hero.summons) p.pets = []; // слуги появляются навыком «Восстание мёртвых»
     if (hero.elements) p.form = 'fire'; // Аурелиус начинает с огня
     if (hero.vows) { p.form = 'protection'; p.vowSince = Date.now(); } // Валериан начинает с обета защиты
+    if (hero.songs) p.form = 'inspire'; // Джакомо начинает с песни вдохновения
     p.joinedAt = Date.now();
     players.set(socket.id, p);
 
@@ -513,7 +533,8 @@ io.on('connection', (socket) => {
     const empowered = p.empoweredUntil > now;
     if (empowered) { p.empoweredUntil = 0; fx.push({ t: 'skill', s: 'empHit', from: p.id, x: m.x, y: m.y, quiet: true }); }
     const ps1 = passiveOf(p);
-    const basic = ps1 && ps1.basicMult ? ps1.basicMult(p) : 1; // рвение Валериана
+    let basic = ps1 && ps1.basicMult ? ps1.basicMult(p) : 1; // рвение Валериана
+    if (p.nextAttackBoost) { basic *= p.nextAttackBoost; p.nextAttackBoost = 0; } // овация Джакомо
     damageMonster(p, m, p.dmg * basic * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15, proj: formOf(p).projectile, basic: true });
     // Ресурс, который копится от ударов (ярость Вебранда)
     p.lastHit = now;
@@ -671,7 +692,9 @@ setInterval(() => {
         m.lastAttack = now;
         // Удар по зверю: зверь не гибнет, а «падает» и отступает
         if (target.owner) { hurtPet(skillCtx, target, Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)), now); continue; }
-        hurtPlayer(target, def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1), m, now);
+        // Насмешка Джакомо снижает урон монстра
+        hurtPlayer(target, def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)
+          * (m.mockUntil > now ? Math.max(0.4, 1 - 0.25 * (m.mockPw || 1)) : 1), m, now);
       }
     } else {
       if (rooted) continue;
@@ -739,8 +762,8 @@ setInterval(() => {
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
       bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
-      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0 })),
-    pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? pet.owner.heroId : null, x: Math.round(pet.x), y: Math.round(pet.y),
+      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0 })),
+    pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
     fx,

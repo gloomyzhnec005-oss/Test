@@ -718,6 +718,76 @@ const SKILLS = {
     ctx.pushFx({ t: 'skill', s: 'blessing', from: p.id, x: p.x, y: p.y, r, ids });
     return null;
   },
+
+  // Джакомо: смена песни по кругу (вдохновение копится и тратится на усиление новой песни)
+  songSwap(ctx, p, _t, now) {
+    const ORDER = ['inspire', 'lullaby', 'mock'];
+    p.form = ORDER[(ORDER.indexOf(p.form) + 1) % ORDER.length];
+    p.songPower = 1 + (p.inspiration || 0) / 100;
+    p.songPowerUntil = now + 10000;
+    p.inspiration = 0;
+    ctx.pushFx({ t: 'skill', s: 'songSwap', from: p.id, x: p.x, y: p.y, song: p.form });
+    return null;
+  },
+
+  // Джакомо: звучный аккорд — урон и оглушение вокруг, усиливается вдохновением
+  resonantChord(ctx, p, _t, now) {
+    const pw = 1 + (p.inspiration || 0) / 100, r = 120;
+    p.inspiration = 0;
+    ctx.pushFx({ t: 'skill', s: 'resonantChord', from: p.id, x: p.x, y: p.y, r, pw });
+    for (const m of inRadius(ctx, p.x, p.y, r)) {
+      m.stunUntil = Math.max(m.stunUntil || 0, now + 1500);
+      ctx.damageMonster(p, m, p.dmg * 1.6 * pw);
+    }
+    return null;
+  },
+
+  // Джакомо: овация — союзникам ускорение перезарядки и усиленная следующая атака
+  ovation(ctx, p, _t, now) {
+    const r = 200, ids = [];
+    for (const o of ctx.players.values()) {
+      if (o.dead || dist(o, p) > r) continue;
+      for (const id of Object.keys(o.skillReadyAt || {})) o.skillReadyAt[id] = Math.max(now, o.skillReadyAt[id] - 3000);
+      if (o !== p) ctx.syncCooldowns(o, now);
+      o.nextAttackBoost = 1.5;
+      ids.push(o.id);
+    }
+    ctx.pushFx({ t: 'skill', s: 'ovation', from: p.id, x: p.x, y: p.y, ids });
+    return null;
+  },
+
+  // Орион: поднятие мертвеца — павший монстр становится слугой со своей силой
+  raiseCorpse(ctx, p, _t, now) {
+    const corpse = ctx.takeCorpse(p.x, p.y, 250, now);
+    if (!corpse) return 'Нет павших монстров рядом';
+    ctx.raiseMinion(p, corpse, now);
+    return null;
+  },
+
+  // Орион: тёмная стрела — урон и ослабление
+  darkArrow(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const flight = Math.min(400, dist(p, t) * 1.3);
+    ctx.pushFx({ t: 'skill', s: 'darkArrow', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y, flight });
+    setTimeout(() => {
+      if (!alive(ctx, p, t)) return;
+      t.weakUntil = Math.max(t.weakUntil || 0, Date.now() + 5000);
+      ctx.damageMonster(p, t, p.dmg * 1.8);
+    }, flight);
+    return null;
+  },
+
+  // Орион: пожирание душ — урон вокруг, лечение себе и слугам
+  soulDevour(ctx, p, _t, now) {
+    const r = 150;
+    const targets = inRadius(ctx, p.x, p.y, r);
+    ctx.pushFx({ t: 'skill', s: 'soulDevour', from: p.id, x: p.x, y: p.y, r, ids: targets.map((m) => m.id) });
+    let dealt = 0;
+    for (const m of targets) dealt += ctx.damageMonster(p, m, p.dmg);
+    if (dealt > 0) ctx.healPlayer(p, dealt / 3);
+    for (const pet of p.pets) if (!pet.down) pet.hp = Math.min(pet.maxHp, pet.hp + pet.maxHp * 0.3);
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -1013,12 +1083,54 @@ const PASSIVES = {
     },
     note: (p) => ((p.light || 0) >= 100 ? 'свет 100 — следующее заклинание усилено!' : `свет ${p.light || 0}/100`),
   },
+
+  // Джакомо: вдохновение — песня действует вокруг, бард копит вдохновение
+  inspiration: {
+    onTick(p, now, ctx) {
+      const dt = Math.min(0.5, (now - (p.songTick || now)) / 1000);
+      p.songTick = now;
+      if (p.dead) return;
+      const r = 180, pw = p.songPowerUntil > now ? p.songPower : 1;
+      let affected = 0;
+      if (p.form === 'inspire') {
+        for (const o of ctx.players.values()) {
+          if (o.dead || Math.hypot(o.x - p.x, o.y - p.y) > r) continue;
+          o.songUntil = now + 600; o.songPw = pw; affected++;
+        }
+      } else {
+        for (const m of ctx.monsters.values()) {
+          if (Math.hypot(m.x - p.x, m.y - p.y) > r) continue;
+          if (p.form === 'lullaby') m.slowUntil = Math.max(m.slowUntil || 0, now + 600);
+          else { m.mockUntil = now + 600; m.mockPw = pw; }
+          affected++;
+        }
+      }
+      const before = p.inspiration || 0;
+      p.inspiration = Math.min(100, before + (4 + 2 * Math.min(5, affected)) * dt);
+      if (Math.floor(before / 5) !== Math.floor(p.inspiration / 5)) p.dirty = true;
+    },
+    note(p) {
+      const names = { inspire: 'Вдохновение', lullaby: 'Колыбельная', mock: 'Насмешка' };
+      return `песнь: ${names[p.form]}${p.songPowerUntil > Date.now() ? ' ×' + p.songPower.toFixed(1) : ''} · вдохновение ${Math.round(p.inspiration || 0)}%`;
+    },
+  },
+
+  // Орион: власть над смертью — убитые с шансом восстают, слуги усиливают некроманта
+  deathMastery: {
+    dmgMult: (p) => 1 + 0.06 * Math.min(5, (p.pets || []).length),
+    onKill(ctx, p, now, m) {
+      if (!m || Math.random() >= 0.3) return;
+      const corpse = ctx.takeCorpse(m.x, m.y, 5, now) || { x: m.x, y: m.y, type: m.type };
+      ctx.raiseMinion(p, corpse, now, true);
+    },
+    note: (p) => `армия ${(p.pets || []).length}/5`,
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };
