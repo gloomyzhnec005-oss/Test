@@ -33,6 +33,10 @@ function getProfile(uid) {
   pr.bgs ??= [];
   pr.paidSpins ??= 0;
   pr.freeSpinUsed ??= false;
+  // Удалённые из игры герои пропадают из профиля; если не осталось ни одного — возвращаем бесплатную крутку
+  const before = pr.heroes.length;
+  pr.heroes = pr.heroes.filter((id) => C.HEROES[id]);
+  if (before > 0 && pr.heroes.length === 0) pr.freeSpinUsed = false;
   return pr;
 }
 function getChar(uid, heroId) {
@@ -167,17 +171,17 @@ const statsFor = (heroId, lvl) => {
     resMax: Math.round(b.resource.max * (1 + 0.05 * (lvl - 1))),
   };
 };
-// Усиления урона и скорости атаки: ярость Вальгрима и пассивные навыки
+// Усиления урона и скорости атаки: временные эффекты навыков и пассивные навыки
 const startRes = (p) => (p.hero.resource.start ?? 1) * p.resMax;
 const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  return (p.rageUntil > now ? 1.6 : 1) * (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1)
+  return (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1)
     * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  const speed = (p.rageUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
+  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
   return Math.round(p.hero.cooldown / speed);
 };
 
@@ -224,7 +228,7 @@ function moveEntity(e, dx, dy) {
 
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
-    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.rageUntil > Date.now() || p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
+    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -332,7 +336,7 @@ io.on('connection', (socket) => {
       id: socket.id, uid, name: name.slice(0, 20), heroId, hero, char, socket,
       x: world.spawn.x + (Math.random() - 0.5) * 64, y: world.spawn.y + (Math.random() - 0.5) * 64,
       dir: 1, dead: false, lastAttack: 0, lastHurt: 0, lastMove: Date.now(),
-      skillReadyAt: {}, rageUntil: 0, roarUntil: 0, frenzyUntil: 0, bloodStacks: 0, lastKill: 0, favor: 0, empoweredUntil: 0, cheatUsed: false, lastHit: 0, dirty: false, lastStats: 0,
+      skillReadyAt: {}, roarUntil: 0, frenzyUntil: 0, bloodStacks: 0, lastKill: 0, favor: 0, empoweredUntil: 0, cheatUsed: false, lastHit: 0, dirty: false, lastStats: 0,
       ...statsFor(heroId, char.level),
     };
     p.hp = p.maxHp;

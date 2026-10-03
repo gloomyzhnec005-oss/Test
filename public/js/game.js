@@ -29,10 +29,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
     addTex('tiles', Gfx.tileset());
     Object.entries(this.heroes).forEach(([k, h]) => addTex('hero_' + k, Gfx.hero(h.look)));
     Object.keys(this.monsterDefs).forEach((k) => addTex('mon_' + k, Gfx.monster(k)));
-    addTex('proj_fireball', Gfx.projectile('fireball'));
     addTex('totem', Gfx.totem());
     this.totems = new Map();
-    ['arrow', 'holy', 'nature', 'dark', 'stone', 'spirit'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -127,7 +126,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       e.label.setText(`${p.name} [${p.lvl}]`);
       this.setBar(e, p.hp, p.maxHp);
       e.c.setAlpha(p.dead ? 0.35 : 1);
-      // Аура ярости
+      // Аура усиления (рёв ярости, кровавое безумие)
       if (p.rage && !e.aura) {
         e.aura = this.add.circle(0, 4, 18, 0xff3020, 0.25).setStrokeStyle(2, 0xff6040, 0.8);
         e.c.addAt(e.aura, 0);
@@ -221,7 +220,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const x = tgt ? tgt.c.x : f.tx, y = tgt ? tgt.c.y : f.ty;
         this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
-        const col = { fireball: 0xff8c1a, holy: 0xfff0a0, nature: 0x7fe08a, dark: 0xb060ff, spirit: 0x9ff0ff }[f.proj] || 0xff4040;
+        const col = { spirit: 0x9ff0ff }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
       const attacker = this.players.get(f.from);
@@ -284,59 +283,6 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (sk) this.floatText(caster.c.x, caster.c.y - 44, sk.icon + ' ' + sk.name, '#ffe08a', 12);
     if (f.from === this.myId && !f.quiet) this.ui.vibrate('medium');
     switch (f.s) {
-      case 'quake':
-        this.cameras.main.shake(250, 0.008);
-        this.ring(f.x, f.y, f.r, 0xc9a26a, 600, 6);
-        this.ring(f.x, f.y, f.r * 0.6, 0xffffff, 400, 3);
-        this.burst(f.x, f.y, 0x8a6a3a, 24);
-        break;
-      case 'arrowRain':
-        for (let i = 0; i < 16; i++) {
-          const a = Math.random() * Math.PI * 2, d = Math.random() * f.r;
-          const x = f.x + Math.cos(a) * d, y = f.y + Math.sin(a) * d;
-          const arrow = this.add.image(x, y - 160, 'proj_arrow').setRotation(Math.PI / 2).setDepth(850).setAlpha(0);
-          this.tweens.add({ targets: arrow, y, alpha: 1, delay: i * 25, duration: 380, ease: 'Quad.easeIn',
-            onComplete: () => { this.burst(x, y, 0xffe08a, 3); arrow.destroy(); } });
-        }
-        this.ring(f.x, f.y, f.r, 0xffe08a, 900, 2);
-        break;
-      case 'meteor': {
-        const m = this.add.image(f.x + 120, f.y - 260, 'proj_fireball').setScale(3).setDepth(900);
-        this.tweens.add({ targets: m, x: f.x, y: f.y, duration: 620, ease: 'Quad.easeIn', onComplete: () => {
-          m.destroy();
-          this.cameras.main.shake(200, 0.01);
-          this.ring(f.x, f.y, f.r, 0xff6a1a, 600, 8);
-          this.burst(f.x, f.y, 0xff8c1a, 30);
-        } });
-        break;
-      }
-      case 'shadow':
-        this.burst(f.fx, f.fy, 0x5a3a8a, 16);
-        this.burst(f.x, f.y, 0xb48cff, 16);
-        if (f.from === this.myId && this.me) { this.me.x = f.x; this.me.y = f.y; }
-        break;
-      case 'heal':
-        this.ring(f.x, f.y, f.r, 0x7dff8a, 800, 3);
-        for (let i = 0; i < 10; i++) {
-          const x = f.x + (Math.random() - 0.5) * 60, y = f.y + Math.random() * 10;
-          const t = this.add.text(x, y, '✚', { fontSize: '12px', color: '#9dffa8' }).setOrigin(0.5).setDepth(900);
-          this.tweens.add({ targets: t, y: y - 50, alpha: 0, delay: i * 40, duration: 800, onComplete: () => t.destroy() });
-        }
-        break;
-      case 'rage':
-        this.ring(f.x, f.y, 50, 0xff3020, 500, 5);
-        this.burst(f.x, f.y, 0xff3020, 20);
-        break;
-      case 'roots':
-        this.ring(f.x, f.y, f.r, 0x5fd17a, 700, 4);
-        for (const id of f.ids || []) {
-          const m = this.monsters.get(id);
-          if (!m) continue;
-          const vine = this.add.ellipse(0, 10, 30, 12).setStrokeStyle(3, 0x3f8a2f).setFillStyle(0x2d6b22, 0.4);
-          m.c.addAt(vine, 0);
-          this.time.delayedCall(3000, () => vine.destroy());
-        }
-        break;
       case 'qiWave': {
         // Полоса энергии по направлению удара
         const ang = Math.atan2(f.dy, f.dx);
@@ -462,13 +408,6 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.floatText(f.x, f.y - 50, '🌀 Духи благосклонны!', '#9ff0ff', 13);
         this.ring(f.x, f.y, 40, 0x9ff0ff, 600, 3);
         break;
-      case 'drain': {
-        for (let i = 0; i < 8; i++) {
-          const o = this.add.image(f.fx, f.fy, 'proj_dark').setDepth(850).setScale(0.7);
-          this.tweens.add({ targets: o, x: f.x, y: f.y, delay: i * 40, duration: 450, onComplete: () => o.destroy() });
-        }
-        break;
-      }
     }
   }
 
