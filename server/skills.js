@@ -4,6 +4,7 @@ const { petDmg, petsNear } = require('./pets');
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const inRadius = (ctx, x, y, r) => [...ctx.monsters.values()].filter((m) => Math.hypot(m.x - x, m.y - y) <= r);
 const isMarked = (p, m) => m.markedBy === p.id && m.markUntil > Date.now(); // метка Найри
+const isSealed = (p, m, now = Date.now()) => m.sealedBy === p.id && m.sealUntil > now; // печать кары Малакора
 const alive = (ctx, p, m) => ctx.players.has(p.id) && (!m || ctx.monsters.has(m.id));
 
 const SKILLS = {
@@ -231,6 +232,42 @@ const SKILLS = {
     ctx.pushFx({ t: 'skill', s: 'smokeScreen', from: p.id, x: p.x, y: p.y, dur: 6000 });
     return null;
   },
+
+  // Малакор: печать кары — проклятие на 12 с, удары цели по Карателю отражаются
+  punishSeal(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    t.sealedBy = p.id;
+    t.sealUntil = now + 12000;
+    ctx.pushFx({ t: 'skill', s: 'punishSeal', from: p.id, x: t.x, y: t.y });
+    return null;
+  },
+
+  // Малакор: клинок тьмы — рывок к цели и удар, вдвое сильнее по проклятым
+  darkBlade(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1;
+    const fromX = p.x, fromY = p.y;
+    const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy) || 1;
+    ctx.teleport(p, t.x - (dx / d) * 26, t.y - (dy / d) * 26);
+    p.dir = dx < 0 ? -1 : 1;
+    const sealed = isSealed(p, t, now);
+    ctx.pushFx({ t: 'skill', s: 'darkBlade', from: p.id, fx: fromX, fy: fromY, x: p.x, y: p.y, tx: t.x, ty: t.y, sealed });
+    ctx.damageMonster(p, t, p.dmg * 1.8 * (sealed ? 2 : 1) * pw, { crit: sealed });
+    return null;
+  },
+
+  // Малакор: суд тени — вспышка вокруг, плюс расплата за урон, нанесённый Карателю
+  shadowJudgment(ctx, p, _t, now) {
+    const pw = p.castPower || 1, r = 120;
+    ctx.pushFx({ t: 'skill', s: 'shadowJudgment', from: p.id, x: p.x, y: p.y, r });
+    for (const m of inRadius(ctx, p.x, p.y, r)) {
+      const debt = m.debt && m.debt.by === p.id && now - m.debt.t < 10000 ? m.debt.sum : 0;
+      ctx.damageMonster(p, m, p.dmg * 1.4 * pw);
+      if (debt > 0 && ctx.monsters.has(m.id)) ctx.damageMonster(p, m, debt * pw, { fixed: true, reflect: true });
+      m.debt = null;
+    }
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -310,12 +347,33 @@ const PASSIVES = {
       ctx.syncCooldowns(p, now);
     },
   },
+
+  // Малакор: возмездие — гнев от ударов усиливает навыки и отражает урон
+  retribution: {
+    beforeCast: (p) => ({ free: false, power: 1 + 0.6 * (p.wrath || 0) / 100 }),
+    onHurt(ctx, p, dmg, attacker) {
+      const now = Date.now();
+      p.wrath = Math.min(100, (p.wrath || 0) + 12);
+      p.dirty = true;
+      if (!attacker || !ctx.monsters.has(attacker.id)) return;
+      // Враг копит «долг» — урон, нанесённый Карателю (для «Суда тени»)
+      if (!attacker.debt || attacker.debt.by !== p.id || now - attacker.debt.t > 10000) attacker.debt = { by: p.id, sum: 0, t: now };
+      attacker.debt.sum += dmg; attacker.debt.t = now;
+      // Отражение: пассивка 10–30% + печать кары 50%
+      const reflect = dmg * (0.1 + 0.2 * p.wrath / 100) + (isSealed(p, attacker, now) ? dmg * 0.5 : 0);
+      ctx.damageMonster(p, attacker, reflect, { fixed: true, reflect: true });
+    },
+    onTick(p, now) {
+      if (p.wrath > 0 && now - p.lastHurt > 6000) { p.wrath = Math.max(0, p.wrath - 1); p.dirty = true; }
+    },
+    note: (p) => `гнев кары ${Math.round(p.wrath || 0)}%`,
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

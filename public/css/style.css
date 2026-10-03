@@ -344,3 +344,4 @@ html, body {
 .hero .pet-bear { right: -38%; bottom: -2%; width: 52%; height: 52%; }
 .hero .pet-hawk { left: -22%; top: 6%; width: 36%; height: 36%; animation: idle 1.4s ease-in-out infinite !important; }
 .hero.flip canvas.lobby-pet { transform: none; }
+.reveal-tagline { margin-top: 4px; font-size: 12px; font-style: italic; color: #c890ff; }

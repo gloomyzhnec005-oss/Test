@@ -370,6 +370,7 @@ window.Lobby = (() => {
       <div class="reveal-art"></div>
       <h2>${h.name}</h2>
       <div class="reveal-title">«${h.title}»${h.race ? ' · ' + h.race : ''} · ${atk} · ${h.resource.name}</div>
+      ${h.tagline ? `<div class="reveal-tagline">— ${h.tagline} —</div>` : ''}
       <p class="reveal-desc">${h.desc}</p>
       ${h.style ? `<p class="reveal-style"><b>Стиль боя:</b> ${h.style}</p>` : ''}
       ${h.skills.map((sk) => `<div class="reveal-skill"><span>${sk.icon}</span><div><b>${sk.name}</b>

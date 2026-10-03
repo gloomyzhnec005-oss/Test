@@ -250,10 +250,12 @@ function damageMonster(p, m, raw, opt = {}) {
   const crit = opt.crit ?? false;
   const ps = passiveOf(p);
   const tMult = ps && ps.targetMult ? ps.targetMult(p, m) : 1; // бонус против конкретной цели (Найри)
-  const dmg = Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
+  // fixed — урон без множителей (отражённый урон Малакора)
+  const dmg = opt.fixed ? Math.max(1, Math.round(raw))
+    : Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
   m.hp -= dmg;
   m.target = opt.pet || p.id; // монстр отвечает тому, кто ударил: хозяину или зверю
-  fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null,
+  fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null, reflect: !!opt.reflect,
     fx: p.x, fy: p.y, tx: m.x, ty: m.y });
   if (m.hp <= 0) {
     const def = C.MONSTERS[m.type];
@@ -350,7 +352,7 @@ io.on('connection', (socket) => {
       id: socket.id, uid, name: name.slice(0, 20), heroId, hero, char, socket,
       x: world.spawn.x + (Math.random() - 0.5) * 64, y: world.spawn.y + (Math.random() - 0.5) * 64,
       dir: 1, dead: false, lastAttack: 0, lastHurt: 0, lastMove: Date.now(),
-      skillReadyAt: {}, roarUntil: 0, frenzyUntil: 0, bloodStacks: 0, lastKill: 0, favor: 0, empoweredUntil: 0, cheatUsed: false, lastHit: 0, dirty: false, lastStats: 0,
+      skillReadyAt: {}, wrath: 0, roarUntil: 0, frenzyUntil: 0, bloodStacks: 0, lastKill: 0, favor: 0, empoweredUntil: 0, cheatUsed: false, lastHit: 0, dirty: false, lastStats: 0,
       ...statsFor(heroId, char.level),
     };
     p.hp = p.maxHp;
@@ -606,7 +608,7 @@ setInterval(() => {
     p: [...players.values()].map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
     m: [...monsters.values()].map((m) => ({ id: m.id, type: m.type, x: Math.round(m.x), y: Math.round(m.y),
       hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
-      mk: m.markUntil > now ? m.markedBy : null })),
+      mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0 })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),

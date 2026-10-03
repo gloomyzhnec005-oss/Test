@@ -33,7 +33,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     ['wolf', 'bear', 'hawk'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
-    ['stone', 'spirit', 'spear', 'dagger'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit', 'spear', 'dagger', 'shadow'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -168,7 +168,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
-      const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '');
+      const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -252,9 +252,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const doHit = () => {
         const tgt = this.monsters.get(f.target);
         const x = tgt ? tgt.c.x : f.tx, y = tgt ? tgt.c.y : f.ty;
-        this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
+        // Отражённый урон (возмездие Малакора) — фиолетовым
+        this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
-        const col = { spirit: 0x9ff0ff }[f.proj] || 0xff4040;
+        const col = f.reflect ? 0xb060ff : { spirit: 0x9ff0ff, shadow: 0xb060ff }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
       const attacker = f.pet ? this.pets.get(f.pet) : this.players.get(f.from);
@@ -473,6 +474,28 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: ln, alpha: 0, duration: 700, onComplete: () => ln.destroy() });
         this.burst(f.fx, f.fy, 0xff7ab0, 14);
         this.burst(f.x, f.y, 0xff7ab0, 8);
+        break;
+      }
+      case 'punishSeal':
+        this.ring(f.x, f.y, 36, 0x9b4dff, 600, 4);
+        this.ring(f.x, f.y, 22, 0x2a0a3a, 500, 6);
+        this.floatText(f.x, f.y - 40, '⛓️ Приговор', '#c890ff', 12);
+        break;
+      case 'darkBlade': {
+        const ln = this.add.line(0, 0, f.fx, f.fy, f.x, f.y, 0x3a0a5a, 0.8).setOrigin(0, 0).setLineWidth(7).setDepth(840);
+        this.tweens.add({ targets: ln, alpha: 0, duration: 400, onComplete: () => ln.destroy() });
+        this.burst(f.fx, f.fy, 0x3a0a5a, 12);
+        this.burst(f.tx, f.ty, f.sealed ? 0xc070ff : 0x6a2a9a, f.sealed ? 20 : 10);
+        if (f.sealed) this.floatText(f.tx, f.ty - 46, 'Кара!', '#c890ff', 15);
+        if (f.from === this.myId && this.me) { this.me.x = f.x; this.me.y = f.y; }
+        break;
+      }
+      case 'shadowJudgment': {
+        const flash = this.add.circle(f.x, f.y, f.r, 0x1a0a24, 0.6).setDepth(830).setScale(0.2);
+        this.tweens.add({ targets: flash, scale: 1, alpha: 0, duration: 600, ease: 'Cubic.easeOut', onComplete: () => flash.destroy() });
+        this.ring(f.x, f.y, f.r, 0x9b4dff, 650, 5);
+        this.burst(f.x, f.y, 0x6a2a9a, 24);
+        this.cameras.main.shake(180, 0.006);
         break;
       }
       case 'markPrey':
