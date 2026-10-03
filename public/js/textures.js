@@ -147,6 +147,12 @@ window.Gfx = (() => {
         rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
         rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
         break;
+      case 'elf':
+        // Длинные светлые волосы, острые уши, повязка на лице
+        rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 14, L.hair); rect(ctx, 21, 5, 2, 9, L.hair);
+        rect(ctx, 22, 7, 3, 2, L.skin); rect(ctx, 24, 6, 1, 1, L.skin); // ухо
+        rect(ctx, 12, 11, 9, 3, '#2a3a48'); // маска
+        break;
       case 'bearHood':
         // Капюшон из медвежьей головы: уши, морда над лбом
         rect(ctx, 9, 2, 14, 5, L.headColor); rect(ctx, 9, 5, 2, 10, L.headColor); rect(ctx, 21, 5, 2, 10, L.headColor);
@@ -190,7 +196,7 @@ window.Gfx = (() => {
       // Два изогнутых клинка в обеих руках
       rect(ctx, 24, 9, 2, 13, '#c9d1e0'); rect(ctx, 26, 8, 1, 4, '#c9d1e0'); rect(ctx, 23, 21, 4, 2, '#5a1a1a');
       rect(ctx, 6, 9, 2, 13, '#c9d1e0'); rect(ctx, 5, 8, 1, 4, '#c9d1e0'); rect(ctx, 5, 21, 4, 2, '#5a1a1a');
-      rect(ctx, 24, 12, 2, 3, '#a01020'); rect(ctx, 6, 14, 2, 3, '#a01020');
+      if (L.bloodied) { rect(ctx, 24, 12, 2, 3, '#a01020'); rect(ctx, 6, 14, 2, 3, '#a01020'); }
     }
     if (L.chains) { for (let i = 0; i < 4; i++) rect(ctx, 10 + i * 3, 17 + (i % 2), 2, 1, L.chains); }
     if (L.fur) { rect(ctx, 8, 13, 16, 3, L.fur); rect(ctx, 9, 12, 3, 2, L.fur); rect(ctx, 20, 12, 3, 2, L.fur); } // меховой ворот
@@ -270,6 +276,8 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'dagger') {
+      rect(ctx, 2, 7, 4, 2, '#3a2a1a'); ctx.fillStyle = '#d8e0ea'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.lineTo(6, 5); ctx.lineTo(6, 11); ctx.fill();
     } else if (kind === 'spear') {
       rect(ctx, 0, 7, 12, 2, '#7a5230'); ctx.fillStyle = '#c9d1e0'; ctx.beginPath(); ctx.moveTo(16, 8); ctx.lineTo(11, 5); ctx.lineTo(11, 11); ctx.fill();
     } else if (kind === 'spirit') {

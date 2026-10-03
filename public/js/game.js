@@ -33,7 +33,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     ['wolf', 'bear', 'hawk'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
-    ['stone', 'spirit', 'spear'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit', 'spear', 'dagger'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -134,6 +134,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.c.addAt(e.aura, 0);
         this.tweens.add({ targets: e.aura, scale: 1.25, alpha: 0.5, duration: 300, yoyo: true, repeat: -1 });
       } else if (!p.rage && e.aura) { e.aura.destroy(); e.aura = null; }
+      // Дымовая завеса: полупрозрачность
+      e.sprite.setAlpha(p.smoke ? 0.45 : 1);
       // Щит «Зова стаи»
       if (p.guard && !e.guard) {
         e.guard = this.add.circle(0, 2, 19).setStrokeStyle(2, 0x8ad3ff, 0.9).setFillStyle(0x8ad3ff, 0.12);
@@ -166,7 +168,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
-      const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '');
+      const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -282,6 +284,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     } else if (f.t === 'death') {
       this.burst(f.x, f.y, 0xffe08a, 16);
       if (f.by === this.myId) {
+        if (f.contract) this.floatText(f.x, f.y - 52, 'Контракт выполнен!', '#ffcc4d', 14);
         this.floatText(f.x, f.y - 34, `+${f.xp} XP`, '#8ad3ff', 13);
         this.floatText(f.x, f.y - 18, `+${f.gold} 💰`, '#ffcc4d', 12);
         this.ui.vibrate('medium');
@@ -295,6 +298,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
     } else if (f.t === 'hit' && f.kind === 'pet') {
       const e = this.pets.get(f.target);
       if (e) { this.floatText(e.c.x, e.c.y - 16, '-' + f.dmg, '#ff9a7a', 11); e.sprite.setTint(0xff6060); this.time.delayedCall(120, () => e.sprite.clearTint()); }
+    } else if (f.t === 'dodge') {
+      const e = this.players.get(f.target);
+      if (e) this.floatText(e.c.x, e.c.y - 22, 'Уклонение', '#c8d8e8', 11);
     } else if (f.t === 'petDown') {
       this.floatText(f.x, f.y - 26, `${f.name} отступает`, '#d8c8a8', 11);
     } else if (f.t === 'petUp') {
@@ -469,6 +475,26 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.burst(f.x, f.y, 0xff7ab0, 8);
         break;
       }
+      case 'markPrey':
+        this.ring(f.x, f.y, 34, 0xffcc4d, 500, 3);
+        this.floatText(f.x, f.y - 38, '🎯 Контракт', '#ffcc4d', 12);
+        break;
+      case 'shadowDash': {
+        const ln = this.add.line(0, 0, f.fx, f.fy, f.x, f.y, 0x5a7aa0, 0.7).setOrigin(0, 0).setLineWidth(5).setDepth(840);
+        this.tweens.add({ targets: ln, alpha: 0, duration: 350, onComplete: () => ln.destroy() });
+        this.burst(f.fx, f.fy, 0x3a4a6a, 10);
+        this.burst(f.tx, f.ty, 0xd8e0ea, 12);
+        this.floatText(f.tx, f.ty - 44, 'Удар в спину!', '#d8e0ea', 13);
+        if (f.from === this.myId && this.me) { this.me.x = f.x; this.me.y = f.y; }
+        break;
+      }
+      case 'smokeScreen':
+        for (let i = 0; i < 14; i++) {
+          const x = f.x + (Math.random() - 0.5) * 70, y = f.y + (Math.random() - 0.5) * 40;
+          const puff = this.add.circle(x, y, 10 + Math.random() * 10, 0x9aa0a8, 0.55).setDepth(900);
+          this.tweens.add({ targets: puff, scale: 2.2, alpha: 0, y: y - 20, delay: i * 30, duration: 1400 + Math.random() * 800, onComplete: () => puff.destroy() });
+        }
+        break;
       case 'favorReady':
         this.floatText(f.x, f.y - 50, '🌀 Духи благосклонны!', '#9ff0ff', 13);
         this.ring(f.x, f.y, 40, 0x9ff0ff, 600, 3);

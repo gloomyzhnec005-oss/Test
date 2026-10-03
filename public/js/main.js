@@ -148,16 +148,17 @@
       skillBtns[sk.id] = { el: b, cd: b.querySelector('.sk-cd'), timer: 0 };
     });
   }
-  function startSkillCd(id, ms) {
+  function startSkillCd(id, ms, total = ms) {
     const btn = skillBtns[id];
     if (!btn) return;
     const until = performance.now() + ms;
+    if (ms <= 0) { cancelAnimationFrame(btn.timer); btn.el.classList.remove('cooling'); btn.cd.style.background = ''; btn.cd.textContent = ''; return; }
     btn.el.classList.add('cooling');
     cancelAnimationFrame(btn.timer);
     const tick = () => {
       const left = until - performance.now();
       if (left <= 0) { btn.el.classList.remove('cooling'); btn.cd.style.background = ''; btn.cd.textContent = ''; return; }
-      btn.cd.style.background = `conic-gradient(rgba(0,0,0,.7) ${360 * (left / ms)}deg, transparent 0)`;
+      btn.cd.style.background = `conic-gradient(rgba(0,0,0,.7) ${360 * (left / total)}deg, transparent 0)`;
       btn.cd.textContent = Math.ceil(left / 1000);
       btn.timer = requestAnimationFrame(tick);
     };
@@ -187,6 +188,8 @@
     socket.on('chat', addChat);
     socket.on('stats', setStats);
     socket.on('skillUsed', ({ id, cooldown }) => startSkillCd(id, cooldown));
+    // Сервер сократил перезарядку (убийство Найри) — обновляем таймеры кнопок
+    socket.on('skillCds', (cds) => Object.entries(cds).forEach(([id, c]) => startSkillCd(id, c.left, c.total)));
     socket.on('skillFail', hudToast);
     socket.on('disconnect', () => { if (game) addChat({ sys: true, text: 'Связь потеряна, переподключение...' }); });
     socket.on('welcome', (w) => {

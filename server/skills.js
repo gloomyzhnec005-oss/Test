@@ -3,6 +3,7 @@
 const { petDmg, petsNear } = require('./pets');
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const inRadius = (ctx, x, y, r) => [...ctx.monsters.values()].filter((m) => Math.hypot(m.x - x, m.y - y) <= r);
+const isMarked = (p, m) => m.markedBy === p.id && m.markUntil > Date.now(); // метка Найри
 const alive = (ctx, p, m) => ctx.players.has(p.id) && (!m || ctx.monsters.has(m.id));
 
 const SKILLS = {
@@ -199,6 +200,37 @@ const SKILLS = {
     ctx.pushFx({ t: 'skill', s: 'spiritLink', from: p.id, x: p.x, y: p.y, pet: pet.id, fx: pet.x, fy: pet.y });
     return null;
   },
+
+  // Найри: метка жертвы — одна цель на 15 с
+  markPrey(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    for (const m of ctx.monsters.values()) if (m.markedBy === p.id) m.markedBy = null; // старая метка снимается
+    t.markedBy = p.id;
+    t.markUntil = now + 15000;
+    ctx.pushFx({ t: 'skill', s: 'markPrey', from: p.id, x: t.x, y: t.y });
+    return null;
+  },
+
+  // Найри: теневой рывок — за спину цели, удар в спину с критом
+  shadowDash(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    const fromX = p.x, fromY = p.y;
+    // «За спиной» — с противоположной от Найри стороны цели
+    const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy) || 1;
+    ctx.teleport(p, t.x + (dx / d) * 24, t.y + (dy / d) * 24);
+    p.dir = dx > 0 ? -1 : 1;
+    ctx.pushFx({ t: 'skill', s: 'shadowDash', from: p.id, fx: fromX, fy: fromY, x: p.x, y: p.y, tx: t.x, ty: t.y });
+    ctx.damageMonster(p, t, p.dmg * 1.6, { crit: true });
+    return null;
+  },
+
+  // Найри: дымовая завеса — враги теряют её из виду, уклонение 50% на 6 с
+  smokeScreen(ctx, p, _t, now) {
+    p.dodgeUntil = now + 6000;
+    for (const m of ctx.monsters.values()) if (m.target === p.id) { m.target = null; m.ignoreUntil = now + 2500; m.ignoreId = p.id; }
+    ctx.pushFx({ t: 'skill', s: 'smokeScreen', from: p.id, x: p.x, y: p.y, dur: 6000 });
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -266,12 +298,24 @@ const PASSIVES = {
     speedMult: (p) => 1 + 0.06 * petsNear(p).length,
     note: (p) => `звери рядом: ${petsNear(p).length}/${(p.pets || []).length}`,
   },
+
+  // Найри: охотница за головами — бонус по меткам и раненым, убийства сокращают перезарядку
+  headhunter: {
+    targetMult: (p, m) => (isMarked(p, m) ? 1.3 : 1) * (m.hp / m.maxHp < 0.35 ? 1.4 : 1),
+    // Награда за выполненный «контракт» — убийство помеченной цели
+    rewardMult: (p, m) => (isMarked(p, m) ? { xp: 1.5, gold: 2, contract: true } : { xp: 1, gold: 1 }),
+    onKill(ctx, p, now, m) {
+      for (const id of Object.keys(p.skillReadyAt)) p.skillReadyAt[id] = Math.max(now, p.skillReadyAt[id] - 1500);
+      if (m && isMarked(p, m)) p.res = Math.min(p.resMax, p.res + 30);
+      ctx.syncCooldowns(p, now);
+    },
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

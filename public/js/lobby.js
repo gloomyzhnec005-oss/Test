@@ -363,13 +363,13 @@ window.Lobby = (() => {
     box.style.setProperty('--rarity', r.color);
     box.style.setProperty('--hero', hex(h.color));
     const stat = (icon, label, v, max) => `<div class="mini-stat"><span>${icon}</span><i><u style="width:${Math.min(100, (100 * v) / max)}%"></u></i><b>${v}</b></div>`;
-    const atk = h.projectile ? 'дальний бой' : 'ближний бой';
+    const atk = h.range <= 80 ? 'ближний бой' : h.range <= 200 ? 'средняя дистанция' : 'дальний бой';
     box.querySelector('.reveal-card').innerHTML = `
       ${isNew ? '<div class="reveal-new">Новый герой!</div>' : ''}
       <div class="reveal-rarity">${r.name}</div>
       <div class="reveal-art"></div>
       <h2>${h.name}</h2>
-      <div class="reveal-title">«${h.title}» · ${atk} · ${h.resource.name}</div>
+      <div class="reveal-title">«${h.title}»${h.race ? ' · ' + h.race : ''} · ${atk} · ${h.resource.name}</div>
       <p class="reveal-desc">${h.desc}</p>
       ${h.style ? `<p class="reveal-style"><b>Стиль боя:</b> ${h.style}</p>` : ''}
       ${h.skills.map((sk) => `<div class="reveal-skill"><span>${sk.icon}</span><div><b>${sk.name}</b>

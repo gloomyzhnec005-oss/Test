@@ -231,7 +231,7 @@ function moveEntity(e, dx, dy) {
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
-    guard: p.packUntil > Date.now(),
+    guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -248,19 +248,22 @@ const markDirty = (p) => { p.dirty = true; };
 function damageMonster(p, m, raw, opt = {}) {
   if (!monsters.has(m.id) || m.hp <= 0) return 0;
   const crit = opt.crit ?? false;
-  const dmg = Math.max(1, Math.round(raw * dmgMult(p) * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
+  const ps = passiveOf(p);
+  const tMult = ps && ps.targetMult ? ps.targetMult(p, m) : 1; // бонус против конкретной цели (Найри)
+  const dmg = Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
   m.hp -= dmg;
   m.target = opt.pet || p.id; // монстр отвечает тому, кто ударил: хозяину или зверю
   fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null,
     fx: p.x, fy: p.y, tx: m.x, ty: m.y });
   if (m.hp <= 0) {
     const def = C.MONSTERS[m.type];
-    const gold = Math.round(def.xp / 3 * (0.5 + Math.random()));
-    fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp: def.xp, gold, by: p.id });
+    const rw = ps && ps.rewardMult ? ps.rewardMult(p, m) : { xp: 1, gold: 1 };
+    const xp = Math.round(def.xp * rw.xp);
+    const gold = Math.round(def.xp / 3 * (0.5 + Math.random()) * rw.gold);
+    fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp, gold, by: p.id, contract: !!rw.contract });
     monsters.delete(m.id);
-    grantXp(p, def.xp, gold);
-    const ps = passiveOf(p);
-    if (ps && ps.onKill) ps.onKill(skillCtx, p, Date.now());
+    grantXp(p, xp, gold);
+    if (ps && ps.onKill) ps.onKill(skillCtx, p, Date.now(), m);
     if (def.boss) io.emit('chat', { sys: true, text: `${p.name} победил босса «${def.name}»!` });
     setTimeout(() => spawnMonster(), C.MONSTER_RESPAWN_MS);
   }
@@ -291,8 +294,14 @@ function addTotem(t) {
   totems.push(totem);
   return totem;
 }
+// Отправить клиенту оставшееся время перезарядки умений (после сокращения)
+function syncCooldowns(p, now) {
+  const left = {};
+  for (const sk of p.hero.skills) left[sk.id] = { left: Math.max(0, (p.skillReadyAt[sk.id] || 0) - now), total: sk.cooldown };
+  p.socket.emit('skillCds', left);
+}
 const skillCtx = {
-  moveEntity,
+  moveEntity, syncCooldowns,
   monsters, players, damageMonster, healPlayer, teleport, knockback, addTotem,
   isSolidAt: (x, y) => world.isSolidAt(x, y),
   pushFx: (f) => fx.push(f),
@@ -483,6 +492,7 @@ setInterval(() => {
       let best = null, bestD = def.aggro;
       for (const p of players.values()) {
         if (p.dead) continue;
+        if (m.ignoreUntil > now && m.ignoreId === p.id) continue; // потерял из виду (дымовая завеса)
         const d = Math.hypot(p.x - m.x, p.y - m.y);
         if (d < bestD) { best = p; bestD = d; }
       }
@@ -506,6 +516,8 @@ setInterval(() => {
         m.lastAttack = now;
         // Удар по зверю: зверь не гибнет, а «падает» и отступает
         if (target.owner) { hurtPet(skillCtx, target, Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)), now); continue; }
+        // Уклонение в дыму (Найри)
+        if (target.dodgeUntil > now && Math.random() < 0.5) { fx.push({ t: 'dodge', target: target.id }); continue; }
         // Рёв ярости Вебранда ослабляет урон монстра; «Зов стаи» Урсуса защищает хозяина
         const dmg = Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1) * (target.hero.dmgTaken || 1)
           * (target.packUntil > now ? 0.65 : 1));
@@ -593,7 +605,8 @@ setInterval(() => {
   const state = {
     p: [...players.values()].map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
     m: [...monsters.values()].map((m) => ({ id: m.id, type: m.type, x: Math.round(m.x), y: Math.round(m.y),
-      hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0 })),
+      hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
+      mk: m.markUntil > now ? m.markedBy : null })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
