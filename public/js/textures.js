@@ -295,6 +295,47 @@ window.Gfx = (() => {
         rect(ctx, 14, 1, 4, 3, L.headColor); rect(ctx, 15, 3, 2, 2, L.headColor);
         rect(ctx, 12, 7, 3, 1, '#3a2a1a'); rect(ctx, 17, 7, 3, 1, '#3a2a1a');
         break;
+      case 'elemental':
+        // Чистое пламя: голова-костёр без лица, только глаза
+        rect(ctx, 11, 5, 10, 10, L.legs); rect(ctx, 12, 6, 8, 8, L.body);
+        ctx.fillStyle = L.trim; ctx.beginPath(); ctx.moveTo(10, 8); ctx.lineTo(12, 0); ctx.lineTo(15, 5); ctx.lineTo(17, -2); ctx.lineTo(20, 4); ctx.lineTo(22, 1); ctx.lineTo(22, 8); ctx.fill();
+        rect(ctx, 13, 9, 2, 2, L.eyes); rect(ctx, 17, 9, 2, 2, L.eyes);
+        rect(ctx, 7, 12, 2, 3, L.trim); rect(ctx, 24, 10, 2, 3, L.trim); // искры
+        break;
+      case 'lavaHead':
+        // Голова из застывшей лавы с раскалёнными трещинами
+        rect(ctx, 10, 3, 12, 12, L.skin); rect(ctx, 12, 2, 8, 2, L.skin);
+        rect(ctx, 12, 5, 1, 4, L.trim); rect(ctx, 13, 8, 3, 1, L.trim); rect(ctx, 19, 4, 1, 3, L.trim); rect(ctx, 18, 12, 3, 1, L.trim);
+        rect(ctx, 13, 9, 2, 2, L.eyes); rect(ctx, 17, 9, 2, 2, L.eyes); rect(ctx, 14, 13, 4, 1, '#ff8a2a');
+        rect(ctx, 11, 0, 2, 2, 'rgba(120,120,120,.6)'); rect(ctx, 19, -1, 2, 2, 'rgba(120,120,120,.5)'); // пепел
+        break;
+      case 'stoneHood':
+        // Каменный капюшон геоманта с кристаллом
+        rect(ctx, 9, 2, 14, 5, L.headColor); rect(ctx, 9, 5, 2, 9, L.headColor); rect(ctx, 21, 5, 2, 9, L.headColor);
+        rect(ctx, 14, 1, 4, 3, '#7ad87a'); rect(ctx, 15, 0, 2, 1, '#bff0bf');
+        rect(ctx, 10, 3, 3, 2, '#8a7a5a'); rect(ctx, 19, 3, 2, 2, '#5a4a3a');
+        break;
+      case 'gorgon':
+        // Волосы-змеи и светящиеся глаза
+        rect(ctx, 10, 3, 12, 3, L.hair);
+        [[8, 4], [10, 0], [14, -1], [18, 0], [22, 3], [23, 8], [7, 9]].forEach(([x, y]) => { rect(ctx, x, y, 2, 5, L.hair); rect(ctx, x, y, 2, 1, '#ffe040'); });
+        rect(ctx, 9, 6, 2, 10, L.hair); rect(ctx, 21, 6, 2, 8, L.hair);
+        rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes); rect(ctx, 15, 12, 2, 1, '#2a4a2a');
+        break;
+      case 'troll':
+        // Тролль: длинный нос, клыки, листва вместо волос
+        rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 8, 2, 3, 3, L.hair); rect(ctx, 21, 1, 3, 3, L.hair); rect(ctx, 14, 0, 4, 3, '#7ac04a');
+        rect(ctx, 20, 9, 4, 3, L.skin); rect(ctx, 22, 7, 2, 2, '#5a3a20');
+        rect(ctx, 23, 4, 3, 2, L.skin); rect(ctx, 6, 6, 3, 2, L.skin); // уши
+        rect(ctx, 13, 13, 1, 2, '#f2ecd8'); rect(ctx, 18, 13, 1, 2, '#f2ecd8');
+        rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes);
+        break;
+      case 'crystalCrown':
+        // Гномка с короной из самоцветов
+        rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 9, L.hair); rect(ctx, 21, 5, 2, 9, L.hair);
+        [[11, '#ff5a7a'], [15, '#5ab8ff'], [19, '#7ad87a']].forEach(([x, c]) => { ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x, 4); ctx.lineTo(x + 1, -1); ctx.lineTo(x + 2, 4); ctx.fill(); });
+        rect(ctx, 13, 8, 2, 2, '#5a3a8a'); rect(ctx, 17, 8, 2, 2, '#5a3a8a'); rect(ctx, 16, 10, 2, 2, '#e8b090');
+        break;
       case 'triton':
         // Тритон: плавник-гребень, жабры, корона из кораллов
         rect(ctx, 11, 3, 10, 3, L.headColor); rect(ctx, 14, 0, 4, 4, L.headColor); rect(ctx, 15, -1, 2, 2, '#bfeee6');
@@ -501,6 +542,10 @@ window.Gfx = (() => {
       circle(ctx, 8, 8, 7, 'rgba(120,255,160,.4)'); circle(ctx, 8, 8, 4, '#7fe08a'); rect(ctx, 6, 5, 4, 2, '#d8ffb0');
     } else if (kind === 'dark') {
       circle(ctx, 8, 8, 7, 'rgba(150,60,255,.45)'); circle(ctx, 8, 8, 5, '#3a0a5a'); circle(ctx, 8, 8, 2.5, '#d08cff');
+    } else if (kind === 'crystal') {
+      circle(ctx, 8, 8, 7, 'rgba(200,140,255,.35)');
+      ctx.fillStyle = '#d8b0ff'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.lineTo(8, 4); ctx.lineTo(2, 8); ctx.lineTo(8, 12); ctx.fill();
+      rect(ctx, 6, 7, 4, 1, '#ffffff');
     } else if (kind === 'water') {
       circle(ctx, 8, 8, 7, 'rgba(80,170,255,.35)'); ctx.fillStyle = '#5ab8ff'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.quadraticCurveTo(8, 2, 2, 8); ctx.quadraticCurveTo(8, 14, 15, 8); ctx.fill(); rect(ctx, 6, 6, 3, 2, '#d8f0ff');
     } else if (kind === 'sonic') {
