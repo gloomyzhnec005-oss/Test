@@ -788,6 +788,84 @@ const SKILLS = {
     for (const pet of p.pets) if (!pet.down) pet.hp = Math.min(pet.maxHp, pet.hp + pet.maxHp * 0.3);
     return null;
   },
+
+  // Фаэлин: звёздный выстрел — урон и звёздная метка
+  starShot(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const flight = Math.min(400, dist(p, t) * 1.2);
+    ctx.pushFx({ t: 'skill', s: 'starShot', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y, flight });
+    setTimeout(() => {
+      if (!alive(ctx, p, t)) return;
+      t.starBy = p.id; t.starUntil = Date.now() + 12000;
+      t.fearUntil = 0; t.confusedUntil = 0; // метка не даёт скрыться
+      ctx.damageMonster(p, t, p.dmg * 2);
+    }, flight);
+    return null;
+  },
+
+  // Фаэлин: град света — три волны по области
+  lightHail(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    const r = 110, x = t.x, y = t.y;
+    ctx.pushFx({ t: 'skill', s: 'lightHail', from: p.id, x, y, r });
+    for (let i = 0; i < 3; i++) setTimeout(() => { if (alive(ctx, p)) for (const m of inRadius(ctx, x, y, r)) ctx.damageMonster(p, m, p.dmg * 0.8); }, 300 + i * 350);
+    return null;
+  },
+
+  // Фаэлин: свет ветра — ускорение себя и союзников
+  windLight(ctx, p, _t, now) {
+    const ids = [];
+    for (const o of ctx.players.values()) {
+      if (o.dead || dist(o, p) > 200) continue;
+      o.hasteUntil = now + 7000; ids.push(o.id); o.dirty = true;
+    }
+    ctx.pushFx({ t: 'skill', s: 'windLight', from: p.id, x: p.x, y: p.y, ids });
+    return null;
+  },
+
+  // Илирия: арканный залп — 5 снарядов после подготовки
+  arcaneVolley(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1;
+    ctx.pushFx({ t: 'skill', s: 'casting', from: p.id, x: p.x, y: p.y, ms: 500 });
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => {
+        if (!alive(ctx, p, t) || p.dead) return;
+        ctx.pushFx({ t: 'skill', s: 'arcaneMissile', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y, quiet: true });
+        ctx.damageMonster(p, t, p.dmg * 0.6 * pw);
+        for (const m of inRadius(ctx, t.x, t.y, 60)) if (m !== t) ctx.damageMonster(p, m, p.dmg * 0.3 * pw);
+      }, 500 + i * 130);
+    }
+    return null;
+  },
+
+  // Илирия: ледяная хватка — обездвиживание и урон со временем после подготовки
+  iceGrip(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, r = 100, x = t.x, y = t.y;
+    ctx.pushFx({ t: 'skill', s: 'casting', from: p.id, x: p.x, y: p.y, ms: 800 });
+    setTimeout(() => {
+      if (!alive(ctx, p) || p.dead) return;
+      const tn = Date.now();
+      ctx.pushFx({ t: 'skill', s: 'iceGrip', from: p.id, x, y, r, quiet: true });
+      for (const m of inRadius(ctx, x, y, r)) {
+        m.rootUntil = Math.max(m.rootUntil || 0, tn + 3000);
+        m.frozenUntil = tn + 3000;
+        m.dots = (m.dots || []).concat({ until: tn + 4000, dps: p.dmg * 0.5 * pw, by: p.id });
+        ctx.damageMonster(p, m, p.dmg * 0.8 * pw);
+      }
+    }, 800);
+    return null;
+  },
+
+  // Илирия: магический барьер с отражением
+  magicBarrier(ctx, p, _t, now) {
+    const pw = p.castPower || 1;
+    ctx.giveShield(p, p.maxHp * 0.3 * pw, now + 8000);
+    p.reflectShieldUntil = now + 8000;
+    ctx.pushFx({ t: 'skill', s: 'magicBarrier', from: p.id, x: p.x, y: p.y });
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -1125,12 +1203,40 @@ const PASSIVES = {
     },
     note: (p) => `армия ${(p.pets || []).length}/5`,
   },
+
+  // Фаэлин: соколиный глаз — точность копится на месте
+  hawkEye: {
+    targetMult: (p, m) => (1 + 0.4 * (p.accuracy || 0) / 100) * (m.starBy === p.id && m.starUntil > Date.now() ? 1.3 : 1),
+    forceCrit: (p, m) => (p.accuracy || 0) >= 50 && m.starBy === p.id && m.starUntil > Date.now(),
+    onTick(p, now) {
+      const dt = Math.min(0.5, (now - (p.accTick || now)) / 1000);
+      p.accTick = now;
+      const before = p.accuracy || 0;
+      const still = now - (p.movedAt || 0) > 600;
+      p.accuracy = Math.max(0, Math.min(100, before + (still ? 15 : -30) * dt));
+      if (Math.floor(before / 5) !== Math.floor(p.accuracy / 5)) p.dirty = true;
+    },
+    note: (p) => `точность ${Math.round(p.accuracy || 0)}%`,
+  },
+
+  // Илирия: арканный резонанс — мана за заклинания, на максимуме бесплатное усиленное
+  arcaneResonance: {
+    MAX: 4,
+    beforeCast(p) { const ready = (p.resonance || 0) >= this.MAX; return { free: ready, power: ready ? 1.6 : 1 }; },
+    afterCast(ctx, p, boosted) {
+      p.res = Math.min(p.resMax, p.res + 10);
+      p.resonance = boosted ? 0 : Math.min(this.MAX, (p.resonance || 0) + 1);
+      if (p.resonance === this.MAX) ctx.pushFx({ t: 'skill', s: 'resonanceReady', from: p.id, x: p.x, y: p.y, quiet: true });
+      p.dirty = true;
+    },
+    note(p) { return (p.resonance || 0) >= this.MAX ? 'резонанс: следующее заклинание усилено!' : `резонанс ${p.resonance || 0}/${this.MAX}`; },
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['starShot', 'lightHail', 'arcaneVolley', 'iceGrip', 'darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

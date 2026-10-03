@@ -125,6 +125,7 @@ window.Gfx = (() => {
         if (L.eyes) { rect(ctx, 11, 7, 10, 4, '#0b0810'); rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes); }
         break;
       case 'wizard':
+        if (L.longHair && L.hair) { rect(ctx, 9, 6, 2, 13, L.hair); rect(ctx, 21, 6, 2, 13, L.hair); }
         ctx.fillStyle = L.headColor;
         ctx.beginPath(); ctx.moveTo(7, 7); ctx.lineTo(25, 7); ctx.lineTo(19, -2); ctx.fill();
         rect(ctx, 8, 6, 16, 2, L.trim);
@@ -341,6 +342,8 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'arcane') {
+      circle(ctx, 8, 8, 7, 'rgba(160,120,255,.35)'); circle(ctx, 8, 8, 4, '#c8a0ff'); circle(ctx, 8, 8, 1.8, '#ffffff');
     } else if (kind === 'note') {
       rect(ctx, 8, 3, 2, 9, '#ffe08a'); rect(ctx, 10, 3, 4, 2, '#ffe08a'); circle(ctx, 7, 12, 3, '#ffe08a');
       circle(ctx, 8, 9, 7, 'rgba(255,224,138,.25)');

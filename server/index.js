@@ -189,7 +189,7 @@ const dmgMult = (p, now = Date.now()) => {
 };
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (p.blessUntil > now ? 1.2 : 1) * (p.songUntil > now ? 1 + 0.1 * (p.songPw || 1) : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
+  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (p.blessUntil > now ? 1.2 : 1) * (p.songUntil > now ? 1 + 0.1 * (p.songPw || 1) : 1) * (p.hasteUntil > now ? 1.25 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
   return Math.round(formOf(p).cooldown / speed);
 };
 
@@ -240,7 +240,7 @@ function publicPlayer(p) {
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
     pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
-    song: p.hero.songs ? p.form : null, tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
+    song: p.hero.songs ? p.form : null, haste: p.hasteUntil > Date.now(), tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -249,7 +249,7 @@ function privateStats(p) {
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
     passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '',
-    shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0 };
+    shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0, haste: p.hasteUntil > Date.now() };
 }
 // Статы отправляются не чаще 4 раз в секунду (см. игровой цикл)
 const markDirty = (p) => { p.dirty = true; };
@@ -264,6 +264,7 @@ function damageMonster(p, m, raw, opt = {}) {
   const tMult = (ps && ps.targetMult ? ps.targetMult(p, m) : 1) * (m.brokenUntil > now0 ? 1.25 : 1);
   // Следующая атака из дыма — критическая (Кира)
   if (opt.basic && p.nextCritUntil > now0) { crit = true; p.nextCritUntil = 0; }
+  if (opt.basic && ps && ps.forceCrit && ps.forceCrit(p, m)) crit = true; // соколиный глаз Фаэлина
   // fixed — урон без множителей (отражённый урон Малакора)
   const dmg = opt.fixed ? Math.max(1, Math.round(raw))
     : Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
@@ -380,6 +381,8 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
   }
   dmg = Math.round(dmg);
   // Барьер поглощает урон первым
+  // Отражение магическим барьером (Илирия)
+  if (m && target.reflectShieldUntil > now && target.shieldHp > 0 && monsters.has(m.id)) damageMonster(target, m, dmg * 0.3, { fixed: true, reflect: true });
   if (target.shieldHp > 0 && target.shieldUntil > now) {
     const absorbed = Math.min(target.shieldHp, dmg);
     target.shieldHp -= absorbed;
@@ -507,7 +510,7 @@ io.on('connection', (socket) => {
     const x = Number(d.x), y = Number(d.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     // Античит: ограничение скорости (у облика зверя бег быстрее; после смены облика даём запас)
-    const maxDist = Math.max(formOf(p).speed, p.hero.speed) * dt * 1.6 + 12;
+    const maxDist = Math.max(formOf(p).speed, p.hero.speed) * (p.hasteUntil > now ? 1.25 : 1) * dt * 1.6 + 12;
     const dist = Math.hypot(x - p.x, y - p.y);
     if (dist > maxDist || world.isSolidAt(x, y)) {
       socket.emit('correct', { x: p.x, y: p.y });
@@ -630,6 +633,7 @@ setInterval(() => {
     }
     if (m.stunUntil > now) continue; // оглушён
     // Страх (рёв Талиесина): монстр убегает от источника
+    if (m.starUntil > now) { m.fearUntil = 0; m.confusedUntil = 0; } // звёздная метка Фаэлина не даёт скрыться
     if (m.fearUntil > now) {
       const dx = m.x - m.fearX, dy = m.y - m.fearY, d = Math.hypot(dx, dy) || 1;
       moveEntity(m, (dx / d) * def.speed * dt, (dy / d) * def.speed * dt);
@@ -762,7 +766,7 @@ setInterval(() => {
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
       bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
-      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0 })),
+      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0 })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),

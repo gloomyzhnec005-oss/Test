@@ -36,7 +36,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     ['wolf', 'bear', 'hawk', 'skeleton', 'sprite'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
-    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy', 'note', 'necro'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy', 'note', 'necro', 'arrow', 'arcane'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -209,7 +209,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
       const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '')
-        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '') + (m.mo ? '🤡' : '');
+        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '') + (m.mo ? '🤡' : '') + (m.st2 ? '⭐' : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -312,7 +312,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         // Отражённый урон (возмездие Малакора) — фиолетовым
         this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
-        const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { note: 0xffe08a, necro: 0x5fffb0, holy: 0xfff0a0, spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
+        const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { arrow: 0xfff6c0, arcane: 0xc8a0ff, note: 0xffe08a, necro: 0x5fffb0, holy: 0xfff0a0, spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
           illusion: 0xff7ad0, fireball: 0xff8c1a, frost: 0x8ad3ff, spark: 0xffe94a, stone: 0xa07a4a }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
@@ -547,6 +547,57 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.burst(f.x, f.y, 0xff7ab0, 8);
         break;
       }
+      case 'starShot': {
+        const ar = this.add.image(f.fx, f.fy, 'proj_arrow').setScale(1.6).setDepth(860).setTint(0xfff6c0);
+        ar.rotation = Phaser.Math.Angle.Between(f.fx, f.fy, f.x, f.y);
+        this.tweens.add({ targets: ar, x: f.x, y: f.y, duration: f.flight, onComplete: () => {
+          ar.destroy(); this.burst(f.x, f.y, 0xfff6c0, 16); this.floatText(f.x, f.y - 40, '⭐ Метка', '#fff6a0', 12);
+        } });
+        break;
+      }
+      case 'lightHail':
+        this.ring(f.x, f.y, f.r, 0xfff6c0, 1300, 2);
+        for (let w = 0; w < 3; w++) for (let i = 0; i < 7; i++) {
+          this.time.delayedCall(w * 350 + i * 25, () => {
+            const x = f.x + (Math.random() - 0.5) * f.r * 1.6, y = f.y + (Math.random() - 0.5) * f.r;
+            const ar = this.add.image(x + 30, y - 170, 'proj_arrow').setRotation(Math.PI / 2 - 0.2).setDepth(860).setTint(0xfff6c0);
+            this.tweens.add({ targets: ar, x, y, duration: 280, ease: 'Quad.easeIn', onComplete: () => { ar.destroy(); this.burst(x, y, 0xfff6c0, 3); } });
+          });
+        }
+        break;
+      case 'windLight':
+        for (const id of f.ids || []) {
+          const e = this.players.get(id);
+          if (e) { this.ring(e.c.x, e.c.y, 26, 0xb8ffd8, 500, 3); this.floatText(e.c.x, e.c.y - 40, '🍃 Ускорение', '#b8ffd8', 12); }
+        }
+        break;
+      case 'casting': {
+        // Подготовка заклинания: сходящееся кольцо
+        const c = this.add.circle(f.x, f.y, 34).setStrokeStyle(3, 0xc8a0ff, 1).setDepth(850);
+        this.tweens.add({ targets: c, scale: 0.2, alpha: 0.3, duration: f.ms, onComplete: () => c.destroy() });
+        this.floatText(f.x, f.y - 46, 'Подготовка…', '#c8a0ff', 11);
+        break;
+      }
+      case 'arcaneMissile': {
+        const o = this.add.image(f.fx, f.fy, 'proj_arcane').setDepth(860);
+        this.tweens.add({ targets: o, x: f.x + (Math.random() - 0.5) * 16, y: f.y + (Math.random() - 0.5) * 16, duration: 220, onComplete: () => { o.destroy(); this.burst(f.x, f.y, 0xc8a0ff, 4); } });
+        break;
+      }
+      case 'iceGrip':
+        this.ring(f.x, f.y, f.r, 0x8ad3ff, 600, 5);
+        for (let i = 0; i < 10; i++) {
+          const a = Math.random() * Math.PI * 2, d = Math.random() * f.r;
+          const sh = this.add.triangle(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.6, 0, 14, 5, 0, 10, 14, 0xbfe8ff, 0.9).setDepth(820).setScale(0.3);
+          this.tweens.add({ targets: sh, scale: 1, duration: 150, delay: i * 20, yoyo: true, hold: 2600, onComplete: () => sh.destroy() });
+        }
+        break;
+      case 'magicBarrier':
+        this.ring(f.x, f.y, 30, 0xc8a0ff, 600, 5);
+        this.floatText(f.x, f.y - 50, '🔰 Барьер', '#c8a0ff', 13);
+        break;
+      case 'resonanceReady':
+        this.floatText(f.x, f.y - 66, '✴️ Резонанс!', '#e0c8ff', 13);
+        break;
       case 'songSwap': {
         const S = { inspire: [0xffb030, '🎺 Вдохновение'], lullaby: [0x8a9aff, '🌙 Колыбельная'], mock: [0xff6a9a, '🤡 Насмешка'] }[f.song];
         this.ring(f.x, f.y, 180, S[0], 700, 3);
@@ -952,7 +1003,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const len = Math.hypot(vx, vy);
     if (len > 0 && !me.data.dead) {
       const n = Math.min(1, len) / len;
-      const speed = this.prof().speed;
+      const speed = this.prof().speed * (this.myStats.haste ? 1.25 : 1); // свет ветра Фаэлина
       const dx = vx * n * speed * dt, dy = vy * n * speed * dt;
       const r = 10;
       if (!this.isSolidAt(me.x + dx + Math.sign(dx) * r, me.y)) me.x += dx;
