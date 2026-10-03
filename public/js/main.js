@@ -72,6 +72,7 @@
 
   // ---------- HUD ----------
   let resName = '';
+  let passiveDef = null;
   function setStats(s) {
     $('lvl').textContent = s.level;
     $('hpFill').style.width = (100 * s.hp / s.maxHp) + '%';
@@ -85,6 +86,7 @@
     $('gold').textContent = s.gold;
     $('kills').textContent = s.kills;
     $('dmg').textContent = s.dmg;
+    if (passiveDef) $('passive').textContent = `${passiveDef.icon} +${s.bonusDmg}% урона · +${s.bonusSpd}% скорости атаки`;
   }
 
   let minimapBase = null;
@@ -122,24 +124,36 @@
     else h.impactOccurred(kind);
   };
 
-  // ---------- Умение ----------
-  const skillBtn = $('skillBtn');
-  skillBtn.addEventListener('pointerdown', (e) => { input.skill = true; skillBtn.classList.add('pressed'); e.preventDefault(); });
-  const skillUp = () => skillBtn.classList.remove('pressed');
-  skillBtn.addEventListener('pointerup', skillUp);
-  skillBtn.addEventListener('pointerleave', skillUp);
-  let cdTimer = 0;
-  function startSkillCd(ms) {
+  // ---------- Умения (до трёх кнопок) ----------
+  const skillBtns = {};
+  function buildSkills(hero) {
+    const box = $('skills');
+    box.innerHTML = '';
+    box.className = `skills n${hero.skills.length}`;
+    hero.skills.forEach((sk, i) => {
+      const b = document.createElement('button');
+      b.className = `round skill s${i}`;
+      b.innerHTML = `<span class="sk-icon">${sk.icon}</span><i class="sk-cd"></i><em>${sk.name}</em>`;
+      b.addEventListener('pointerdown', (e) => { input.skill = sk.id; b.classList.add('pressed'); e.preventDefault(); });
+      const up = () => b.classList.remove('pressed');
+      b.addEventListener('pointerup', up);
+      b.addEventListener('pointerleave', up);
+      box.appendChild(b);
+      skillBtns[sk.id] = { el: b, cd: b.querySelector('.sk-cd'), timer: 0 };
+    });
+  }
+  function startSkillCd(id, ms) {
+    const btn = skillBtns[id];
+    if (!btn) return;
     const until = performance.now() + ms;
-    skillBtn.classList.add('cooling');
-    cancelAnimationFrame(cdTimer);
+    btn.el.classList.add('cooling');
+    cancelAnimationFrame(btn.timer);
     const tick = () => {
       const left = until - performance.now();
-      if (left <= 0) { skillBtn.classList.remove('cooling'); $('skillCd').style.background = ''; $('skillCd').textContent = ''; return; }
-      const deg = 360 * (left / ms);
-      $('skillCd').style.background = `conic-gradient(rgba(0,0,0,.7) ${deg}deg, transparent 0)`;
-      $('skillCd').textContent = Math.ceil(left / 1000);
-      cdTimer = requestAnimationFrame(tick);
+      if (left <= 0) { btn.el.classList.remove('cooling'); btn.cd.style.background = ''; btn.cd.textContent = ''; return; }
+      btn.cd.style.background = `conic-gradient(rgba(0,0,0,.7) ${360 * (left / ms)}deg, transparent 0)`;
+      btn.cd.textContent = Math.ceil(left / 1000);
+      btn.timer = requestAnimationFrame(tick);
     };
     tick();
   }
@@ -166,7 +180,7 @@
     socket.on('error_msg', (m) => { Lobby.setStatus(m); Lobby.setBusy(false); socket.disconnect(); });
     socket.on('chat', addChat);
     socket.on('stats', setStats);
-    socket.on('skillUsed', ({ cooldown }) => startSkillCd(cooldown));
+    socket.on('skillUsed', ({ id, cooldown }) => startSkillCd(id, cooldown));
     socket.on('skillFail', hudToast);
     socket.on('disconnect', () => { if (game) addChat({ sys: true, text: 'Связь потеряна, переподключение...' }); });
     socket.on('welcome', (w) => {
@@ -177,8 +191,9 @@
       $('heroName').textContent = `${name} · ${hero.name}`;
       resName = hero.resource.name;
       $('resFill').style.background = hero.resource.color;
-      $('skillIcon').textContent = hero.skill.icon;
-      $('skillName').textContent = hero.skill.name;
+      buildSkills(hero);
+      passiveDef = hero.passive || null;
+      $('passive').classList.toggle('hidden', !passiveDef);
       setStats(w.stats);
       buildMinimap(w.map);
       const ui = {

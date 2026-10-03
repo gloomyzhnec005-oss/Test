@@ -4,7 +4,7 @@
 window.Lobby = (() => {
   const $ = (id) => document.getElementById(id);
   const BACK_SLOTS = [3, 4, 5, 6];
-  const RES_KEYS = { 'Мана': 'MP', 'Энергия': 'EP', 'Ярость': 'RP' };
+  const RES_KEYS = { 'Мана': 'MP', 'Энергия': 'EP', 'Ярость': 'RP', 'Ци': 'Ци' };
 
   let opts, heroes = {}, rarities = {}, backgrounds = [];
   let profile = { heroes: [], chars: {}, bgs: ['throne', 'forest'], freeSpin: true, paidSpins: 0, spinPrice: 25 };
@@ -74,8 +74,9 @@ window.Lobby = (() => {
     $('lpHp').textContent = `${ch.maxHp} / ${ch.maxHp}`;
     $('lpHpFill').style.width = '100%';
     $('lpResKey').textContent = RES_KEYS[h.resource.name] || 'MP';
-    $('lpRes').textContent = `${h.resource.name}: ${ch.resMax} / ${ch.resMax}`;
-    $('lpResFill').style.width = '100%';
+    const resNow = Math.round((h.resource.start ?? 1) * ch.resMax);
+    $('lpRes').textContent = `${h.resource.name}: ${resNow} / ${ch.resMax}`;
+    $('lpResFill').style.width = (100 * resNow / ch.resMax) + '%';
     $('lpResFill').style.background = h.resource.color;
     const pct = Math.min(100, (100 * ch.xp) / ch.xpNext);
     $('lpXp').textContent = `${pct.toFixed(2)}%`;
@@ -356,9 +357,12 @@ window.Lobby = (() => {
       <h2>${h.name}</h2>
       <div class="reveal-title">«${h.title}» · ${atk} · ${h.resource.name}</div>
       <p class="reveal-desc">${h.desc}</p>
-      <div class="reveal-skill"><span>${h.skill.icon}</span><div><b>${h.skill.name}</b>
-        <small>${h.skill.cost} ${h.resource.name.toLowerCase()} · перезарядка ${h.skill.cooldown / 1000} с</small>
-        <p>${h.skill.desc}</p></div></div>
+      ${h.style ? `<p class="reveal-style"><b>Стиль боя:</b> ${h.style}</p>` : ''}
+      ${h.skills.map((sk) => `<div class="reveal-skill"><span>${sk.icon}</span><div><b>${sk.name}</b>
+        <small>${sk.cost} ${h.resource.name.toLowerCase()} · перезарядка ${sk.cooldown / 1000} с</small>
+        <p>${sk.desc}</p></div></div>`).join('')}
+      ${h.passive ? `<div class="reveal-skill passive-skill"><span>${h.passive.icon}</span><div><b>${h.passive.name}</b>
+        <small>Пассивный навык</small><p>${h.passive.desc}</p></div></div>` : ''}
       ${stat('❤️', 'HP', h.hp, 200)}${stat('🗡', 'Урон', h.dmg, 35)}${stat('🎯', 'Дальность', h.range, 300)}${stat('👟', 'Скорость', h.speed, 200)}
       <button class="l2-btn reveal-ok">${isNew ? 'Забрать' : 'Закрыть'}</button>`;
     box.querySelector('.reveal-art').appendChild(heroCanvas(id));

@@ -67,7 +67,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (d.respawn) this.ui.onRespawn();
     });
 
-    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,Q');
+    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,Q,E,R');
   }
 
   resize() {
@@ -131,6 +131,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.c.addAt(e.aura, 0);
         this.tweens.add({ targets: e.aura, scale: 1.25, alpha: 0.5, duration: 300, yoyo: true, repeat: -1 });
       } else if (!p.rage && e.aura) { e.aura.destroy(); e.aura = null; }
+      // Свечение усиленной атаки (Дыхание гармонии)
+      if (p.emp && !e.emp) {
+        e.emp = this.add.circle(0, 4, 15).setStrokeStyle(2, 0xffd36a, 0.9);
+        e.c.addAt(e.emp, 0);
+        this.tweens.add({ targets: e.emp, scale: 1.2, duration: 400, yoyo: true, repeat: -1 });
+      } else if (!p.emp && e.emp) { e.emp.destroy(); e.emp = null; }
       if (p.id !== this.myId) e.sprite.setFlipX(p.dir === -1);
       else this.me.data = p;
     }
@@ -249,8 +255,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
   playSkill(f) {
     const caster = this.players.get(f.from);
     const hero = caster && this.heroes[caster.data.hero];
-    if (hero) this.floatText(caster.c.x, caster.c.y - 44, hero.skill.icon + ' ' + hero.skill.name, '#ffe08a', 12);
-    if (f.from === this.myId) this.ui.vibrate('medium');
+    const sk = hero && hero.skills.find((k) => k.id === f.s);
+    if (sk) this.floatText(caster.c.x, caster.c.y - 44, sk.icon + ' ' + sk.name, '#ffe08a', 12);
+    if (f.from === this.myId && !f.quiet) this.ui.vibrate('medium');
     switch (f.s) {
       case 'quake':
         this.cameras.main.shake(250, 0.008);
@@ -304,6 +311,32 @@ window.GameScene = class GameScene extends Phaser.Scene {
           m.c.addAt(vine, 0);
           this.time.delayedCall(3000, () => vine.destroy());
         }
+        break;
+      case 'qiWave': {
+        // Полоса энергии по направлению удара
+        const ang = Math.atan2(f.dy, f.dx);
+        const wave = this.add.rectangle(f.x, f.y, 20, 44, 0x46d6c8, 0.55).setRotation(ang).setDepth(850).setStrokeStyle(2, 0xbffcf5);
+        this.tweens.add({ targets: wave, x: f.x + f.dx * f.len, y: f.y + f.dy * f.len, scaleX: 2.4, alpha: 0, duration: 380,
+          ease: 'Cubic.easeOut', onComplete: () => wave.destroy() });
+        for (let i = 1; i <= 4; i++) this.time.delayedCall(i * 70, () => this.burst(f.x + f.dx * f.len * i / 4, f.y + f.dy * f.len * i / 4, 0x46d6c8, 5));
+        break;
+      }
+      case 'enlighten':
+        this.ring(f.x, f.y, f.execute ? 60 : 40, 0xffe08a, 450, f.execute ? 7 : 4);
+        this.burst(f.x, f.y, 0xfff6c0, f.execute ? 28 : 14);
+        if (f.execute) { this.cameras.main.shake(160, 0.007); this.floatText(f.x, f.y - 40, 'Просветление!', '#fff2a0', 15); }
+        break;
+      case 'harmony':
+        this.ring(f.x, f.y, 55, 0x9cf0a0, 700, 3);
+        this.ring(f.x, f.y, 35, 0xffe08a, 600, 3);
+        this.burst(f.x, f.y, 0xbff7c0, 14);
+        break;
+      case 'counter':
+        this.floatText(f.x, f.y - 30, 'Контрудар!', '#7fe6dc', 12);
+        this.burst(f.x, f.y, 0x46d6c8, 8);
+        break;
+      case 'empHit':
+        this.ring(f.x, f.y, 30, 0xffd36a, 300, 4);
         break;
       case 'drain': {
         for (let i = 0; i < 8; i++) {
@@ -399,11 +432,15 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
 
     if (this.input_.attack || this.keys.SPACE.isDown || this.autoWalk) this.tryAttack(false);
-    if (this.input_.skill || Phaser.Input.Keyboard.JustDown(this.keys.Q)) {
-      this.input_.skill = false;
+    // Умения: кнопки HUD или клавиши Q / E / R
+    const skills = this.heroes[me.data.hero].skills;
+    let skillId = this.input_.skill;
+    ['Q', 'E', 'R'].forEach((k, i) => { if (skills[i] && Phaser.Input.Keyboard.JustDown(this.keys[k])) skillId = skills[i].id; });
+    if (skillId) {
+      this.input_.skill = null;
       if (!me.data.dead) {
         const t = this.findTarget();
-        this.net.emit('skill', { targetId: t ? t.data.id : null });
+        this.net.emit('skill', { id: skillId, targetId: t ? t.data.id : null });
       }
     }
 

@@ -8,7 +8,7 @@ const { Server } = require('socket.io');
 const C = require('./config');
 const { generateMap, SOLID } = require('./world');
 const { verifyInitData } = require('./auth');
-const { SKILLS, NEEDS_TARGET, skillRange } = require('./skills');
+const { SKILLS, PASSIVES, NEEDS_TARGET, skillRange } = require('./skills');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
@@ -167,9 +167,18 @@ const statsFor = (heroId, lvl) => {
     resMax: Math.round(b.resource.max * (1 + 0.05 * (lvl - 1))),
   };
 };
-// Временные усиления (ярость Вальгрима)
-const dmgMult = (p, now = Date.now()) => (p.rageUntil > now ? 1.6 : 1);
-const attackCd = (p, now = Date.now()) => Math.round(p.hero.cooldown / (p.rageUntil > now ? 1.4 : 1));
+// Усиления урона и скорости атаки: ярость Вальгрима и пассивные навыки
+const startRes = (p) => (p.hero.resource.start ?? 1) * p.resMax;
+const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
+const dmgMult = (p, now = Date.now()) => {
+  const ps = passiveOf(p);
+  return (p.rageUntil > now ? 1.6 : 1) * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
+};
+const attackCd = (p, now = Date.now()) => {
+  const ps = passiveOf(p);
+  const speed = (p.rageUntil > now ? 1.4 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
+  return Math.round(p.hero.cooldown / speed);
+};
 
 function randomFreeSpot(minR, maxR) {
   const cx = world.width / 2, cy = world.height / 2;
@@ -214,12 +223,14 @@ function moveEntity(e, dx, dy) {
 
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
-    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.rageUntil > Date.now() };
+    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.rageUntil > Date.now(),
+    emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
   return { level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills,
     gold: p.char.gold, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
-    res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p) };
+    res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
+    bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((p.hero.cooldown / attackCd(p) - 1) * 100) };
 }
 // Статы отправляются не чаще 4 раз в секунду (см. игровой цикл)
 const markDirty = (p) => { p.dirty = true; };
@@ -252,13 +263,17 @@ function healPlayer(p, amount) {
   if (healed > 0) fx.push({ t: 'heal', target: p.id, amount: healed });
   markDirty(p);
 }
+function knockback(m, dx, dy, distPx) {
+  // Сдвигаем монстра по шагам, чтобы не проходить сквозь стены
+  for (let i = 0; i < 7; i++) moveEntity(m, dx * distPx / 7, dy * distPx / 7);
+}
 function teleport(p, x, y) {
   if (world.isSolidAt(x, y)) return;
   p.x = x; p.y = y; p.lastMove = Date.now();
   p.socket.emit('correct', { x, y });
 }
 const skillCtx = {
-  monsters, players, damageMonster, healPlayer, teleport,
+  monsters, players, damageMonster, healPlayer, teleport, knockback,
   pushFx: (f) => fx.push(f),
 };
 
@@ -304,11 +319,11 @@ io.on('connection', (socket) => {
       id: socket.id, uid, name: name.slice(0, 20), heroId, hero, char, socket,
       x: world.spawn.x + (Math.random() - 0.5) * 64, y: world.spawn.y + (Math.random() - 0.5) * 64,
       dir: 1, dead: false, lastAttack: 0, lastHurt: 0, lastMove: Date.now(),
-      skillReadyAt: 0, rageUntil: 0, dirty: false, lastStats: 0,
+      skillReadyAt: {}, rageUntil: 0, empoweredUntil: 0, dirty: false, lastStats: 0,
       ...statsFor(heroId, char.level),
     };
     p.hp = p.maxHp;
-    p.res = p.resMax;
+    p.res = startRes(p);
     players.set(socket.id, p);
 
     socket.emit('welcome', {
@@ -350,7 +365,10 @@ io.on('connection', (socket) => {
     if (Math.hypot(m.x - p.x, m.y - p.y) > p.hero.range + 20) return;
     p.lastAttack = now;
     p.dir = m.x < p.x ? -1 : 1;
-    damageMonster(p, m, p.dmg, { crit: Math.random() < 0.15, proj: p.hero.projectile, basic: true });
+    // Усиленная атака после «Дыхания гармонии»
+    const empowered = p.empoweredUntil > now;
+    if (empowered) { p.empoweredUntil = 0; fx.push({ t: 'skill', s: 'empHit', from: p.id, x: m.x, y: m.y, quiet: true }); }
+    damageMonster(p, m, p.dmg * (empowered ? 2 : 1), { crit: Math.random() < 0.15, proj: p.hero.projectile, basic: true });
   });
 
   // Уникальное умение героя
@@ -358,9 +376,9 @@ io.on('connection', (socket) => {
     const p = players.get(socket.id);
     if (!p || p.dead) return;
     const now = Date.now();
-    const sk = p.hero.skill;
+    const sk = p.hero.skills.find((k) => k.id === d.id) || p.hero.skills[0];
     const fail = (reason) => socket.emit('skillFail', reason);
-    if (now < p.skillReadyAt) return fail('Умение ещё не готово');
+    if (now < (p.skillReadyAt[sk.id] || 0)) return fail('Умение ещё не готово');
     if (p.res < sk.cost) return fail(`Не хватает: ${p.hero.resource.name}`);
     const range = skillRange(sk.id, p.hero);
     let target = monsters.get(d.targetId);
@@ -377,8 +395,8 @@ io.on('connection', (socket) => {
     const err = SKILLS[sk.id](skillCtx, p, target, now);
     if (err) return fail(err);
     p.res -= sk.cost;
-    p.skillReadyAt = now + sk.cooldown;
-    socket.emit('skillUsed', { cooldown: sk.cooldown });
+    p.skillReadyAt[sk.id] = now + sk.cooldown;
+    socket.emit('skillUsed', { id: sk.id, cooldown: sk.cooldown });
     markDirty(p);
   });
 
@@ -446,6 +464,8 @@ setInterval(() => {
         target.hp -= dmg;
         target.lastHurt = now;
         fx.push({ t: 'hit', kind: 'p', target: target.id, dmg, from: m.id });
+        const ps = passiveOf(target);
+        if (ps && ps.onHurt && target.hp > 0) ps.onHurt(skillCtx, target, dmg, m);
         if (target.hp <= 0) {
           target.hp = 0;
           target.dead = true;
@@ -456,7 +476,7 @@ setInterval(() => {
             if (!players.has(victim.id)) return;
             victim.dead = false;
             victim.hp = victim.maxHp;
-            victim.res = victim.resMax;
+            victim.res = startRes(victim);
             markDirty(victim);
             victim.x = world.spawn.x; victim.y = world.spawn.y;
             victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });

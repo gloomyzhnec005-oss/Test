@@ -67,6 +67,7 @@ window.Gfx = (() => {
       rect(ctx, 25, 2, 2, 27, '#3a2a1a');
       ctx.fillStyle = '#cfd6e0'; ctx.beginPath(); ctx.moveTo(26, 2); ctx.quadraticCurveTo(14, 0, 9, 8); ctx.lineTo(13, 6); ctx.quadraticCurveTo(20, 3, 26, 5); ctx.fill();
     }
+    if (L.weapon === 'pole') { rect(ctx, 26, 1, 2, 30, '#8a5a2a'); rect(ctx, 26, 1, 2, 2, '#c9a64d'); rect(ctx, 26, 29, 2, 2, '#c9a64d'); }
     if (L.weapon === 'axe') {
       rect(ctx, 25, 3, 2, 22, '#6b4423');
       ctx.fillStyle = '#b8c0c8';
@@ -110,6 +111,12 @@ window.Gfx = (() => {
         ctx.strokeStyle = L.headColor; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.ellipse(16, 2.5, 6, 1.8, 0, 0, Math.PI * 2); ctx.stroke();
         break;
+      case 'monk':
+        // Бритая голова с пучком на макушке
+        rect(ctx, 11, 4, 10, 2, L.skin);
+        rect(ctx, 14, 1, 4, 3, L.headColor); rect(ctx, 15, 3, 2, 2, L.headColor);
+        rect(ctx, 12, 7, 3, 1, '#3a2a1a'); rect(ctx, 17, 7, 3, 1, '#3a2a1a');
+        break;
       case 'leafCrown':
         rect(ctx, 10, 3, 12, 2, L.headColor);
         [[10, 1], [14, 0], [18, 0], [21, 1]].forEach(([x, y]) => rect(ctx, x, y, 2, 3, L.headColor));
@@ -136,6 +143,8 @@ window.Gfx = (() => {
         rect(ctx, 6, 15, 2, 7, '#c9d1e0'); rect(ctx, 5, 21, 4, 2, L.trim);
         break;
     }
+    if (L.beads) for (let i = 0; i < 5; i++) rect(ctx, 10 + i * 3, 14 + (i % 2), 2, 2, L.beads); // чётки
+    if (L.weapon === 'pole') { rect(ctx, 23, 17, 3, 3, L.skin); rect(ctx, 6, 17, 3, 3, L.skin); } // кулаки
     if (L.offhand === 'shield') { rect(ctx, 4, 14, 7, 10, '#7a5230'); rect(ctx, 5, 15, 5, 8, L.trim); rect(ctx, 7, 16, 1, 6, '#7a5230'); }
     return c;
   }

@@ -1,5 +1,5 @@
 // Уникальные умения героев. Каждое умение — функция (ctx, p, target, now) → строка ошибки или null.
-// ctx: { monsters, players, pushFx, damageMonster, healPlayer, teleport }
+// ctx: { monsters, players, pushFx, damageMonster, healPlayer, teleport, knockback }
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const inRadius = (ctx, x, y, r) => [...ctx.monsters.values()].filter((m) => Math.hypot(m.x - x, m.y - y) <= r);
 const alive = (ctx, p, m) => ctx.players.has(p.id) && (!m || ctx.monsters.has(m.id));
@@ -91,11 +91,63 @@ const SKILLS = {
     ctx.healPlayer(p, dealt);
     return null;
   },
+
+  // Бохай: волна ци — поток энергии вперёд, урон и отбрасывание
+  qiWave(ctx, p, t) {
+    const len = 150, width = 46;
+    // Направление: на цель, если она есть, иначе — куда смотрит герой
+    let dx = t ? t.x - p.x : p.dir, dy = t ? t.y - p.y : 0;
+    const d = Math.hypot(dx, dy) || 1;
+    dx /= d; dy /= d;
+    ctx.pushFx({ t: 'skill', s: 'qiWave', from: p.id, x: p.x, y: p.y, dx, dy, len });
+    for (const m of ctx.monsters.values()) {
+      const rx = m.x - p.x, ry = m.y - p.y;
+      const along = rx * dx + ry * dy, across = Math.abs(rx * dy - ry * dx);
+      if (along < -10 || along > len || across > width) continue;
+      ctx.damageMonster(p, m, p.dmg * 1.5);
+      ctx.knockback(m, dx, dy, 70);
+    }
+    return null;
+  },
+
+  // Бохай: удар просветления — добивает ослабленных врагов
+  enlighten(ctx, p, t) {
+    if (!t) return 'Нет цели рядом';
+    const execute = t.hp / t.maxHp < 0.35;
+    ctx.pushFx({ t: 'skill', s: 'enlighten', from: p.id, x: t.x, y: t.y, execute });
+    ctx.damageMonster(p, t, p.dmg * 2.2 * (execute ? 2 : 1), { crit: execute });
+    return null;
+  },
+
+  // Бохай: дыхание гармонии — лечение и усиление следующей атаки
+  harmony(ctx, p, _t, now) {
+    ctx.pushFx({ t: 'skill', s: 'harmony', from: p.id, x: p.x, y: p.y });
+    ctx.healPlayer(p, p.maxHp * 0.25);
+    p.empoweredUntil = now + 10000;
+    return null;
+  },
+};
+
+// Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
+const PASSIVES = {
+  // Бохай: внутреннее равновесие — ци от полученного урона усиливает удары; шанс контратаки
+  innerBalance: {
+    dmgMult: (p) => 1 + 0.3 * (p.res / p.resMax),
+    speedMult: (p) => 1 + 0.25 * (p.res / p.resMax),
+    onHurt(ctx, p, dmg, attacker) {
+      p.res = Math.min(p.resMax, p.res + dmg * 1.2);
+      if (attacker && Math.random() < 0.25 && Math.hypot(attacker.x - p.x, attacker.y - p.y) < 70) {
+        ctx.pushFx({ t: 'skill', s: 'counter', from: p.id, x: attacker.x, y: attacker.y, quiet: true });
+        ctx.damageMonster(p, attacker, p.dmg * 0.8);
+      }
+    },
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['arrowRain', 'meteor', 'shadowStep', 'drain']);
+const NEEDS_TARGET = new Set(['arrowRain', 'meteor', 'shadowStep', 'drain', 'enlighten']);
 // Дальность умения: shadowStep прыгает дальше обычной атаки
-const skillRange = (id, hero) => (id === 'shadowStep' ? 280 : Math.max(hero.range, 120) + 20);
+const SKILL_RANGE = { shadowStep: 280, enlighten: 80, qiWave: 170 };
+const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
-module.exports = { SKILLS, NEEDS_TARGET, skillRange };
+module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };
