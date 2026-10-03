@@ -13,6 +13,7 @@ module.exports = {
       desc: 'Закован в броню и не боится толпы монстров. Рубит мечом всех, кто подойдёт близко.',
       hp: 160, dmg: 20, range: 56, cooldown: 650, speed: 150,
       color: 0xd9534f, projectile: null,
+      resource: { name: 'Энергия', max: 100, color: '#f0b429' },
     },
     mage: {
       name: 'Маг',
@@ -20,6 +21,7 @@ module.exports = {
       desc: 'Сжигает врагов огненными шарами с большого расстояния. Мощный, но хрупкий.',
       hp: 95, dmg: 30, range: 230, cooldown: 1100, speed: 140,
       color: 0x5b7cfa, projectile: 'fireball',
+      resource: { name: 'Мана', max: 150, color: '#4d8dff' },
     },
     archer: {
       name: 'Лучник',
@@ -27,8 +29,17 @@ module.exports = {
       desc: 'Самый быстрый герой. Держит дистанцию и осыпает врагов градом стрел.',
       hp: 115, dmg: 15, range: 270, cooldown: 550, speed: 170,
       color: 0x3fa34d, projectile: 'arrow',
+      resource: { name: 'Энергия', max: 110, color: '#f0b429' },
     },
   },
+
+  // Фоны лобби. price — цена в Telegram Stars (0 = бесплатно)
+  LOBBY_BACKGROUNDS: [
+    { id: 'throne', name: 'Тронный зал', price: 0 },
+    { id: 'forest', name: 'Лесной алтарь', price: 0 },
+    { id: 'dragon', name: 'Логово дракона', price: 50 },
+    { id: 'ice', name: 'Ледяная цитадель', price: 75 },
+  ],
 
   // Монстры. zone — минимальное расстояние от центра (в тайлах), где они появляются
   MONSTERS: {

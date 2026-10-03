@@ -10,19 +10,52 @@
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-  <!-- Экран выбора персонажа -->
-  <div id="select" class="screen">
-    <h1>⚔️ Telegram Quest</h1>
-    <p class="subtitle">Выбери героя</p>
-    <div class="carousel">
-      <button id="prevHero" class="car-arrow left" aria-label="Предыдущий герой">‹</button>
-      <div id="classes" class="car-track"></div>
-      <button id="nextHero" class="car-arrow right" aria-label="Следующий герой">›</button>
+  <!-- Лобби (выбор персонажа) -->
+  <div id="lobby" class="lobby">
+    <canvas id="lobbyBg" class="lobby-bg"></canvas>
+    <div id="lobbyLights" class="lobby-lights"></div>
+    <canvas id="lobbyFx" class="lobby-fx"></canvas>
+
+    <!-- Окно 1: информация о герое -->
+    <div id="heroPanel" class="l2-panel hero-panel">
+      <div class="hp-row"><span class="hp-key">Имя</span><b id="lpName">—</b><button id="lpRename" class="icon-btn hidden" aria-label="Сменить имя">✏️</button></div>
+      <div class="hp-row"><span class="hp-key">Ур.</span><b id="lpLevel">1</b><span id="lpClass" class="hp-class"></span></div>
+      <div class="l2-bar"><span class="hp-key">HP</span><div class="l2-track hp"><i id="lpHpFill"></i><em id="lpHp"></em></div></div>
+      <div class="l2-bar"><span class="hp-key" id="lpResKey">MP</span><div class="l2-track res"><i id="lpResFill"></i><em id="lpRes"></em></div></div>
+      <div class="l2-bar"><span class="hp-key">Exp</span><div class="l2-track xp"><i id="lpXpFill"></i><em id="lpXp"></em></div></div>
     </div>
-    <div id="carDots" class="car-dots"></div>
-    <input id="guestName" maxlength="16" placeholder="Имя героя" />
-    <button id="playBtn" class="btn-primary" disabled>В бой!</button>
+
+    <!-- Окна 2–6: герои на сцене -->
+    <div class="platform"><div class="platform-runes"></div></div>
+    <div id="stage" class="stage"></div>
+
+    <!-- Окно 7: начать -->
+    <button id="playBtn" class="l2-btn start-btn" disabled>Начать</button>
     <p id="status" class="status"></p>
+
+    <!-- Окно 8: меню -->
+    <div class="l2-panel lobby-menu">
+      <button id="menuHeroes" class="l2-btn">👤 Персонаж</button>
+      <button id="menuBg" class="l2-btn">🏰 Фон лобби</button>
+    </div>
+
+    <!-- Выдвижные списки меню -->
+    <div id="sheet" class="sheet hidden">
+      <div class="sheet-card l2-panel">
+        <div class="sheet-head"><b id="sheetTitle"></b><button id="sheetClose" class="icon-btn" aria-label="Закрыть">✕</button></div>
+        <div id="sheetBody" class="sheet-body"></div>
+      </div>
+    </div>
+
+    <!-- Смена имени (гость) -->
+    <div id="renameBox" class="sheet hidden">
+      <form id="renameForm" class="sheet-card l2-panel rename">
+        <b>Имя героя</b>
+        <input id="guestName" maxlength="16" placeholder="Введите имя" autocomplete="off" />
+        <button class="l2-btn">Сохранить</button>
+      </form>
+    </div>
+    <div id="toast" class="toast hidden"></div>
   </div>
 
   <!-- Игра -->
@@ -57,6 +90,8 @@
   </div>
 
   <script src="js/textures.js"></script>
+  <script src="js/backgrounds.js"></script>
+  <script src="js/lobby.js"></script>
   <script src="js/game.js"></script>
   <script src="js/main.js"></script>
 </body>

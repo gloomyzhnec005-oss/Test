@@ -34,7 +34,62 @@ const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/vendor/phaser.min.js', (req, res) =>
   res.sendFile(path.join(__dirname, '..', 'node_modules', 'phaser', 'dist', 'phaser.min.js')));
-app.get('/api/config', (req, res) => res.json({ classes: C.CLASSES, monsters: C.MONSTERS }));
+app.use(express.json({ limit: '16kb' }));
+// Профиль игрока для лобби: уровень и прогресс каждого героя
+app.post('/api/profile', (req, res) => {
+  const { initData, guestId } = req.body || {};
+  const uid = resolveUid(initData, guestId);
+  if (!uid) return res.status(403).json({ error: 'Откройте игру через Telegram-бота' });
+  const chars = {};
+  for (const cls of Object.keys(C.CLASSES)) {
+    const ch = profiles[uid.uid]?.chars?.[cls] || { level: 1, xp: 0, kills: 0, gold: 0 };
+    chars[cls] = { ...ch, xpNext: xpForLevel(ch.level), ...statsFor(cls, ch.level),
+      resMax: Math.round(C.CLASSES[cls].resource.max * (1 + 0.05 * (ch.level - 1))) };
+  }
+  const bgs = C.LOBBY_BACKGROUNDS.filter((b) => b.price === 0 || profiles[uid.uid]?.bgs?.includes(b.id)).map((b) => b.id);
+  res.json({ name: uid.name, chars, bgs });
+});
+app.get('/api/config', (req, res) => res.json({ classes: C.CLASSES, monsters: C.MONSTERS, backgrounds: C.LOBBY_BACKGROUNDS }));
+
+// Покупка платного фона лобби за Telegram Stars
+let bot = null;
+app.post('/api/invoice', async (req, res) => {
+  const { initData, bgId } = req.body || {};
+  const who = resolveUid(initData, null);
+  const bg = C.LOBBY_BACKGROUNDS.find((b) => b.id === bgId && b.price > 0);
+  if (!who || !who.tg) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
+  if (!bg) return res.status(400).json({ error: 'Неизвестный фон' });
+  if (!bot) return res.status(503).json({ error: 'Оплата временно недоступна' });
+  try {
+    const link = await bot.telegram.createInvoiceLink({
+      title: `Фон лобби «${bg.name}»`,
+      description: 'Новый фон для лобби выбора героя',
+      payload: `bg:${who.uid}:${bg.id}`,
+      provider_token: '',
+      currency: 'XTR',
+      prices: [{ label: bg.name, amount: bg.price }],
+    });
+    res.json({ link });
+  } catch (e) {
+    console.error('createInvoiceLink:', e.message);
+    res.status(500).json({ error: 'Не удалось создать счёт' });
+  }
+});
+
+// Вызывается ботом после успешной оплаты
+function onPaid(payload) {
+  const [kind, uid, id] = String(payload).split(':');
+  if (kind !== 'bg' || !uid || !C.LOBBY_BACKGROUNDS.some((b) => b.id === id)) return false;
+  profiles[uid] ??= { chars: {} };
+  profiles[uid].bgs ??= [];
+  if (!profiles[uid].bgs.includes(id)) profiles[uid].bgs.push(id);
+  saveProfiles();
+  return true;
+}
+function isValidPayload(payload) {
+  const [kind, uid, id] = String(payload).split(':');
+  return kind === 'bg' && !!uid && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
+}
 app.get('/health', (req, res) => res.json({ ok: true, players: players.size }));
 
 const server = http.createServer(app);
@@ -46,6 +101,17 @@ const players = new Map(); // socket.id -> player
 const monsters = new Map(); // id -> monster
 let monsterSeq = 1;
 let fx = []; // события за тик (удары, снаряды, смерти)
+
+// Определяет игрока: Telegram (подпись initData) или гость
+function resolveUid(initData, guestId) {
+  const tgUser = verifyInitData(initData, BOT_TOKEN);
+  if (tgUser) {
+    const name = tgUser.username || [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || 'Герой';
+    return { uid: 'tg' + tgUser.id, name, tg: true };
+  }
+  if (!ALLOW_GUESTS || !guestId) return null;
+  return { uid: 'guest_' + String(guestId).replace(/[^\w-]/g, '').slice(0, 40), name: null, tg: false };
+}
 
 const xpForLevel = (lvl) => Math.round(40 * Math.pow(lvl, 1.6));
 const statsFor = (cls, lvl) => {
@@ -127,18 +193,13 @@ io.on('connection', (socket) => {
   socket.on('join', (data = {}) => {
     if (players.has(socket.id)) return;
     const cls = C.CLASSES[data.cls] ? data.cls : 'warrior';
-    let uid, name;
-    const tgUser = verifyInitData(data.initData, BOT_TOKEN);
-    if (tgUser) {
-      uid = 'tg' + tgUser.id;
-      name = tgUser.username || [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || 'Герой';
-    } else if (ALLOW_GUESTS) {
-      uid = 'guest_' + String(data.guestId || socket.id).replace(/[^\w-]/g, '').slice(0, 40);
-      name = String(data.guestName || 'Гость').slice(0, 16);
-    } else {
+    const who = resolveUid(data.initData, data.guestId || socket.id);
+    if (!who) {
       socket.emit('error_msg', 'Откройте игру через Telegram-бота');
       return;
     }
+    const uid = who.uid;
+    const name = who.tg ? who.name : (String(data.guestName || '').trim().slice(0, 16) || 'Гость');
     const char = getChar(uid, cls);
     const p = {
       id: socket.id, uid, name: name.slice(0, 20), cls, char, socket,
@@ -316,7 +377,7 @@ setInterval(() => {
 
 server.listen(PORT, () => {
   console.log(`MMORPG сервер запущен: http://localhost:${PORT}`);
-  if (process.env.BOT_TOKEN && process.env.RUN_BOT !== 'false') require('../bot/bot');
+  if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ onPaid, isValidPayload });
 });
 
 process.on('SIGINT', () => { saveProfiles(); process.exit(0); });
