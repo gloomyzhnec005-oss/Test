@@ -114,8 +114,13 @@
   }
 
   let minimapBase = null;
+  const MM_COLORS = {
+    green: ['#4e9a3a', '#2f6fb5', '#2d6b22', '#c9a66b', '#4e9a3a', '#6e5a44', '#3c3a38', '#a03a2a', '#d8c8a0'],
+    abyss: ['#2a2430', '#07040c', '#3a2a2a', '#4a4250', '#2a2430', '#3a3438', '#15121a', '#6a3a9a', '#3a3448'],
+    sky: ['#e8f0ff', '#7ac8ff', '#ffd84a', '#f4eee0', '#e8f0ff', '#d8e4f4', '#c8d8f0', '#e8c060', '#fffaf0'],
+  };
   function buildMinimap(map) {
-    const colors = ['#4e9a3a', '#2f6fb5', '#2d6b22', '#c9a66b', '#4e9a3a', '#6e5a44', '#3c3a38'];
+    const colors = MM_COLORS[map.theme] || MM_COLORS.green;
     const c = document.createElement('canvas');
     c.width = map.w; c.height = map.h;
     const ctx = c.getContext('2d');
@@ -133,11 +138,14 @@
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(minimapBase, 0, 0, cnv.width, cnv.height);
     ctx.fillStyle = '#ff4040';
-    for (const m of state.m) ctx.fillRect(m.x / tile * sx - 1, m.y / tile * sy - 1, 2, 2);
+    const ox = map.ox || 0, oy = map.oy || 0;
+    for (const m of state.m) ctx.fillRect((m.x - ox) / tile * sx - 1, (m.y - oy) / tile * sy - 1, 2, 2);
+    ctx.fillStyle = '#c890ff';
+    for (const o of map.objs || []) if (o.kind === 'portal') ctx.fillRect((o.x - ox) / tile * sx - 2, (o.y - oy) / tile * sy - 2, 4, 4);
     for (const p of state.p) {
       ctx.fillStyle = p.id === myId ? '#ffff00' : '#ffffff';
       const s = p.id === myId ? 4 : 3;
-      ctx.fillRect(p.x / tile * sx - s / 2, p.y / tile * sy - s / 2, s, s);
+      ctx.fillRect((p.x - ox) / tile * sx - s / 2, (p.y - oy) / tile * sy - s / 2, s, s);
     }
   }
 
@@ -222,9 +230,41 @@
       passiveDef = hero.passive || null;
       $('passive').classList.toggle('hidden', !passiveDef);
       setStats(w.stats);
-      buildMinimap(w.map);
+      let zone = w.zone;
+      buildMinimap(zone);
+      Town.setContext({ socket, towns: w.towns, hero, onGacha: () => Lobby.openGacha() });
+      // Кнопка действия рядом со зданием, порталом или телепортом
+      let near = null;
+      $('actBtn').onclick = () => {
+        if (!near) return;
+        if (near.kind === 'portal') socket.emit('travel', { via: near.id });
+        else Town.openPlace(near.place);
+      };
+      $('evBtn').onclick = () => Town.openPlace('events');
+      $('gachaBtn').onclick = () => Town.openPlace('gacha');
       const ui = {
-        onWorld: (s, myId) => drawMinimap(s, myId, w.tile, w.map),
+        onWorld: (s, myId) => drawMinimap(s, myId, w.tile, zone),
+        onZone: (z) => {
+          zone = z;
+          buildMinimap(z);
+          Town.setContext({ zone: z });
+          Town.close();
+          $('townBar').classList.toggle('hidden', z.kind !== 'town'); // события и призыв — только в городе
+          const b = $('zoneBanner');
+          b.querySelector('b').textContent = z.name;
+          b.querySelector('small').textContent = z.kind === 'town' ? `${z.sub} · уровень ${z.level}` : z.sub;
+          b.classList.add('hidden'); void b.offsetWidth; b.classList.remove('hidden');
+          clearTimeout(ui.bannerTm); ui.bannerTm = setTimeout(() => b.classList.add('hidden'), 2900);
+        },
+        onNear: (o, z, activate) => {
+          if (activate) { $('actBtn').click(); return; }
+          near = o;
+          const btn = $('actBtn');
+          btn.classList.toggle('hidden', !o);
+          if (!o) return;
+          btn.textContent = o.kind === 'portal' ? (o.id === 'back' ? `🏰 ${o.name}` : `🌀 Войти: ${o.name}`) : `${o.icon} ${o.name}`;
+          vibrate('light');
+        },
         onTarget: (name, hp, maxHp) => {
           if (!name) { $('target').classList.add('hidden'); return; }
           $('target').classList.remove('hidden');

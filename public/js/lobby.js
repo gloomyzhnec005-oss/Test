@@ -500,5 +500,6 @@ window.Lobby = (() => {
     setStatus: (t) => { $('status').textContent = t; },
     setBusy: (b) => { $('playBtn').disabled = b; },
     hide: () => { running = false; $('lobby').classList.add('hidden'); },
+    openGacha: () => openGacha(),
   };
 })();

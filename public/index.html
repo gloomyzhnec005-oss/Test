@@ -40,14 +40,6 @@
       <button id="menuBg" class="l2-btn">🏰 Фон лобби</button>
     </div>
 
-    <!-- Выдвижные списки меню -->
-    <div id="sheet" class="sheet hidden">
-      <div class="sheet-card l2-panel">
-        <div class="sheet-head"><b id="sheetTitle"></b><button id="sheetClose" class="icon-btn" aria-label="Закрыть">✕</button></div>
-        <div id="sheetBody" class="sheet-body"></div>
-      </div>
-    </div>
-
     <!-- Смена имени (гость) -->
     <div id="renameBox" class="sheet hidden">
       <form id="renameForm" class="sheet-card l2-panel rename">
@@ -56,9 +48,6 @@
         <button class="l2-btn">Сохранить</button>
       </form>
     </div>
-    <!-- Карточка героя (после призыва) -->
-    <div id="reveal" class="reveal hidden"><div class="reveal-rays"></div><div class="reveal-card l2-panel"></div></div>
-    <div id="toast" class="toast hidden"></div>
   </div>
 
   <!-- Игра -->
@@ -85,10 +74,32 @@
     <form id="chatForm" class="chat-form hidden"><input id="chatInput" maxlength="120" placeholder="Сообщение..." /></form>
     <button id="chatBtn" class="round small-btn">💬</button>
     <button id="exitBtn" class="round small-btn">🏠</button>
+    <!-- Только в городе: события и призыв -->
+    <div id="townBar" class="town-bar hidden">
+      <button id="evBtn" class="town-btn"><span>📜</span><em>События</em></button>
+      <button id="gachaBtn" class="town-btn"><span>🎰</span><em>Призыв</em></button>
+    </div>
+    <div id="zoneBanner" class="zone-banner hidden"><b></b><small></small></div>
+    <button id="actBtn" class="act-btn hidden"></button>
     <div id="joystick" class="joystick"><div id="stick"></div></div>
     <button id="attackBtn" class="round attack">⚔️</button>
     <div id="skills" class="skills"></div>
     <div id="hudToast" class="hud-toast hidden"></div>
+  </div>
+
+  <!-- Окна поверх лобби и игры: призыв, городские места -->
+  <div id="modals" class="modals">
+    <!-- Выдвижные списки меню -->
+    <div id="sheet" class="sheet hidden">
+      <div class="sheet-card l2-panel">
+        <div class="sheet-head"><b id="sheetTitle"></b><button id="sheetClose" class="icon-btn" aria-label="Закрыть">✕</button></div>
+        <div id="sheetBody" class="sheet-body"></div>
+      </div>
+    </div>
+
+    <!-- Карточка героя (после призыва) -->
+    <div id="reveal" class="reveal hidden"><div class="reveal-rays"></div><div class="reveal-card l2-panel"></div></div>
+    <div id="toast" class="toast hidden"></div>
   </div>
 
   <div id="deathScreen" class="overlay hidden">
@@ -99,6 +110,7 @@
   <script src="js/textures.js"></script>
   <script src="js/backgrounds.js"></script>
   <script src="js/lobby.js"></script>
+  <script src="js/town.js"></script>
   <script src="js/game.js"></script>
   <script src="js/main.js"></script>
 </body>

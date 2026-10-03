@@ -6,7 +6,7 @@ const express = require('express');
 const { Server } = require('socket.io');
 
 const C = require('./config');
-const { generateMap, SOLID } = require('./world');
+const { buildWorld, ZONE_STRIDE } = require('./world');
 const { verifyInitData } = require('./auth');
 const { SKILLS, PASSIVES, NEEDS_TARGET, skillRange } = require('./skills');
 const { createPets, createSummon, rescalePets, updatePets, hurtPet } = require('./pets');
@@ -146,7 +146,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 // ---------- Мир ----------
-const world = generateMap(Number(process.env.WORLD_SEED) || 1337);
+const world = buildWorld(); // города и охотничьи земли за порталами (server/world.js)
 const players = new Map(); // socket.id -> player
 const monsters = new Map(); // id -> monster
 const pets = new Map(); // id -> зверь-спутник (Урсус)
@@ -195,39 +195,64 @@ const attackCd = (p, now = Date.now()) => {
   return Math.round(formOf(p).cooldown / speed * (p.stoneArmorUntil > now ? 1.3 : 1)); // каменная броня Эмета замедляет
 };
 
-function randomFreeSpot(minR, maxR) {
-  const cx = world.width / 2, cy = world.height / 2;
-  for (let i = 0; i < 200; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const r = minR + Math.random() * (maxR - minR);
-    const tx = Math.floor(cx + Math.cos(a) * r), ty = Math.floor(cy + Math.sin(a) * r);
-    if (!world.isSolidTile(tx, ty)) return { x: (tx + 0.5) * C.TILE, y: (ty + 0.5) * C.TILE };
-  }
-  return { ...world.spawn };
+// ---------- Зоны ----------
+// Охотничьи земли «просыпаются», когда в них заходит игрок, и засыпают через 2 минуты без игроков
+const zoneOf = (e) => world.zoneAtX(e.x);
+const activeHunts = new Map(); // zoneId -> время, когда зона опустела (0 — в зоне есть игроки)
+
+function pickMonsterType(mix) {
+  let roll = Math.random();
+  for (const [type, w] of Object.entries(mix)) { if ((roll -= w) <= 0) return type; }
+  return Object.keys(mix)[0];
 }
 
-function pickMonsterType() {
-  const roll = Math.random();
-  if (roll < 0.03) return 'dragon';
-  if (roll < 0.18) return 'orc';
-  if (roll < 0.40) return 'skeleton';
-  if (roll < 0.68) return 'wolf';
-  return 'slime';
-}
-
-function spawnMonster(type = pickMonsterType()) {
+function spawnMonster(z, type = pickMonsterType(z.mix)) {
   const def = C.MONSTERS[type];
-  const maxR = Math.min(world.width, world.height) / 2 - 2;
-  const p = randomFreeSpot(def.zone, Math.min(maxR, def.zone + 12));
+  const p = world.freeSpot(z, def.boss ? 20 : 7, Math.min(z.w, z.h) / 2 - 3);
+  const hp = Math.round(def.hp * z.power.hp);
   const m = {
-    id: monsterSeq++, type, x: p.x, y: p.y, homeX: p.x, homeY: p.y,
-    hp: def.hp, maxHp: def.hp, target: null, lastAttack: 0, undead: !!def.undead, boss: !!def.boss,
+    id: monsterSeq++, type, x: p.x, y: p.y, homeX: p.x, homeY: p.y, zone: z.id, tier: z.tier,
+    dmgMult: z.power.dmg, xpMult: z.power.xp,
+    hp, maxHp: hp, target: null, lastAttack: 0, undead: !!def.undead, boss: !!def.boss,
     wander: null, nextWander: 0, stunUntil: 0, rootUntil: 0, dots: [],
   };
   monsters.set(m.id, m);
   return m;
 }
-for (let i = 0; i < C.MONSTER_COUNT; i++) spawnMonster();
+function wakeZone(z) {
+  if (z.kind !== 'hunt') return;
+  if (!activeHunts.has(z.id)) for (let i = 0; i < z.monsterCount; i++) spawnMonster(z);
+  activeHunts.set(z.id, 0);
+}
+// Раз в 10 с: усыпляем пустые охотничьи земли
+setInterval(() => {
+  const now = Date.now();
+  const busy = new Set([...players.values()].map((p) => p.zone));
+  for (const [id, since] of activeHunts) {
+    if (busy.has(id)) { activeHunts.set(id, 0); continue; }
+    if (!since) { activeHunts.set(id, now); continue; }
+    if (now - since > 120000) {
+      activeHunts.delete(id);
+      for (const m of monsters.values()) if (m.zone === id) monsters.delete(m.id);
+    }
+  }
+}, 10000);
+
+// Перенос игрока в другую зону (город, портал, телепорт)
+function moveToZone(p, zoneId, pos) {
+  const z = world.byId.get(zoneId);
+  if (!z) return;
+  if (p.zone) p.socket.leave('z:' + p.zone);
+  p.zone = z.id;
+  p.socket.join('z:' + z.id);
+  wakeZone(z);
+  const at = pos || { x: z.spawn.x + (Math.random() - 0.5) * 48, y: z.spawn.y + (Math.random() - 0.5) * 24 };
+  p.x = at.x; p.y = at.y; p.lastMove = Date.now();
+  p.stealthUntil = 0;
+  for (const pet of p.pets || []) { pet.x = p.x + (Math.random() - 0.5) * 40; pet.y = p.y + 16; pet.target = null; }
+  p.socket.emit('zone', { zone: world.payload(z), x: p.x, y: p.y });
+  markDirty(p);
+}
 
 // Ледяная стена Итилиора: монстр не может зайти внутрь стены
 function inIceWall(x, y) {
@@ -307,8 +332,9 @@ function damageMonster(p, m, raw, opt = {}) {
   if (m.hp <= 0) {
     const def = C.MONSTERS[m.type];
     const rw = ps && ps.rewardMult ? ps.rewardMult(p, m) : { xp: 1, gold: 1 };
-    const xp = Math.round(def.xp * rw.xp);
-    const gold = Math.round(def.xp / 3 * (0.5 + Math.random()) * rw.gold);
+    const baseXp = def.xp * (m.xpMult || 1);
+    const xp = Math.round(baseXp * rw.xp);
+    const gold = Math.round(baseXp / 3 * (0.5 + Math.random()) * rw.gold);
     fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp, gold, by: p.id, contract: !!rw.contract });
     monsters.delete(m.id);
     corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type });
@@ -316,7 +342,8 @@ function damageMonster(p, m, raw, opt = {}) {
     grantXp(p, xp, gold);
     if (ps && ps.onKill) ps.onKill(skillCtx, p, Date.now(), m);
     if (def.boss) io.emit('chat', { sys: true, text: `${p.name} победил босса «${def.name}»!` });
-    setTimeout(() => spawnMonster(), C.MONSTER_RESPAWN_MS);
+    const mz = world.byId.get(m.zone);
+    setTimeout(() => { if (activeHunts.has(mz.id)) spawnMonster(mz); }, C.MONSTER_RESPAWN_MS);
   }
   return dmg;
 }
@@ -451,7 +478,10 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
       if (victim.darkCharges) victim.darkCharges = Math.floor(victim.darkCharges / 2); // Гидеон теряет половину зарядов тьмы
       if (victim.hero.forms) victim.form = 'human'; // возрождается в облике друида
       markDirty(victim);
-      victim.x = world.spawn.x; victim.y = world.spawn.y;
+      // Возрождение в городе своего мира
+      const home = world.byId.get(world.byId.get(victim.zone).town);
+      if (home.id !== victim.zone) moveToZone(victim, home.id);
+      else { victim.x = home.spawn.x; victim.y = home.spawn.y; }
       victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });
     }, 4000);
   }
@@ -515,7 +545,7 @@ io.on('connection', (socket) => {
     const char = getChar(uid, heroId);
     const p = {
       id: socket.id, uid, name: name.slice(0, 20), heroId, hero, char, socket,
-      x: world.spawn.x + (Math.random() - 0.5) * 64, y: world.spawn.y + (Math.random() - 0.5) * 64,
+      x: 0, y: 0, zone: null,
       dir: 1, dead: false, lastAttack: 0, lastHurt: 0, lastMove: Date.now(),
       skillReadyAt: {}, wrath: 0, roarUntil: 0, frenzyUntil: 0, bloodStacks: 0, lastKill: 0, favor: 0, empoweredUntil: 0, cheatUsed: false, lastHit: 0, dirty: false, lastStats: 0,
       ...statsFor(heroId, char.level),
@@ -535,12 +565,18 @@ io.on('connection', (socket) => {
     if (heroId === 'blaze') p.heat = 0;
     if (heroId === 'tibor') { p.potion = 'thunder'; p.sign = 'igni'; p.tox = 0; }
     p.joinedAt = Date.now();
+    // Вход в мир — в стартовом городе
+    const start = world.byId.get('town1');
+    p.zone = start.id; socket.join('z:' + start.id);
+    p.x = start.spawn.x + (Math.random() - 0.5) * 64; p.y = start.spawn.y + (Math.random() - 0.5) * 32;
+    for (const pet of p.pets || []) { pet.x = p.x; pet.y = p.y + 16; }
     players.set(socket.id, p);
 
     socket.emit('welcome', {
       id: socket.id,
       tile: C.TILE,
-      map: { w: world.width, h: world.height, tiles: world.tiles, solid: SOLID },
+      zone: world.payload(start),
+      towns: world.towns,
       heroes: C.HEROES,
       monsters: C.MONSTERS,
       stats: privateStats(p),
@@ -638,6 +674,25 @@ io.on('connection', (socket) => {
     markDirty(p);
   });
 
+  // Портал / телепорт: игрок должен стоять рядом с объектом
+  socket.on('travel', (d = {}) => {
+    const p = players.get(socket.id);
+    if (!p || p.dead) return;
+    const z = world.byId.get(p.zone);
+    const obj = z && z.objs.find((o) => o.id === d.via);
+    if (!obj || Math.hypot(obj.x - p.x, obj.y - p.y) > 110) return socket.emit('skillFail', 'Подойдите ближе');
+    let to = obj.to;
+    if (obj.id === 'teleport') {
+      to = String(d.to || '');
+      const target = world.byId.get(to);
+      if (!target || target.kind !== 'town' || to === p.zone) return;
+    }
+    if (!to) return;
+    moveToZone(p, to);
+    const nz = world.byId.get(to);
+    socket.emit('chat', { sys: true, text: nz.kind === 'town' ? `Вы прибыли в город ${nz.name}` : `Портал: ${nz.name} (${nz.sub})` });
+  });
+
   socket.on('chat', (text) => {
     const p = players.get(socket.id);
     if (!p || typeof text !== 'string') return;
@@ -704,7 +759,7 @@ setInterval(() => {
         else if (now - m.lastAttack > C.MONSTER_ATTACK_CD) {
           m.lastAttack = now;
           const caster = players.get(m.confusedBy);
-          const dmg = def.dmg * (0.8 + Math.random() * 0.4);
+          const dmg = def.dmg * (m.dmgMult || 1) * (0.8 + Math.random() * 0.4);
           if (caster) damageMonster(caster, other, dmg, { fixed: true, confused: true });
           else other.hp -= dmg;
         }
@@ -757,9 +812,9 @@ setInterval(() => {
         m.lastAttack = now;
         if (m.blindUntil > now && Math.random() < 0.5) { fx.push({ t: 'miss', x: m.x, y: m.y }); continue; } // ослеплён песком Сирокко
         // Удар по зверю: зверь не гибнет, а «падает» и отступает
-        if (target.owner) { hurtPet(skillCtx, target, Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)), now); continue; }
+        if (target.owner) { hurtPet(skillCtx, target, Math.round(def.dmg * (m.dmgMult || 1) * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)), now); continue; }
         // Насмешка Джакомо снижает урон монстра
-        hurtPlayer(target, def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)
+        hurtPlayer(target, def.dmg * (m.dmgMult || 1) * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)
           * (m.mockUntil > now ? Math.max(0.4, 1 - 0.25 * (m.mockPw || 1)) : 1), m, now);
       }
     } else {
@@ -819,22 +874,41 @@ setInterval(() => {
   }
   totems = totems.filter((t) => now < t.until);
 
-  // Рассылка состояния
+  // Рассылка состояния — каждой зоне только её объекты
+  const zIdx = (x) => Math.floor(x / ZONE_STRIDE);
+  const fxZone = (f) => {
+    const x = f.x ?? f.fx ?? f.tx;
+    if (typeof x === 'number') return zIdx(x);
+    const e = players.get(f.target) || players.get(f.id) || players.get(f.from) || monsters.get(f.target);
+    return e ? zIdx(e.x) : -1;
+  };
+  const byZone = new Map();
+  for (const p of players.values()) {
+    const zi = zIdx(p.x);
+    if (!byZone.has(zi)) byZone.set(zi, { zone: p.zone, p: [], m: [], pt: [], t: [], fx: [] });
+    byZone.get(zi).p.push(p);
+  }
+  for (const m of monsters.values()) byZone.get(zIdx(m.x))?.m.push(m);
+  for (const pet of pets.values()) byZone.get(zIdx(pet.x))?.pt.push(pet);
+  for (const t of totems) byZone.get(zIdx(t.x))?.t.push(t);
+  for (const f of fx) byZone.get(fxZone(f))?.fx.push(f);
+  for (const Z of byZone.values()) {
   const state = {
-    p: [...players.values()].map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
-    m: [...monsters.values()].map((m) => ({ id: m.id, type: m.type, x: Math.round(m.x), y: Math.round(m.y),
+    p: Z.p.map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
+    m: Z.m.map((m) => ({ id: m.id, type: m.type, tr: m.tier, x: Math.round(m.x), y: Math.round(m.y),
       hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
       mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0,
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
       bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
       cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, ds: m.darkSealUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0, ch: m.charmUntil > now ? 1 : 0, cu: m.curseUntil > now ? 1 : 0, fs: m.frost > 0 ? Math.round(m.frost) : 0, sn: m.stoneUntil > now ? 1 : 0, pf: m.petrify > 0 ? Math.round(m.petrify) : 0 })),
-    pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, drowned: pet.drowned ? 1 : 0, x: Math.round(pet.x), y: Math.round(pet.y),
+    pt: Z.pt.map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, drowned: pet.drowned ? 1 : 0, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
-    t: totems.map((t) => ({ id: t.id, kind: t.kind, sub: t.sub || null, ang: t.ang ?? null, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
-    fx,
+    t: Z.t.map((t) => ({ id: t.id, kind: t.kind, sub: t.sub || null, ang: t.ang ?? null, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
+    fx: Z.fx,
   };
-  io.emit('state', state);
+  for (const p of Z.p) p.socket.emit('state', state);
+  }
   fx = [];
 }, C.TICK_MS);
 

@@ -21,12 +21,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   create() {
-    const { map } = this.welcome;
     const T = this.T;
 
     // Текстуры
     const addTex = (key, cnv) => { if (!this.textures.exists(key)) this.textures.addCanvas(key, cnv); };
-    addTex('tiles', Gfx.tileset());
+    ['green', 'abyss', 'sky'].forEach((th) => addTex('tiles_' + th, Gfx.tileset(th)));
     Object.entries(this.heroes).forEach(([k, h]) => {
       addTex('hero_' + k, Gfx.hero(h.look));
       if (h.forms) addTex('hero_' + k + '_beast', Gfx.werebeast(h.beastLook)); // звериный облик
@@ -39,16 +38,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
     ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy', 'note', 'necro', 'arrow', 'arcane', 'bolt', 'blood', 'venom', 'moon', 'sand', 'rune', 'soul', 'water', 'sonic', 'crystal', 'dark', 'nature'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
-    // Тайловая карта
-    const data2d = [];
-    for (let y = 0; y < map.h; y++) data2d.push(map.tiles.slice(y * map.w, (y + 1) * map.w));
-    const tm = this.make.tilemap({ data: data2d, tileWidth: T, tileHeight: T });
-    const ts = tm.addTilesetImage('tiles', 'tiles', T, T, 0, 0);
-    tm.createLayer(0, ts, 0, 0).setDepth(0);
-    this.solid = new Set(map.solid);
-    this.mapW = map.w; this.mapH = map.h; this.tiles = map.tiles;
-
-    this.cameras.main.setBounds(0, 0, map.w * T, map.h * T);
+    // Тайловая карта текущей зоны (город или охотничьи земли)
+    this.zoneObjs = [];
+    this.buildZone(this.welcome.zone);
     this.cameras.main.setRoundPixels(true);
     this.resize();
     this.scale.on('resize', () => this.resize());
@@ -67,24 +59,148 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Сеть
     this.net.on('state', (s) => this.onState(s));
     this.net.on('stats', (st) => { this.myStats = st; });
+    // Переход в другую зону: новая карта, прежние сущности исчезнут со следующим состоянием
+    this.net.on('zone', (d) => {
+      this.buildZone(d.zone);
+      for (const [id, e] of this.players) if (id !== this.myId) { e.c.destroy(); this.players.delete(id); }
+      for (const e of this.monsters.values()) e.c.destroy();
+      this.monsters.clear();
+      this.targetId = null; this.autoWalk = null;
+      if (this.me) { this.me.x = d.x; this.me.y = d.y; this.me.e.c.setPosition(d.x, d.y); }
+      this.cameras.main.flash(350, 255, 255, 255);
+    });
     this.net.on('correct', (d) => {
       if (!this.me) return;
       this.me.x = d.x; this.me.y = d.y;
       if (d.respawn) this.ui.onRespawn();
     });
 
+    window.gameScene = this; // для отладки из консоли
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,Q,E,R');
   }
 
   resize() {
     const w = this.scale.width, h = this.scale.height;
     // На телефоне показываем примерно 11-13 тайлов по короткой стороне
-    const zoom = Phaser.Math.Clamp(Math.min(w, h) / (12 * this.T), 1, 3);
+    const town = this.zone && this.zone.kind === 'town';
+    const zoom = Phaser.Math.Clamp(Math.min(w, h) / ((town ? 15 : 12) * this.T), town ? 0.8 : 1, 3); // в городе обзор шире
     this.cameras.main.setZoom(zoom);
   }
 
+  // Строит карту зоны: тайлы, здания, порталы, телепорт
+  buildZone(z) {
+    const T = this.T;
+    if (this.layer) { this.layer.destroy(); this.tilemap.destroy(); }
+    this.zoneObjs.forEach((o) => o.destroy());
+    this.zoneObjs = [];
+    this.zone = z;
+    const data2d = [];
+    for (let y = 0; y < z.h; y++) data2d.push(z.tiles.slice(y * z.w, (y + 1) * z.w));
+    this.tilemap = this.make.tilemap({ data: data2d, tileWidth: T, tileHeight: T });
+    const ts = this.tilemap.addTilesetImage('tiles_' + z.theme, 'tiles_' + z.theme, T, T, 0, 0);
+    this.layer = this.tilemap.createLayer(0, ts, z.ox, z.oy).setDepth(0);
+    this.solid = new Set(z.solid);
+    this.mapW = z.w; this.mapH = z.h; this.tiles = z.tiles;
+    this.cameras.main.setBounds(z.ox, z.oy, z.w * T, z.h * T);
+    this.cameras.main.setBackgroundColor({ green: '#2f6a28', abyss: '#07040c', sky: '#bfe0ff' }[z.theme]);
+    const keep = (o) => { this.zoneObjs.push(o); return o; };
+    const labelStyle = { fontSize: '11px', fontFamily: 'Arial', color: '#fff6d8', stroke: '#000', strokeThickness: 3, resolution: 2 };
+    const PORTAL_COL = [0x5fd17a, 0x8ad3ff, 0xc890ff, 0xff8a5a, 0xffd84a, 0xff4a4a];
+    for (const o of z.objs) {
+      if (o.kind === 'place' && o.place !== 'teleport') {
+        const key = `bld_${z.theme}_${o.place}`;
+        if (!this.textures.exists(key)) this.textures.addCanvas(key, Gfx.building(o.place, z.theme));
+        const img = keep(this.add.image(o.bx + o.bw / 2, o.by + o.bh, key).setOrigin(0.5, 1).setDepth(10 + o.by + o.bh - 8));
+        img.setInteractive().on('pointerdown', () => this.goTo(o));
+        keep(this.add.text(o.bx + o.bw / 2, o.by + o.bh - 116, `${o.icon} ${o.name}`, labelStyle).setOrigin(0.5, 1).setDepth(3000));
+      } else if (o.place === 'teleport') {
+        const col = { green: 0x5fd1c8, abyss: 0xb04aff, sky: 0xffd84a }[z.theme];
+        keep(this.add.ellipse(o.x, o.y, 92, 46, 0x000000, 0.25).setDepth(1));
+        keep(this.add.ellipse(o.x, o.y, 84, 40, 0x8a8f99).setStrokeStyle(3, 0x5a5f68).setDepth(1));
+        const ring = keep(this.add.ellipse(o.x, o.y, 64, 30).setStrokeStyle(3, col, 0.9).setDepth(2));
+        const glow = keep(this.add.ellipse(o.x, o.y, 50, 22, col, 0.35).setDepth(2));
+        glow.setInteractive().on('pointerdown', () => this.goTo(o));
+        this.tweens.add({ targets: ring, scaleX: 1.15, scaleY: 1.15, alpha: 0.4, duration: 900, yoyo: true, repeat: -1 });
+        this.tweens.add({ targets: glow, alpha: 0.7, duration: 600, yoyo: true, repeat: -1 });
+        const beam = keep(this.add.rectangle(o.x, o.y - 30, 30, 60, col, 0.15).setDepth(5));
+        this.tweens.add({ targets: beam, alpha: 0.05, duration: 1200, yoyo: true, repeat: -1 });
+        keep(this.add.text(o.x, o.y - 30, `${o.icon} ${o.name}`, labelStyle).setOrigin(0.5, 1).setDepth(3000));
+      } else if (o.kind === 'portal') {
+        const col = o.id === 'back' ? 0xffd36a : PORTAL_COL[(o.num - 1) % 6];
+        keep(this.add.ellipse(o.x, o.y + 22, 50, 14, 0x000000, 0.3).setDepth(1));
+        // Каменная арка и вращающаяся воронка
+        keep(this.add.rectangle(o.x - 24, o.y, 8, 50, 0x6a6560).setDepth(10 + o.y + 20));
+        keep(this.add.rectangle(o.x + 24, o.y, 8, 50, 0x6a6560).setDepth(10 + o.y + 20));
+        keep(this.add.rectangle(o.x, o.y - 26, 58, 8, 0x5a5550).setDepth(10 + o.y + 20));
+        const swirl = keep(this.add.ellipse(o.x, o.y + 2, 38, 46, col, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setDepth(10 + o.y));
+        swirl.setInteractive().on('pointerdown', () => this.goTo(o));
+        const core = keep(this.add.ellipse(o.x, o.y + 2, 18, 26, 0xffffff, 0.5).setDepth(10 + o.y + 1));
+        this.tweens.add({ targets: swirl, scaleX: 0.8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        this.tweens.add({ targets: core, alpha: 0.15, scale: 1.4, duration: 900, yoyo: true, repeat: -1 });
+        const title = o.id === 'back' ? `${o.icon} ${o.name}` : `${['I', 'II', 'III', 'IV', 'V', 'VI'][o.num - 1]} · ${o.name}`;
+        keep(this.add.text(o.x, o.y - 32, title, { ...labelStyle, fontSize: '10px' }).setOrigin(0.5, 1).setDepth(3000));
+      }
+    }
+    this.nearObj = undefined;
+    if (this.layer && this.scale) this.resize();
+    this.ui.onZone(z);
+  }
+
+  // Тап по зданию/порталу: герой сам идёт к нему (если уже рядом — сразу действие)
+  goTo(o) {
+    if (!this.me) return;
+    if (this.nearObj === o) { this.ui.onNear(o, this.zone, true); return; }
+    const path = this.findPath(this.me.x, this.me.y, o.x, o.y + (o.kind === 'portal' ? 20 : 4));
+    this.walkTo = path && path.length ? { path, stuck: 0 } : null;
+    this.autoWalk = null;
+  }
+
+  // Поиск пути по тайлам (BFS, 8 направлений без срезания углов) → список точек
+  findPath(fx, fy, tx, ty) {
+    const T = this.T, z = this.zone, W = z.w, H = z.h;
+    const toT = (x, y) => [Math.floor((x - z.ox) / T), Math.floor((y - z.oy) / T)];
+    const [sx, sy] = toT(fx, fy);
+    let [ex, ey] = toT(tx, ty);
+    const free = (x, y) => x >= 0 && y >= 0 && x < W && y < H && !this.solid.has(this.tiles[y * W + x]);
+    if (!free(ex, ey)) { // цель внутри стены — ищем ближайший свободный тайл
+      let best = null, bd = 1e9;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (free(ex + dx, ey + dy) && dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = [ex + dx, ey + dy]; }
+      if (!best) return null;
+      [ex, ey] = best;
+    }
+    const prev = new Int32Array(W * H).fill(-1);
+    const start = sy * W + sx, goal = ey * W + ex;
+    prev[start] = start;
+    const q = [start];
+    const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    for (let qi = 0; qi < q.length && prev[goal] < 0; qi++) {
+      const c = q[qi], cx = c % W, cy = (c - cx) / W;
+      for (const [dx, dy] of DIRS) {
+        const nx = cx + dx, ny = cy + dy, ni = ny * W + nx;
+        if (!free(nx, ny) || prev[ni] >= 0) continue;
+        if (dx && dy && (!free(cx + dx, cy) || !free(cx, cy + dy))) continue;
+        prev[ni] = c; q.push(ni);
+      }
+    }
+    if (prev[goal] < 0) return null;
+    const pts = [{ x: tx, y: ty }];
+    for (let c = prev[goal]; c !== start; c = prev[c]) { const cx = c % W; pts.push({ x: z.ox + (cx + 0.5) * T, y: z.oy + ((c - cx) / W + 0.5) * T }); }
+    return pts.reverse();
+  }
+
+  // Ближайший объект зоны, с которым можно взаимодействовать
+  checkNear() {
+    if (!this.me || !this.zone) return;
+    let best = null, bd = 64;
+    for (const o of this.zone.objs) {
+      const d = Math.hypot(o.x - this.me.x, o.y - this.me.y);
+      if (d < (o.place === 'teleport' ? 56 : bd)) { best = o; bd = d; }
+    }
+    if (best !== this.nearObj) { this.nearObj = best; this.ui.onNear(best, this.zone); }
+  }
+
   isSolidAt(px, py) {
-    const tx = Math.floor(px / this.T), ty = Math.floor(py / this.T);
+    const tx = Math.floor((px - this.zone.ox) / this.T), ty = Math.floor((py - this.zone.oy) / this.T);
     if (tx < 0 || ty < 0 || tx >= this.mapW || ty >= this.mapH) return true;
     return this.solid.has(this.tiles[ty * this.mapW + tx]);
   }
@@ -224,7 +340,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       let e = this.monsters.get(m.id);
       if (!e) {
         const def = this.monsterDefs[m.type];
-        e = this.makeEntity('mon_' + m.type, def.name, def.boss ? '#ff6b6b' : '#ffd9a0', m.id);
+        e = this.makeEntity('mon_' + m.type, def.name + (m.tr > 1 ? ' ' + '★'.repeat(m.tr - 1) : ''), def.boss ? '#ff6b6b' : m.tr === 2 ? '#d8a0ff' : m.tr === 3 ? '#a0e8ff' : '#ffd9a0', m.id);
         e.c.setPosition(m.x, m.y);
         if (def.boss) { e.label.y = -34; e.bar.y = e.bar.y - 8; e.c.list[1].y -= 8; }
         e.c.setAlpha(0);
@@ -1510,8 +1626,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (K.D.isDown || K.RIGHT.isDown) vx = 1;
     if (K.W.isDown || K.UP.isDown) vy = -1;
     if (K.S.isDown || K.DOWN.isDown) vy = 1;
-    if (vx || vy) this.autoWalk = null;
-    else if (this.autoWalk) {
+    if (vx || vy) { this.autoWalk = null; this.walkTo = null; }
+    else if (this.walkTo) {
+      const wp = this.walkTo.path[0];
+      const dx = wp.x - me.x, dy = wp.y - me.y;
+      if (Math.hypot(dx, dy) < 8) { this.walkTo.path.shift(); if (!this.walkTo.path.length) this.walkTo = null; }
+      if (++(this.walkTo || {}).stuck > 1500) this.walkTo = null;
+      if (this.walkTo) { vx = dx; vy = dy; }
+    } else if (this.autoWalk) {
       const t = this.monsters.get(this.autoWalk);
       if (t) { vx = t.c.x - me.x; vy = t.c.y - me.y; } else this.autoWalk = null;
     }
@@ -1526,6 +1648,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (Math.abs(vx) > 0.1) me.dir = vx < 0 ? -1 : 1;
     }
     me.e.c.setPosition(me.x, me.y);
+    this.checkNear();
     me.e.sprite.setFlipX(me.dir === -1);
     // Лёгкая «походка»
     me.e.sprite.y = len > 0 ? Math.sin(time / 70) * 1.5 : 0;

@@ -23,36 +23,136 @@ window.Gfx = (() => {
     for (let i = 0; i < n; i++) rect(ctx, ox + Math.floor(rnd() * 30), Math.floor(rnd() * 30), 2, 2, dots[i % dots.length]);
   }
 
-  // Порядок совпадает с T в server/world.js
-  function tileset() {
-    const [c, ctx] = canvas(TILE * 7, TILE);
-    // 0 трава
-    speckle(ctx, 0, '#4e9a3a', ['#5fb046', '#3f8530'], 26);
-    // 1 вода
-    rect(ctx, 32, 0, TILE, TILE, '#2f6fb5');
-    for (let i = 0; i < 5; i++) rect(ctx, 32 + 4 + Math.floor(rnd() * 20), 4 + i * 6, 8, 2, '#5592d6');
+  // Порядок совпадает с T в server/world.js: трава, вода, дерево, дорога, цветы, земля, скала, стена здания, площадь.
+  // theme: green — солнечный мир, abyss — подземный мир над Бездной, sky — небесный мир
+  const THEMES = {
+    green: { grass: ['#4e9a3a', '#5fb046', '#3f8530'], water: ['#2f6fb5', '#5592d6'], trunk: '#6b4423', crown: ['#2d6b22', '#3f8a2f', '#24581b'],
+      path: ['#c9a66b', '#b8935a', '#d8b87d'], flowers: ['#ff6b9a', '#ffe14d', '#ffffff', '#b38cff'], dirt: ['#6e5a44', '#5c4a37', '#7e6a52'],
+      rock: ['#3c3a38', '#777270', '#9a9592'], plaza: ['#d8c8a0', '#c8b890', '#e8dcb8'] },
+    abyss: { grass: ['#2a2430', '#3a3040', '#221c28'], water: ['#07040c', '#3a1a5a'], trunk: '#3a2a2a', crown: null,
+      path: ['#4a4250', '#3a3440', '#5a5260'], flowers: ['#5fffd8', '#c070ff', '#5fffd8', '#ff5a8a'], dirt: ['#3a3438', '#2e2a2e', '#4a4448'],
+      rock: ['#15121a', '#3a2a4a', '#6a3a9a'], plaza: ['#3a3448', '#2e2a3a', '#4a4258'] },
+    sky: { grass: ['#e8f0ff', '#ffffff', '#d0e0f8'], water: ['#7ac8ff', '#d8f0ff'], trunk: '#c8a060', crown: ['#ffd84a', '#ffe88a', '#e8b830'],
+      path: ['#f4eee0', '#e8dcc0', '#fffaf0'], flowers: ['#ffd84a', '#ffb0d8', '#ffffff', '#8ad8ff'], dirt: ['#d8e4f4', '#c8d8ec', '#e8f0fa'],
+      rock: ['#c8d8f0', '#ffffff', '#f0f6ff'], plaza: ['#fffaf0', '#f0e6d0', '#ffffff'] },
+  };
+  function tileset(theme = 'green') {
+    const P = THEMES[theme] || THEMES.green;
+    seed = 7;
+    const [c, ctx] = canvas(TILE * 9, TILE);
+    // 0 трава / пепел / облака
+    speckle(ctx, 0, P.grass[0], P.grass.slice(1), 26);
+    // 1 вода / бездна / небесная река
+    rect(ctx, 32, 0, TILE, TILE, P.water[0]);
+    for (let i = 0; i < 5; i++) rect(ctx, 32 + 4 + Math.floor(rnd() * 20), 4 + i * 6, theme === 'abyss' ? 3 : 8, 2, P.water[1]);
+    if (theme === 'abyss') for (let i = 0; i < 3; i++) rect(ctx, 32 + Math.floor(rnd() * 28), Math.floor(rnd() * 28), 2, 2, '#ff5a2a');
     // 2 дерево
-    speckle(ctx, 64, '#4e9a3a', ['#5fb046', '#3f8530'], 14);
-    rect(ctx, 64 + 13, 20, 6, 10, '#6b4423');
-    circle(ctx, 64 + 16, 14, 12, '#2d6b22');
-    circle(ctx, 64 + 12, 11, 6, '#3f8a2f');
-    circle(ctx, 64 + 20, 16, 5, '#24581b');
-    // 3 дорога / город
-    speckle(ctx, 96, '#c9a66b', ['#b8935a', '#d8b87d'], 30);
+    speckle(ctx, 64, P.grass[0], P.grass.slice(1), 14);
+    if (theme === 'abyss') {
+      // Мёртвое дерево
+      rect(ctx, 64 + 14, 10, 4, 20, P.trunk); rect(ctx, 64 + 8, 12, 6, 2, P.trunk); rect(ctx, 64 + 18, 8, 7, 2, P.trunk);
+      rect(ctx, 64 + 7, 8, 2, 4, P.trunk); rect(ctx, 64 + 24, 4, 2, 5, P.trunk); rect(ctx, 64 + 13, 4, 2, 6, P.trunk);
+    } else {
+      rect(ctx, 64 + 13, 20, 6, 10, P.trunk);
+      circle(ctx, 64 + 16, 14, 12, P.crown[0]); circle(ctx, 64 + 12, 11, 6, P.crown[1]); circle(ctx, 64 + 20, 16, 5, P.crown[2]);
+    }
+    // 3 дорога
+    speckle(ctx, 96, P.path[0], P.path.slice(1), 30);
     ctx.strokeStyle = 'rgba(0,0,0,.08)'; ctx.strokeRect(96.5, 0.5, 31, 31);
-    // 4 цветы
-    speckle(ctx, 128, '#4e9a3a', ['#5fb046', '#3f8530'], 18);
-    [['#ff6b9a', 6, 8], ['#ffe14d', 20, 6], ['#ffffff', 12, 20], ['#ff6b9a', 24, 24], ['#b38cff', 4, 26]]
-      .forEach(([col, x, y]) => { rect(ctx, 128 + x, y, 3, 3, col); rect(ctx, 128 + x + 1, y + 3, 1, 3, '#2d6b22'); });
-    // 5 мёртвая земля
-    speckle(ctx, 160, '#6e5a44', ['#5c4a37', '#7e6a52', '#4c5a3a'], 30);
-    // 6 скала
-    speckle(ctx, 192, '#3c3a38', ['#2c2a28'], 10);
-    ctx.fillStyle = '#777270';
-    ctx.beginPath(); ctx.moveTo(194, 30); ctx.lineTo(202, 6); ctx.lineTo(212, 12); ctx.lineTo(222, 4); ctx.lineTo(230, 30); ctx.fill();
-    ctx.fillStyle = '#9a9592';
-    ctx.beginPath(); ctx.moveTo(202, 6); ctx.lineTo(206, 18); ctx.lineTo(212, 12); ctx.fill();
+    // 4 цветы / светящиеся грибы
+    speckle(ctx, 128, P.grass[0], P.grass.slice(1), 18);
+    [[0, 6, 8], [1, 20, 6], [2, 12, 20], [0, 24, 24], [3, 4, 26]].forEach(([ci, x, y]) => {
+      const col = P.flowers[ci];
+      if (theme === 'abyss') { rect(ctx, 128 + x, y + 2, 1, 3, '#8a8090'); rect(ctx, 128 + x - 1, y, 3, 2, col); }
+      else { rect(ctx, 128 + x, y, 3, 3, col); rect(ctx, 128 + x + 1, y + 3, 1, 3, theme === 'sky' ? '#9ac8a0' : '#2d6b22'); }
+    });
+    // 5 земля / пепел
+    speckle(ctx, 160, P.dirt[0], P.dirt.slice(1), 30);
+    // 6 скала / обсидиан / облачная стена
+    speckle(ctx, 192, P.rock[0], [P.rock[0]], 4);
+    if (theme === 'sky') { circle(ctx, 200, 20, 10, P.rock[1]); circle(ctx, 214, 14, 12, P.rock[1]); circle(ctx, 222, 22, 9, P.rock[2]); }
+    else {
+      ctx.fillStyle = P.rock[1];
+      ctx.beginPath(); ctx.moveTo(194, 30); ctx.lineTo(202, 6); ctx.lineTo(212, 12); ctx.lineTo(222, 4); ctx.lineTo(230, 30); ctx.fill();
+      ctx.fillStyle = P.rock[2];
+      ctx.beginPath(); ctx.moveTo(202, 6); ctx.lineTo(206, 18); ctx.lineTo(212, 12); ctx.fill();
+    }
+    // 7 основание здания (сверху рисуется само здание)
+    speckle(ctx, 224, P.path[0], P.path.slice(1), 20);
+    // 8 площадь: брусчатка
+    rect(ctx, 256, 0, TILE, TILE, P.plaza[0]);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+      rect(ctx, 256 + x * 8 + (y % 2) * 4, y * 8, 7, 7, P.plaza[(x + y) % 2 ? 1 : 2]);
+    }
+    if (theme === 'abyss') rect(ctx, 256 + 14, 14, 3, 3, '#b04aff');
+    if (theme === 'sky') rect(ctx, 256 + 14, 14, 3, 3, '#e8c060');
     return c;
+  }
+
+  // Здания города (128×112): основание 4×3 тайла + крыша над ним. Вид зависит от места и мира.
+  const ROOFS = { warehouse: '#8a5a2a', equip: '#a03a2a', alchemy: '#3a7a5a', smith: '#4a4a52', runes: '#3a5aa0', trainer: '#7a3a8a', auction: '#b08a2a', market: '#c0603a' };
+  function building(place, theme = 'green') {
+    const [c, ctx] = canvas(128, 112);
+    const wall = { green: '#e8d8b0', abyss: '#3a3040', sky: '#fffaf0' }[theme];
+    const beam = { green: '#7a5230', abyss: '#1a1420', sky: '#e8c060' }[theme];
+    const glow = { green: '#ffe9a0', abyss: '#b04aff', sky: '#bfe8ff' }[theme];
+    let roof = ROOFS[place] || '#8a5a2a';
+    if (theme === 'abyss') roof = shade(roof, -0.55);
+    if (theme === 'sky') roof = shade(roof, 0.35);
+    if (place === 'gacha') {
+      // Алтарь призыва: ступени, колонны и парящий кристалл
+      rect(ctx, 8, 92, 112, 18, shade(wall, -0.2)); rect(ctx, 18, 82, 92, 12, shade(wall, -0.1));
+      for (const x of [22, 96]) { rect(ctx, x, 30, 10, 54, wall); rect(ctx, x - 3, 26, 16, 6, beam); }
+      rect(ctx, 19, 22, 90, 6, beam);
+      ctx.fillStyle = '#c080ff'; ctx.beginPath(); ctx.moveTo(64, 34); ctx.lineTo(78, 56); ctx.lineTo(64, 80); ctx.lineTo(50, 56); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.moveTo(64, 38); ctx.lineTo(70, 56); ctx.lineTo(64, 60); ctx.fill();
+      circle(ctx, 64, 56, 30, 'rgba(192,128,255,.18)');
+      return c;
+    }
+    if (place === 'events') {
+      // Доска событий: столбы и прибитые листы
+      rect(ctx, 18, 40, 8, 70, beam); rect(ctx, 102, 40, 8, 70, beam);
+      rect(ctx, 10, 30, 108, 56, shade(beam, 0.25)); rect(ctx, 10, 26, 108, 6, beam);
+      [[18, 38, '#f4ecd0'], [48, 40, '#ffd8a0'], [80, 36, '#e0f0ff'], [24, 62, '#ffe0e8'], [62, 64, '#f4ecd0'], [92, 60, '#d8ffd8']]
+        .forEach(([x, y, col]) => { rect(ctx, x, y, 22, 18, col); rect(ctx, x + 9, y + 1, 4, 3, '#c0301e'); rect(ctx, x + 3, y + 7, 16, 1, '#8a7a6a'); rect(ctx, x + 3, y + 11, 12, 1, '#8a7a6a'); });
+      return c;
+    }
+    if (place === 'market') {
+      // Торговые ряды с навесами
+      for (let i = 0; i < 3; i++) {
+        const x = 6 + i * 40;
+        rect(ctx, x + 2, 70, 34, 30, shade(beam, 0.2)); rect(ctx, x + 2, 66, 34, 6, beam);
+        for (let k = 0; k < 4; k++) rect(ctx, x + k * 9, 46, 9, 20, k % 2 ? '#ffffff' : roof);
+        rect(ctx, x + 2, 46, 2, 54, beam); rect(ctx, x + 34, 46, 2, 54, beam);
+        [['#e86a5a', 8], ['#ffd84a', 18], ['#7ad87a', 26]].forEach(([col, dx]) => circle(ctx, x + dx, 64, 3, col));
+      }
+      return c;
+    }
+    // Обычный дом: стены, балки, окна, дверь, крыша
+    rect(ctx, 6, 44, 116, 66, wall);
+    rect(ctx, 6, 44, 116, 4, beam); rect(ctx, 6, 106, 116, 4, beam);
+    for (const x of [6, 40, 84, 118]) rect(ctx, x, 44, 4, 66, beam);
+    if (place === 'auction') for (const x of [18, 54, 94]) { rect(ctx, x, 48, 8, 58, shade(wall, 0.15)); rect(ctx, x - 2, 48, 12, 4, beam); }
+    rect(ctx, 54, 74, 20, 36, shade(beam, -0.2)); rect(ctx, 56, 76, 16, 34, shade(beam, 0.15)); circle(ctx, 69, 93, 1.5, glow);
+    for (const x of [16, 92]) { rect(ctx, x, 60, 20, 16, beam); rect(ctx, x + 2, 62, 16, 12, glow); rect(ctx, x + 9, 62, 2, 12, beam); }
+    // Крыша
+    ctx.fillStyle = roof;
+    ctx.beginPath(); ctx.moveTo(0, 48); ctx.lineTo(20, 8); ctx.lineTo(108, 8); ctx.lineTo(128, 48); ctx.fill();
+    ctx.fillStyle = shade(roof, -0.25);
+    for (let y = 16; y < 46; y += 8) ctx.fillRect(4 + (46 - y) * 0.2, y, 120 - (46 - y) * 0.4, 2);
+    rect(ctx, 18, 6, 92, 4, shade(roof, -0.35));
+    // Детали по месту
+    if (place === 'smith') { rect(ctx, 96, 0, 12, 16, '#4a4448'); circle(ctx, 102, 0, 5, 'rgba(160,160,160,.5)'); rect(ctx, 100, 82, 18, 10, '#2a2a2e'); rect(ctx, 104, 78, 10, 4, '#3a3a40'); }
+    if (place === 'alchemy') { circle(ctx, 30, 98, 5, '#7ad84a'); circle(ctx, 42, 100, 4, '#c070ff'); circle(ctx, 98, 98, 5, '#ff6a8a'); }
+    if (place === 'runes') { rect(ctx, 61, 20, 6, 16, glow); rect(ctx, 56, 26, 16, 3, glow); }
+    if (place === 'warehouse') { rect(ctx, 92, 90, 16, 16, '#8a6a3a'); rect(ctx, 92, 97, 16, 2, '#5a3a1a'); rect(ctx, 18, 92, 14, 14, '#8a6a3a'); }
+    if (place === 'trainer') { circle(ctx, 64, 26, 9, glow); rect(ctx, 63, 18, 2, 16, beam); }
+    return c;
+  }
+  function shade(hexCol, k) {
+    const n = parseInt(hexCol.slice(1), 16);
+    const f = (v) => Math.max(0, Math.min(255, Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k)));
+    return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => f(v).toString(16).padStart(2, '0')).join('');
   }
 
   // Герои (32x32). Внешность задаётся параметрами look из server/config.js (HEROES[id].look)
@@ -665,5 +765,5 @@ window.Gfx = (() => {
     return c;
   }
 
-  return { TILE, tileset, hero, monster, projectile, particle, totem, pet, werebeast };
+  return { TILE, tileset, building, THEMES, hero, monster, projectile, particle, totem, pet, werebeast };
 })();
