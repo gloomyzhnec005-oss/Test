@@ -120,7 +120,11 @@ window.Gfx = (() => {
       ctx.beginPath(); ctx.moveTo(26, 3); ctx.lineTo(21, 1); ctx.lineTo(21, 11); ctx.lineTo(26, 9); ctx.fill();
     }
     // Ноги и тело
-    rect(ctx, 11, 24, 4, 6, L.legs); rect(ctx, 17, 24, 4, 6, L.legs);
+    if (L.flameBody) {
+      // Джинн: вместо ног — огненный вихрь
+      ctx.fillStyle = L.legs; ctx.beginPath(); ctx.moveTo(9, 23); ctx.lineTo(23, 23); ctx.quadraticCurveTo(20, 28, 14, 31); ctx.quadraticCurveTo(15, 27, 9, 23); ctx.fill();
+      ctx.fillStyle = L.trim; ctx.beginPath(); ctx.moveTo(12, 23); ctx.lineTo(20, 23); ctx.quadraticCurveTo(17, 26, 15, 29); ctx.fill();
+    } else { rect(ctx, 11, 24, 4, 6, L.legs); rect(ctx, 17, 24, 4, 6, L.legs); }
     rect(ctx, 9, 14, 14, 11, L.body);
     rect(ctx, 9, 21, 14, 2, L.trim); // пояс
     if (['wizard', 'halo', 'leafCrown'].includes(L.head) || L.weapon === 'scythe') rect(ctx, 9, 24, 14, 4, L.body); // мантия
@@ -286,6 +290,30 @@ window.Gfx = (() => {
         rect(ctx, 14, 1, 4, 3, L.headColor); rect(ctx, 15, 3, 2, 2, L.headColor);
         rect(ctx, 12, 7, 3, 1, '#3a2a1a'); rect(ctx, 17, 7, 3, 1, '#3a2a1a');
         break;
+      case 'moonCirclet':
+        // Серебряный обруч с полумесяцем, длинные лунные волосы
+        rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 15, L.hair); rect(ctx, 21, 5, 2, 15, L.hair);
+        rect(ctx, 10, 5, 12, 1, '#c8d0ff');
+        circle(ctx, 16, 2, 2.5, '#f4f6ff'); circle(ctx, 17, 1.5, 2, L.body);
+        rect(ctx, 13, 8, 2, 2, '#8a9aff'); rect(ctx, 17, 8, 2, 2, '#8a9aff');
+        break;
+      case 'birdman':
+        // Ааракоа: птичья голова, клюв, хохолок из перьев
+        rect(ctx, 10, 3, 12, 11, L.headColor); rect(ctx, 21, 8, 5, 3, '#e8a030'); rect(ctx, 21, 10, 4, 1, '#b07020');
+        rect(ctx, 17, 6, 2, 2, L.eyes); rect(ctx, 11, 1, 2, 4, '#c05a2a'); rect(ctx, 14, 0, 2, 4, '#e8a030'); rect(ctx, 8, 2, 3, 2, '#c05a2a');
+        rect(ctx, 10, 12, 12, 2, '#c8a868');
+        break;
+      case 'djinn':
+        // Огненный джинн: голова-пламя
+        rect(ctx, 11, 5, 10, 10, '#ff8a2a'); rect(ctx, 12, 6, 8, 8, L.skin);
+        ctx.fillStyle = '#ffd03a'; ctx.beginPath(); ctx.moveTo(10, 6); ctx.lineTo(13, 0); ctx.lineTo(16, 4); ctx.lineTo(19, -1); ctx.lineTo(22, 6); ctx.fill();
+        rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes); rect(ctx, 14, 12, 4, 1, '#c03010');
+        break;
+      case 'runeHelm':
+        // Шлем дварфа с горящей руной
+        rect(ctx, 10, 2, 12, 6, L.headColor); rect(ctx, 9, 6, 14, 2, '#6a6f78'); rect(ctx, 15, 3, 2, 3, '#5fb0ff'); rect(ctx, 14, 4, 4, 1, '#5fb0ff');
+        rect(ctx, 7, 3, 3, 2, '#e8e2cc'); rect(ctx, 22, 3, 3, 2, '#e8e2cc');
+        break;
       case 'leafCrown':
         rect(ctx, 10, 3, 12, 2, L.headColor);
         [[10, 1], [14, 0], [18, 0], [21, 1]].forEach(([x, y]) => rect(ctx, x, y, 2, 3, L.headColor));
@@ -449,6 +477,14 @@ window.Gfx = (() => {
       circle(ctx, 8, 8, 7, 'rgba(120,255,160,.4)'); circle(ctx, 8, 8, 4, '#7fe08a'); rect(ctx, 6, 5, 4, 2, '#d8ffb0');
     } else if (kind === 'dark') {
       circle(ctx, 8, 8, 7, 'rgba(150,60,255,.45)'); circle(ctx, 8, 8, 5, '#3a0a5a'); circle(ctx, 8, 8, 2.5, '#d08cff');
+    } else if (kind === 'moon') {
+      circle(ctx, 8, 8, 7, 'rgba(200,210,255,.4)'); circle(ctx, 8, 8, 5, '#f4f6ff'); circle(ctx, 10, 7, 4, 'rgba(60,70,140,.9)');
+    } else if (kind === 'sand') {
+      circle(ctx, 8, 8, 7, 'rgba(230,200,120,.35)'); [[5, 6], [9, 5], [7, 10], [11, 9], [4, 9]].forEach(([x, y]) => rect(ctx, x, y, 2, 2, '#e8c878'));
+    } else if (kind === 'rune') {
+      circle(ctx, 8, 8, 7, 'rgba(95,176,255,.35)'); rect(ctx, 7, 3, 2, 10, '#bfe0ff'); rect(ctx, 4, 5, 8, 2, '#bfe0ff'); rect(ctx, 9, 9, 3, 2, '#bfe0ff');
+    } else if (kind === 'soul') {
+      circle(ctx, 8, 8, 7, 'rgba(140,216,255,.35)'); circle(ctx, 9, 8, 4, '#d8f4ff'); rect(ctx, 1, 7, 5, 2, 'rgba(216,244,255,.6)'); rect(ctx, 8, 7, 1, 1, '#2a4a60'); rect(ctx, 10, 7, 1, 1, '#2a4a60');
     } else {
       rect(ctx, 1, 7, 12, 2, '#c8a46a'); rect(ctx, 12, 6, 3, 4, '#ddd'); rect(ctx, 0, 6, 2, 4, '#fff');
     }
@@ -504,6 +540,12 @@ window.Gfx = (() => {
       circle(ctx, 16, 8, 5, '#9aff9a'); rect(ctx, 14, 7, 1, 2, '#1a4a2a'); rect(ctx, 17, 7, 1, 2, '#1a4a2a');
       rect(ctx, 11, 3, 2, 4, '#3f8a4a'); rect(ctx, 19, 3, 2, 4, '#3f8a4a');
       rect(ctx, 8, 14, 4, 2, '#3f8a4a'); rect(ctx, 20, 14, 4, 2, '#3f8a4a');
+    } else if (kind === 'wisp') {
+      // Дух-проводник Элнаэрис: светящаяся душа с хвостом
+      circle(ctx, 16, 29, 5, 'rgba(0,0,0,.15)');
+      circle(ctx, 16, 13, 12, 'rgba(140,216,255,.25)');
+      ctx.fillStyle = '#bfeaff'; ctx.beginPath(); ctx.moveTo(10, 14); ctx.quadraticCurveTo(12, 26, 18, 27); ctx.quadraticCurveTo(15, 22, 22, 14); ctx.fill();
+      circle(ctx, 16, 12, 6, '#e8f8ff'); rect(ctx, 13, 11, 2, 2, '#2a5a80'); rect(ctx, 18, 11, 2, 2, '#2a5a80');
     } else if (kind === 'skeleton') {
       // Скелет-слуга с зелёным некротическим свечением
       circle(ctx, 16, 28, 8, 'rgba(0,0,0,.25)');

@@ -241,7 +241,7 @@ function publicPlayer(p) {
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
-    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
+    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, phase: p.hero.phases ? p.form : null, heat: Math.round(p.heat || 0), wrune: p.weaponRuneUntil > Date.now() ? p.weaponRuneType : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
     song: p.hero.songs ? p.form : null, haste: p.hasteUntil > Date.now(), fly: p.flyUntil > Date.now(), tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
@@ -250,7 +250,7 @@ function privateStats(p) {
     gold: p.char.gold, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
-    formKeys: p.potion ? { potion: p.potion, sign: p.sign } : null,
+    formKeys: p.potion ? { potion: p.potion, sign: p.sign } : p.rune ? { rune: p.rune } : null,
     passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '',
     shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0, haste: p.hasteUntil > Date.now(),
     flyBoost: (p.flyUntil > Date.now() ? 1 + 0.03 * (p.blessings || 0) : 1) * (p.stoneArmorUntil > Date.now() ? 0.7 : 1) };
@@ -428,6 +428,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
       victim.res = startRes(victim);
       victim.cheatUsed = false;
       victim.shieldHp = 0;
+      victim.souls = 0; // души Элнаэрис рассеиваются
       if (victim.hero.forms) victim.form = 'human'; // возрождается в облике друида
       markDirty(victim);
       victim.x = world.spawn.x; victim.y = world.spawn.y;
@@ -506,6 +507,9 @@ io.on('connection', (socket) => {
     if (hero.vows) { p.form = 'protection'; p.vowSince = Date.now(); } // Валериан начинает с обета защиты
     if (hero.songs) p.form = 'inspire'; // Джакомо начинает с песни вдохновения
     if (hero.aspects) p.form = 'fire'; // Зефира начинает с аспекта пламени
+    if (hero.phases) p.form = 'waxing'; // Селена начинает с растущей луны
+    if (heroId === 'gardin') p.rune = 'fire';
+    if (heroId === 'blaze') p.heat = 0;
     if (heroId === 'tibor') { p.potion = 'thunder'; p.sign = 'igni'; p.tox = 0; }
     p.joinedAt = Date.now();
     players.set(socket.id, p);
@@ -557,7 +561,8 @@ io.on('connection', (socket) => {
     const empowered = p.empoweredUntil > now;
     if (empowered) { p.empoweredUntil = 0; fx.push({ t: 'skill', s: 'empHit', from: p.id, x: m.x, y: m.y, quiet: true }); }
     const ps1 = passiveOf(p);
-    let basic = ps1 && ps1.basicMult ? ps1.basicMult(p) : 1; // рвение Валериана
+    let basic = ps1 && ps1.basicMult ? ps1.basicMult(p) : 1; // рвение Валериана, жар Блейза, трещины Эмета
+    if (p.weaponRuneUntil > now && p.weaponRuneType === 'fire') { m.burnUntil = now + 3000; m.dots = (m.dots || []).concat({ until: now + 3000, dps: p.dmg * 0.3, by: p.id }); }
     if (p.nextAttackBoost) { basic *= p.nextAttackBoost; p.nextAttackBoost = 0; } // овация Джакомо
     damageMonster(p, m, p.dmg * basic * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15, proj: formOf(p).projectile, basic: true });
     // Ресурс, который копится от ударов (ярость Вебранда)
@@ -715,6 +720,7 @@ setInterval(() => {
         moveEntity(m, (dx / d) * s, (dy / d) * s);
       } else if (now - m.lastAttack > C.MONSTER_ATTACK_CD) {
         m.lastAttack = now;
+        if (m.blindUntil > now && Math.random() < 0.5) { fx.push({ t: 'miss', x: m.x, y: m.y }); continue; } // ослеплён песком Сирокко
         // Удар по зверю: зверь не гибнет, а «падает» и отступает
         if (target.owner) { hurtPet(skillCtx, target, Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)), now); continue; }
         // Насмешка Джакомо снижает урон монстра
@@ -769,7 +775,7 @@ setInterval(() => {
   // Тотемы
   for (const t of totems) {
     if (now >= t.next && now <= t.until) {
-      t.next += 1000;
+      t.next += t.period || 1000;
       if (t.tick) { t.tick(now); continue; }
       for (const o of players.values()) {
         if (!o.dead && Math.hypot(o.x - t.x, o.y - t.y) <= t.r) healPlayer(o, o.maxHp * t.heal);
@@ -790,7 +796,7 @@ setInterval(() => {
       cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, ds: m.darkSealUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0 })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
-    t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
+    t: totems.map((t) => ({ id: t.id, kind: t.kind, sub: t.sub || null, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
     fx,
   };
   io.emit('state', state);

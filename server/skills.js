@@ -1155,7 +1155,207 @@ const SKILLS = {
     ctx.pushFx({ t: 'skill', s: 'stoneArmor', from: p.id, x: p.x, y: p.y });
     return null;
   },
+
+  // ---------- Селена ----------
+  moonBeam(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const ph = p.form || 'waxing', pw = p.castPower || 1;
+    ctx.pushFx({ t: 'skill', s: 'moonBeam', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y, ph });
+    if (ph === 'waxing') ctx.damageMonster(p, t, p.dmg * 2.2 * pw);
+    else {
+      if (ph === 'waning') t.slowUntil = Math.max(t.slowUntil || 0, now + 4000);
+      if (ph === 'newmoon') { t.fearUntil = now + 2500; t.fearX = p.x; t.fearY = p.y; t.target = null; }
+      if (ph === 'full') for (const o of ctx.players.values()) if (!o.dead && dist(o, p) <= 180) ctx.healPlayer(o, o.maxHp * 0.12 * pw);
+      ctx.damageMonster(p, t, p.dmg * 1.4 * pw);
+    }
+    return null;
+  },
+  phaseShift(ctx, p, _t, now) {
+    const ORDER = ['waxing', 'full', 'waning', 'newmoon'];
+    p.form = ORDER[(ORDER.indexOf(p.form) + 1) % ORDER.length];
+    ctx.pushFx({ t: 'skill', s: 'phaseShift', from: p.id, x: p.x, y: p.y, ph: p.form });
+    return null;
+  },
+  moonVeil(ctx, p, _t, now) {
+    const ph = p.form || 'waxing', ids = [];
+    for (const o of ctx.players.values()) {
+      if (o.dead || dist(o, p) > 200) continue;
+      ids.push(o.id);
+      if (ph === 'waxing') o.cryUntil = Math.max(o.cryUntil || 0, now + 6000);
+      if (ph === 'full') { o.regenUntil = now + 6000; o.regenRate = 0.03; }
+      if (ph === 'waning') ctx.giveShield(o, o.maxHp * 0.2, now + 8000);
+      if (ph === 'newmoon') { o.stealthUntil = now + 4000; for (const m of ctx.monsters.values()) if (m.target === o.id) m.target = null; }
+    }
+    ctx.pushFx({ t: 'skill', s: 'moonVeil', from: p.id, x: p.x, y: p.y, ph, ids });
+    return null;
+  },
+
+  // ---------- Сирокко ----------
+  sandVortex(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, x = t.x, y = t.y;
+    ctx.pushFx({ t: 'skill', s: 'sandVortex', from: p.id, x, y, r: 80 });
+    for (const m of inRadius(ctx, x, y, 80)) { m.weakUntil = Math.max(m.weakUntil || 0, now + 4000); m.blindUntil = now + 4000; ctx.damageMonster(p, m, p.dmg * 1.4 * pw); }
+    // Песчаная зона: ослепляет монстров внутри каждую секунду
+    p.sandZones = (p.sandZones || []).filter((z) => z.until > now);
+    if (p.sandZones.length >= 4) { p.sandZones[0].until = now; p.sandZones.shift(); }
+    const zone = ctx.addGround({ kind: 'sand', owner: p.id, x, y, r: 90, until: now + 12000,
+      tick(tn) { for (const m of inRadius(ctx, x, y, 90)) { m.weakUntil = Math.max(m.weakUntil || 0, tn + 1200); m.blindUntil = tn + 1200; } } });
+    p.sandZones.push(zone);
+    return null;
+  },
+  duneWave(ctx, p, t) {
+    const pw = p.castPower || 1, len = 190, width = 50;
+    let dx = t ? t.x - p.x : p.dir, dy = t ? t.y - p.y : 0;
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    ctx.pushFx({ t: 'skill', s: 'duneWave', from: p.id, x: p.x, y: p.y, dx, dy, len });
+    for (const m of ctx.monsters.values()) {
+      const rx = m.x - p.x, ry = m.y - p.y, along = rx * dx + ry * dy, across = Math.abs(rx * dy - ry * dx);
+      if (along < -10 || along > len || across > width) continue;
+      ctx.damageMonster(p, m, p.dmg * 1.6 * pw);
+      ctx.knockback(m, dx, dy, 70);
+    }
+    return null;
+  },
+  desertBreath(ctx, p, _t, now) {
+    const pw = p.castPower || 1;
+    const zones = (p.sandZones || []).filter((z) => z.until > now);
+    if (!zones.length) return 'Нет песчаных зон';
+    const hit = new Set();
+    for (const z of zones) for (const m of inRadius(ctx, z.x, z.y, z.r)) hit.add(m);
+    for (const m of hit) {
+      m.slowUntil = Math.max(m.slowUntil || 0, now + 5000);
+      m.dots = (m.dots || []).concat({ until: now + 5000, dps: p.dmg * 0.5 * pw, by: p.id });
+    }
+    ctx.pushFx({ t: 'skill', s: 'desertBreath', from: p.id, x: p.x, y: p.y, zones: zones.map((z) => [Math.round(z.x), Math.round(z.y)]) });
+    return null;
+  },
+
+  // ---------- Блейз ----------
+  blazeBall(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, flight = Math.min(400, dist(p, t) * 1.3);
+    p.heatGain = 15;
+    ctx.pushFx({ t: 'skill', s: 'blazeBall', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y, flight });
+    setTimeout(() => {
+      if (!alive(ctx, p, t)) return;
+      const tn = Date.now();
+      t.burnUntil = tn + 4000;
+      t.dots = (t.dots || []).concat({ until: tn + 4000, dps: p.dmg * 0.4 * pw, by: p.id });
+      ctx.damageMonster(p, t, p.dmg * 1.8 * pw);
+    }, flight);
+    return null;
+  },
+  flameWave(ctx, p, t) {
+    const pw = p.castPower || 1;
+    let dx = t ? t.x - p.x : p.dir, dy = t ? t.y - p.y : 0;
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    p.heatGain = 20;
+    ctx.pushFx({ t: 'skill', s: 'flameWave', from: p.id, x: p.x, y: p.y, dx, dy });
+    for (const m of ctx.monsters.values()) {
+      const rx = m.x - p.x, ry = m.y - p.y, dd = Math.hypot(rx, ry);
+      if (dd > 160 || (rx * dx + ry * dy) / (dd || 1) < 0.5) continue;
+      ctx.damageMonster(p, m, p.dmg * 1.5 * pw);
+      ctx.knockback(m, rx / (dd || 1), ry / (dd || 1), 60);
+    }
+    return null;
+  },
+  flashover(ctx, p) {
+    const heat = p.heat || 0, mult = 1 + 0.04 * heat;
+    p.heat = 0; p.heatGain = 0;
+    ctx.pushFx({ t: 'skill', s: 'flashover', from: p.id, x: p.x, y: p.y, r: 120, power: mult });
+    for (const m of inRadius(ctx, p.x, p.y, 120)) ctx.damageMonster(p, m, p.dmg * mult);
+    return null;
+  },
+
+  // ---------- Гардин ----------
+  carveRune(ctx, p, _t, now) {
+    const ORDER = ['fire', 'ward', 'heal'];
+    const type = p.rune || 'fire';
+    p.rune = ORDER[(ORDER.indexOf(type) + 1) % ORDER.length];
+    p.lastRune = type;
+    p.runes = (p.runes || []).filter((r) => r.until > now);
+    if (p.runes.length >= 4) { p.runes[0].until = now; p.runes.shift(); }
+    const x = p.x, y = p.y + 6;
+    const rune = ctx.addGround({ kind: 'rune', sub: type, owner: p.id, x, y, r: 45, until: now + 40000, period: 300,
+      tick(tn) {
+        if (!ctx.players.has(p.id)) return;
+        if (inRadius(ctx, x, y, 45).length) { explodeRune(ctx, p, rune, 1); }
+      } });
+    p.runes.push(rune);
+    ctx.pushFx({ t: 'skill', s: 'carveRune', from: p.id, x, y, type });
+    return null;
+  },
+  activateRunes(ctx, p, _t, now) {
+    const runes = (p.runes || []).filter((r) => r.until > now);
+    if (!runes.length) return 'Нет установленных рун';
+    for (const r of runes) explodeRune(ctx, p, r, 1.5);
+    p.runeBuffUntil = now + 6000;
+    ctx.giveShield(p, p.maxHp * 0.2, now + 8000);
+    ctx.pushFx({ t: 'skill', s: 'activateRunes', from: p.id, x: p.x, y: p.y });
+    return null;
+  },
+  weaponRune(ctx, p, _t, now) {
+    p.weaponRuneUntil = now + 10000;
+    p.weaponRuneType = p.lastRune || 'fire';
+    ctx.pushFx({ t: 'skill', s: 'weaponRune', from: p.id, x: p.x, y: p.y, type: p.weaponRuneType });
+    return null;
+  },
+
+  // ---------- Элнаэрис ----------
+  gatherSouls(ctx, p, _t, now) {
+    let n = 0, c;
+    const pts = [];
+    while ((c = ctx.takeCorpse(p.x, p.y, 260, now))) { n++; pts.push([Math.round(c.x), Math.round(c.y)]); }
+    if (!n) return 'Рядом нет павших монстров';
+    p.souls = Math.min(20, (p.souls || 0) + n);
+    ctx.pushFx({ t: 'skill', s: 'gatherSouls', from: p.id, x: p.x, y: p.y, pts });
+    return null;
+  },
+  soulWave(ctx, p, t, now) {
+    if ((p.souls || 0) < 3) return 'Нужно хотя бы 3 души';
+    const spend = Math.min(10, p.souls);
+    p.souls -= spend;
+    const len = 200, width = 55, mult = 1 + 0.25 * spend;
+    let dx = t ? t.x - p.x : p.dir, dy = t ? t.y - p.y : 0;
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    ctx.pushFx({ t: 'skill', s: 'soulWave', from: p.id, x: p.x, y: p.y, dx, dy, len, spend });
+    for (const m of ctx.monsters.values()) {
+      const rx = m.x - p.x, ry = m.y - p.y, along = rx * dx + ry * dy, across = Math.abs(rx * dy - ry * dx);
+      if (along < -10 || along > len || across > width) continue;
+      m.fearUntil = now + 2000; m.fearX = p.x; m.fearY = p.y; m.target = null;
+      ctx.damageMonster(p, m, p.dmg * mult);
+    }
+    return null;
+  },
+  guideCall(ctx, p, _t, now) {
+    if ((p.souls || 0) < 5) return 'Нужно 5 душ';
+    p.souls -= 5;
+    const wisps = p.pets.filter((pet) => pet.kind === 'wisp');
+    if (wisps.length >= 2) ctx.removePet(wisps[0]);
+    const pet = createSummon(p, 'wisp', p.x + p.dir * 24, p.y, 25000, now);
+    pet.dmgAbs = p.dmg * (0.6 + 0.05 * p.souls);
+    ctx.addPet(p, pet);
+    ctx.pushFx({ t: 'skill', s: 'guideCall', from: p.id, x: pet.x, y: pet.y });
+    return null;
+  },
 };
+
+// Подрыв руны Гардина (при контакте или активации)
+function explodeRune(ctx, p, rune, power) {
+  if (rune.until <= Date.now()) return;
+  rune.until = Date.now();
+  const r = 90, pw = power * (p.castPower || 1);
+  ctx.pushFx({ t: 'skill', s: 'runeBurst', from: p.id, x: rune.x, y: rune.y, r, type: rune.sub, quiet: true });
+  if (rune.sub === 'fire') for (const m of inRadius(ctx, rune.x, rune.y, r)) ctx.damageMonster(p, m, p.dmg * 2 * pw);
+  if (rune.sub === 'ward') {
+    for (const m of inRadius(ctx, rune.x, rune.y, r)) m.stunUntil = Math.max(m.stunUntil || 0, Date.now() + 1500 * pw);
+    for (const o of ctx.players.values()) if (!o.dead && Math.hypot(o.x - rune.x, o.y - rune.y) <= r) ctx.giveShield(o, o.maxHp * 0.15 * pw, Date.now() + 8000);
+  }
+  if (rune.sub === 'heal') for (const o of ctx.players.values()) if (!o.dead && Math.hypot(o.x - rune.x, o.y - rune.y) <= r + 20) ctx.healPlayer(o, o.maxHp * 0.15 * pw);
+  p.runes = (p.runes || []).filter((x) => x !== rune);
+  p.dirty = true;
+}
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
 const PASSIVES = {
@@ -1605,12 +1805,83 @@ const PASSIVES = {
     onTick(p, now) { if (p.cracks && !p.crackReady && now - (p.lastCrack || 0) > 6000) { p.cracks = Math.max(0, p.cracks - 1); p.lastCrack = now - 5000; p.dirty = true; } },
     note: (p) => `трещины ${p.cracks || 0}/20${p.crackReady ? ' · следующий удар двойной!' : ''}${p.stoneArmorUntil > Date.now() ? ' · каменная броня' : ''}`,
   },
+
+  // Селена: благословение луны — бонус фазы; в тени сильнее
+  moonBlessing: {
+    dmgMult: (p) => (p.form === 'waxing' ? 1.2 : 1) * (p.stealthUntil > Date.now() ? 1.3 : 1),
+    dmgTakenMult: (p) => (p.form === 'waning' ? 0.8 : 1),
+    speedMult: (p) => (p.form === 'newmoon' ? 1.2 : 1),
+    onTick(p, now) { if (p.form === 'full' && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.001); } },
+    note(p) { return `фаза: ${{ waxing: 'Растущая 🌒', full: 'Полная 🌕', waning: 'Убывающая 🌘', newmoon: 'Новолуние 🌑' }[p.form || 'waxing']}`; },
+  },
+
+  // Сирокко: сила барханов — сильнее в своей зоне; зоны усиливают следующее заклинание
+  duneStrength: {
+    inZone(p) { const now = Date.now(); return (p.sandZones || []).some((z) => z.until > now && Math.hypot(p.x - z.x, p.y - z.y) <= z.r); },
+    zones(p) { const now = Date.now(); return (p.sandZones || []).filter((z) => z.until > now).length; },
+    dmgMult(p) { return this.inZone(p) ? 1.3 : 1; },
+    speedMult(p) { return this.inZone(p) ? 1.2 : 1; },
+    beforeCast(p) { return { free: false, power: 1 + 0.15 * this.zones(p) }; },
+    onTick(p) { const z = this.zones(p) * 10 + (this.inZone(p) ? 1 : 0); if (z !== p.lastZoneState) { p.lastZoneState = z; p.dirty = true; } },
+    note(p) { return `песчаных зон ${this.zones(p)}/4${this.inZone(p) ? ' · в песке' : ''}`; },
+  },
+
+  // Блейз: жар — растёт от заклинаний, усиливает огонь и сжигает самого пироманта
+  heat: {
+    dmgMult: (p) => 1 + 0.5 * (p.heat || 0) / 100,
+    basicMult(p) { if (!p.heatReady) return 1; p.heatReady = false; p.dirty = true; return 2; },
+    afterCast(ctx, p) {
+      if (!p.heatGain) return;
+      p.heat = Math.min(100, (p.heat || 0) + p.heatGain);
+      p.heatGain = 0;
+      if (p.heat >= 100) {
+        // Вспыхивает: урон вокруг, жар сбрасывается до 50, следующая атака двойная
+        ctx.pushFx({ t: 'skill', s: 'selfIgnite', from: p.id, x: p.x, y: p.y, r: 100 });
+        for (const m of inRadius(ctx, p.x, p.y, 100)) ctx.damageMonster(p, m, p.dmg * 1.5);
+        p.heat = 50;
+        p.heatReady = true;
+      }
+      p.dirty = true;
+    },
+    onTick(p, now) {
+      const dt = Math.min(0.5, (now - (p.heatTick || now)) / 1000);
+      p.heatTick = now;
+      if (!p.heat) return;
+      p.hp = Math.max(1, p.hp - p.maxHp * 0.015 * (p.heat / 100) * dt);
+      p.heat = Math.max(0, p.heat - 3 * dt);
+      p.dirty = true;
+    },
+    note: (p) => `жар ${Math.round(p.heat || 0)}%${p.heatReady ? ' · следующая атака двойная!' : ''}`,
+  },
+
+  // Гардин: слово творения — защита за руны, усиление при активации, руна на оружии
+  wordOfCreation: {
+    dmgMult: (p) => (p.runeBuffUntil > Date.now() ? 1.25 : 1) * (p.weaponRuneUntil > Date.now() ? 1.5 : 1),
+    dmgTakenMult: (p) => (1 - 0.05 * Math.min(4, (p.runes || []).filter((r) => r.until > Date.now()).length))
+      * (p.weaponRuneUntil > Date.now() && p.weaponRuneType === 'ward' ? 0.8 : 1),
+    onDealt(ctx, p, dmg, now) {
+      if (p.weaponRuneUntil > now && p.weaponRuneType === 'heal' && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + dmg * 0.25); p.dirty = true; }
+    },
+    onTick(p, now) { const n = (p.runes || []).filter((r) => r.until > now).length; if (n !== p.lastRuneCount) { p.lastRuneCount = n; p.dirty = true; } },
+    note(p) {
+      const n = { fire: 'огня', ward: 'защиты', heal: 'лечения' };
+      return `рун ${(p.runes || []).filter((r) => r.until > Date.now()).length}/4${p.weaponRuneUntil > Date.now() ? ' · оружие: руна ' + n[p.weaponRuneType] : ''}`;
+    },
+  },
+
+  // Элнаэрис: грань жизни — души за убийства усиливают урон и защиту
+  edgeOfLife: {
+    dmgMult: (p) => 1 + 0.03 * (p.souls || 0),
+    dmgTakenMult: (p) => 1 - 0.015 * (p.souls || 0),
+    onKill(ctx, p) { p.souls = Math.min(20, (p.souls || 0) + 1); p.dirty = true; },
+    note: (p) => `души ${p.souls || 0}/20`,
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['dragonBreath', 'dragonWings', 'gloomStrike', 'darkSeal', 'stoneFist', 'bomb', 'heavenSpear', 'bloodSpike', 'starShot', 'lightHail', 'arcaneVolley', 'iceGrip', 'darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['moonBeam', 'sandVortex', 'blazeBall', 'dragonBreath', 'dragonWings', 'gloomStrike', 'darkSeal', 'stoneFist', 'bomb', 'heavenSpear', 'bloodSpike', 'starShot', 'lightHail', 'arcaneVolley', 'iceGrip', 'darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { dragonBreath: 170, dragonWings: 280, gloomStrike: 80, darkSeal: 260, stoneFist: 80, bomb: 280, heavenSpear: 300, bloodSpike: 260, witcherSign: 150, starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { moonBeam: 280, sandVortex: 280, blazeBall: 260, flameWave: 170, duneWave: 200, soulWave: 210, dragonBreath: 170, dragonWings: 280, gloomStrike: 80, darkSeal: 260, stoneFist: 80, bomb: 280, heavenSpear: 300, bloodSpike: 260, witcherSign: 150, starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };
