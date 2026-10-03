@@ -498,6 +498,38 @@ const SKILLS = {
     ctx.pushFx({ t: 'skill', s: 'forestWrath', from: p.id, x: p.x, y: p.y });
     return null;
   },
+
+  // Ле Блан: двойник — иллюзия, которая отвлекает монстров на себя
+  decoy(ctx, p, _t, now) {
+    for (const old of p.pets.filter((pet) => pet.kind === 'clone')) ctx.removePet(old);
+    const pet = createSummon(p, 'clone', p.x + p.dir * 24, p.y, 8000, now);
+    ctx.addPet(p, pet);
+    for (const m of inRadius(ctx, p.x, p.y, 200)) m.target = pet.id;
+    ctx.pushFx({ t: 'skill', s: 'decoy', from: p.id, x: pet.x, y: pet.y });
+    return null;
+  },
+
+  // Ле Блан: морок — монстры атакуют друг друга
+  mirage(ctx, p, _t, now) {
+    const r = 170;
+    const targets = inRadius(ctx, p.x, p.y, r);
+    for (const m of targets) { m.confusedUntil = now + 5000; m.confusedBy = p.id; m.target = null; }
+    ctx.pushFx({ t: 'skill', s: 'mirage', from: p.id, x: p.x, y: p.y, r });
+    return null;
+  },
+
+  // Ле Блан: вспышка обмана — урон вокруг и дезориентация
+  deceptionFlash(ctx, p, _t, now) {
+    const r = 130;
+    ctx.pushFx({ t: 'skill', s: 'deceptionFlash', from: p.id, x: p.x, y: p.y, r });
+    for (const m of inRadius(ctx, p.x, p.y, r)) {
+      m.target = null;
+      m.confusedUntil = Math.max(m.confusedUntil || 0, now + 2500);
+      m.confusedBy = p.id;
+      ctx.damageMonster(p, m, p.dmg * 1.5);
+    }
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -689,6 +721,30 @@ const PASSIVES = {
       if (Math.floor(before / 5) !== Math.floor(p.nature / 5)) p.dirty = true;
     },
     note: (p) => `сила природы ${Math.round(p.nature || 0)}%${(p.nature || 0) >= 100 ? ' · Облик древа' : ''}`,
+  },
+
+  // Ле Блан: маска иллюзий — подмена двойником при ударе; урон растёт от числа отвлечённых монстров
+  maskOfIllusions: {
+    dmgMult: (p) => 1 + 0.1 * Math.min(5, p.distracted || 0),
+    // Вызывается до получения урона: true — удар достался иллюзии
+    avoidHit(ctx, p, m, now) {
+      if (now < (p.swapReadyAt || 0) || Math.random() >= 0.25) return false;
+      p.swapReadyAt = now + 4000;
+      const pet = createSummon(p, 'clone', p.x, p.y, 3000, now);
+      ctx.addPet(p, pet);
+      if (m) m.target = pet.id;
+      ctx.pushFx({ t: 'skill', s: 'illusionSwap', from: p.id, x: p.x, y: p.y, quiet: true });
+      return true;
+    },
+    onTick(p, now, ctx) {
+      const clones = new Set(p.pets.filter((pet) => pet.kind === 'clone').map((pet) => pet.id));
+      let n = 0;
+      for (const m of ctx.monsters.values()) {
+        if (clones.has(m.target) || (m.confusedBy === p.id && m.confusedUntil > now)) n++;
+      }
+      if (n !== p.distracted) { p.distracted = n; p.dirty = true; }
+    },
+    note: (p) => `отвлечено: ${p.distracted || 0}`,
   },
 };
 

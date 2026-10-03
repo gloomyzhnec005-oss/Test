@@ -11,6 +11,8 @@ const PET_KINDS = {
   skeleton: { name: 'Слуга', hp: 0.45, dmg: 0.55, cooldown: 1000, speed: 155, reach: 30 },
   // Дух природы Нимуэ: временный, крепкий, отвлекает монстров на себя
   sprite: { name: 'Дух леса', hp: 0.7, dmg: 0.4, cooldown: 900, speed: 170, reach: 30 },
+  // Двойник Ле Блан: иллюзия, почти не наносит урона, принимает удары на себя
+  clone: { name: 'Двойник', hp: 0.6, dmg: 0.2, cooldown: 1200, speed: 160, reach: 30 },
 };
 const PET_ORDER = ['wolf', 'bear', 'hawk'];
 const LEASH = 230; // дальше этого от хозяина звери бросают бой и бегут к нему

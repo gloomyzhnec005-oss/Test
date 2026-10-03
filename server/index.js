@@ -263,8 +263,8 @@ function damageMonster(p, m, raw, opt = {}) {
     : Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
   if (ps && ps.onDealt) ps.onDealt(skillCtx, p, Math.min(dmg, m.hp), Date.now()); // вампиризм Кельт'о
   m.hp -= dmg;
-  m.target = opt.pet || p.id; // монстр отвечает тому, кто ударил: хозяину или зверю
-  fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null, reflect: !!opt.reflect,
+  if (!opt.confused) m.target = opt.pet || p.id; // монстр отвечает тому, кто ударил (кроме драки под мороком)
+  fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null, reflect: !!opt.reflect, confused: !!opt.confused,
     fx: p.x, fy: p.y, tx: m.x, ty: m.y });
   if (m.hp <= 0) {
     const def = C.MONSTERS[m.type];
@@ -338,6 +338,9 @@ function removePet(pet) {
 }
 // Урон по игроку от монстра: уклонение, защитные эффекты, обет защиты, барьер, пассивки, смерть
 function hurtPlayer(target, raw, m, now, viaVow = false) {
+  // Подмена двойником (Ле Блан): удар достаётся иллюзии
+  const ps0 = passiveOf(target);
+  if (!viaVow && ps0 && ps0.avoidHit && ps0.avoidHit(skillCtx, target, m, now)) return;
   // Уклонение в дыму (Найри)
   if (target.dodgeUntil > now && Math.random() < (target.dodgeChance || 0.5)) { fx.push({ t: 'dodge', target: target.id }); return; }
   const ps = passiveOf(target);
@@ -591,6 +594,27 @@ setInterval(() => {
       if (!monsters.has(m.id)) continue;
     }
     if (m.stunUntil > now) continue; // оглушён
+    // Морок (Ле Блан): монстр нападает на соседа-монстра, без соседей — бродит
+    if (m.confusedUntil > now) {
+      let other = null, bd = 140;
+      for (const o of monsters.values()) {
+        if (o === m) continue;
+        const d = Math.hypot(o.x - m.x, o.y - m.y);
+        if (d < bd) { bd = d; other = o; }
+      }
+      if (other) {
+        const dx = other.x - m.x, dy = other.y - m.y, d = Math.hypot(dx, dy) || 1;
+        if (d > C.MONSTER_ATTACK_RANGE) { if (m.rootUntil <= now) moveEntity(m, (dx / d) * def.speed * 0.8 * dt, (dy / d) * def.speed * 0.8 * dt); }
+        else if (now - m.lastAttack > C.MONSTER_ATTACK_CD) {
+          m.lastAttack = now;
+          const caster = players.get(m.confusedBy);
+          const dmg = def.dmg * (0.8 + Math.random() * 0.4);
+          if (caster) damageMonster(caster, other, dmg, { fixed: true, confused: true });
+          else other.hp -= dmg;
+        }
+      }
+      continue;
+    }
     const rooted = m.rootUntil > now;
     // Цель монстра — игрок или зверь-спутник; провокация Брендана перекрывает выбор
     const taunter = m.tauntUntil > now ? players.get(m.tauntBy) : null;
@@ -694,8 +718,9 @@ setInterval(() => {
       mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0,
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
-      bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0 })),
-    pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, x: Math.round(pet.x), y: Math.round(pet.y),
+      bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
+      cf: m.confusedUntil > now ? 1 : 0 })),
+    pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? pet.owner.heroId : null, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
     fx,

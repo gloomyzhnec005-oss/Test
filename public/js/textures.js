@@ -154,6 +154,13 @@ window.Gfx = (() => {
         rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
         rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
         break;
+      case 'masquerade':
+        // Тёмное каре и золотая маска-домино
+        rect(ctx, 10, 3, 12, 4, L.hair); rect(ctx, 9, 5, 3, 9, L.hair); rect(ctx, 20, 5, 3, 9, L.hair);
+        rect(ctx, 11, 7, 10, 3, L.headColor); rect(ctx, 13, 8, 2, 1, '#2a1a2a'); rect(ctx, 17, 8, 2, 1, '#2a1a2a');
+        rect(ctx, 21, 6, 2, 2, '#ff7ad0'); // перо у маски
+        rect(ctx, 14, 12, 4, 1, '#c03070'); // губы
+        break;
       case 'orc':
         // Орчиха: чёрные косы, клыки, золотые глаза, серьги
         rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 12, L.hair); rect(ctx, 21, 5, 2, 12, L.hair);
@@ -312,6 +319,8 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'illusion') {
+      circle(ctx, 8, 8, 7, 'rgba(255,120,210,.35)'); circle(ctx, 8, 8, 4, '#ffb0e8'); rect(ctx, 7, 3, 2, 10, 'rgba(255,255,255,.7)');
     } else if (kind === 'darkfire') {
       circle(ctx, 8, 8, 7, 'rgba(120,40,180,.45)'); circle(ctx, 8, 9, 5, '#1a0a20'); circle(ctx, 8, 7, 3, '#7a2ab0'); rect(ctx, 7, 2, 2, 3, '#b06aff');
     } else if (kind === 'leaf') {
