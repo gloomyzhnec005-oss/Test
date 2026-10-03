@@ -185,6 +185,7 @@ const dmgMult = (p, now = Date.now()) => {
   return (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1) * (p.linkUntil > now ? 1.3 : 1)
     * (p.pactUntil > now && p.pactType === 'fury' ? 1.5 : 1) * (p.blessUntil > now ? 1.2 : 1)
     * (p.songUntil > now ? 1 + 0.15 * (p.songPw || 1) : 1) // песнь вдохновения Джакомо
+    * (p.cryUntil > now ? 1.2 : 1) // клич валькирии
     * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
@@ -240,7 +241,7 @@ function publicPlayer(p) {
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
     pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
-    song: p.hero.songs ? p.form : null, haste: p.hasteUntil > Date.now(), tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
+    song: p.hero.songs ? p.form : null, haste: p.hasteUntil > Date.now(), fly: p.flyUntil > Date.now(), tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -250,7 +251,8 @@ function privateStats(p) {
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
     formKeys: p.potion ? { potion: p.potion, sign: p.sign } : null,
     passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '',
-    shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0, haste: p.hasteUntil > Date.now() };
+    shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0, haste: p.hasteUntil > Date.now(),
+    flyBoost: p.flyUntil > Date.now() ? 1 + 0.03 * (p.blessings || 0) : 1 };
 }
 // Статы отправляются не чаще 4 раз в секунду (см. игровой цикл)
 const markDirty = (p) => { p.dirty = true; };
@@ -270,10 +272,19 @@ function damageMonster(p, m, raw, opt = {}) {
   const dmg = opt.fixed ? Math.max(1, Math.round(raw))
     : Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
   if (ps && ps.onDealt) ps.onDealt(skillCtx, p, Math.min(dmg, m.hp), Date.now()); // вампиризм Кельт'о
+  // Кровавая связь Сангвейна: 35% урона передаётся остальным связанным монстрам
+  if (!opt.shared && m.bondUntil > now0) {
+    for (const o of monsters.values()) {
+      if (o !== m && o.bondBy === m.bondBy && o.bondUntil > now0) {
+        const owner = players.get(m.bondBy) || p;
+        setImmediate(() => damageMonster(owner, o, dmg * 0.35, { fixed: true, shared: true }));
+      }
+    }
+  }
   if (p.feralLeechUntil > now0 && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + Math.min(dmg, m.hp) * 0.4); markDirty(p); } // жажда зверя
   m.hp -= dmg;
   if (!opt.confused) m.target = opt.pet || p.id; // монстр отвечает тому, кто ударил (кроме драки под мороком)
-  fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null, reflect: !!opt.reflect, confused: !!opt.confused,
+  fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null, pfx: opt.fromX ?? null, pfy: opt.fromY ?? null, shared: !!opt.shared, reflect: !!opt.reflect, confused: !!opt.confused,
     fx: p.x, fy: p.y, tx: m.x, ty: m.y });
   if (m.hp <= 0) {
     const def = C.MONSTERS[m.type];
@@ -403,6 +414,11 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
     target.dead = true;
     if (m) m.target = null;
     fx.push({ t: 'pdeath', target: target.id });
+    // Гибель союзника рядом усиливает Талмиру
+    for (const o of players.values()) {
+      const ops = passiveOf(o);
+      if (o !== target && !o.dead && ops && ops.onAllyDeath && Math.hypot(o.x - target.x, o.y - target.y) < 400) ops.onAllyDeath(skillCtx, o, now);
+    }
     const victim = target;
     setTimeout(() => {
       if (!players.has(victim.id)) return;
@@ -512,7 +528,8 @@ io.on('connection', (socket) => {
     const x = Number(d.x), y = Number(d.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     // Античит: ограничение скорости (у облика зверя бег быстрее; после смены облика даём запас)
-    const maxDist = Math.max(formOf(p).speed, p.hero.speed) * (p.hasteUntil > now ? 1.25 : 1) * dt * 1.6 + 12;
+    const flyBoost = p.flyUntil > now ? 1 + 0.03 * (p.blessings || 0) : 1; // полёт Талмиры
+    const maxDist = Math.max(formOf(p).speed, p.hero.speed) * (p.hasteUntil > now ? 1.25 : 1) * flyBoost * dt * 1.6 + 12;
     const dist = Math.hypot(x - p.x, y - p.y);
     if (dist > maxDist || world.isSolidAt(x, y)) {
       socket.emit('correct', { x: p.x, y: p.y });
@@ -667,13 +684,13 @@ setInterval(() => {
     const taunter = m.tauntUntil > now ? players.get(m.tauntBy) : null;
     if (taunter && !taunter.dead) m.target = taunter.id;
     let target = m.target ? players.get(m.target) || pets.get(m.target) : null;
-    if (target && (target.dead || target.down || target.stealthUntil > now || Math.hypot(target.x - m.x, target.y - m.y) > def.aggro * 1.8)) target = null;
+    if (target && (target.dead || target.down || target.stealthUntil > now || target.flyUntil > now || Math.hypot(target.x - m.x, target.y - m.y) > def.aggro * 1.8)) target = null;
     if (!target) {
       let best = null, bestD = def.aggro;
       for (const p of players.values()) {
         if (p.dead) continue;
         if (m.ignoreUntil > now && m.ignoreId === p.id) continue; // потерял из виду (дымовая завеса)
-        if (p.stealthUntil > now) continue; // невидимость (Кассиан)
+        if (p.stealthUntil > now || p.flyUntil > now) continue; // невидимость (Кассиан), полёт (Талмира)
         const d = Math.hypot(p.x - m.x, p.y - m.y);
         if (d < bestD) { best = p; bestD = d; }
       }
@@ -768,7 +785,7 @@ setInterval(() => {
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
       bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
-      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0 })),
+      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0 })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),

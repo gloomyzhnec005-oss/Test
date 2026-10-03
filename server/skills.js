@@ -1,7 +1,7 @@
 // Уникальные умения героев. Каждое умение — функция (ctx, p, target, now) → строка ошибки или null.
 // ctx: { monsters, players, pushFx, damageMonster, healPlayer, teleport, knockback, isSolidAt, addTotem, addGround,
 //        giveShield, takeCorpse, addPet, removePet, syncCooldowns, moveEntity }
-const { petDmg, petsNear, createSummon } = require('./pets');
+const { petDmg, petsNear, createSummon, createDevice } = require('./pets');
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const inRadius = (ctx, x, y, r) => [...ctx.monsters.values()].filter((m) => Math.hypot(m.x - x, m.y - y) <= r);
 const isMarked = (p, m) => m.markedBy === p.id && m.markUntil > Date.now(); // метка Найри
@@ -928,6 +928,112 @@ const SKILLS = {
     }
     return null;
   },
+
+  // Ингрид: турель (до 3), на максимуме — ремонт самой повреждённой
+  buildTurret(ctx, p, _t, now) {
+    const turrets = p.pets.filter((pet) => pet.kind === 'turret');
+    if (turrets.length >= 3) {
+      const worst = turrets.sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+      worst.down = false; worst.hp = worst.maxHp;
+      ctx.pushFx({ t: 'skill', s: 'repair', from: p.id, x: worst.x, y: worst.y });
+      return null;
+    }
+    const pet = createDevice(p, 'turret');
+    pet.x = p.x + p.dir * 26; pet.y = p.y + 8;
+    ctx.addPet(p, pet);
+    ctx.pushFx({ t: 'skill', s: 'buildTurret', from: p.id, x: pet.x, y: pet.y });
+    return null;
+  },
+
+  // Ингрид: бомба по области с отбрасыванием
+  bomb(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    const r = 90, x = t.x, y = t.y, flight = Math.min(500, dist(p, t) * 1.5);
+    ctx.pushFx({ t: 'skill', s: 'bomb', from: p.id, fx: p.x, fy: p.y, x, y, r, flight });
+    setTimeout(() => {
+      if (!alive(ctx, p)) return;
+      for (const m of inRadius(ctx, x, y, r)) {
+        ctx.damageMonster(p, m, p.dmg * 2);
+        const dx = m.x - x, dy = m.y - y, d = Math.hypot(dx, dy) || 1;
+        ctx.knockback(m, dx / d, dy / d, 70);
+      }
+    }, flight);
+    return null;
+  },
+
+  // Ингрид: ремонт и разгон механизмов
+  overclock(ctx, p, _t, now) {
+    const turrets = p.pets.filter((pet) => pet.kind === 'turret');
+    if (!turrets.length) return 'Нет механизмов';
+    for (const pet of turrets) { pet.down = false; pet.hp = pet.maxHp; pet.boostUntil = now + 8000; }
+    ctx.pushFx({ t: 'skill', s: 'overclock', from: p.id, x: p.x, y: p.y, ids: turrets.map((pet) => pet.id) });
+    return null;
+  },
+
+  // Талмира: небесное копьё — урон и пригвождение
+  heavenSpear(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    const flight = Math.min(350, dist(p, t) * 1.2);
+    ctx.pushFx({ t: 'skill', s: 'heavenSpear', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y, flight });
+    setTimeout(() => {
+      if (!alive(ctx, p, t)) return;
+      t.rootUntil = Math.max(t.rootUntil || 0, Date.now() + 2500);
+      ctx.damageMonster(p, t, p.dmg * 1.8);
+    }, flight);
+    return null;
+  },
+
+  // Талмира: взлёт на 5 с, при приземлении — удар сверху
+  takeFlight(ctx, p, _t, now) {
+    p.flyUntil = now + 5000;
+    for (const m of ctx.monsters.values()) if (m.target === p.id) m.target = null;
+    ctx.pushFx({ t: 'skill', s: 'takeFlight', from: p.id, x: p.x, y: p.y });
+    setTimeout(() => {
+      if (!ctx.players.has(p.id) || p.dead) return;
+      ctx.pushFx({ t: 'skill', s: 'dive', from: p.id, x: p.x, y: p.y, r: 90 });
+      for (const m of inRadius(ctx, p.x, p.y, 90)) ctx.damageMonster(p, m, p.dmg * 1.5);
+    }, 5000);
+    return null;
+  },
+
+  // Талмира: клич валькирии — бафф союзникам и страх монстрам
+  valkyrieCry(ctx, p, _t, now) {
+    for (const o of ctx.players.values()) if (!o.dead && dist(o, p) <= 200) o.cryUntil = now + 8000;
+    for (const m of inRadius(ctx, p.x, p.y, 150)) { m.fearUntil = now + 2000; m.fearX = p.x; m.fearY = p.y; m.target = null; }
+    ctx.pushFx({ t: 'skill', s: 'valkyrieCry', from: p.id, x: p.x, y: p.y, r: 200 });
+    return null;
+  },
+
+  // Сангвейн: кровавый шип — урон и кровотечение (плата здоровьем — hpCost)
+  bloodSpike(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const flight = Math.min(350, dist(p, t) * 1.2);
+    ctx.pushFx({ t: 'skill', s: 'bloodSpike', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y, flight });
+    setTimeout(() => {
+      if (!alive(ctx, p, t)) return;
+      t.bleedUntil = Date.now() + 5000;
+      t.dots = (t.dots || []).concat({ until: Date.now() + 5000, dps: p.dmg * 0.4, by: p.id });
+      ctx.damageMonster(p, t, p.dmg * 1.8);
+    }, flight);
+    return null;
+  },
+
+  // Сангвейн: ритуал крови — мощный урон вокруг
+  bloodRitual(ctx, p) {
+    const r = 130;
+    ctx.pushFx({ t: 'skill', s: 'bloodRitual', from: p.id, x: p.x, y: p.y, r });
+    setTimeout(() => { if (alive(ctx, p) && !p.dead) for (const m of inRadius(ctx, p.x, p.y, r)) ctx.damageMonster(p, m, p.dmg * 3); }, 300);
+    return null;
+  },
+
+  // Сангвейн: кровавая связь — урон делится между связанными
+  bloodBond(ctx, p, _t, now) {
+    const targets = inRadius(ctx, p.x, p.y, 160);
+    if (targets.length < 2) return 'Нужно хотя бы два монстра рядом';
+    for (const m of targets) { m.bondBy = p.id; m.bondUntil = now + 8000; }
+    ctx.pushFx({ t: 'skill', s: 'bloodBond', from: p.id, x: p.x, y: p.y, pts: targets.map((m) => [Math.round(m.x), Math.round(m.y)]) });
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -1317,12 +1423,35 @@ const PASSIVES = {
       return `токсичность ${tox}%${tox >= 70 ? ' ☠' : ''}${active.length ? ' · ' + active.join(', ') : ''}`;
     },
   },
+
+  // Ингрид: технарь — урон и защита за каждую турель
+  tinker: {
+    count: (p) => (p.pets || []).filter((pet) => pet.kind === 'turret' && !pet.down).length,
+    dmgMult(p) { return 1 + 0.08 * this.count(p); },
+    dmgTakenMult(p) { return 1 - 0.06 * this.count(p); },
+    note(p) { return `турели ${(p.pets || []).filter((pet) => pet.kind === 'turret').length}/3`; },
+  },
+
+  // Талмира: избранница павших — благословения за убийства, ярость при гибели союзника
+  chosenOfFallen: {
+    dmgMult: (p) => (1 + 0.03 * (p.blessings || 0)) * (p.flyUntil > Date.now() ? 1.4 : 1) * (p.avengeUntil > Date.now() ? 1.4 : 1),
+    onKill(ctx, p, now) { p.blessings = Math.min(10, (p.blessings || 0) + 1); p.lastBless = now; p.dirty = true; },
+    onAllyDeath(ctx, p, now) { p.avengeUntil = now + 8000; ctx.pushFx({ t: 'skill', s: 'avenge', from: p.id, x: p.x, y: p.y, quiet: true }); p.dirty = true; },
+    onTick(p, now) { if (p.blessings && now - p.lastBless > 12000) { p.blessings = 0; p.dirty = true; } },
+    note: (p) => `благословения ${p.blessings || 0}/10${p.flyUntil > Date.now() ? ' · в полёте' : ''}${p.avengeUntil > Date.now() ? ' · месть' : ''}`,
+  },
+
+  // Сангвейн: жажда крови — урон растёт при низком здоровье, убийства лечат
+  bloodHunger: {
+    dmgMult: (p) => 1 + 0.8 * (1 - p.hp / p.maxHp),
+    onKill(ctx, p) { ctx.healPlayer(p, p.maxHp * 0.06); },
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['starShot', 'lightHail', 'arcaneVolley', 'iceGrip', 'darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['bomb', 'heavenSpear', 'bloodSpike', 'starShot', 'lightHail', 'arcaneVolley', 'iceGrip', 'darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { witcherSign: 150, starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { bomb: 280, heavenSpear: 300, bloodSpike: 260, witcherSign: 150, starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

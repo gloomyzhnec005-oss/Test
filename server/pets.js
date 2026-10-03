@@ -12,6 +12,8 @@ const PET_KINDS = {
   // Дух природы Нимуэ: временный, крепкий, отвлекает монстров на себя
   sprite: { name: 'Дух леса', hp: 0.7, dmg: 0.4, cooldown: 900, speed: 170, reach: 30 },
   // Двойник Ле Блан: иллюзия, почти не наносит урона, принимает удары на себя
+  // Турель Ингрид: стреляет издалека, следует за хозяйкой, «ломается» и чинится вместо гибели
+  turret: { name: 'Турель', hp: 0.5, dmg: 0.45, cooldown: 800, speed: 150, reach: 190, ranged: true },
   clone: { name: 'Двойник', hp: 0.6, dmg: 0.2, cooldown: 1200, speed: 160, reach: 30 },
   // Поднятый монстр Ориона: здоровье и урон задаются от самого монстра (maxHp, dmgAbs)
   minion: { name: 'Слуга', hp: 0.5, dmg: 0.5, cooldown: 1100, speed: 140, reach: 32 },
@@ -133,8 +135,10 @@ function updatePets(ctx, owner, now, dt) {
     if (!target) { stepTo(ctx, pet, homeX, homeY, k.speed * (fromOwner > 80 ? 1.3 : 1), dt); continue; }
 
     const sic = pet.sicTarget === target;
-    const d = stepTo(ctx, pet, target.x + (pet.slot - 1) * 10, target.y + 6, k.speed * (sic ? 1.6 : 1), dt);
-    if (d <= k.reach + 8 && now - pet.lastAttack >= k.cooldown) {
+    // Стрелковые механизмы (турели) не подходят вплотную — бьют с дистанции
+    const far = Math.hypot(target.x - pet.x, target.y - pet.y);
+    const d = k.ranged && far <= k.reach ? far : stepTo(ctx, pet, target.x + (pet.slot - 1) * 10, target.y + 6, k.speed * (sic ? 1.6 : 1), dt);
+    if (d <= k.reach + 8 && now - pet.lastAttack >= k.cooldown * (pet.boostUntil > now ? 0.6 : 1)) {
       pet.lastAttack = now;
       let raw = petDmg(pet, now);
       if (sic && pet.sicFirst) {
@@ -143,7 +147,7 @@ function updatePets(ctx, owner, now, dt) {
         raw *= 2.5;
         target.stunUntil = Math.max(target.stunUntil || 0, now + 1500);
       }
-      ctx.damageMonster(owner, target, raw, { pet: pet.id });
+      ctx.damageMonster(owner, target, raw, { pet: pet.id, proj: k.ranged ? 'bolt' : null, fromX: pet.x, fromY: pet.y });
     }
   }
 }
@@ -151,4 +155,15 @@ function updatePets(ctx, owner, now, dt) {
 // Звери в радиусе от хозяина (для пассивки)
 const petsNear = (owner, r = 200) => (owner.pets || []).filter((pet) => !pet.temp && !pet.down && Math.hypot(pet.x - owner.x, pet.y - owner.y) <= r);
 
-module.exports = { PET_KINDS, createPets, createSummon, rescalePets, updatePets, hurtPet, knockDown, petDmg, petsNear };
+// Постоянный механизм (турель Ингрид): не исчезает со временем
+function createDevice(owner, kind) {
+  const k = PET_KINDS[kind];
+  const maxHp = Math.round(owner.maxHp * k.hp);
+  return {
+    id: 'pet' + petSeq++, kind, slot: owner.pets.length, owner,
+    x: owner.x + 20, y: owner.y + 10, hp: maxHp, maxHp, down: false, downUntil: 0, target: null, lastAttack: 0,
+    sicTarget: null, sicUntil: 0, sicFirst: false, boostUntil: 0,
+  };
+}
+
+module.exports = { createDevice, PET_KINDS, createPets, createSummon, rescalePets, updatePets, hurtPet, knockDown, petDmg, petsNear };

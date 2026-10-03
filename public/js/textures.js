@@ -64,7 +64,7 @@ window.Gfx = (() => {
     if (L.cape) { rect(ctx, 8, 13, 12, 14, L.cape); }
     if (L.wings) {
       // Полупрозрачные крылья феи за спиной
-      ctx.fillStyle = 'rgba(180,255,220,.55)';
+      ctx.fillStyle = L.wingColor || 'rgba(180,255,220,.55)';
       ctx.beginPath(); ctx.ellipse(6, 15, 5, 8, -0.4, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.ellipse(26, 15, 5, 8, 0.4, 0, Math.PI * 2); ctx.fill();
     }
@@ -89,6 +89,11 @@ window.Gfx = (() => {
       rect(ctx, 25, 2, 2, 28, '#7a5230');
       ctx.fillStyle = '#c9d1e0'; ctx.beginPath(); ctx.moveTo(26, -1); ctx.lineTo(29, 5); ctx.lineTo(23, 5); ctx.fill();
       rect(ctx, 24, 6, 4, 2, '#c0301e'); // повязка
+    }
+    if (L.weapon === 'wrench') {
+      // Огромный гаечный ключ
+      rect(ctx, 24, 8, 3, 18, '#8a8f99'); rect(ctx, 22, 4, 7, 5, '#a8b0b8'); rect(ctx, 24, 4, 3, 2, '#3a3f48');
+      rect(ctx, 5, 18, 5, 5, '#3a3a3a'); rect(ctx, 7, 16, 1, 2, '#e86a2a'); // бомба на поясе
     }
     if (L.weapon === 'lute') {
       // Лютня в руках
@@ -162,6 +167,27 @@ window.Gfx = (() => {
         rect(ctx, 10, 4, 12, 3, L.hair); rect(ctx, 9, 6, 2, 13, L.hair); rect(ctx, 21, 6, 2, 13, L.hair);
         rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
         rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
+        break;
+      case 'goggles':
+        // Рыжие косички и очки-гогглы на лбу
+        rect(ctx, 10, 3, 12, 4, L.hair); rect(ctx, 8, 6, 3, 9, L.hair); rect(ctx, 21, 6, 3, 9, L.hair);
+        rect(ctx, 7, 14, 3, 3, L.hair); rect(ctx, 22, 14, 3, 3, L.hair);
+        rect(ctx, 10, 4, 12, 2, '#5a3a1a'); circle(ctx, 13, 5, 2, '#9ad8ff'); circle(ctx, 19, 5, 2, '#9ad8ff');
+        rect(ctx, 13, 12, 6, 1, '#a04a3a');
+        break;
+      case 'wingHelm':
+        // Крылатый шлем валькирии и золотые косы
+        rect(ctx, 10, 2, 12, 5, '#d8dde6'); rect(ctx, 15, 1, 2, 2, '#e8c26a');
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.moveTo(10, 4); ctx.lineTo(4, 0); ctx.lineTo(6, 6); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(22, 4); ctx.lineTo(28, 0); ctx.lineTo(26, 6); ctx.fill();
+        if (L.hair) { rect(ctx, 9, 7, 2, 12, L.hair); rect(ctx, 21, 7, 2, 12, L.hair); }
+        break;
+      case 'bloodMask':
+        // Капюшон и костяная маска с кровавыми полосами
+        rect(ctx, 9, 2, 14, 4, '#2a060a'); rect(ctx, 9, 5, 2, 11, '#2a060a'); rect(ctx, 21, 5, 2, 11, '#2a060a');
+        rect(ctx, 11, 6, 10, 8, '#e8dcc8'); rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes);
+        rect(ctx, 12, 10, 1, 4, '#a0101a'); rect(ctx, 19, 10, 1, 4, '#a0101a'); rect(ctx, 15, 11, 2, 1, '#a0101a');
         break;
       case 'witcher':
         // Белые волосы в хвост, кошачьи жёлтые глаза, шрам, медальон
@@ -293,6 +319,8 @@ window.Gfx = (() => {
     }
     if (L.weapon === 'pole') { rect(ctx, 23, 17, 3, 3, L.skin); rect(ctx, 6, 17, 3, 3, L.skin); } // кулаки
     if (L.offhand === 'shield') { rect(ctx, 4, 14, 7, 10, '#7a5230'); rect(ctx, 5, 15, 5, 8, L.trim); rect(ctx, 7, 16, 1, 6, '#7a5230'); }
+    // Гномы: тот же спрайт, но ниже и шире
+    if (L.short) { const [c2, ctx2] = canvas(32, 32); ctx2.drawImage(c, 0, 0, 32, 32, 1, 7, 30, 25); return c2; }
     return c;
   }
 
@@ -350,6 +378,11 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'bolt') {
+      rect(ctx, 2, 7, 10, 2, '#c9a64d'); rect(ctx, 11, 6, 4, 4, '#e8e2cc'); circle(ctx, 8, 8, 6, 'rgba(255,200,80,.25)');
+    } else if (kind === 'blood') {
+      ctx.fillStyle = '#c0101a'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.lineTo(3, 5); ctx.lineTo(1, 8); ctx.lineTo(3, 11); ctx.fill();
+      circle(ctx, 4, 8, 3, '#7a0610');
     } else if (kind === 'arcane') {
       circle(ctx, 8, 8, 7, 'rgba(160,120,255,.35)'); circle(ctx, 8, 8, 4, '#c8a0ff'); circle(ctx, 8, 8, 1.8, '#ffffff');
     } else if (kind === 'note') {
@@ -424,6 +457,14 @@ window.Gfx = (() => {
       rect(ctx, 21, 8, 10, 10, '#6b4a2c'); rect(ctx, 21, 6, 3, 3, '#5a3e24'); rect(ctx, 28, 6, 3, 3, '#5a3e24');
       rect(ctx, 27, 13, 4, 4, '#a07a52'); rect(ctx, 29, 13, 2, 1, '#1a0e06'); rect(ctx, 25, 10, 2, 2, '#1a0e06');
       rect(ctx, 6, 24, 5, 6, '#4a3420'); rect(ctx, 19, 24, 5, 6, '#4a3420');
+    } else if (kind === 'turret') {
+      // Турель на треноге
+      circle(ctx, 16, 28, 9, 'rgba(0,0,0,.3)');
+      rect(ctx, 8, 22, 3, 7, '#5a4a3a'); rect(ctx, 21, 22, 3, 7, '#5a4a3a'); rect(ctx, 15, 20, 2, 9, '#5a4a3a');
+      rect(ctx, 9, 13, 14, 9, '#8a8f99'); rect(ctx, 10, 14, 12, 2, '#c9a64d');
+      rect(ctx, 22, 15, 9, 3, '#5a5f68'); rect(ctx, 29, 14, 2, 5, '#3a3f48');
+      circle(ctx, 14, 17, 2, '#ff6a3a');
+      rect(ctx, 12, 9, 8, 4, '#a8b0b8');
     } else if (kind === 'sprite') {
       // Дух леса: светящаяся дриада из листьев
       circle(ctx, 16, 28, 7, 'rgba(0,0,0,.2)');
