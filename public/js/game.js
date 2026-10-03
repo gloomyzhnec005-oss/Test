@@ -436,12 +436,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
           const x = follow ? follow.c.x : f.x, y = follow ? follow.c.y : f.y;
           a += 0.35;
           arcG.clear();
-          arcG.lineStyle(5, 0xc0301e, 0.85).beginPath().arc(x, y, f.r * 0.8, a, a + 2.2).strokePath();
-          arcG.lineStyle(3, 0xffb0a0, 0.7).beginPath().arc(x, y, f.r * 0.6, a + Math.PI, a + Math.PI + 1.8).strokePath();
+          arcG.lineStyle(5, f.steel ? 0xd8dde6 : 0xc0301e, 0.85).beginPath().arc(x, y, f.r * 0.8, a, a + 2.2).strokePath();
+          arcG.lineStyle(3, f.steel ? 0xffffff : 0xffb0a0, 0.7).beginPath().arc(x, y, f.r * 0.6, a + Math.PI, a + Math.PI + 1.8).strokePath();
           if (ev.getRepeatCount() === 0) arcG.destroy();
         } });
-        this.time.delayedCall(220, () => this.burst(f.x, f.y, 0xc0301e, 14));
-        this.time.delayedCall(440, () => this.burst(f.x, f.y, 0xc0301e, 14));
+        this.time.delayedCall(220, () => this.burst(f.x, f.y, f.steel ? 0xd8dde6 : 0xc0301e, 14));
+        this.time.delayedCall(440, () => this.burst(f.x, f.y, f.steel ? 0xd8dde6 : 0xc0301e, 14));
         break;
       }
       case 'furyRoar':
@@ -545,6 +545,25 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: ln, alpha: 0, duration: 700, onComplete: () => ln.destroy() });
         this.burst(f.fx, f.fy, 0xff7ab0, 14);
         this.burst(f.x, f.y, 0xff7ab0, 8);
+        break;
+      }
+      case 'elixir': {
+        const P = { thunder: [0xff8a3a, '⚡ Гром'], blizzard: [0x8ad3ff, '🌨️ Пурга'], swallow: [0x9aff9a, '🕊️ Ласточка'], oriole: [0xffd03a, '🛡️ Иволга'] }[f.potion];
+        this.ring(f.x, f.y, 28, P[0], 450, 4);
+        this.floatText(f.x, f.y - 50, '🧪 ' + P[1], '#' + P[0].toString(16).padStart(6, '0'), 13);
+        if (f.poisoned) { this.floatText(f.x, f.y - 68, '☠ Отравление!', '#9aff6a', 14); this.burst(f.x, f.y, 0x6ad84a, 16); }
+        break;
+      }
+      case 'witcherSign': {
+        if (f.sign === 'quen') { this.ring(f.x, f.y, 26, 0xffb030, 600, 5); this.floatText(f.x, f.y - 50, '🔶 Квен', '#ffb030', 13); break; }
+        const igni = f.sign === 'igni', col = igni ? 0xff6a1a : 0x9ad8ff;
+        const ang = Math.atan2(f.dy, f.dx);
+        const g = this.add.graphics().setDepth(860);
+        g.fillStyle(col, 0.45).slice(f.x, f.y, 150, ang - 0.5, ang + 0.5).fillPath();
+        this.tweens.add({ targets: g, alpha: 0, duration: 400, onComplete: () => g.destroy() });
+        for (let k = 1; k <= 4; k++) this.time.delayedCall(k * 50, () => this.burst(f.x + f.dx * 35 * k, f.y + f.dy * 35 * k, col, 5));
+        this.floatText(f.x, f.y - 50, igni ? '🔥 Игни' : '💨 Аард', igni ? '#ff8a3a' : '#9ad8ff', 13);
+        if (!igni) this.cameras.main.shake(120, 0.005);
         break;
       }
       case 'starShot': {

@@ -866,6 +866,68 @@ const SKILLS = {
     ctx.pushFx({ t: 'skill', s: 'magicBarrier', from: p.id, x: p.x, y: p.y });
     return null;
   },
+
+  // Тибор: эликсир по очереди, повышает токсичность
+  elixir(ctx, p, _t, now) {
+    const ORDER = ['thunder', 'blizzard', 'swallow', 'oriole'];
+    const potion = p.potion || 'thunder';
+    p.potion = ORDER[(ORDER.indexOf(potion) + 1) % ORDER.length];
+    p.potions = p.potions || {};
+    p.potions[potion] = now + 15000;
+    if (potion === 'blizzard') p.hasteUntil = now + 15000;
+    if (potion === 'swallow') { p.regenUntil = now + 15000; p.regenRate = 0.03; }
+    p.tox = (p.tox || 0) + 30;
+    let poisoned = false;
+    if (p.tox > 100) {
+      poisoned = true;
+      p.tox = 100;
+      const dmg = Math.min(p.hp - 1, p.maxHp * 0.15);
+      p.hp -= dmg;
+      ctx.pushFx({ t: 'hit', kind: 'p', target: p.id, dmg: Math.round(dmg), from: null });
+    }
+    ctx.pushFx({ t: 'skill', s: 'elixir', from: p.id, x: p.x, y: p.y, potion, poisoned });
+    return null;
+  },
+
+  // Тибор: знаки по очереди — Игни, Аард, Квен
+  witcherSign(ctx, p, t, now) {
+    const ORDER = ['igni', 'aard', 'quen'];
+    const sign = p.sign || 'igni';
+    if (sign !== 'quen' && !t) return 'Нет цели рядом';
+    p.sign = ORDER[(ORDER.indexOf(sign) + 1) % ORDER.length];
+    if (sign === 'quen') {
+      ctx.giveShield(p, p.maxHp * 0.25, now + 10000);
+      ctx.pushFx({ t: 'skill', s: 'witcherSign', from: p.id, x: p.x, y: p.y, sign });
+      return null;
+    }
+    let dx = t.x - p.x, dy = t.y - p.y;
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    p.dir = dx < 0 ? -1 : 1;
+    ctx.pushFx({ t: 'skill', s: 'witcherSign', from: p.id, x: p.x, y: p.y, dx, dy, sign });
+    for (const m of ctx.monsters.values()) {
+      const rx = m.x - p.x, ry = m.y - p.y, dist2 = Math.hypot(rx, ry);
+      if (dist2 > 150 || (rx * dx + ry * dy) / (dist2 || 1) < 0.5) continue; // конус ~60°
+      if (sign === 'igni') {
+        m.burnUntil = now + 4000;
+        m.dots = (m.dots || []).concat({ until: now + 4000, dps: p.dmg * 0.35, by: p.id });
+        ctx.damageMonster(p, m, p.dmg * 1.6);
+      } else {
+        ctx.knockback(m, rx / (dist2 || 1), ry / (dist2 || 1), 80);
+        m.stunUntil = Math.max(m.stunUntil || 0, now + 1000);
+        ctx.damageMonster(p, m, p.dmg * 0.8);
+      }
+    }
+    return null;
+  },
+
+  // Тибор: вихрь клинков — три удара вокруг
+  bladeWhirl(ctx, p) {
+    ctx.pushFx({ t: 'skill', s: 'bloodWhirl', from: p.id, x: p.x, y: p.y, r: 90, steel: true });
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => { if (alive(ctx, p) && !p.dead) for (const m of inRadius(ctx, p.x, p.y, 90)) ctx.damageMonster(p, m, p.dmg * 0.75); }, i * 200);
+    }
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -1231,12 +1293,36 @@ const PASSIVES = {
     },
     note(p) { return (p.resonance || 0) >= this.MAX ? 'резонанс: следующее заклинание усилено!' : `резонанс ${p.resonance || 0}/${this.MAX}`; },
   },
+
+  // Тибор: ведьмачье чутьё — слабости монстров, токсичность как риск и награда
+  witcherSense: {
+    targetMult: (p, m) => (m.undead || m.boss ? 1.4 : 1.15),
+    dmgMult: (p) => (p.potions && p.potions.thunder > Date.now() ? 1.3 : 1) * (1 + 0.4 * Math.max(0, (p.tox || 0) - 40) / 60),
+    dmgTakenMult: (p) => (p.potions && p.potions.oriole > Date.now() ? 0.7 : 1),
+    onTick(p, now) {
+      const dt = Math.min(0.5, (now - (p.toxTick || now)) / 1000);
+      p.toxTick = now;
+      if (!p.tox) return;
+      const before = p.tox;
+      if (p.tox >= 70 && p.hp > 1) p.hp = Math.max(1, p.hp - p.maxHp * 0.015 * dt);
+      p.tox = Math.max(0, p.tox - 4 * dt);
+      p.dirty = true;
+      if (Math.floor(before / 5) !== Math.floor(p.tox / 5)) p.dirty = true;
+    },
+    note(p) {
+      const n = { thunder: 'Гром', blizzard: 'Пурга', swallow: 'Ласточка', oriole: 'Иволга' };
+      const now = Date.now();
+      const active = Object.entries(p.potions || {}).filter(([, u]) => u > now).map(([k]) => n[k]);
+      const tox = Math.round(p.tox || 0);
+      return `токсичность ${tox}%${tox >= 70 ? ' ☠' : ''}${active.length ? ' · ' + active.join(', ') : ''}`;
+    },
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
 const NEEDS_TARGET = new Set(['starShot', 'lightHail', 'arcaneVolley', 'iceGrip', 'darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { witcherSign: 150, starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

@@ -219,7 +219,7 @@ function spawnMonster(type = pickMonsterType()) {
   const p = randomFreeSpot(def.zone, Math.min(maxR, def.zone + 12));
   const m = {
     id: monsterSeq++, type, x: p.x, y: p.y, homeX: p.x, homeY: p.y,
-    hp: def.hp, maxHp: def.hp, target: null, lastAttack: 0, undead: !!def.undead,
+    hp: def.hp, maxHp: def.hp, target: null, lastAttack: 0, undead: !!def.undead, boss: !!def.boss,
     wander: null, nextWander: 0, stunUntil: 0, rootUntil: 0, dots: [],
   };
   monsters.set(m.id, m);
@@ -248,6 +248,7 @@ function privateStats(p) {
     gold: p.char.gold, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
+    formKeys: p.potion ? { potion: p.potion, sign: p.sign } : null,
     passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '',
     shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0, haste: p.hasteUntil > Date.now() };
 }
@@ -487,6 +488,7 @@ io.on('connection', (socket) => {
     if (hero.elements) p.form = 'fire'; // Аурелиус начинает с огня
     if (hero.vows) { p.form = 'protection'; p.vowSince = Date.now(); } // Валериан начинает с обета защиты
     if (hero.songs) p.form = 'inspire'; // Джакомо начинает с песни вдохновения
+    if (heroId === 'tibor') { p.potion = 'thunder'; p.sign = 'igni'; p.tox = 0; }
     p.joinedAt = Date.now();
     players.set(socket.id, p);
 

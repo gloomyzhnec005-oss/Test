@@ -74,11 +74,15 @@
   let resName = '';
   let shownForm; // undefined — подписи ещё не выставлены
   // Подписи кнопок под текущий облик (Талиесин)
-  function applyForm(form) {
-    if (form === shownForm) return;
-    shownForm = form;
+  // Подписи кнопок под текущее состояние героя: облик/стихия/обет (s.form) или своё поле кнопки (sk.formKey)
+  function applyForm(s) {
+    const key = JSON.stringify([s.form, s.formKeys]);
+    if (key === shownForm) return;
+    shownForm = key;
     for (const btn of Object.values(skillBtns)) {
-      const v = btn.sk.forms && btn.sk.forms[form || 'human'];
+      if (!btn.sk.forms) continue;
+      const state = btn.sk.formKey ? (s.formKeys || {})[btn.sk.formKey] : s.form;
+      const v = btn.sk.forms[state || 'human'];
       if (!v) continue;
       btn.el.querySelector('.sk-icon').textContent = v.icon;
       btn.el.querySelector('em').textContent = v.name;
@@ -98,7 +102,7 @@
     $('gold').textContent = s.gold;
     $('kills').textContent = s.kills;
     $('dmg').textContent = s.dmg;
-    if (s.form !== undefined) applyForm(s.form);
+    if (s.form !== undefined || s.formKeys) applyForm(s);
     if (passiveDef) {
       const parts = [];
       if (s.bonusDmg) parts.push(`+${s.bonusDmg}% урона`);

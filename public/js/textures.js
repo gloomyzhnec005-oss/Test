@@ -163,6 +163,14 @@ window.Gfx = (() => {
         rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
         rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
         break;
+      case 'witcher':
+        // Белые волосы в хвост, кошачьи жёлтые глаза, шрам, медальон
+        rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 7, L.hair); rect(ctx, 6, 5, 4, 2, L.hair); rect(ctx, 5, 7, 2, 5, L.hair);
+        rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes); rect(ctx, 14, 8, 1, 2, '#222'); rect(ctx, 18, 8, 1, 2, '#222');
+        rect(ctx, 19, 6, 1, 5, '#a04a3a'); // шрам
+        rect(ctx, 11, 12, 10, 2, '#bfb8b0'); // щетина
+        rect(ctx, 15, 16, 2, 2, '#c0c8d0'); // медальон
+        break;
       case 'featherCap':
         // Берет набок с длинным пером, кудри
         rect(ctx, 9, 3, 14, 3, L.headColor); rect(ctx, 19, 2, 5, 2, L.headColor);
