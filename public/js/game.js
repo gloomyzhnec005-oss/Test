@@ -30,7 +30,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     Object.entries(this.heroes).forEach(([k, h]) => addTex('hero_' + k, Gfx.hero(h.look)));
     Object.keys(this.monsterDefs).forEach((k) => addTex('mon_' + k, Gfx.monster(k)));
     addTex('proj_fireball', Gfx.projectile('fireball'));
-    ['arrow', 'holy', 'nature', 'dark'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['arrow', 'holy', 'nature', 'dark', 'stone'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -157,6 +157,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.monsters.set(m.id, e);
       }
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
+      // Значки состояний: оглушение и ослабление
+      const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '');
+      if (status !== (e.status || '')) {
+        e.status = status;
+        if (!e.statusText) {
+          e.statusText = this.add.text(0, e.label.y - 12, '', { fontSize: '11px', resolution: 2 }).setOrigin(0.5, 1);
+          e.c.add(e.statusText);
+        }
+        e.statusText.setText(status);
+      }
       e.tx = m.x; e.ty = m.y; e.data = m;
       this.setBar(e, m.hp, m.maxHp);
     }
@@ -337,6 +347,45 @@ window.GameScene = class GameScene extends Phaser.Scene {
         break;
       case 'empHit':
         this.ring(f.x, f.y, 30, 0xffd36a, 300, 4);
+        break;
+      case 'bloodWhirl': {
+        // Кровавое вращение: дуги вокруг героя
+        const arcG = this.add.graphics().setDepth(850);
+        const follow = this.players.get(f.from);
+        let a = 0;
+        const ev = this.time.addEvent({ delay: 16, repeat: 40, callback: () => {
+          const x = follow ? follow.c.x : f.x, y = follow ? follow.c.y : f.y;
+          a += 0.35;
+          arcG.clear();
+          arcG.lineStyle(5, 0xc0301e, 0.85).beginPath().arc(x, y, f.r * 0.8, a, a + 2.2).strokePath();
+          arcG.lineStyle(3, 0xffb0a0, 0.7).beginPath().arc(x, y, f.r * 0.6, a + Math.PI, a + Math.PI + 1.8).strokePath();
+          if (ev.getRepeatCount() === 0) arcG.destroy();
+        } });
+        this.time.delayedCall(220, () => this.burst(f.x, f.y, 0xc0301e, 14));
+        this.time.delayedCall(440, () => this.burst(f.x, f.y, 0xc0301e, 14));
+        break;
+      }
+      case 'furyRoar':
+        this.cameras.main.shake(220, 0.006);
+        this.ring(f.x, f.y, f.r, 0xe0533a, 650, 5);
+        this.ring(f.x, f.y, f.r * 0.6, 0xffa080, 500, 3);
+        this.floatText(f.x, f.y - 56, 'РРРААА!', '#ff7a5a', 16);
+        break;
+      case 'stoneThrow': {
+        const st = this.add.image(f.fx, f.fy, 'proj_stone').setDepth(850).setScale(1.4);
+        const dur = Math.min(500, Phaser.Math.Distance.Between(f.fx, f.fy, f.x, f.y) * 1.6);
+        this.tweens.add({ targets: st, x: f.x, y: f.y, angle: 540, duration: dur, onComplete: () => {
+          st.destroy(); this.burst(f.x, f.y, 0x8f8a84, 12); this.ring(f.x, f.y, 26, 0xffe08a, 350, 3);
+        } });
+        // Дуга полёта: подпрыгивание камня
+        this.tweens.add({ targets: st, scale: 2, duration: dur / 2, yoyo: true });
+        break;
+      }
+      case 'undying':
+        this.floatText(f.x, f.y - 50, 'НЕУКРОТИМ!', '#ffcc4d', 18);
+        this.ring(f.x, f.y, 60, 0xffcc4d, 700, 6);
+        this.burst(f.x, f.y, 0xffcc4d, 26);
+        if (f.from === this.myId) { this.cameras.main.flash(250, 255, 200, 80); this.ui.vibrate('heavy'); }
         break;
       case 'drain': {
         for (let i = 0; i < 8; i++) {

@@ -126,6 +126,42 @@ const SKILLS = {
     p.empoweredUntil = now + 10000;
     return null;
   },
+
+  // Вебранд: кровавый вихрь — три удара по всем вокруг
+  bloodWhirl(ctx, p) {
+    const r = 85;
+    ctx.pushFx({ t: 'skill', s: 'bloodWhirl', from: p.id, x: p.x, y: p.y, r });
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => {
+        if (!alive(ctx, p) || p.dead) return;
+        for (const m of inRadius(ctx, p.x, p.y, r)) ctx.damageMonster(p, m, p.dmg * 0.65);
+      }, i * 220);
+    }
+    return null;
+  },
+
+  // Вебранд: рёв ярости — ослабляет врагов вокруг и усиливает себя
+  furyRoar(ctx, p, _t, now) {
+    const r = 160;
+    const targets = inRadius(ctx, p.x, p.y, r);
+    ctx.pushFx({ t: 'skill', s: 'furyRoar', from: p.id, x: p.x, y: p.y, r });
+    for (const m of targets) { m.weakUntil = now + 6000; m.target = p.id; }
+    p.roarUntil = now + 6000;
+    return null;
+  },
+
+  // Вебранд: бросок камня — урон и оглушение дальней цели
+  stoneThrow(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    ctx.pushFx({ t: 'skill', s: 'stoneThrow', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y });
+    const flight = Math.min(500, dist(p, t) * 1.6);
+    setTimeout(() => {
+      if (!alive(ctx, p, t)) return;
+      t.stunUntil = Date.now() + 2000;
+      ctx.damageMonster(p, t, p.dmg * 1.3);
+    }, flight);
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -142,12 +178,28 @@ const PASSIVES = {
       }
     },
   },
+
+  // Вебранд: неукротимая ярость — сила растёт с потерей здоровья; раз в бой переживает смертельный удар
+  untamedFury: {
+    dmgMult: (p) => 1 + 0.5 * (1 - p.hp / p.maxHp),
+    speedMult: (p) => 1 + 0.35 * (1 - p.hp / p.maxHp),
+    // «Бой» заканчивается через 15 с без получения урона — тогда выживание снова готово
+    onTick(p, now) { if (p.cheatUsed && now - p.lastHurt > 15000) { p.cheatUsed = false; p.dirty = true; } },
+    onLethal(ctx, p) {
+      if (p.cheatUsed) return false;
+      p.cheatUsed = true;
+      p.hp = 1;
+      ctx.pushFx({ t: 'skill', s: 'undying', from: p.id, x: p.x, y: p.y, quiet: true });
+      return true;
+    },
+    note: (p) => (p.cheatUsed ? 'выживание использовано' : 'выживание готово'),
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['arrowRain', 'meteor', 'shadowStep', 'drain', 'enlighten']);
+const NEEDS_TARGET = new Set(['arrowRain', 'meteor', 'shadowStep', 'drain', 'enlighten', 'stoneThrow']);
 // Дальность умения: shadowStep прыгает дальше обычной атаки
-const SKILL_RANGE = { shadowStep: 280, enlighten: 80, qiWave: 170 };
+const SKILL_RANGE = { shadowStep: 280, enlighten: 80, qiWave: 170, stoneThrow: 320 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

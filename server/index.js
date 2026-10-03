@@ -172,7 +172,7 @@ const startRes = (p) => (p.hero.resource.start ?? 1) * p.resMax;
 const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  return (p.rageUntil > now ? 1.6 : 1) * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
+  return (p.rageUntil > now ? 1.6 : 1) * (p.roarUntil > now ? 1.4 : 1) * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
@@ -223,14 +223,15 @@ function moveEntity(e, dx, dy) {
 
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
-    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.rageUntil > Date.now(),
+    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.rageUntil > Date.now() || p.roarUntil > Date.now(),
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
   return { level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills,
     gold: p.char.gold, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
-    bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((p.hero.cooldown / attackCd(p) - 1) * 100) };
+    bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((p.hero.cooldown / attackCd(p) - 1) * 100),
+    passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '' };
 }
 // Статы отправляются не чаще 4 раз в секунду (см. игровой цикл)
 const markDirty = (p) => { p.dirty = true; };
@@ -319,7 +320,7 @@ io.on('connection', (socket) => {
       id: socket.id, uid, name: name.slice(0, 20), heroId, hero, char, socket,
       x: world.spawn.x + (Math.random() - 0.5) * 64, y: world.spawn.y + (Math.random() - 0.5) * 64,
       dir: 1, dead: false, lastAttack: 0, lastHurt: 0, lastMove: Date.now(),
-      skillReadyAt: {}, rageUntil: 0, empoweredUntil: 0, dirty: false, lastStats: 0,
+      skillReadyAt: {}, rageUntil: 0, roarUntil: 0, empoweredUntil: 0, cheatUsed: false, lastHit: 0, dirty: false, lastStats: 0,
       ...statsFor(heroId, char.level),
     };
     p.hp = p.maxHp;
@@ -369,6 +370,9 @@ io.on('connection', (socket) => {
     const empowered = p.empoweredUntil > now;
     if (empowered) { p.empoweredUntil = 0; fx.push({ t: 'skill', s: 'empHit', from: p.id, x: m.x, y: m.y, quiet: true }); }
     damageMonster(p, m, p.dmg * (empowered ? 2 : 1), { crit: Math.random() < 0.15, proj: p.hero.projectile, basic: true });
+    // Ресурс, который копится от ударов (ярость Вебранда)
+    p.lastHit = now;
+    if (p.hero.resource.perHit) { p.res = Math.min(p.resMax, p.res + p.hero.resource.perHit); markDirty(p); }
   });
 
   // Уникальное умение героя
@@ -460,12 +464,15 @@ setInterval(() => {
         moveEntity(m, (dx / d) * s, (dy / d) * s);
       } else if (now - m.lastAttack > C.MONSTER_ATTACK_CD) {
         m.lastAttack = now;
-        const dmg = Math.round(def.dmg * (0.8 + Math.random() * 0.4));
+        // Рёв ярости Вебранда ослабляет урон монстра
+        const dmg = Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1));
         target.hp -= dmg;
         target.lastHurt = now;
         fx.push({ t: 'hit', kind: 'p', target: target.id, dmg, from: m.id });
         const ps = passiveOf(target);
         if (ps && ps.onHurt && target.hp > 0) ps.onHurt(skillCtx, target, dmg, m);
+        // Пассивка может спасти от смерти (Вебранд)
+        if (target.hp <= 0 && ps && ps.onLethal) ps.onLethal(skillCtx, target);
         if (target.hp <= 0) {
           target.hp = 0;
           target.dead = true;
@@ -477,6 +484,7 @@ setInterval(() => {
             victim.dead = false;
             victim.hp = victim.maxHp;
             victim.res = startRes(victim);
+            victim.cheatUsed = false;
             markDirty(victim);
             victim.x = world.spawn.x; victim.y = world.spawn.y;
             victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });
@@ -512,11 +520,14 @@ setInterval(() => {
       p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.04 * dt);
       if (Math.ceil(before) !== Math.ceil(p.hp)) markDirty(p);
     }
-    if (p.res < p.resMax) {
-      const before = p.res;
-      p.res = Math.min(p.resMax, p.res + p.hero.resource.regen * dt);
-      if (Math.floor(before) !== Math.floor(p.res)) markDirty(p);
-    }
+    const rs = p.hero.resource;
+    const before = p.res;
+    if (rs.decay && now - Math.max(p.lastHit, p.lastHurt) > 5000) p.res = Math.max(0, p.res - rs.decay * dt);
+    else if (p.res < p.resMax) p.res = Math.min(p.resMax, p.res + rs.regen * dt);
+    if (Math.floor(before) !== Math.floor(p.res)) markDirty(p);
+    const ps = passiveOf(p);
+    if (ps && ps.onTick) ps.onTick(p, now);
+    if (ps && ps.dmgMult && p.hp < p.maxHp) markDirty(p); // бонус зависит от здоровья
     if (p.dirty && now - p.lastStats >= 250) {
       p.dirty = false;
       p.lastStats = now;
@@ -528,7 +539,7 @@ setInterval(() => {
   const state = {
     p: [...players.values()].map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
     m: [...monsters.values()].map((m) => ({ id: m.id, type: m.type, x: Math.round(m.x), y: Math.round(m.y),
-      hp: Math.ceil(m.hp), maxHp: m.maxHp })),
+      hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0 })),
     fx,
   };
   io.emit('state', state);

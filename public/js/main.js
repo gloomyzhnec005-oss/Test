@@ -86,7 +86,7 @@
     $('gold').textContent = s.gold;
     $('kills').textContent = s.kills;
     $('dmg').textContent = s.dmg;
-    if (passiveDef) $('passive').textContent = `${passiveDef.icon} +${s.bonusDmg}% урона · +${s.bonusSpd}% скорости атаки`;
+    if (passiveDef) $('passive').textContent = `${passiveDef.icon} +${s.bonusDmg}% урона · +${s.bonusSpd}% скор.${s.passiveNote ? ' · ' + s.passiveNote : ''}`;
   }
 
   let minimapBase = null;

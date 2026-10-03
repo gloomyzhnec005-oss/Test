@@ -67,6 +67,12 @@ window.Gfx = (() => {
       rect(ctx, 25, 2, 2, 27, '#3a2a1a');
       ctx.fillStyle = '#cfd6e0'; ctx.beginPath(); ctx.moveTo(26, 2); ctx.quadraticCurveTo(14, 0, 9, 8); ctx.lineTo(13, 6); ctx.quadraticCurveTo(20, 3, 26, 5); ctx.fill();
     }
+    if (L.weapon === 'greatsword') {
+      // Тяжёлый двуручный меч за спиной/в руке
+      rect(ctx, 23, 0, 5, 22, '#9aa3ad'); rect(ctx, 24, 0, 2, 22, '#d6dde6'); rect(ctx, 23, 0, 5, 1, '#6b7380');
+      rect(ctx, 20, 21, 11, 2, '#5a3a1a'); rect(ctx, 24, 23, 3, 6, '#3a2a1a');
+      rect(ctx, 23, 8, 5, 2, '#8a1a10'); // кровь на клинке
+    }
     if (L.weapon === 'pole') { rect(ctx, 26, 1, 2, 30, '#8a5a2a'); rect(ctx, 26, 1, 2, 2, '#c9a64d'); rect(ctx, 26, 29, 2, 2, '#c9a64d'); }
     if (L.weapon === 'axe') {
       rect(ctx, 25, 3, 2, 22, '#6b4423');
@@ -111,6 +117,12 @@ window.Gfx = (() => {
         ctx.strokeStyle = L.headColor; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.ellipse(16, 2.5, 6, 1.8, 0, 0, Math.PI * 2); ctx.stroke();
         break;
+      case 'wild':
+        // Растрёпанные волосы, боевая раскраска
+        rect(ctx, 10, 2, 12, 4, L.hair); rect(ctx, 9, 4, 3, 11, L.hair); rect(ctx, 20, 4, 3, 9, L.hair);
+        rect(ctx, 11, 1, 2, 2, L.hair); rect(ctx, 16, 0, 2, 3, L.hair); rect(ctx, 19, 1, 2, 2, L.hair);
+        if (L.paint) rect(ctx, 12, 8, 9, 1, L.paint);
+        break;
       case 'monk':
         // Бритая голова с пучком на макушке
         rect(ctx, 11, 4, 10, 2, L.skin);
@@ -143,7 +155,14 @@ window.Gfx = (() => {
         rect(ctx, 6, 15, 2, 7, '#c9d1e0'); rect(ctx, 5, 21, 4, 2, L.trim);
         break;
     }
+    if (L.fur) { rect(ctx, 8, 13, 16, 3, L.fur); rect(ctx, 9, 12, 3, 2, L.fur); rect(ctx, 20, 12, 3, 2, L.fur); } // меховой ворот
     if (L.beads) for (let i = 0; i < 5; i++) rect(ctx, 10 + i * 3, 14 + (i % 2), 2, 2, L.beads); // чётки
+    if (L.weapon === 'greatsword') {
+      // Тяжёлый двуручный меч за спиной/в руке
+      rect(ctx, 23, 0, 5, 22, '#9aa3ad'); rect(ctx, 24, 0, 2, 22, '#d6dde6'); rect(ctx, 23, 0, 5, 1, '#6b7380');
+      rect(ctx, 20, 21, 11, 2, '#5a3a1a'); rect(ctx, 24, 23, 3, 6, '#3a2a1a');
+      rect(ctx, 23, 8, 5, 2, '#8a1a10'); // кровь на клинке
+    }
     if (L.weapon === 'pole') { rect(ctx, 23, 17, 3, 3, L.skin); rect(ctx, 6, 17, 3, 3, L.skin); } // кулаки
     if (L.offhand === 'shield') { rect(ctx, 4, 14, 7, 10, '#7a5230'); rect(ctx, 5, 15, 5, 8, L.trim); rect(ctx, 7, 16, 1, 6, '#7a5230'); }
     return c;
@@ -203,6 +222,8 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'stone') {
+      circle(ctx, 8, 8, 6, '#6e6a66'); circle(ctx, 7, 7, 4, '#8f8a84'); rect(ctx, 5, 5, 2, 2, '#b0aaa2');
     } else if (kind === 'holy') {
       circle(ctx, 8, 8, 7, 'rgba(255,240,150,.45)'); circle(ctx, 8, 8, 4, '#fff6c0'); rect(ctx, 7, 3, 2, 10, '#fff'); rect(ctx, 3, 7, 10, 2, '#fff');
     } else if (kind === 'nature') {

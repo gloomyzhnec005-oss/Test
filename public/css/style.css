@@ -53,7 +53,8 @@ html, body {
 .hp-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; white-space: nowrap; }
 .hp-row b { color: #fff3d0; overflow: hidden; text-overflow: ellipsis; }
 .hp-key { width: 28px; flex: none; color: #b39b6e; font-size: 11px; }
-.hp-class { margin-left: 2px; color: #ffcc66; overflow: hidden; text-overflow: ellipsis; }
+.hp-row b { flex: none; }
+.hp-class { margin-left: 2px; color: #ffcc66; font-size: 11px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .hp-rarity { margin-left: 4px; font-size: 11px; }
 .l2-bar { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .l2-track { position: relative; flex: 1; height: 13px; background: #0a0807; border: 1px solid #4a3b26; overflow: hidden; }
@@ -247,7 +248,7 @@ html, body {
   position: absolute; left: 50%; top: -15px; transform: translateX(-50%); white-space: nowrap;
   font-size: 9px; font-style: normal; color: #ffe08a; text-shadow: 0 0 3px #000; pointer-events: none;
 }
-.passive { margin-top: 4px; font-size: 10px; color: #7fe6dc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.passive { margin-top: 4px; font-size: 10px; line-height: 1.25; color: #7fe6dc; }
 .hud-toast {
   position: absolute; left: 50%; bottom: 210px; transform: translateX(-50%); padding: 6px 12px; border-radius: 8px;
   background: rgba(0,0,0,.7); color: #ffb08a; font-size: 13px; pointer-events: none !important;
