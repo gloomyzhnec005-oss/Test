@@ -148,6 +148,11 @@ window.Gfx = (() => {
         rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
         rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
         break;
+      case 'bandana':
+        // Рыжий хвост и тёмная повязка на голове
+        rect(ctx, 10, 3, 12, 3, L.headColor); rect(ctx, 21, 4, 3, 2, L.headColor); rect(ctx, 23, 6, 2, 2, L.headColor);
+        rect(ctx, 10, 6, 2, 4, L.hair); rect(ctx, 6, 5, 4, 3, L.hair); rect(ctx, 5, 8, 3, 6, L.hair); // хвост
+        break;
       case 'deathHelm':
         // Закрытый шлем рыцаря смерти с рогами и светящимися глазами
         rect(ctx, 10, 3, 12, 12, L.headColor); rect(ctx, 11, 4, 10, 1, '#5a6460');

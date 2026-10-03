@@ -140,8 +140,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.c.add(e.bubble);
         this.tweens.add({ targets: e.bubble, alpha: 0.6, duration: 500, yoyo: true, repeat: -1 });
       } else if (!p.sh && e.bubble) { e.bubble.destroy(); e.bubble = null; }
-      // Дымовая завеса: полупрозрачность
-      e.sprite.setAlpha(p.smoke ? 0.45 : 1);
+      // Дымовая завеса — полупрозрачность; невидимость (Кассиан) — почти не видно чужим
+      e.sprite.setAlpha(p.stealth ? (p.id === this.myId ? 0.35 : 0.1) : p.smoke ? 0.45 : 1);
+      e.label.setAlpha(p.stealth && p.id !== this.myId ? 0.1 : 1);
       // Щит «Зова стаи»
       if (p.guard && !e.guard) {
         e.guard = this.add.circle(0, 2, 19).setStrokeStyle(2, 0x8ad3ff, 0.9).setFillStyle(0x8ad3ff, 0.12);
@@ -174,7 +175,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
-      const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '');
+      const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '')
+        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -494,6 +496,35 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.burst(f.x, f.y, 0xff7ab0, 8);
         break;
       }
+      case 'exposeStrike':
+        this.ring(f.x, f.y, 26, 0xffde3a, 350, 4);
+        this.floatText(f.x, f.y - 44, 'Уязвимость!', '#ffde3a', 13);
+        break;
+      case 'poisonBlade':
+        this.burst(f.x, f.y, 0x7ad84a, 14);
+        this.floatText(f.x, f.y - 40, '🧪 Яд', '#9aff6a', 12);
+        break;
+      case 'weakSpots':
+        if (f.from === this.myId) for (const id of f.ids || []) {
+          const m = this.monsters.get(id);
+          if (m) this.ring(m.c.x, m.c.y, 18, 0xffde3a, 500, 2);
+        }
+        break;
+      case 'shadowStrike':
+        this.burst(f.x, f.y, f.lethal ? 0xff2040 : 0x6a1a2a, f.lethal ? 26 : 12);
+        this.floatText(f.x, f.y - 44, f.lethal ? 'Смертельный удар!' : 'Из тени!', f.lethal ? '#ff4050' : '#d8a0a8', f.lethal ? 15 : 12);
+        if (f.lethal) this.cameras.main.shake(140, 0.006);
+        break;
+      case 'shadowCloak':
+        for (let i = 0; i < 10; i++) {
+          const puff = this.add.circle(f.x + (Math.random() - 0.5) * 40, f.y + (Math.random() - 0.5) * 24, 8, 0x1a1a22, 0.7).setDepth(900);
+          this.tweens.add({ targets: puff, scale: 2, alpha: 0, duration: 700 + Math.random() * 400, onComplete: () => puff.destroy() });
+        }
+        break;
+      case 'execution':
+        this.floatText(f.x, f.y - 46, f.ok ? 'КАЗНЬ!' : 'Не добит', f.ok ? '#ff3040' : '#c8b8b8', f.ok ? 17 : 11);
+        if (f.ok) { this.ring(f.x, f.y, 34, 0xff3040, 450, 5); this.cameras.main.shake(120, 0.006); }
+        break;
       case 'lifeSteal':
         for (let i = 0; i < 8; i++) {
           const o = this.add.image(f.fx, f.fy, 'proj_shadow').setDepth(850).setScale(0.6).setTint(0xff4060);

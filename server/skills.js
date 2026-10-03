@@ -345,6 +345,73 @@ const SKILLS = {
     ctx.pushFx({ t: 'skill', s: 'vow', from: p.id, x: p.x, y: p.y, ally: ally.id, ax: ally.x, ay: ally.y });
     return null;
   },
+
+  // Кира: удар в уязвимость — гарантированный крит и пробитая защита
+  exposeStrike(ctx, p, t, now) {
+    if (!t) return 'Нет цели рядом';
+    t.brokenUntil = now + 6000;
+    ctx.pushFx({ t: 'skill', s: 'exposeStrike', from: p.id, x: t.x, y: t.y });
+    ctx.damageMonster(p, t, p.dmg * 1.4, { crit: true });
+    return null;
+  },
+
+  // Кира: дымовая шашка — уклонение, потеря агрессии, следующая атака критическая
+  smokeBomb(ctx, p, _t, now) {
+    p.dodgeUntil = now + 5000;
+    p.dodgeChance = 0.6;
+    p.nextCritUntil = now + 8000;
+    for (const m of ctx.monsters.values()) if (m.target === p.id) { m.target = null; m.ignoreUntil = now + 2500; m.ignoreId = p.id; }
+    ctx.pushFx({ t: 'skill', s: 'smokeScreen', from: p.id, x: p.x, y: p.y, dur: 5000 });
+    return null;
+  },
+
+  // Кира: отравленный клинок — урон, яд и замедление
+  poisonBlade(ctx, p, t, now) {
+    if (!t) return 'Нет цели рядом';
+    ctx.pushFx({ t: 'skill', s: 'poisonBlade', from: p.id, x: t.x, y: t.y });
+    t.slowUntil = Math.max(t.slowUntil || 0, now + 6000);
+    t.poisonUntil = now + 6000;
+    t.dots = (t.dots || []).concat({ until: now + 6000, dps: p.dmg * 0.45, by: p.id });
+    ctx.damageMonster(p, t, p.dmg);
+    return null;
+  },
+
+  // Кассиан: удар из тени — множитель зависит от невидимости и того, заметил ли его монстр
+  shadowStrike(ctx, p, t, now) {
+    if (!t) return 'Нет цели рядом';
+    const hidden = p.stealthUntil > now;
+    const unaware = t.target !== p.id;
+    const reap = 1 + 0.2 * (p.reapStacks || 0);
+    p.reapStacks = 0;
+    const lethal = hidden && unaware;
+    ctx.pushFx({ t: 'skill', s: 'shadowStrike', from: p.id, x: t.x, y: t.y, lethal });
+    if (lethal && !t.boss) ctx.damageMonster(p, t, t.hp + 1, { fixed: true, crit: true });
+    else ctx.damageMonster(p, t, p.dmg * (lethal ? 6 : hidden || unaware ? 4 : 2) * reap, { crit: hidden || unaware });
+    return null;
+  },
+
+  // Кассиан: плащ тени — невидимость, монстры теряют его
+  shadowCloak(ctx, p, _t, now) {
+    p.stealthUntil = now + 6000;
+    for (const m of ctx.monsters.values()) if (m.target === p.id) m.target = null;
+    ctx.pushFx({ t: 'skill', s: 'shadowCloak', from: p.id, x: p.x, y: p.y });
+    return null;
+  },
+
+  // Кассиан: казнь — добивает раненого монстра, при успехе без перезарядки
+  execution(ctx, p, t) {
+    if (!t) return 'Нет цели рядом';
+    const threshold = t.boss ? 0.15 : 0.3;
+    if (t.hp / t.maxHp < threshold) {
+      ctx.pushFx({ t: 'skill', s: 'execution', from: p.id, x: t.x, y: t.y, ok: true });
+      ctx.damageMonster(p, t, t.hp + 1, { fixed: true, crit: true });
+      p.skillNoCd = true; // успешная казнь — навык сразу готов снова
+    } else {
+      ctx.pushFx({ t: 'skill', s: 'execution', from: p.id, x: t.x, y: t.y, ok: false });
+      ctx.damageMonster(p, t, p.dmg * 1.5);
+    }
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -478,12 +545,37 @@ const PASSIVES = {
     onTick(p, now) { if (p.bulwark && now - p.lastHurt > 5000) { p.bulwark = 0; p.dirty = true; } },
     note: (p) => `защита +${3 * (p.bulwark || 0)}% · щит ${Date.now() >= (p.autoShieldAt || 0) ? 'готов' : 'через ' + Math.ceil(((p.autoShieldAt || 0) - Date.now()) / 1000) + ' с'}`,
   },
+
+  // Кира: чутьё на слабости — периодически подсвечивает уязвимые точки; убийства ускоряют навыки
+  keenEye: {
+    targetMult: (p, m) => (m.weakSpotBy === p.id && m.weakSpotUntil > Date.now() ? 1.5 : 1),
+    onTick(p, now, ctx) {
+      if (now < (p.nextWeakScan || 0)) return;
+      p.nextWeakScan = now + 6000;
+      const near = [...ctx.monsters.values()]
+        .map((m) => [m, Math.hypot(m.x - p.x, m.y - p.y)]).filter(([, d]) => d < 250)
+        .sort((a, b) => a[1] - b[1]).slice(0, 3);
+      for (const [m] of near) { m.weakSpotBy = p.id; m.weakSpotUntil = now + 4000; }
+      if (near.length) ctx.pushFx({ t: 'skill', s: 'weakSpots', from: p.id, x: p.x, y: p.y, quiet: true, ids: near.map(([m]) => m.id) });
+    },
+    onKill(ctx, p, now) {
+      for (const id of Object.keys(p.skillReadyAt)) p.skillReadyAt[id] = Math.max(now, p.skillReadyAt[id] - 1000);
+      ctx.syncCooldowns(p, now);
+    },
+  },
+
+  // Кассиан: жнец — удары в спину и по не заметившему монстру сильнее; убийства заряжают «Удар из тени»
+  reaper: {
+    targetMult: (p, m) => (m.target !== p.id || (m.face && Math.sign(p.x - m.x) === -m.face) ? 1.5 : 1),
+    onKill(ctx, p) { p.reapStacks = Math.min(5, (p.reapStacks || 0) + 1); p.dirty = true; },
+    note: (p) => `жатва ${p.reapStacks || 0}/5${p.stealthUntil > Date.now() ? ' · в тени' : ''}`,
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

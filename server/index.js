@@ -232,7 +232,7 @@ function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
-    sh: p.shieldUntil > Date.now() && p.shieldHp > 0, vow: p.vowUntil > Date.now() ? p.vowBy : null,
+    sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(), vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -249,9 +249,13 @@ const markDirty = (p) => { p.dirty = true; };
 // Урон монстру с учётом разброса и усилений; возвращает нанесённый урон
 function damageMonster(p, m, raw, opt = {}) {
   if (!monsters.has(m.id) || m.hp <= 0) return 0;
-  const crit = opt.crit ?? false;
+  let crit = opt.crit ?? false;
   const ps = passiveOf(p);
-  const tMult = ps && ps.targetMult ? ps.targetMult(p, m) : 1; // бонус против конкретной цели (Найри)
+  const now0 = Date.now();
+  // Бонус против конкретной цели (пассивки) и пробитая защита монстра (Кира)
+  const tMult = (ps && ps.targetMult ? ps.targetMult(p, m) : 1) * (m.brokenUntil > now0 ? 1.25 : 1);
+  // Следующая атака из дыма — критическая (Кира)
+  if (opt.basic && p.nextCritUntil > now0) { crit = true; p.nextCritUntil = 0; }
   // fixed — урон без множителей (отражённый урон Малакора)
   const dmg = opt.fixed ? Math.max(1, Math.round(raw))
     : Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
@@ -333,7 +337,7 @@ function removePet(pet) {
 // Урон по игроку от монстра: уклонение, защитные эффекты, обет защиты, барьер, пассивки, смерть
 function hurtPlayer(target, raw, m, now, viaVow = false) {
   // Уклонение в дыму (Найри)
-  if (target.dodgeUntil > now && Math.random() < 0.5) { fx.push({ t: 'dodge', target: target.id }); return; }
+  if (target.dodgeUntil > now && Math.random() < (target.dodgeChance || 0.5)) { fx.push({ t: 'dodge', target: target.id }); return; }
   const ps = passiveOf(target);
   // Множители входящего урона: «в ущерб защите» (Вайалд), «Зов стаи» (Урсус), пассивки (Брендан)
   let dmg = raw * (target.hero.dmgTaken || 1) * (target.packUntil > now ? 0.65 : 1) * (ps && ps.dmgTakenMult ? ps.dmgTakenMult(target) : 1);
@@ -485,6 +489,7 @@ io.on('connection', (socket) => {
     if (Math.hypot(m.x - p.x, m.y - p.y) > p.hero.range + 20) return;
     p.lastAttack = now;
     p.dir = m.x < p.x ? -1 : 1;
+    p.stealthUntil = 0; // атака выводит из тени
     // Усиленная атака после «Дыхания гармонии»
     const empowered = p.empoweredUntil > now;
     if (empowered) { p.empoweredUntil = 0; fx.push({ t: 'skill', s: 'empHit', from: p.id, x: m.x, y: m.y, quiet: true }); }
@@ -523,11 +528,15 @@ io.on('connection', (socket) => {
     const err = SKILLS[sk.id](skillCtx, p, target, now);
     p.castPower = 1;
     if (err) return fail(err);
+    if (sk.id !== 'shadowCloak') p.stealthUntil = 0; // навык выводит из тени
     if (!cast.free) p.res -= sk.cost;
     if (hpCost) { p.hp -= hpCost; p.lastHurt = now; fx.push({ t: 'hit', kind: 'p', target: p.id, dmg: Math.round(hpCost), from: null }); }
     if (ps && ps.afterCast) ps.afterCast(skillCtx, p, cast.free);
-    p.skillReadyAt[sk.id] = now + sk.cooldown;
-    socket.emit('skillUsed', { id: sk.id, cooldown: sk.cooldown });
+    // Успешная казнь (Кассиан) не уходит на перезарядку
+    const cd = p.skillNoCd ? 0 : sk.cooldown;
+    p.skillNoCd = false;
+    p.skillReadyAt[sk.id] = now + cd;
+    socket.emit('skillUsed', { id: sk.id, cooldown: cd });
     markDirty(p);
   });
 
@@ -577,12 +586,13 @@ setInterval(() => {
     const taunter = m.tauntUntil > now ? players.get(m.tauntBy) : null;
     if (taunter && !taunter.dead) m.target = taunter.id;
     let target = m.target ? players.get(m.target) || pets.get(m.target) : null;
-    if (target && (target.dead || target.down || Math.hypot(target.x - m.x, target.y - m.y) > def.aggro * 1.8)) target = null;
+    if (target && (target.dead || target.down || target.stealthUntil > now || Math.hypot(target.x - m.x, target.y - m.y) > def.aggro * 1.8)) target = null;
     if (!target) {
       let best = null, bestD = def.aggro;
       for (const p of players.values()) {
         if (p.dead) continue;
         if (m.ignoreUntil > now && m.ignoreId === p.id) continue; // потерял из виду (дымовая завеса)
+        if (p.stealthUntil > now) continue; // невидимость (Кассиан)
         const d = Math.hypot(p.x - m.x, p.y - m.y);
         if (d < bestD) { best = p; bestD = d; }
       }
@@ -600,7 +610,8 @@ setInterval(() => {
       const d = Math.hypot(dx, dy);
       if (d > C.MONSTER_ATTACK_RANGE) {
         if (rooted) continue;
-        const s = def.speed * dt * (m.slowUntil > now ? 0.6 : 1); // замедление (осквернённая земля)
+        const s = def.speed * dt * (m.slowUntil > now ? 0.6 : 1); // замедление (осквернённая земля, яд)
+        if (Math.abs(dx) > 2) m.face = Math.sign(dx); // куда смотрит монстр (удар в спину)
         moveEntity(m, (dx / d) * s, (dy / d) * s);
       } else if (now - m.lastAttack > C.MONSTER_ATTACK_CD) {
         m.lastAttack = now;
@@ -642,7 +653,7 @@ setInterval(() => {
     else if (p.res < p.resMax) p.res = Math.min(p.resMax, p.res + rs.regen * dt);
     if (Math.floor(before) !== Math.floor(p.res)) markDirty(p);
     const ps = passiveOf(p);
-    if (ps && ps.onTick) ps.onTick(p, now);
+    if (ps && ps.onTick) ps.onTick(p, now, skillCtx);
     if (ps && ps.dmgMult && p.hp < p.maxHp) markDirty(p); // бонус зависит от здоровья
     if (p.dirty && now - p.lastStats >= 250) {
       p.dirty = false;
@@ -669,7 +680,8 @@ setInterval(() => {
     m: [...monsters.values()].map((m) => ({ id: m.id, type: m.type, x: Math.round(m.x), y: Math.round(m.y),
       hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
       mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0,
-      sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0 })),
+      sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
+      ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0 })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
