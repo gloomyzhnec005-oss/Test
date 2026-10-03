@@ -4,7 +4,7 @@
 window.Lobby = (() => {
   const $ = (id) => document.getElementById(id);
   const BACK_SLOTS = [3, 4, 5, 6];
-  const RES_KEYS = { 'Мана': 'MP', 'Энергия': 'EP', 'Ярость': 'RP', 'Ци': 'Ци' };
+  const RES_KEYS = { 'Мана': 'MP', 'Энергия': 'EP', 'Ярость': 'RP', 'Ци': 'Ци', 'Безумие': 'BP' };
 
   let opts, heroes = {}, rarities = {}, backgrounds = [];
   let profile = { heroes: [], chars: {}, bgs: ['throne', 'forest'], freeSpin: true, paidSpins: 0, spinPrice: 25 };
@@ -231,14 +231,18 @@ window.Lobby = (() => {
   function gachaSheet() {
     const box = document.createElement('div');
     box.className = 'gacha';
-    const total = Object.values(rarities).reduce((s, r) => s + r.weight, 0);
-    const chances = Object.values(rarities)
-      .map((r) => `<span style="color:${r.color}">${r.name} ${Math.round((100 * r.weight) / total)}%</span>`).join(' · ');
+    // Реальные шансы: сумма весов ещё не полученных героев каждой редкости
+    const pool = Object.keys(heroes).filter((id) => !profile.heroes.includes(id));
+    const total = pool.reduce((s, id) => s + rarityOf(id).weight, 0);
+    const chances = Object.entries(rarities)
+      .map(([key, r]) => [r, pool.filter((id) => heroes[id].rarity === key).reduce((s, id) => s + r.weight, 0)])
+      .filter(([, w]) => w > 0)
+      .map(([r, w]) => `<span style="color:${r.color}">${r.name} ${Math.round((100 * w) / total)}%</span>`).join(' · ');
     const [label, disabled] = spinLabel();
     box.innerHTML = `
       <div class="reel-wrap"><div class="reel-marker"></div><div id="reel" class="reel"></div></div>
       <button id="spinBtn" class="l2-btn spin-btn" ${disabled ? 'disabled' : ''}>${label}</button>
-      <p class="sheet-hint">Каждый герой уникален: своё имя, оружие и умение. Повторов нет — выпадают только новые герои.</p>
+      <p class="sheet-hint">Каждый герой уникален: своё имя, оружие и умения. Повторов нет — выпадают только новые герои. Шансы — для героев, которых у вас ещё нет.</p>
       <p class="chances">${chances}</p>
       <div class="sheet-sub">Все герои · получено ${profile.heroes.length} из ${Object.keys(heroes).length}</div>
       <div class="hero-grid"></div>`;
@@ -359,7 +363,7 @@ window.Lobby = (() => {
       <p class="reveal-desc">${h.desc}</p>
       ${h.style ? `<p class="reveal-style"><b>Стиль боя:</b> ${h.style}</p>` : ''}
       ${h.skills.map((sk) => `<div class="reveal-skill"><span>${sk.icon}</span><div><b>${sk.name}</b>
-        <small>${sk.cost} ${h.resource.name.toLowerCase()} · перезарядка ${sk.cooldown / 1000} с</small>
+        <small>${sk.hpCost ? `${Math.round(sk.hpCost * 100)}% здоровья` : `${sk.cost} ${h.resource.name.toLowerCase()}`} · перезарядка ${sk.cooldown / 1000} с</small>
         <p>${sk.desc}</p></div></div>`).join('')}
       ${h.passive ? `<div class="reveal-skill passive-skill"><span>${h.passive.icon}</span><div><b>${h.passive.name}</b>
         <small>Пассивный навык</small><p>${h.passive.desc}</p></div></div>` : ''}

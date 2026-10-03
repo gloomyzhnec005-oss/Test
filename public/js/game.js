@@ -30,7 +30,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
     Object.entries(this.heroes).forEach(([k, h]) => addTex('hero_' + k, Gfx.hero(h.look)));
     Object.keys(this.monsterDefs).forEach((k) => addTex('mon_' + k, Gfx.monster(k)));
     addTex('proj_fireball', Gfx.projectile('fireball'));
-    ['arrow', 'holy', 'nature', 'dark', 'stone'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    addTex('totem', Gfx.totem());
+    this.totems = new Map();
+    ['arrow', 'holy', 'nature', 'dark', 'stone', 'spirit'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -178,6 +180,19 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
     }
 
+    // Тотемы
+    const seenT = new Set();
+    for (const t of s.t || []) {
+      seenT.add(t.id);
+      if (!this.totems.has(t.id)) {
+        const area = this.add.circle(t.x, t.y, t.r, 0x3fe08a, 0.08).setStrokeStyle(2, 0x3fe08a, 0.5).setDepth(1).setScale(1, 0.5);
+        const img = this.add.image(t.x, t.y, 'totem').setOrigin(0.5, 0.95).setDepth(10 + t.y);
+        this.tweens.add({ targets: area, alpha: 0.4, duration: 500, yoyo: true, repeat: -1 });
+        this.totems.set(t.id, { area, img });
+      }
+    }
+    for (const [id, o] of this.totems) if (!seenT.has(id)) { o.area.destroy(); o.img.destroy(); this.totems.delete(id); }
+
     for (const f of s.fx) this.playFx(f);
     this.ui.onWorld(s, this.myId);
   }
@@ -206,7 +221,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const x = tgt ? tgt.c.x : f.tx, y = tgt ? tgt.c.y : f.ty;
         this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
-        const col = { fireball: 0xff8c1a, holy: 0xfff0a0, nature: 0x7fe08a, dark: 0xb060ff }[f.proj] || 0xff4040;
+        const col = { fireball: 0xff8c1a, holy: 0xfff0a0, nature: 0x7fe08a, dark: 0xb060ff, spirit: 0x9ff0ff }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
       const attacker = this.players.get(f.from);
@@ -386,6 +401,66 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.ring(f.x, f.y, 60, 0xffcc4d, 700, 6);
         this.burst(f.x, f.y, 0xffcc4d, 26);
         if (f.from === this.myId) { this.cameras.main.flash(250, 255, 200, 80); this.ui.vibrate('heavy'); }
+        break;
+      case 'twinSlash':
+        for (let i = 0; i < 4; i++) {
+          this.time.delayedCall(i * 110, () => {
+            const sl = this.add.rectangle(f.x, f.y, 34, 3, i % 2 ? 0xffffff : 0xff4060).setRotation(i % 2 ? 0.8 : -0.8).setDepth(850);
+            this.tweens.add({ targets: sl, scaleX: 1.6, alpha: 0, duration: 160, onComplete: () => sl.destroy() });
+          });
+        }
+        break;
+      case 'bloodFrenzy':
+        this.ring(f.x, f.y, 45, 0xc01a3a, 500, 5);
+        this.burst(f.x, f.y, 0xc01a3a, 22);
+        this.floatText(f.x, f.y - 56, 'БЕЗУМИЕ!', '#ff4060', 15);
+        break;
+      case 'blindRage': {
+        // Кровавый шлейф рывка
+        const line = this.add.line(0, 0, f.fx, f.fy, f.x, f.y, 0xc01a3a, 0.8).setOrigin(0, 0).setLineWidth(8).setDepth(840);
+        this.tweens.add({ targets: line, alpha: 0, duration: 400, onComplete: () => line.destroy() });
+        for (let i = 0; i <= 5; i++) this.burst(f.fx + (f.x - f.fx) * i / 5, f.fy + (f.y - f.fy) * i / 5, 0xc01a3a, 4);
+        if (f.from === this.myId && this.me) { this.me.x = f.x; this.me.y = f.y; }
+        break;
+      }
+      case 'spiritWrath':
+        this.ring(f.x, f.y, f.r, 0x9ff0ff, 900, 2);
+        for (let i = 0; i < 3; i++) {
+          this.time.delayedCall(250 + i * 300, () => {
+            for (let k = 0; k < 4; k++) {
+              const x = f.x + (Math.random() - 0.5) * f.r * 1.4, y = f.y + (Math.random() - 0.5) * f.r * 0.8;
+              const sp = this.add.image(x, y - 120, 'proj_spirit').setScale(1.6).setDepth(860).setAlpha(0.2);
+              this.tweens.add({ targets: sp, y, alpha: 1, duration: 260, ease: 'Quad.easeIn', onComplete: () => { this.burst(x, y, 0x9ff0ff, 5); sp.destroy(); } });
+            }
+          });
+        }
+        break;
+      case 'chainLightning': {
+        const g = this.add.graphics().setDepth(870);
+        const pts = [[f.x, f.y], ...f.pts];
+        const draw = () => {
+          g.clear();
+          g.lineStyle(3, 0xd8f4ff, 1);
+          for (let i = 0; i < pts.length - 1; i++) {
+            const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
+            g.beginPath(); g.moveTo(x1, y1);
+            for (let k = 1; k < 5; k++) g.lineTo(x1 + (x2 - x1) * k / 5 + (Math.random() - 0.5) * 14, y1 + (y2 - y1) * k / 5 + (Math.random() - 0.5) * 14);
+            g.lineTo(x2, y2); g.strokePath();
+          }
+        };
+        draw();
+        this.time.addEvent({ delay: 60, repeat: 4, callback: draw });
+        this.time.delayedCall(330, () => g.destroy());
+        f.pts.forEach(([x, y]) => this.burst(x, y, 0xbfe8ff, 6));
+        break;
+      }
+      case 'healTotem':
+        this.ring(f.x, f.y, f.r, 0x3fe08a, 600, 3);
+        this.burst(f.x, f.y, 0x3fe08a, 14);
+        break;
+      case 'favorReady':
+        this.floatText(f.x, f.y - 50, '🌀 Духи благосклонны!', '#9ff0ff', 13);
+        this.ring(f.x, f.y, 40, 0x9ff0ff, 600, 3);
         break;
       case 'drain': {
         for (let i = 0; i < 8; i++) {

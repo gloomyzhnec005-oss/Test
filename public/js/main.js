@@ -86,7 +86,13 @@
     $('gold').textContent = s.gold;
     $('kills').textContent = s.kills;
     $('dmg').textContent = s.dmg;
-    if (passiveDef) $('passive').textContent = `${passiveDef.icon} +${s.bonusDmg}% урона · +${s.bonusSpd}% скор.${s.passiveNote ? ' · ' + s.passiveNote : ''}`;
+    if (passiveDef) {
+      const parts = [];
+      if (s.bonusDmg) parts.push(`+${s.bonusDmg}% урона`);
+      if (s.bonusSpd) parts.push(`+${s.bonusSpd}% скор.`);
+      if (s.passiveNote) parts.push(s.passiveNote);
+      $('passive').textContent = `${passiveDef.icon} ${parts.join(' · ') || passiveDef.name}`;
+    }
   }
 
   let minimapBase = null;

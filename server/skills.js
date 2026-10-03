@@ -1,5 +1,5 @@
 // Уникальные умения героев. Каждое умение — функция (ctx, p, target, now) → строка ошибки или null.
-// ctx: { monsters, players, pushFx, damageMonster, healPlayer, teleport, knockback }
+// ctx: { monsters, players, pushFx, damageMonster, healPlayer, teleport, knockback, isSolidAt, addTotem }
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const inRadius = (ctx, x, y, r) => [...ctx.monsters.values()].filter((m) => Math.hypot(m.x - x, m.y - y) <= r);
 const alive = (ctx, p, m) => ctx.players.has(p.id) && (!m || ctx.monsters.has(m.id));
@@ -162,6 +162,87 @@ const SKILLS = {
     }, flight);
     return null;
   },
+
+  // Вайалд: двойной разрез — четыре быстрых удара по цели
+  twinSlash(ctx, p, t) {
+    if (!t) return 'Нет цели рядом';
+    ctx.pushFx({ t: 'skill', s: 'twinSlash', from: p.id, x: t.x, y: t.y });
+    for (let i = 0; i < 4; i++) {
+      setTimeout(() => { if (alive(ctx, p, t) && !p.dead) ctx.damageMonster(p, t, p.dmg * 0.7); }, i * 110);
+    }
+    return null;
+  },
+
+  // Вайалд: кровавое безумие — здоровье в обмен на урон и скорость (плата здоровьем — hpCost в конфиге)
+  bloodFrenzy(ctx, p, _t, now) {
+    p.frenzyUntil = now + 6000;
+    ctx.pushFx({ t: 'skill', s: 'bloodFrenzy', from: p.id, x: p.x, y: p.y });
+    return null;
+  },
+
+  // Вайалд: слепая ярость — рывок сквозь врагов
+  blindRage(ctx, p, t) {
+    let dx = t ? t.x - p.x : p.dir, dy = t ? t.y - p.y : 0;
+    const d = Math.hypot(dx, dy) || 1;
+    dx /= d; dy /= d;
+    // Рывок до 170 px, останавливается у стены
+    const fromX = p.x, fromY = p.y;
+    let len = 0;
+    while (len < 170 && !ctx.isSolidAt(fromX + dx * (len + 10), fromY + dy * (len + 10))) len += 10;
+    const toX = fromX + dx * len, toY = fromY + dy * len;
+    for (const m of ctx.monsters.values()) {
+      const rx = m.x - fromX, ry = m.y - fromY;
+      const along = rx * dx + ry * dy, across = Math.abs(rx * dy - ry * dx);
+      if (along >= -10 && along <= len + 20 && across <= 36) ctx.damageMonster(p, m, p.dmg * 1.6);
+    }
+    ctx.teleport(p, toX, toY);
+    p.dir = dx < 0 ? -1 : 1;
+    ctx.pushFx({ t: 'skill', s: 'blindRage', from: p.id, fx: fromX, fy: fromY, x: toX, y: toY });
+    return null;
+  },
+
+  // Аламариэль: гнев духов — три удара по области + проклятие
+  spiritWrath(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, r = 100, x = t.x, y = t.y;
+    ctx.pushFx({ t: 'skill', s: 'spiritWrath', from: p.id, x, y, r });
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => {
+        if (!alive(ctx, p)) return;
+        for (const m of inRadius(ctx, x, y, r)) { m.weakUntil = Math.max(m.weakUntil || 0, now + 4000); ctx.damageMonster(p, m, p.dmg * 0.9 * pw); }
+      }, 250 + i * 300);
+    }
+    return null;
+  },
+
+  // Аламариэль: цепь молний — до 5 целей, −15% урона за прыжок
+  chainLightning(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1;
+    const chain = [t];
+    while (chain.length < 5) {
+      const last = chain[chain.length - 1];
+      let next = null, best = 140;
+      for (const m of ctx.monsters.values()) {
+        if (chain.includes(m)) continue;
+        const dd = dist(m, last);
+        if (dd < best) { best = dd; next = m; }
+      }
+      if (!next) break;
+      chain.push(next);
+    }
+    ctx.pushFx({ t: 'skill', s: 'chainLightning', from: p.id, x: p.x, y: p.y, pts: chain.map((m) => [Math.round(m.x), Math.round(m.y)]) });
+    chain.forEach((m, i) => ctx.damageMonster(p, m, p.dmg * 1.8 * pw * Math.pow(0.85, i)));
+    return null;
+  },
+
+  // Аламариэль: тотем исцеления на 8 с
+  healTotem(ctx, p, _t, now) {
+    const pw = p.castPower || 1;
+    const totem = ctx.addTotem({ owner: p.id, x: p.x, y: p.y + 6, r: 140, heal: 0.06 * pw, until: now + 8000 });
+    ctx.pushFx({ t: 'skill', s: 'healTotem', from: p.id, x: totem.x, y: totem.y, r: totem.r });
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -194,12 +275,40 @@ const PASSIVES = {
     },
     note: (p) => (p.cheatUsed ? 'выживание использовано' : 'выживание готово'),
   },
+
+  // Вайалд: жажда крови — убийства лечат, продлевают безумие и дают заряды урона
+  bloodlust: {
+    dmgMult: (p) => 1 + 0.04 * (p.bloodStacks || 0),
+    onKill(ctx, p, now) {
+      ctx.healPlayer(p, p.maxHp * 0.08);
+      if (p.frenzyUntil > now) p.frenzyUntil += 2000;
+      p.bloodStacks = Math.min(10, (p.bloodStacks || 0) + 1);
+      p.lastKill = now;
+    },
+    onTick(p, now) { if (p.bloodStacks && now - p.lastKill > 10000) { p.bloodStacks = 0; p.dirty = true; } },
+    note: (p) => `зарядов крови: ${p.bloodStacks || 0}`,
+  },
+
+  // Аламариэль: связь с духами — благосклонность за навыки; на максимуме навык бесплатный и усиленный
+  spiritBond: {
+    MAX: 4,
+    // Вызывается перед применением навыка: возвращает { free, power }
+    beforeCast(p) {
+      const ready = (p.favor || 0) >= this.MAX;
+      return { free: ready, power: ready ? 1.5 : 1 };
+    },
+    afterCast(ctx, p, boosted) {
+      p.favor = boosted ? 0 : Math.min(this.MAX, (p.favor || 0) + 1);
+      if (p.favor === this.MAX) ctx.pushFx({ t: 'skill', s: 'favorReady', from: p.id, x: p.x, y: p.y, quiet: true });
+    },
+    note(p) { return (p.favor || 0) >= this.MAX ? 'духи готовы: следующий навык усилен!' : `благосклонность ${p.favor || 0}/${this.MAX}`; },
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['arrowRain', 'meteor', 'shadowStep', 'drain', 'enlighten', 'stoneThrow']);
+const NEEDS_TARGET = new Set(['arrowRain', 'meteor', 'shadowStep', 'drain', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения: shadowStep прыгает дальше обычной атаки
-const SKILL_RANGE = { shadowStep: 280, enlighten: 80, qiWave: 170, stoneThrow: 320 };
+const SKILL_RANGE = { shadowStep: 280, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

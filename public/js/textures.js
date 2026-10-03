@@ -73,6 +73,11 @@ window.Gfx = (() => {
       rect(ctx, 20, 21, 11, 2, '#5a3a1a'); rect(ctx, 24, 23, 3, 6, '#3a2a1a');
       rect(ctx, 23, 8, 5, 2, '#8a1a10'); // кровь на клинке
     }
+    if (L.weapon === 'totemStaff') {
+      // Посох с черепом-тотемом и перьями
+      rect(ctx, 25, 5, 2, 25, '#6b4423'); rect(ctx, 23, 1, 6, 5, '#e8e2cc'); rect(ctx, 24, 3, 1, 1, '#222'); rect(ctx, 27, 3, 1, 1, '#222');
+      rect(ctx, 22, 6, 2, 5, '#c0301e'); rect(ctx, 28, 6, 2, 5, '#3a8fd8'); circle(ctx, 26, 8, 1.5, L.gem || '#9ff0ff');
+    }
     if (L.weapon === 'pole') { rect(ctx, 26, 1, 2, 30, '#8a5a2a'); rect(ctx, 26, 1, 2, 2, '#c9a64d'); rect(ctx, 26, 29, 2, 2, '#c9a64d'); }
     if (L.weapon === 'axe') {
       rect(ctx, 25, 3, 2, 22, '#6b4423');
@@ -123,6 +128,20 @@ window.Gfx = (() => {
         rect(ctx, 11, 1, 2, 2, L.hair); rect(ctx, 16, 0, 2, 3, L.hair); rect(ctx, 19, 1, 2, 2, L.hair);
         if (L.paint) rect(ctx, 12, 8, 9, 1, L.paint);
         break;
+      case 'crazed':
+        // Взъерошенные белые волосы, светящиеся глаза
+        rect(ctx, 10, 3, 12, 3, L.hair);
+        [[9, 1], [12, 0], [15, 1], [18, 0], [21, 2]].forEach(([x, y]) => rect(ctx, x, y, 2, 4, L.hair));
+        rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes);
+        ctx.fillStyle = 'rgba(255,30,30,.35)'; ctx.fillRect(12, 7, 8, 4);
+        rect(ctx, 13, 12, 6, 1, '#7a1020'); // оскал
+        break;
+      case 'antlers':
+        // Длинные светлые волосы и рогатый венец из ветвей с перьями
+        rect(ctx, 10, 4, 12, 3, L.hair); rect(ctx, 9, 6, 2, 13, L.hair); rect(ctx, 21, 6, 2, 13, L.hair);
+        rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
+        rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
+        break;
       case 'monk':
         // Бритая голова с пучком на макушке
         rect(ctx, 11, 4, 10, 2, L.skin);
@@ -155,6 +174,13 @@ window.Gfx = (() => {
         rect(ctx, 6, 15, 2, 7, '#c9d1e0'); rect(ctx, 5, 21, 4, 2, L.trim);
         break;
     }
+    if (L.weapon === 'dualBlades') {
+      // Два изогнутых клинка в обеих руках
+      rect(ctx, 24, 9, 2, 13, '#c9d1e0'); rect(ctx, 26, 8, 1, 4, '#c9d1e0'); rect(ctx, 23, 21, 4, 2, '#5a1a1a');
+      rect(ctx, 6, 9, 2, 13, '#c9d1e0'); rect(ctx, 5, 8, 1, 4, '#c9d1e0'); rect(ctx, 5, 21, 4, 2, '#5a1a1a');
+      rect(ctx, 24, 12, 2, 3, '#a01020'); rect(ctx, 6, 14, 2, 3, '#a01020');
+    }
+    if (L.chains) { for (let i = 0; i < 4; i++) rect(ctx, 10 + i * 3, 17 + (i % 2), 2, 1, L.chains); }
     if (L.fur) { rect(ctx, 8, 13, 16, 3, L.fur); rect(ctx, 9, 12, 3, 2, L.fur); rect(ctx, 20, 12, 3, 2, L.fur); } // меховой ворот
     if (L.beads) for (let i = 0; i < 5; i++) rect(ctx, 10 + i * 3, 14 + (i % 2), 2, 2, L.beads); // чётки
     if (L.weapon === 'greatsword') {
@@ -162,6 +188,11 @@ window.Gfx = (() => {
       rect(ctx, 23, 0, 5, 22, '#9aa3ad'); rect(ctx, 24, 0, 2, 22, '#d6dde6'); rect(ctx, 23, 0, 5, 1, '#6b7380');
       rect(ctx, 20, 21, 11, 2, '#5a3a1a'); rect(ctx, 24, 23, 3, 6, '#3a2a1a');
       rect(ctx, 23, 8, 5, 2, '#8a1a10'); // кровь на клинке
+    }
+    if (L.weapon === 'totemStaff') {
+      // Посох с черепом-тотемом и перьями
+      rect(ctx, 25, 5, 2, 25, '#6b4423'); rect(ctx, 23, 1, 6, 5, '#e8e2cc'); rect(ctx, 24, 3, 1, 1, '#222'); rect(ctx, 27, 3, 1, 1, '#222');
+      rect(ctx, 22, 6, 2, 5, '#c0301e'); rect(ctx, 28, 6, 2, 5, '#3a8fd8'); circle(ctx, 26, 8, 1.5, L.gem || '#9ff0ff');
     }
     if (L.weapon === 'pole') { rect(ctx, 23, 17, 3, 3, L.skin); rect(ctx, 6, 17, 3, 3, L.skin); } // кулаки
     if (L.offhand === 'shield') { rect(ctx, 4, 14, 7, 10, '#7a5230'); rect(ctx, 5, 15, 5, 8, L.trim); rect(ctx, 7, 16, 1, 6, '#7a5230'); }
@@ -222,6 +253,8 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'spirit') {
+      circle(ctx, 8, 8, 7, 'rgba(120,230,255,.35)'); circle(ctx, 8, 8, 4, '#bff6ff'); rect(ctx, 6, 7, 1, 1, '#2a6a80'); rect(ctx, 9, 7, 1, 1, '#2a6a80');
     } else if (kind === 'stone') {
       circle(ctx, 8, 8, 6, '#6e6a66'); circle(ctx, 7, 7, 4, '#8f8a84'); rect(ctx, 5, 5, 2, 2, '#b0aaa2');
     } else if (kind === 'holy') {
@@ -236,11 +269,21 @@ window.Gfx = (() => {
     return c;
   }
 
+  // Тотем исцеления (16x28)
+  function totem() {
+    const [c, ctx] = canvas(16, 28);
+    circle(ctx, 8, 26, 6, 'rgba(0,0,0,.3)');
+    rect(ctx, 5, 6, 6, 21, '#7a5230'); rect(ctx, 4, 8, 8, 5, '#a8784a'); rect(ctx, 4, 16, 8, 4, '#a8784a');
+    rect(ctx, 5, 9, 2, 2, '#3fe08a'); rect(ctx, 9, 9, 2, 2, '#3fe08a'); rect(ctx, 6, 17, 4, 1, '#222');
+    rect(ctx, 2, 3, 3, 6, '#3a8fd8'); rect(ctx, 11, 3, 3, 6, '#c0301e'); rect(ctx, 6, 1, 4, 5, '#e8e2cc');
+    return c;
+  }
+
   function particle() {
     const [c, ctx] = canvas(6, 6);
     rect(ctx, 0, 0, 6, 6, '#ffffff');
     return c;
   }
 
-  return { TILE, tileset, hero, monster, projectile, particle };
+  return { TILE, tileset, hero, monster, projectile, particle, totem };
 })();

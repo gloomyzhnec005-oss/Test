@@ -172,11 +172,12 @@ const startRes = (p) => (p.hero.resource.start ?? 1) * p.resMax;
 const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  return (p.rageUntil > now ? 1.6 : 1) * (p.roarUntil > now ? 1.4 : 1) * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
+  return (p.rageUntil > now ? 1.6 : 1) * (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1)
+    * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  const speed = (p.rageUntil > now ? 1.4 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
+  const speed = (p.rageUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
   return Math.round(p.hero.cooldown / speed);
 };
 
@@ -223,7 +224,7 @@ function moveEntity(e, dx, dy) {
 
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
-    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.rageUntil > Date.now() || p.roarUntil > Date.now(),
+    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.rageUntil > Date.now() || p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -251,6 +252,8 @@ function damageMonster(p, m, raw, opt = {}) {
     fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp: def.xp, gold, by: p.id });
     monsters.delete(m.id);
     grantXp(p, def.xp, gold);
+    const ps = passiveOf(p);
+    if (ps && ps.onKill) ps.onKill(skillCtx, p, Date.now());
     if (def.boss) io.emit('chat', { sys: true, text: `${p.name} победил босса «${def.name}»!` });
     setTimeout(() => spawnMonster(), C.MONSTER_RESPAWN_MS);
   }
@@ -273,8 +276,17 @@ function teleport(p, x, y) {
   p.x = x; p.y = y; p.lastMove = Date.now();
   p.socket.emit('correct', { x, y });
 }
+// Тотемы (Аламариэль): лечат союзников рядом раз в секунду
+let totems = [];
+let totemSeq = 1;
+function addTotem(t) {
+  const totem = { id: totemSeq++, next: Date.now() + 1000, ...t };
+  totems.push(totem);
+  return totem;
+}
 const skillCtx = {
-  monsters, players, damageMonster, healPlayer, teleport, knockback,
+  monsters, players, damageMonster, healPlayer, teleport, knockback, addTotem,
+  isSolidAt: (x, y) => world.isSolidAt(x, y),
   pushFx: (f) => fx.push(f),
 };
 
@@ -320,7 +332,7 @@ io.on('connection', (socket) => {
       id: socket.id, uid, name: name.slice(0, 20), heroId, hero, char, socket,
       x: world.spawn.x + (Math.random() - 0.5) * 64, y: world.spawn.y + (Math.random() - 0.5) * 64,
       dir: 1, dead: false, lastAttack: 0, lastHurt: 0, lastMove: Date.now(),
-      skillReadyAt: {}, rageUntil: 0, roarUntil: 0, empoweredUntil: 0, cheatUsed: false, lastHit: 0, dirty: false, lastStats: 0,
+      skillReadyAt: {}, rageUntil: 0, roarUntil: 0, frenzyUntil: 0, bloodStacks: 0, lastKill: 0, favor: 0, empoweredUntil: 0, cheatUsed: false, lastHit: 0, dirty: false, lastStats: 0,
       ...statsFor(heroId, char.level),
     };
     p.hp = p.maxHp;
@@ -383,7 +395,11 @@ io.on('connection', (socket) => {
     const sk = p.hero.skills.find((k) => k.id === d.id) || p.hero.skills[0];
     const fail = (reason) => socket.emit('skillFail', reason);
     if (now < (p.skillReadyAt[sk.id] || 0)) return fail('Умение ещё не готово');
-    if (p.res < sk.cost) return fail(`Не хватает: ${p.hero.resource.name}`);
+    const ps = passiveOf(p);
+    const cast = ps && ps.beforeCast ? ps.beforeCast(p) : { free: false, power: 1 };
+    if (!cast.free && p.res < sk.cost) return fail(`Не хватает: ${p.hero.resource.name}`);
+    const hpCost = sk.hpCost ? p.hp * sk.hpCost : 0;
+    if (hpCost && p.hp - hpCost < 1) return fail('Слишком мало здоровья');
     const range = skillRange(sk.id, p.hero);
     let target = monsters.get(d.targetId);
     if (!target || Math.hypot(target.x - p.x, target.y - p.y) > range) {
@@ -396,9 +412,13 @@ io.on('connection', (socket) => {
     }
     if (NEEDS_TARGET.has(sk.id) && !target) return fail('Нет цели рядом');
     if (target) p.dir = target.x < p.x ? -1 : 1;
+    p.castPower = cast.power;
     const err = SKILLS[sk.id](skillCtx, p, target, now);
+    p.castPower = 1;
     if (err) return fail(err);
-    p.res -= sk.cost;
+    if (!cast.free) p.res -= sk.cost;
+    if (hpCost) { p.hp -= hpCost; p.lastHurt = now; fx.push({ t: 'hit', kind: 'p', target: p.id, dmg: Math.round(hpCost), from: null }); }
+    if (ps && ps.afterCast) ps.afterCast(skillCtx, p, cast.free);
     p.skillReadyAt[sk.id] = now + sk.cooldown;
     socket.emit('skillUsed', { id: sk.id, cooldown: sk.cooldown });
     markDirty(p);
@@ -465,7 +485,7 @@ setInterval(() => {
       } else if (now - m.lastAttack > C.MONSTER_ATTACK_CD) {
         m.lastAttack = now;
         // Рёв ярости Вебранда ослабляет урон монстра
-        const dmg = Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1));
+        const dmg = Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1) * (target.hero.dmgTaken || 1));
         target.hp -= dmg;
         target.lastHurt = now;
         fx.push({ t: 'hit', kind: 'p', target: target.id, dmg, from: m.id });
@@ -535,11 +555,23 @@ setInterval(() => {
     }
   }
 
+  // Тотемы
+  for (const t of totems) {
+    if (now >= t.next && now <= t.until) {
+      t.next += 1000;
+      for (const o of players.values()) {
+        if (!o.dead && Math.hypot(o.x - t.x, o.y - t.y) <= t.r) healPlayer(o, o.maxHp * t.heal);
+      }
+    }
+  }
+  totems = totems.filter((t) => now < t.until);
+
   // Рассылка состояния
   const state = {
     p: [...players.values()].map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
     m: [...monsters.values()].map((m) => ({ id: m.id, type: m.type, x: Math.round(m.x), y: Math.round(m.y),
       hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0 })),
+    t: totems.map((t) => ({ id: t.id, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
     fx,
   };
   io.emit('state', state);
