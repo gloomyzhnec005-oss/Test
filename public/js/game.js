@@ -30,8 +30,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
     Object.entries(this.heroes).forEach(([k, h]) => addTex('hero_' + k, Gfx.hero(h.look)));
     Object.keys(this.monsterDefs).forEach((k) => addTex('mon_' + k, Gfx.monster(k)));
     addTex('totem', Gfx.totem());
+    ['wolf', 'bear', 'hawk'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
-    ['stone', 'spirit'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    this.pets = new Map();
+    ['stone', 'spirit', 'spear'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -132,6 +134,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.c.addAt(e.aura, 0);
         this.tweens.add({ targets: e.aura, scale: 1.25, alpha: 0.5, duration: 300, yoyo: true, repeat: -1 });
       } else if (!p.rage && e.aura) { e.aura.destroy(); e.aura = null; }
+      // Щит «Зова стаи»
+      if (p.guard && !e.guard) {
+        e.guard = this.add.circle(0, 2, 19).setStrokeStyle(2, 0x8ad3ff, 0.9).setFillStyle(0x8ad3ff, 0.12);
+        e.c.addAt(e.guard, 0);
+      } else if (!p.guard && e.guard) { e.guard.destroy(); e.guard = null; }
       // Свечение усиленной атаки (Дыхание гармонии)
       if (p.emp && !e.emp) {
         e.emp = this.add.circle(0, 4, 15).setStrokeStyle(2, 0xffd36a, 0.9);
@@ -179,6 +186,31 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
     }
 
+    // Звери-спутники
+    const seenP = new Set();
+    for (const pt of s.pt || []) {
+      seenP.add(pt.id);
+      let e = this.pets.get(pt.id);
+      if (!e) {
+        const names = { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол' };
+        e = this.makeEntity('pet_' + pt.kind, names[pt.kind], pt.owner === this.myId ? '#c8f0a0' : '#d8d0c0');
+        e.c.setPosition(pt.x, pt.y);
+        e.label.setFontSize(8);
+        e.c.setScale(0.85);
+        this.pets.set(pt.id, e);
+      }
+      if (pt.x !== e.tx) e.sprite.setFlipX(pt.x < e.tx);
+      e.tx = pt.x; e.ty = pt.y; e.data = pt;
+      this.setBar(e, pt.hp, pt.maxHp);
+      e.c.setAlpha(pt.down ? 0.45 : 1);
+      e.label.setText(pt.down ? '💤' : { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол' }[pt.kind]);
+      if (pt.boost && !e.glow) {
+        e.glow = this.add.circle(0, 4, 13).setStrokeStyle(2, 0xff7ab0, 0.9);
+        e.c.addAt(e.glow, 0);
+      } else if (!pt.boost && e.glow) { e.glow.destroy(); e.glow = null; }
+    }
+    for (const [id, e] of this.pets) if (!seenP.has(id)) { e.c.destroy(); this.pets.delete(id); }
+
     // Тотемы
     const seenT = new Set();
     for (const t of s.t || []) {
@@ -223,7 +255,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const col = { spirit: 0x9ff0ff }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
-      const attacker = this.players.get(f.from);
+      const attacker = f.pet ? this.pets.get(f.pet) : this.players.get(f.from);
       if (attacker) this.tweens.add({ targets: attacker.sprite, scaleX: 1.2, scaleY: 0.9, duration: 70, yoyo: true });
       if (!f.basic) {
         doHit();
@@ -260,6 +292,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.floatText(f.x, f.y - 40, `Уровень ${f.lvl}!`, '#ffcc4d', 18);
       this.burst(f.x, f.y, 0xffcc4d, 24);
       if (f.id === this.myId) this.ui.vibrate('success');
+    } else if (f.t === 'hit' && f.kind === 'pet') {
+      const e = this.pets.get(f.target);
+      if (e) { this.floatText(e.c.x, e.c.y - 16, '-' + f.dmg, '#ff9a7a', 11); e.sprite.setTint(0xff6060); this.time.delayedCall(120, () => e.sprite.clearTint()); }
+    } else if (f.t === 'petDown') {
+      this.floatText(f.x, f.y - 26, `${f.name} отступает`, '#d8c8a8', 11);
+    } else if (f.t === 'petUp') {
+      this.floatText(f.x, f.y - 26, `${f.name} вернулся!`, '#c8f0a0', 11);
+      this.burst(f.x, f.y, 0xc8f0a0, 8);
     } else if (f.t === 'skill') {
       this.playSkill(f);
     } else if (f.t === 'heal') {
@@ -404,6 +444,31 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.ring(f.x, f.y, f.r, 0x3fe08a, 600, 3);
         this.burst(f.x, f.y, 0x3fe08a, 14);
         break;
+      case 'sic':
+        this.floatText(f.x, f.y - 36, '❗', '#ff6040', 18);
+        for (const id of f.pets || []) {
+          const e = this.pets.get(id);
+          if (!e) continue;
+          const ln = this.add.line(0, 0, e.c.x, e.c.y, f.x, f.y, 0xff6040, 0.7).setOrigin(0, 0).setLineWidth(2).setDepth(840);
+          this.tweens.add({ targets: ln, alpha: 0, duration: 450, onComplete: () => ln.destroy() });
+        }
+        this.ring(f.x, f.y, 30, 0xff6040, 400, 3);
+        break;
+      case 'packCall':
+        this.ring(f.x, f.y, f.r, 0xc8a46a, 650, 5);
+        this.ring(f.x, f.y, 24, 0x8ad3ff, 500, 3);
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          this.floatText(f.x + Math.cos(a) * f.r * 0.7, f.y + Math.sin(a) * f.r * 0.5, '🐾', '#ffffff', 12);
+        }
+        break;
+      case 'spiritLink': {
+        const ln = this.add.line(0, 0, f.x, f.y, f.fx, f.fy, 0xff7ab0, 0.9).setOrigin(0, 0).setLineWidth(4).setDepth(840);
+        this.tweens.add({ targets: ln, alpha: 0, duration: 700, onComplete: () => ln.destroy() });
+        this.burst(f.fx, f.fy, 0xff7ab0, 14);
+        this.burst(f.x, f.y, 0xff7ab0, 8);
+        break;
+      }
       case 'favorReady':
         this.floatText(f.x, f.y - 50, '🌀 Духи благосклонны!', '#9ff0ff', 13);
         this.ring(f.x, f.y, 40, 0x9ff0ff, 600, 3);
@@ -455,6 +520,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
       e.c.x += (e.tx - e.c.x) * k; e.c.y += (e.ty - e.c.y) * k;
     }
     for (const e of this.monsters.values()) { e.c.x += (e.tx - e.c.x) * k; e.c.y += (e.ty - e.c.y) * k; }
+    for (const e of this.pets.values()) {
+      e.c.x += (e.tx - e.c.x) * k; e.c.y += (e.ty - e.c.y) * k;
+      e.c.setDepth(10 + e.c.y);
+      if (e.data && e.data.kind === 'hawk') e.sprite.y = -10 + Math.sin(time / 180) * 3; // сокол парит
+    }
 
     const me = this.me;
     if (!me) return;

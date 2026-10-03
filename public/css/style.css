@@ -338,3 +338,9 @@ html, body {
 .reveal-style b { color: #ffe0a0; font-weight: normal; }
 .passive-skill { border-style: dashed; border-color: #46d6c8; }
 .passive-skill small { color: #7fe6dc; }
+/* Звери Урсуса в лобби */
+.hero canvas.lobby-pet { position: absolute; width: 45%; height: 45%; animation: none; filter: none; }
+.hero .pet-wolf { left: -32%; bottom: 0; }
+.hero .pet-bear { right: -38%; bottom: -2%; width: 52%; height: 52%; }
+.hero .pet-hawk { left: -22%; top: 6%; width: 36%; height: 36%; animation: idle 1.4s ease-in-out infinite !important; }
+.hero.flip canvas.lobby-pet { transform: none; }

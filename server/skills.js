@@ -1,5 +1,6 @@
 // Уникальные умения героев. Каждое умение — функция (ctx, p, target, now) → строка ошибки или null.
 // ctx: { monsters, players, pushFx, damageMonster, healPlayer, teleport, knockback, isSolidAt, addTotem }
+const { petDmg, petsNear } = require('./pets');
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const inRadius = (ctx, x, y, r) => [...ctx.monsters.values()].filter((m) => Math.hypot(m.x - x, m.y - y) <= r);
 const alive = (ctx, p, m) => ctx.players.has(p.id) && (!m || ctx.monsters.has(m.id));
@@ -156,6 +157,48 @@ const SKILLS = {
     ctx.pushFx({ t: 'skill', s: 'healTotem', from: p.id, x: totem.x, y: totem.y, r: totem.r });
     return null;
   },
+
+  // Урсус: натравливание — все звери на цель, первый укус с оглушением
+  sic(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const active = p.pets.filter((pet) => !pet.down);
+    if (!active.length) return 'Все звери отступили';
+    for (const pet of active) { pet.sicTarget = t; pet.sicUntil = now + 6000; pet.sicFirst = true; pet.target = t; }
+    ctx.pushFx({ t: 'skill', s: 'sic', from: p.id, x: t.x, y: t.y, pets: active.map((pet) => pet.id) });
+    return null;
+  },
+
+  // Урсус: зов стаи — звери к хозяину, удар по всем вокруг, защита хозяину
+  packCall(ctx, p, _t, now) {
+    const r = 110;
+    p.packUntil = now + 6000;
+    const active = p.pets.filter((pet) => !pet.down);
+    active.forEach((pet, i) => {
+      const a = (i / active.length) * Math.PI * 2;
+      pet.x = p.x + Math.cos(a) * 28; pet.y = p.y + Math.sin(a) * 20;
+      pet.sicTarget = null; pet.target = null;
+    });
+    ctx.pushFx({ t: 'skill', s: 'packCall', from: p.id, x: p.x, y: p.y, r });
+    for (const m of inRadius(ctx, p.x, p.y, r)) {
+      for (const pet of active) ctx.damageMonster(p, m, petDmg(pet, now) * 1.5, { pet: pet.id });
+    }
+    return null;
+  },
+
+  // Урсус: духовная связь — здоровье хозяина самому раненому зверю, усиление обоих
+  spiritLink(ctx, p, _t, now) {
+    const pet = [...p.pets].sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+    if (!pet) return 'Нет зверей';
+    const cost = p.hp * 0.15;
+    if (p.hp - cost < 1) return 'Слишком мало здоровья';
+    p.hp -= cost;
+    pet.down = false;
+    pet.hp = pet.maxHp;
+    pet.boostUntil = now + 8000;
+    p.linkUntil = now + 8000;
+    ctx.pushFx({ t: 'skill', s: 'spiritLink', from: p.id, x: p.x, y: p.y, pet: pet.id, fx: pet.x, fy: pet.y });
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -216,12 +259,19 @@ const PASSIVES = {
     },
     note(p) { return (p.favor || 0) >= this.MAX ? 'духи готовы: следующий навык усилен!' : `благосклонность ${p.favor || 0}/${this.MAX}`; },
   },
+
+  // Урсус: единство со зверем — бонус за каждого зверя рядом
+  beastUnity: {
+    dmgMult: (p) => 1 + 0.08 * petsNear(p).length,
+    speedMult: (p) => 1 + 0.06 * petsNear(p).length,
+    note: (p) => `звери рядом: ${petsNear(p).length}/${(p.pets || []).length}`,
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

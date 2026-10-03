@@ -78,6 +78,11 @@ window.Gfx = (() => {
       rect(ctx, 25, 5, 2, 25, '#6b4423'); rect(ctx, 23, 1, 6, 5, '#e8e2cc'); rect(ctx, 24, 3, 1, 1, '#222'); rect(ctx, 27, 3, 1, 1, '#222');
       rect(ctx, 22, 6, 2, 5, '#c0301e'); rect(ctx, 28, 6, 2, 5, '#3a8fd8'); circle(ctx, 26, 8, 1.5, L.gem || '#9ff0ff');
     }
+    if (L.weapon === 'spear') {
+      rect(ctx, 25, 2, 2, 28, '#7a5230');
+      ctx.fillStyle = '#c9d1e0'; ctx.beginPath(); ctx.moveTo(26, -1); ctx.lineTo(29, 5); ctx.lineTo(23, 5); ctx.fill();
+      rect(ctx, 24, 6, 4, 2, '#c0301e'); // повязка
+    }
     if (L.weapon === 'pole') { rect(ctx, 26, 1, 2, 30, '#8a5a2a'); rect(ctx, 26, 1, 2, 2, '#c9a64d'); rect(ctx, 26, 29, 2, 2, '#c9a64d'); }
     if (L.weapon === 'axe') {
       rect(ctx, 25, 3, 2, 22, '#6b4423');
@@ -142,6 +147,13 @@ window.Gfx = (() => {
         rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
         rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
         break;
+      case 'bearHood':
+        // Капюшон из медвежьей головы: уши, морда над лбом
+        rect(ctx, 9, 2, 14, 5, L.headColor); rect(ctx, 9, 5, 2, 10, L.headColor); rect(ctx, 21, 5, 2, 10, L.headColor);
+        rect(ctx, 9, 0, 3, 3, L.headColor); rect(ctx, 20, 0, 3, 3, L.headColor); rect(ctx, 10, 1, 1, 1, '#2a1a0e'); rect(ctx, 21, 1, 1, 1, '#2a1a0e');
+        rect(ctx, 13, 3, 6, 3, '#7a5a3a'); rect(ctx, 15, 3, 2, 1, '#1a0e06');
+        rect(ctx, 12, 6, 2, 1, '#fff'); rect(ctx, 18, 6, 2, 1, '#fff'); // клыки
+        break;
       case 'monk':
         // Бритая голова с пучком на макушке
         rect(ctx, 11, 4, 10, 2, L.skin);
@@ -193,6 +205,11 @@ window.Gfx = (() => {
       // Посох с черепом-тотемом и перьями
       rect(ctx, 25, 5, 2, 25, '#6b4423'); rect(ctx, 23, 1, 6, 5, '#e8e2cc'); rect(ctx, 24, 3, 1, 1, '#222'); rect(ctx, 27, 3, 1, 1, '#222');
       rect(ctx, 22, 6, 2, 5, '#c0301e'); rect(ctx, 28, 6, 2, 5, '#3a8fd8'); circle(ctx, 26, 8, 1.5, L.gem || '#9ff0ff');
+    }
+    if (L.weapon === 'spear') {
+      rect(ctx, 25, 2, 2, 28, '#7a5230');
+      ctx.fillStyle = '#c9d1e0'; ctx.beginPath(); ctx.moveTo(26, -1); ctx.lineTo(29, 5); ctx.lineTo(23, 5); ctx.fill();
+      rect(ctx, 24, 6, 4, 2, '#c0301e'); // повязка
     }
     if (L.weapon === 'pole') { rect(ctx, 23, 17, 3, 3, L.skin); rect(ctx, 6, 17, 3, 3, L.skin); } // кулаки
     if (L.offhand === 'shield') { rect(ctx, 4, 14, 7, 10, '#7a5230'); rect(ctx, 5, 15, 5, 8, L.trim); rect(ctx, 7, 16, 1, 6, '#7a5230'); }
@@ -253,6 +270,8 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'spear') {
+      rect(ctx, 0, 7, 12, 2, '#7a5230'); ctx.fillStyle = '#c9d1e0'; ctx.beginPath(); ctx.moveTo(16, 8); ctx.lineTo(11, 5); ctx.lineTo(11, 11); ctx.fill();
     } else if (kind === 'spirit') {
       circle(ctx, 8, 8, 7, 'rgba(120,230,255,.35)'); circle(ctx, 8, 8, 4, '#bff6ff'); rect(ctx, 6, 7, 1, 1, '#2a6a80'); rect(ctx, 9, 7, 1, 1, '#2a6a80');
     } else if (kind === 'stone') {
@@ -265,6 +284,34 @@ window.Gfx = (() => {
       circle(ctx, 8, 8, 7, 'rgba(150,60,255,.45)'); circle(ctx, 8, 8, 5, '#3a0a5a'); circle(ctx, 8, 8, 2.5, '#d08cff');
     } else {
       rect(ctx, 1, 7, 12, 2, '#c8a46a'); rect(ctx, 12, 6, 3, 4, '#ddd'); rect(ctx, 0, 6, 2, 4, '#fff');
+    }
+    return c;
+  }
+
+  // Звери Урсуса (32x32): волк Клык, медведь Бурый, сокол Сокол
+  function pet(kind) {
+    const [c, ctx] = canvas(32, 32);
+    if (kind === 'wolf') {
+      circle(ctx, 16, 28, 9, 'rgba(0,0,0,.25)');
+      rect(ctx, 6, 15, 18, 8, '#7a5a3a'); rect(ctx, 20, 10, 9, 8, '#8a6a46'); rect(ctx, 27, 14, 4, 3, '#6a4a2a');
+      rect(ctx, 21, 7, 3, 4, '#6a4a2a'); rect(ctx, 25, 7, 3, 4, '#6a4a2a'); rect(ctx, 25, 12, 2, 2, '#ffd36a');
+      rect(ctx, 19, 16, 3, 3, '#c0301e'); // ошейник
+      rect(ctx, 7, 23, 3, 6, '#5a3e24'); rect(ctx, 19, 23, 3, 6, '#5a3e24'); rect(ctx, 12, 23, 3, 5, '#5a3e24');
+      rect(ctx, 1, 13, 6, 3, '#6a4a2a');
+    } else if (kind === 'bear') {
+      circle(ctx, 16, 28, 11, 'rgba(0,0,0,.25)');
+      ctx.fillStyle = '#5a3e24'; ctx.beginPath(); ctx.ellipse(15, 19, 12, 8, 0, 0, Math.PI * 2); ctx.fill();
+      rect(ctx, 21, 8, 10, 10, '#6b4a2c'); rect(ctx, 21, 6, 3, 3, '#5a3e24'); rect(ctx, 28, 6, 3, 3, '#5a3e24');
+      rect(ctx, 27, 13, 4, 4, '#a07a52'); rect(ctx, 29, 13, 2, 1, '#1a0e06'); rect(ctx, 25, 10, 2, 2, '#1a0e06');
+      rect(ctx, 6, 24, 5, 6, '#4a3420'); rect(ctx, 19, 24, 5, 6, '#4a3420');
+    } else {
+      // Сокол парит над землёй — тень отдельно внизу
+      circle(ctx, 16, 29, 6, 'rgba(0,0,0,.2)');
+      ctx.fillStyle = '#8a6a46';
+      ctx.beginPath(); ctx.moveTo(16, 12); ctx.lineTo(2, 6); ctx.lineTo(8, 14); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(16, 12); ctx.lineTo(30, 6); ctx.lineTo(24, 14); ctx.fill();
+      rect(ctx, 13, 9, 6, 9, '#a07a52'); rect(ctx, 14, 17, 4, 3, '#6a4a2a');
+      rect(ctx, 14, 6, 4, 4, '#e8e2cc'); rect(ctx, 15, 7, 1, 1, '#222'); rect(ctx, 18, 8, 2, 1, '#f0b429');
     }
     return c;
   }
@@ -285,5 +332,5 @@ window.Gfx = (() => {
     return c;
   }
 
-  return { TILE, tileset, hero, monster, projectile, particle, totem };
+  return { TILE, tileset, hero, monster, projectile, particle, totem, pet };
 })();

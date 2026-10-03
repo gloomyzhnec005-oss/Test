@@ -9,6 +9,7 @@ const C = require('./config');
 const { generateMap, SOLID } = require('./world');
 const { verifyInitData } = require('./auth');
 const { SKILLS, PASSIVES, NEEDS_TARGET, skillRange } = require('./skills');
+const { createPets, rescalePets, updatePets, hurtPet } = require('./pets');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
@@ -148,6 +149,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 const world = generateMap(Number(process.env.WORLD_SEED) || 1337);
 const players = new Map(); // socket.id -> player
 const monsters = new Map(); // id -> monster
+const pets = new Map(); // id -> зверь-спутник (Урсус)
 let monsterSeq = 1;
 let fx = []; // события за тик (удары, снаряды, смерти)
 
@@ -176,7 +178,7 @@ const startRes = (p) => (p.hero.resource.start ?? 1) * p.resMax;
 const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  return (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1)
+  return (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1) * (p.linkUntil > now ? 1.3 : 1)
     * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
@@ -229,6 +231,7 @@ function moveEntity(e, dx, dy) {
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
+    guard: p.packUntil > Date.now(),
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -247,8 +250,8 @@ function damageMonster(p, m, raw, opt = {}) {
   const crit = opt.crit ?? false;
   const dmg = Math.max(1, Math.round(raw * dmgMult(p) * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
   m.hp -= dmg;
-  m.target = p.id;
-  fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic,
+  m.target = opt.pet || p.id; // монстр отвечает тому, кто ударил: хозяину или зверю
+  fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null,
     fx: p.x, fy: p.y, tx: m.x, ty: m.y });
   if (m.hp <= 0) {
     const def = C.MONSTERS[m.type];
@@ -289,6 +292,7 @@ function addTotem(t) {
   return totem;
 }
 const skillCtx = {
+  moveEntity,
   monsters, players, damageMonster, healPlayer, teleport, knockback, addTotem,
   isSolidAt: (x, y) => world.isSolidAt(x, y),
   pushFx: (f) => fx.push(f),
@@ -307,6 +311,7 @@ function grantXp(p, amount, gold) {
   if (leveled) {
     Object.assign(p, statsFor(p.heroId, p.char.level));
     p.hp = p.maxHp;
+    if (p.pets) rescalePets(p);
     p.res = p.resMax;
     fx.push({ t: 'levelup', id: p.id, x: p.x, y: p.y, lvl: p.char.level });
     io.emit('chat', { sys: true, text: `${p.name} (${p.hero.name}) достиг ${p.char.level} уровня!` });
@@ -341,6 +346,7 @@ io.on('connection', (socket) => {
     };
     p.hp = p.maxHp;
     p.res = startRes(p);
+    if (hero.pets) { p.pets = createPets(p); p.pets.forEach((pet) => pets.set(pet.id, pet)); }
     players.set(socket.id, p);
 
     socket.emit('welcome', {
@@ -439,6 +445,7 @@ io.on('connection', (socket) => {
     const p = players.get(socket.id);
     if (!p) return;
     players.delete(socket.id);
+    (p.pets || []).forEach((pet) => pets.delete(pet.id));
     io.emit('chat', { sys: true, text: `${p.name} покинул мир` });
     saveProfiles();
   });
@@ -450,6 +457,9 @@ setInterval(() => {
   const now = Date.now();
   const dt = (now - lastTick) / 1000;
   lastTick = now;
+
+  // Звери-спутники
+  for (const p of players.values()) if (p.pets) updatePets(skillCtx, p, now, dt);
 
   // ИИ монстров
   for (const m of monsters.values()) {
@@ -466,14 +476,20 @@ setInterval(() => {
     }
     if (m.stunUntil > now) continue; // оглушён
     const rooted = m.rootUntil > now;
-    let target = m.target ? players.get(m.target) : null;
-    if (target && (target.dead || Math.hypot(target.x - m.x, target.y - m.y) > def.aggro * 1.8)) target = null;
+    // Цель монстра — игрок или зверь-спутник
+    let target = m.target ? players.get(m.target) || pets.get(m.target) : null;
+    if (target && (target.dead || target.down || Math.hypot(target.x - m.x, target.y - m.y) > def.aggro * 1.8)) target = null;
     if (!target) {
       let best = null, bestD = def.aggro;
       for (const p of players.values()) {
         if (p.dead) continue;
         const d = Math.hypot(p.x - m.x, p.y - m.y);
         if (d < bestD) { best = p; bestD = d; }
+      }
+      for (const pet of pets.values()) {
+        if (pet.down) continue;
+        const d = Math.hypot(pet.x - m.x, pet.y - m.y);
+        if (d < bestD) { best = pet; bestD = d; }
       }
       target = best;
     }
@@ -488,8 +504,11 @@ setInterval(() => {
         moveEntity(m, (dx / d) * s, (dy / d) * s);
       } else if (now - m.lastAttack > C.MONSTER_ATTACK_CD) {
         m.lastAttack = now;
-        // Рёв ярости Вебранда ослабляет урон монстра
-        const dmg = Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1) * (target.hero.dmgTaken || 1));
+        // Удар по зверю: зверь не гибнет, а «падает» и отступает
+        if (target.owner) { hurtPet(skillCtx, target, Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)), now); continue; }
+        // Рёв ярости Вебранда ослабляет урон монстра; «Зов стаи» Урсуса защищает хозяина
+        const dmg = Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1) * (target.hero.dmgTaken || 1)
+          * (target.packUntil > now ? 0.65 : 1));
         target.hp -= dmg;
         target.lastHurt = now;
         fx.push({ t: 'hit', kind: 'p', target: target.id, dmg, from: m.id });
@@ -575,6 +594,8 @@ setInterval(() => {
     p: [...players.values()].map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
     m: [...monsters.values()].map((m) => ({ id: m.id, type: m.type, x: Math.round(m.x), y: Math.round(m.y),
       hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0 })),
+    pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, x: Math.round(pet.x), y: Math.round(pet.y),
+      hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
     fx,
   };

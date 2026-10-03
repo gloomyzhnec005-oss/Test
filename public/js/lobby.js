@@ -101,6 +101,16 @@ window.Lobby = (() => {
       el.onclick = () => openGacha();
     }
     el.appendChild(heroCanvas(id));
+    // Звери-спутники стоят у ног хозяина
+    if (id && heroes[id].pets) {
+      ['wolf', 'bear', 'hawk'].forEach((k) => {
+        const pc = document.createElement('canvas');
+        pc.width = 32; pc.height = 32;
+        pc.className = 'lobby-pet pet-' + k;
+        pc.getContext('2d').drawImage(Gfx.pet(k), 0, 0);
+        el.appendChild(pc);
+      });
+    }
     el.classList.toggle('selected', slot === 2);
     el.classList.toggle('flip', slot === 4 || slot === 6);
     return el;

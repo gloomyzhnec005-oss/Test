@@ -1,0 +1,133 @@
+// Звери-спутники (Урсус, Повелитель зверей). Звери живут на сервере как отдельные сущности:
+// следуют за хозяином, сами атакуют ближайших врагов, убегают вместе с хозяином,
+// а «упав» — не погибают, а отступают к хозяину и возвращаются через несколько секунд.
+
+// Характеристики зверей — доли от характеристик хозяина
+const PET_KINDS = {
+  wolf: { name: 'Клык', hp: 0.5, dmg: 0.45, cooldown: 900, speed: 190, reach: 30 },
+  bear: { name: 'Бурый', hp: 0.85, dmg: 0.6, cooldown: 1300, speed: 150, reach: 34 },
+  hawk: { name: 'Сокол', hp: 0.35, dmg: 0.3, cooldown: 700, speed: 230, reach: 26 },
+};
+const PET_ORDER = ['wolf', 'bear', 'hawk'];
+const LEASH = 230; // дальше этого от хозяина звери бросают бой и бегут к нему
+const AGGRO = 170; // радиус вокруг хозяина, в котором звери сами ищут врагов
+const DOWN_MS = 6000; // столько «упавший» зверь восстанавливается
+
+let petSeq = 1;
+
+function createPets(owner) {
+  return PET_ORDER.map((kind, i) => {
+    const k = PET_KINDS[kind];
+    const maxHp = Math.round(owner.maxHp * k.hp);
+    return {
+      id: 'pet' + petSeq++, kind, slot: i, owner,
+      x: owner.x + (i - 1) * 24, y: owner.y + 20,
+      hp: maxHp, maxHp, down: false, downUntil: 0, target: null, lastAttack: 0,
+      sicTarget: null, sicUntil: 0, sicFirst: false, boostUntil: 0,
+    };
+  });
+}
+
+// Пересчитывает здоровье зверей при повышении уровня хозяина
+function rescalePets(owner) {
+  for (const pet of owner.pets || []) {
+    const maxHp = Math.round(owner.maxHp * PET_KINDS[pet.kind].hp);
+    pet.hp = pet.down ? 0 : maxHp;
+    pet.maxHp = maxHp;
+  }
+}
+
+function petDmg(pet, now) {
+  return pet.owner.dmg * PET_KINDS[pet.kind].dmg * (pet.boostUntil > now ? 1.5 : 1);
+}
+
+// «Падение» зверя: не смерть, а временное отступление
+function knockDown(ctx, pet, now) {
+  pet.hp = 0;
+  pet.down = true;
+  pet.downUntil = now + DOWN_MS;
+  pet.target = null;
+  pet.sicTarget = null;
+  ctx.pushFx({ t: 'petDown', id: pet.id, x: pet.x, y: pet.y, name: PET_KINDS[pet.kind].name });
+}
+
+function hurtPet(ctx, pet, dmg, now) {
+  if (pet.down) return;
+  pet.hp -= dmg;
+  ctx.pushFx({ t: 'hit', kind: 'pet', target: pet.id, dmg });
+  if (pet.hp <= 0) knockDown(ctx, pet, now);
+}
+
+function stepTo(ctx, pet, x, y, speed, dt) {
+  const dx = x - pet.x, dy = y - pet.y, d = Math.hypot(dx, dy);
+  if (d < 2) return d;
+  const s = Math.min(d, speed * dt);
+  ctx.moveEntity(pet, (dx / d) * s, (dy / d) * s);
+  return d;
+}
+
+function nearestMonster(ctx, x, y, r) {
+  let best = null, bd = r;
+  for (const m of ctx.monsters.values()) {
+    const d = Math.hypot(m.x - x, m.y - y);
+    if (d < bd) { bd = d; best = m; }
+  }
+  return best;
+}
+
+function updatePets(ctx, owner, now, dt) {
+  for (const pet of owner.pets) {
+    const k = PET_KINDS[pet.kind];
+    // Позиция «у ног» хозяина: звери расходятся веером вокруг него
+    const ang = (pet.slot / owner.pets.length) * Math.PI * 2 + 0.6;
+    const homeX = owner.x + Math.cos(ang) * 30, homeY = owner.y + Math.sin(ang) * 22;
+    const fromOwner = Math.hypot(pet.x - owner.x, pet.y - owner.y);
+
+    // Слишком далеко (хозяин отступил или телепортировался) — догоняем, при отрыве — подтягиваем
+    if (fromOwner > 600) { pet.x = homeX; pet.y = homeY; }
+
+    if (pet.down) {
+      stepTo(ctx, pet, homeX, homeY, k.speed, dt);
+      if (now >= pet.downUntil) {
+        pet.down = false;
+        pet.hp = pet.maxHp;
+        ctx.pushFx({ t: 'petUp', id: pet.id, x: pet.x, y: pet.y, name: k.name });
+      }
+      continue;
+    }
+    if (owner.dead) { stepTo(ctx, pet, homeX, homeY, k.speed, dt); pet.target = null; continue; }
+
+    // Выбор цели: приказ «Натравливание» → текущая цель → ближайший враг около хозяина
+    let target = null;
+    if (pet.sicTarget && now < pet.sicUntil && ctx.monsters.has(pet.sicTarget.id)) target = pet.sicTarget;
+    else {
+      pet.sicTarget = null;
+      if (pet.target && ctx.monsters.has(pet.target.id) && Math.hypot(pet.target.x - owner.x, pet.target.y - owner.y) < LEASH) target = pet.target;
+      else target = nearestMonster(ctx, owner.x, owner.y, AGGRO);
+    }
+    // Хозяин отступает — звери бросают бой и бегут за ним (приказ натравливания держит дольше)
+    if (target && fromOwner > (pet.sicTarget ? LEASH * 1.5 : LEASH)) target = null;
+    pet.target = target;
+
+    if (!target) { stepTo(ctx, pet, homeX, homeY, k.speed * (fromOwner > 80 ? 1.3 : 1), dt); continue; }
+
+    const sic = pet.sicTarget === target;
+    const d = stepTo(ctx, pet, target.x + (pet.slot - 1) * 10, target.y + 6, k.speed * (sic ? 1.6 : 1), dt);
+    if (d <= k.reach + 8 && now - pet.lastAttack >= k.cooldown) {
+      pet.lastAttack = now;
+      let raw = petDmg(pet, now);
+      if (sic && pet.sicFirst) {
+        // Первый укус по натравленной цели — мощный удар с оглушением
+        pet.sicFirst = false;
+        raw *= 2.5;
+        target.stunUntil = Math.max(target.stunUntil || 0, now + 1500);
+      }
+      ctx.damageMonster(owner, target, raw, { pet: pet.id });
+    }
+  }
+}
+
+// Звери в радиусе от хозяина (для пассивки)
+const petsNear = (owner, r = 200) => (owner.pets || []).filter((pet) => !pet.down && Math.hypot(pet.x - owner.x, pet.y - owner.y) <= r);
+
+module.exports = { PET_KINDS, createPets, rescalePets, updatePets, hurtPet, knockDown, petDmg, petsNear };
