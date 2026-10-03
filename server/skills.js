@@ -530,6 +530,53 @@ const SKILLS = {
     }
     return null;
   },
+
+  // Талиесин: перевоплощение — смена облика (бафф даёт пассивка «Двуликая суть»)
+  shapeshift(ctx, p, _t, now) {
+    p.form = p.form === 'beast' ? 'human' : 'beast';
+    const ps = ctx.passiveOf(p);
+    if (ps && ps.onShift) ps.onShift(p, now);
+    ctx.pushFx({ t: 'skill', s: 'shapeshift', from: p.id, x: p.x, y: p.y, form: p.form });
+    return null;
+  },
+
+  // Талиесин: зверь — рывок с рёвом и страхом; друид — шипы с обездвиживанием
+  feralCharge(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    if (p.form === 'beast') {
+      const fromX = p.x, fromY = p.y;
+      const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy) || 1;
+      ctx.teleport(p, t.x - (dx / d) * 26, t.y - (dy / d) * 26);
+      p.dir = dx < 0 ? -1 : 1;
+      ctx.pushFx({ t: 'skill', s: 'feralCharge', from: p.id, fx: fromX, fy: fromY, x: p.x, y: p.y, r: 100 });
+      ctx.damageMonster(p, t, p.dmg * 1.8);
+      for (const m of inRadius(ctx, p.x, p.y, 100)) {
+        m.weakUntil = Math.max(m.weakUntil || 0, now + 4000);
+        m.fearUntil = now + 1500; m.fearX = p.x; m.fearY = p.y; m.target = null;
+      }
+    } else {
+      const r = 90;
+      ctx.pushFx({ t: 'skill', s: 'naturesThorns', from: p.id, x: t.x, y: t.y, r });
+      for (const m of inRadius(ctx, t.x, t.y, r)) {
+        m.rootUntil = Math.max(m.rootUntil || 0, now + 2000);
+        ctx.damageMonster(p, m, p.dmg * 1.2);
+      }
+    }
+    return null;
+  },
+
+  // Талиесин: друид — лечение себя и союзников; зверь — вампиризм на 6 с
+  forestBreath(ctx, p, _t, now) {
+    if (p.form === 'beast') {
+      p.feralLeechUntil = now + 6000;
+      ctx.pushFx({ t: 'skill', s: 'feralThirst', from: p.id, x: p.x, y: p.y });
+    } else {
+      const r = 160;
+      ctx.pushFx({ t: 'skill', s: 'forestBlessing', from: p.id, x: p.x, y: p.y, r });
+      for (const o of ctx.players.values()) if (!o.dead && dist(o, p) <= r) ctx.healPlayer(o, o.maxHp * 0.2);
+    }
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -746,12 +793,35 @@ const PASSIVES = {
     },
     note: (p) => `отвлечено: ${p.distracted || 0}`,
   },
+
+  // Талиесин: двуликая суть — бафф за смену облика, сильнее при частой смене
+  dualNature: {
+    onShift(p, now) {
+      p.shiftStacks = now - (p.lastShift || 0) < 10000 ? Math.min(5, (p.shiftStacks || 0) + 1) : 0;
+      p.lastShift = now;
+      p.dualUntil = now + 6000;
+      p.dirty = true;
+    },
+    power: (p) => 1 + 0.2 * (p.shiftStacks || 0),
+    active: (p, form) => p.dualUntil > Date.now() && p.form === form,
+    dmgMult(p) { return this.active(p, 'beast') ? 1 + 0.3 * this.power(p) : 1; },
+    speedMult(p) { return this.active(p, 'beast') ? 1 + 0.25 * this.power(p) : 1; },
+    dmgTakenMult(p) { return this.active(p, 'human') ? Math.max(0.4, 1 - 0.3 * this.power(p)) : 1; },
+    onTick(p, now) {
+      if (this.active(p, 'human') && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.02 * this.power(p) * 0.1); p.dirty = true; }
+      if (p.shiftStacks && now - p.lastShift > 10000) { p.shiftStacks = 0; p.dirty = true; }
+    },
+    note(p) {
+      const form = p.form === 'beast' ? 'облик зверя' : 'облик друида';
+      return `${form}${p.dualUntil > Date.now() ? ' · бафф ×' + this.power(p).toFixed(1) : ''}`;
+    },
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

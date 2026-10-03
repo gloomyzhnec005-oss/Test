@@ -347,6 +347,23 @@ window.Gfx = (() => {
     return c;
   }
 
+  // Звериный облик оборотня (32x32): сгорбленный волк-человек
+  function werebeast(L = {}) {
+    const [c, ctx] = canvas(32, 32);
+    const fur = L.fur || '#5a4a3a', light = L.furLight || '#8a7a5a';
+    circle(ctx, 16, 29, 10, 'rgba(0,0,0,.25)');
+    rect(ctx, 9, 23, 5, 7, fur); rect(ctx, 18, 23, 5, 7, fur); // лапы
+    rect(ctx, 8, 12, 16, 12, fur); rect(ctx, 11, 15, 10, 8, light); // торс
+    rect(ctx, 4, 13, 4, 10, fur); rect(ctx, 24, 13, 4, 10, fur); // руки
+    rect(ctx, 3, 22, 2, 3, L.claws || '#eee'); rect(ctx, 27, 22, 2, 3, L.claws || '#eee'); // когти
+    rect(ctx, 11, 3, 12, 10, fur); rect(ctx, 21, 7, 6, 5, light); // голова и морда
+    rect(ctx, 11, 0, 3, 4, fur); rect(ctx, 18, 0, 3, 4, fur); // уши
+    rect(ctx, 17, 6, 2, 2, L.eyes || '#9aff6a'); rect(ctx, 25, 8, 2, 1, '#1a1a1a');
+    rect(ctx, 22, 11, 1, 2, '#fff'); rect(ctx, 25, 11, 1, 2, '#fff'); // клыки
+    rect(ctx, 9, 9, 3, 4, light); // грива
+    return c;
+  }
+
   // Звери Урсуса (32x32): волк Клык, медведь Бурый, сокол Сокол
   function pet(kind) {
     const [c, ctx] = canvas(32, 32);
@@ -408,5 +425,5 @@ window.Gfx = (() => {
     return c;
   }
 
-  return { TILE, tileset, hero, monster, projectile, particle, totem, pet };
+  return { TILE, tileset, hero, monster, projectile, particle, totem, pet, werebeast };
 })();

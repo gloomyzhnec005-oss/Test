@@ -27,7 +27,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Текстуры
     const addTex = (key, cnv) => { if (!this.textures.exists(key)) this.textures.addCanvas(key, cnv); };
     addTex('tiles', Gfx.tileset());
-    Object.entries(this.heroes).forEach(([k, h]) => addTex('hero_' + k, Gfx.hero(h.look)));
+    Object.entries(this.heroes).forEach(([k, h]) => {
+      addTex('hero_' + k, Gfx.hero(h.look));
+      if (h.forms) addTex('hero_' + k + '_beast', Gfx.werebeast(h.beastLook)); // звериный облик
+    });
     Object.keys(this.monsterDefs).forEach((k) => addTex('mon_' + k, Gfx.monster(k)));
     addTex('totem', Gfx.totem());
     ['wolf', 'bear', 'hawk', 'skeleton', 'sprite'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
@@ -168,6 +171,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
       } else if (!p.emp && e.emp) { e.emp.destroy(); e.emp = null; }
       if (p.id !== this.myId) e.sprite.setFlipX(p.dir === -1);
       else this.me.data = p;
+      // Смена облика (Талиесин): другой спрайт
+      if ((p.form || null) !== (e.form || null)) {
+        e.form = p.form || null;
+        e.sprite.setTexture(p.form === 'beast' ? 'hero_' + p.hero + '_beast' : 'hero_' + p.hero);
+      }
     }
     for (const [id, e] of this.players) if (!seen.has(id)) { e.c.destroy(); this.players.delete(id); }
 
@@ -188,7 +196,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
       const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '')
-        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '');
+        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -515,6 +523,25 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.burst(f.x, f.y, 0xff7ab0, 8);
         break;
       }
+      case 'shapeshift':
+        this.burst(f.x, f.y, f.form === 'beast' ? 0x8a5a2a : 0x7fd36b, 22);
+        this.ring(f.x, f.y, 34, f.form === 'beast' ? 0xc0601e : 0x7fd36b, 450, 4);
+        this.floatText(f.x, f.y - 50, f.form === 'beast' ? '🐺 Облик зверя!' : '🧙 Облик друида', f.form === 'beast' ? '#ffb070' : '#9aff9a', 14);
+        if (f.from === this.myId) this.cameras.main.shake(120, 0.004);
+        break;
+      case 'feralCharge': {
+        const ln = this.add.line(0, 0, f.fx, f.fy, f.x, f.y, 0x8a5a2a, 0.8).setOrigin(0, 0).setLineWidth(7).setDepth(840);
+        this.tweens.add({ targets: ln, alpha: 0, duration: 350, onComplete: () => ln.destroy() });
+        this.ring(f.x, f.y, f.r, 0xc0601e, 500, 5);
+        this.floatText(f.x, f.y - 56, 'АУУУ!', '#ffb070', 16);
+        this.cameras.main.shake(150, 0.006);
+        if (f.from === this.myId && this.me) { this.me.x = f.x; this.me.y = f.y; }
+        break;
+      }
+      case 'feralThirst':
+        this.ring(f.x, f.y, 36, 0xc01a3a, 500, 4);
+        this.floatText(f.x, f.y - 50, '🩸 Жажда зверя', '#ff8a8a', 13);
+        break;
       case 'decoy':
         this.burst(f.x, f.y, 0xff7ad0, 16);
         this.floatText(f.x, f.y - 40, '👯 Двойник', '#ffb0e8', 13);
@@ -694,10 +721,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
   }
 
+  // Параметры атаки и бега с учётом облика (Талиесин)
+  prof() {
+    const h = this.heroes[this.me.data.hero];
+    return h.forms ? h.forms[this.myStats.form || 'human'] : h;
+  }
+
   // ---------- Бой ----------
   findTarget() {
     const me = this.me;
-    const range = this.heroes[me.data.hero].range;
+    const range = this.prof().range;
     const cur = this.targetId && this.monsters.get(this.targetId);
     if (cur && Phaser.Math.Distance.Between(me.x, me.y, cur.c.x, cur.c.y) <= range + 120) return cur;
     let best = null, bestD = range + 60;
@@ -712,7 +745,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
   tryAttack(force) {
     const me = this.me;
     if (!me || me.data.dead) return;
-    const hero = this.heroes[me.data.hero];
+    const hero = this.prof();
     const now = this.time.now;
     if (now - this.lastAttack < (this.myStats.cd || hero.cooldown)) return;
     const t = this.findTarget();
@@ -762,7 +795,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const len = Math.hypot(vx, vy);
     if (len > 0 && !me.data.dead) {
       const n = Math.min(1, len) / len;
-      const speed = this.heroes[me.data.hero].speed;
+      const speed = this.prof().speed;
       const dx = vx * n * speed * dt, dy = vy * n * speed * dt;
       const r = 10;
       if (!this.isSolidAt(me.x + dx + Math.sign(dx) * r, me.y)) me.x += dx;

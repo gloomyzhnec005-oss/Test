@@ -72,6 +72,18 @@
 
   // ---------- HUD ----------
   let resName = '';
+  let shownForm; // undefined — подписи ещё не выставлены
+  // Подписи кнопок под текущий облик (Талиесин)
+  function applyForm(form) {
+    if (form === shownForm) return;
+    shownForm = form;
+    for (const btn of Object.values(skillBtns)) {
+      const v = btn.sk.forms && btn.sk.forms[form || 'human'];
+      if (!v) continue;
+      btn.el.querySelector('.sk-icon').textContent = v.icon;
+      btn.el.querySelector('em').textContent = v.name;
+    }
+  }
   let passiveDef = null;
   function setStats(s) {
     $('lvl').textContent = s.level;
@@ -86,6 +98,7 @@
     $('gold').textContent = s.gold;
     $('kills').textContent = s.kills;
     $('dmg').textContent = s.dmg;
+    if (s.form !== undefined) applyForm(s.form);
     if (passiveDef) {
       const parts = [];
       if (s.bonusDmg) parts.push(`+${s.bonusDmg}% урона`);
@@ -145,7 +158,7 @@
       b.addEventListener('pointerup', up);
       b.addEventListener('pointerleave', up);
       box.appendChild(b);
-      skillBtns[sk.id] = { el: b, cd: b.querySelector('.sk-cd'), timer: 0 };
+      skillBtns[sk.id] = { el: b, cd: b.querySelector('.sk-cd'), timer: 0, sk };
     });
   }
   function startSkillCd(id, ms, total = ms) {

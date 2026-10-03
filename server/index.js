@@ -175,6 +175,8 @@ const statsFor = (heroId, lvl) => {
 };
 // Усиления урона и скорости атаки: временные эффекты навыков и пассивные навыки
 const startRes = (p) => (p.hero.resource.start ?? 1) * p.resMax;
+// Текущий облик героя (Талиесин): свои дальность, скорость атаки, бег и снаряд
+const formOf = (p) => (p.hero.forms ? p.hero.forms[p.form || 'human'] : p.hero);
 const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
@@ -185,7 +187,7 @@ const dmgMult = (p, now = Date.now()) => {
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
   const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
-  return Math.round(p.hero.cooldown / speed);
+  return Math.round(formOf(p).cooldown / speed);
 };
 
 function randomFreeSpot(minR, maxR) {
@@ -231,7 +233,7 @@ function moveEntity(e, dx, dy) {
 
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
-    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
+    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
     pact: p.pactUntil > Date.now() ? p.pactType : null, tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
@@ -241,7 +243,7 @@ function privateStats(p) {
   return { level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills,
     gold: p.char.gold, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
-    bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((p.hero.cooldown / attackCd(p) - 1) * 100),
+    bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
     passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '',
     shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0 };
 }
@@ -262,6 +264,7 @@ function damageMonster(p, m, raw, opt = {}) {
   const dmg = opt.fixed ? Math.max(1, Math.round(raw))
     : Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
   if (ps && ps.onDealt) ps.onDealt(skillCtx, p, Math.min(dmg, m.hp), Date.now()); // вампиризм Кельт'о
+  if (p.feralLeechUntil > now0 && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + Math.min(dmg, m.hp) * 0.4); markDirty(p); } // жажда зверя
   m.hp -= dmg;
   if (!opt.confused) m.target = opt.pet || p.id; // монстр отвечает тому, кто ударил (кроме драки под мороком)
   fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null, reflect: !!opt.reflect, confused: !!opt.confused,
@@ -383,6 +386,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
       victim.res = startRes(victim);
       victim.cheatUsed = false;
       victim.shieldHp = 0;
+      if (victim.hero.forms) victim.form = 'human'; // возрождается в облике друида
       markDirty(victim);
       victim.x = world.spawn.x; victim.y = world.spawn.y;
       victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });
@@ -398,7 +402,7 @@ function syncCooldowns(p, now) {
   p.socket.emit('skillCds', left);
 }
 const skillCtx = {
-  moveEntity, syncCooldowns,
+  moveEntity, syncCooldowns, passiveOf,
   monsters, players, damageMonster, healPlayer, teleport, knockback, addTotem, addGround, takeCorpse, giveShield, addPet, removePet,
   isSolidAt: (x, y) => world.isSolidAt(x, y),
   pushFx: (f) => fx.push(f),
@@ -475,7 +479,8 @@ io.on('connection', (socket) => {
     p.lastMove = now;
     const x = Number(d.x), y = Number(d.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    const maxDist = p.hero.speed * dt * 1.6 + 12; // античит: ограничение скорости
+    // Античит: ограничение скорости (у облика зверя бег быстрее; после смены облика даём запас)
+    const maxDist = Math.max(formOf(p).speed, p.hero.speed) * dt * 1.6 + 12;
     const dist = Math.hypot(x - p.x, y - p.y);
     if (dist > maxDist || world.isSolidAt(x, y)) {
       socket.emit('correct', { x: p.x, y: p.y });
@@ -493,14 +498,14 @@ io.on('connection', (socket) => {
     if (now - p.lastAttack < attackCd(p, now) * 0.9) return;
     const m = monsters.get(d.targetId);
     if (!m || m.hp <= 0) return;
-    if (Math.hypot(m.x - p.x, m.y - p.y) > p.hero.range + 20) return;
+    if (Math.hypot(m.x - p.x, m.y - p.y) > formOf(p).range + 20) return;
     p.lastAttack = now;
     p.dir = m.x < p.x ? -1 : 1;
     p.stealthUntil = 0; // атака выводит из тени
     // Усиленная атака после «Дыхания гармонии»
     const empowered = p.empoweredUntil > now;
     if (empowered) { p.empoweredUntil = 0; fx.push({ t: 'skill', s: 'empHit', from: p.id, x: m.x, y: m.y, quiet: true }); }
-    damageMonster(p, m, p.dmg * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15, proj: p.hero.projectile, basic: true });
+    damageMonster(p, m, p.dmg * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15, proj: formOf(p).projectile, basic: true });
     // Ресурс, который копится от ударов (ярость Вебранда)
     p.lastHit = now;
     if (p.hero.resource.perHit) { p.res = Math.min(p.resMax, p.res + p.hero.resource.perHit); markDirty(p); }
@@ -594,6 +599,12 @@ setInterval(() => {
       if (!monsters.has(m.id)) continue;
     }
     if (m.stunUntil > now) continue; // оглушён
+    // Страх (рёв Талиесина): монстр убегает от источника
+    if (m.fearUntil > now) {
+      const dx = m.x - m.fearX, dy = m.y - m.fearY, d = Math.hypot(dx, dy) || 1;
+      moveEntity(m, (dx / d) * def.speed * dt, (dy / d) * def.speed * dt);
+      continue;
+    }
     // Морок (Ле Блан): монстр нападает на соседа-монстра, без соседей — бродит
     if (m.confusedUntil > now) {
       let other = null, bd = 140;
@@ -719,7 +730,7 @@ setInterval(() => {
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
       bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
-      cf: m.confusedUntil > now ? 1 : 0 })),
+      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0 })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? pet.owner.heroId : null, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),

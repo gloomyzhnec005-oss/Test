@@ -363,7 +363,9 @@ window.Lobby = (() => {
     box.style.setProperty('--rarity', r.color);
     box.style.setProperty('--hero', hex(h.color));
     const stat = (icon, label, v, max) => `<div class="mini-stat"><span>${icon}</span><i><u style="width:${Math.min(100, (100 * v) / max)}%"></u></i><b>${v}</b></div>`;
-    const atk = h.range <= 80 ? 'ближний бой' : h.range <= 200 ? 'средняя дистанция' : 'дальний бой';
+    const rangeLabel = (r) => (r <= 80 ? 'ближний бой' : r <= 200 ? 'средняя дистанция' : 'дальний бой');
+    // У оборотня тип боя свой в каждом облике
+    const atk = h.forms ? Object.values(h.forms).map((f) => `${f.name.toLowerCase()}: ${rangeLabel(f.range)}`).join(', ') : rangeLabel(h.range);
     box.querySelector('.reveal-card').innerHTML = `
       ${isNew ? '<div class="reveal-new">Новый герой!</div>' : ''}
       <div class="reveal-rarity">${r.name}</div>
@@ -381,6 +383,13 @@ window.Lobby = (() => {
       ${stat('❤️', 'HP', h.hp, 200)}${stat('🗡', 'Урон', h.dmg, 35)}${stat('🎯', 'Дальность', h.range, 300)}${stat('👟', 'Скорость', h.speed, 200)}
       <button class="l2-btn reveal-ok">${isNew ? 'Забрать' : 'Закрыть'}</button>`;
     box.querySelector('.reveal-art').appendChild(heroCanvas(id));
+    // Второй облик героя-оборотня
+    if (h.forms) {
+      const bc = document.createElement('canvas');
+      bc.width = 32; bc.height = 32;
+      bc.getContext('2d').drawImage(Gfx.werebeast(h.beastLook), 0, 0);
+      box.querySelector('.reveal-art').appendChild(bc);
+    }
     box.classList.remove('hidden');
     box.classList.toggle('is-new', isNew);
     box.querySelector('.reveal-ok').onclick = () => {
