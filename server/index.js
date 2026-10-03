@@ -178,7 +178,8 @@ const startRes = (p) => (p.hero.resource.start ?? 1) * p.resMax;
 // Текущий облик героя (Талиесин): свои дальность, скорость атаки, бег и снаряд
 // Аурелиус: стихия меняет только снаряд обычной атаки
 const formOf = (p) => (p.hero.forms ? p.hero.forms[p.form || 'human']
-  : p.hero.elements ? { ...p.hero, projectile: p.hero.elements[p.form || 'fire'].projectile } : p.hero);
+  : p.hero.elements ? { ...p.hero, projectile: p.hero.elements[p.form || 'fire'].projectile }
+  : p.hero.aspects ? { ...p.hero, projectile: p.hero.aspects[p.form || 'fire'].projectile } : p.hero);
 const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
@@ -191,7 +192,7 @@ const dmgMult = (p, now = Date.now()) => {
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
   const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (p.blessUntil > now ? 1.2 : 1) * (p.songUntil > now ? 1 + 0.1 * (p.songPw || 1) : 1) * (p.hasteUntil > now ? 1.25 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
-  return Math.round(formOf(p).cooldown / speed);
+  return Math.round(formOf(p).cooldown / speed * (p.stoneArmorUntil > now ? 1.3 : 1)); // каменная броня Эмета замедляет
 };
 
 function randomFreeSpot(minR, maxR) {
@@ -240,7 +241,7 @@ function publicPlayer(p) {
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
-    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
+    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
     song: p.hero.songs ? p.form : null, haste: p.hasteUntil > Date.now(), fly: p.flyUntil > Date.now(), tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
@@ -252,7 +253,7 @@ function privateStats(p) {
     formKeys: p.potion ? { potion: p.potion, sign: p.sign } : null,
     passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '',
     shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0, haste: p.hasteUntil > Date.now(),
-    flyBoost: p.flyUntil > Date.now() ? 1 + 0.03 * (p.blessings || 0) : 1 };
+    flyBoost: (p.flyUntil > Date.now() ? 1 + 0.03 * (p.blessings || 0) : 1) * (p.stoneArmorUntil > Date.now() ? 0.7 : 1) };
 }
 // Статы отправляются не чаще 4 раз в секунду (см. игровой цикл)
 const markDirty = (p) => { p.dirty = true; };
@@ -504,6 +505,7 @@ io.on('connection', (socket) => {
     if (hero.elements) p.form = 'fire'; // Аурелиус начинает с огня
     if (hero.vows) { p.form = 'protection'; p.vowSince = Date.now(); } // Валериан начинает с обета защиты
     if (hero.songs) p.form = 'inspire'; // Джакомо начинает с песни вдохновения
+    if (hero.aspects) p.form = 'fire'; // Зефира начинает с аспекта пламени
     if (heroId === 'tibor') { p.potion = 'thunder'; p.sign = 'igni'; p.tox = 0; }
     p.joinedAt = Date.now();
     players.set(socket.id, p);
@@ -785,7 +787,7 @@ setInterval(() => {
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
       bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
-      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0 })),
+      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, ds: m.darkSealUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0 })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),

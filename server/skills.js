@@ -1034,6 +1034,127 @@ const SKILLS = {
     ctx.pushFx({ t: 'skill', s: 'bloodBond', from: p.id, x: p.x, y: p.y, pts: targets.map((m) => [Math.round(m.x), Math.round(m.y)]) });
     return null;
   },
+
+  // Зефира: дыхание дракона конусом; после выдоха аспект сменяется
+  dragonBreath(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const ORDER = ['fire', 'ice', 'poison', 'lightning'];
+    const asp = p.form || 'fire', pw = p.castPower || 1;
+    let dx = t.x - p.x, dy = t.y - p.y;
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    p.dir = dx < 0 ? -1 : 1;
+    const hit = [];
+    for (const m of ctx.monsters.values()) {
+      const rx = m.x - p.x, ry = m.y - p.y, dd = Math.hypot(rx, ry);
+      if (dd <= 170 && (rx * dx + ry * dy) / (dd || 1) >= 0.55) hit.push(m);
+    }
+    if (asp === 'lightning') {
+      // Молния перескакивает ещё на 2 врагов от цели
+      const chain = [t];
+      while (chain.length < 3) {
+        const last = chain[chain.length - 1];
+        let next = null, best = 140;
+        for (const m of ctx.monsters.values()) { if (chain.includes(m) || hit.includes(m)) continue; const q = dist(m, last); if (q < best) { best = q; next = m; } }
+        if (!next) break;
+        chain.push(next);
+      }
+      for (const m of chain) if (!hit.includes(m)) hit.push(m);
+    }
+    ctx.pushFx({ t: 'skill', s: 'dragonBreath', from: p.id, x: p.x, y: p.y, dx, dy, asp, pts: hit.map((m) => [Math.round(m.x), Math.round(m.y)]) });
+    for (const m of hit) {
+      if (asp === 'fire') { m.burnUntil = now + 4000; m.dots = (m.dots || []).concat({ until: now + 4000, dps: p.dmg * 0.4 * pw, by: p.id }); }
+      if (asp === 'ice') { m.stunUntil = Math.max(m.stunUntil || 0, now + 1500); m.frozenUntil = now + 1500; }
+      if (asp === 'poison') { m.poisonUntil = now + 6000; m.slowUntil = Math.max(m.slowUntil || 0, now + 6000); m.dots = (m.dots || []).concat({ until: now + 6000, dps: p.dmg * 0.55 * pw, by: p.id }); }
+      ctx.damageMonster(p, m, p.dmg * 1.5 * pw);
+    }
+    p.form = ORDER[(ORDER.indexOf(asp) + 1) % ORDER.length];
+    return null;
+  },
+
+  // Зефира: драконьи крылья — взлёт и падение на цель
+  dragonWings(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const asp = p.form || 'fire', pw = p.castPower || 1, x = t.x, y = t.y;
+    p.flyUntil = now + 1000;
+    for (const m of ctx.monsters.values()) if (m.target === p.id) m.target = null;
+    ctx.pushFx({ t: 'skill', s: 'takeFlight', from: p.id, x: p.x, y: p.y, quiet: true });
+    setTimeout(() => {
+      if (!ctx.players.has(p.id) || p.dead) return;
+      ctx.teleport(p, x, y + 4);
+      const tn = Date.now();
+      ctx.pushFx({ t: 'skill', s: 'dragonDive', from: p.id, x, y, r: 95, asp });
+      for (const m of inRadius(ctx, x, y, 95)) {
+        if (asp === 'fire') { m.burnUntil = tn + 3000; m.dots = (m.dots || []).concat({ until: tn + 3000, dps: p.dmg * 0.3 * pw, by: p.id }); }
+        if (asp === 'ice') m.slowUntil = Math.max(m.slowUntil || 0, tn + 3000);
+        if (asp === 'poison') { m.poisonUntil = tn + 4000; m.dots = (m.dots || []).concat({ until: tn + 4000, dps: p.dmg * 0.3 * pw, by: p.id }); }
+        if (asp === 'lightning') m.stunUntil = Math.max(m.stunUntil || 0, tn + 800);
+        ctx.damageMonster(p, m, p.dmg * 2 * pw);
+      }
+    }, 1000);
+    return null;
+  },
+
+  // Зефира: звериная мощь
+  beastMight(ctx, p, _t, now) {
+    p.mightUntil = now + 8000;
+    ctx.pushFx({ t: 'skill', s: 'beastMight', from: p.id, x: p.x, y: p.y });
+    return null;
+  },
+
+  // Морвен: удар мрака — урон и страх (ослабление)
+  gloomStrike(ctx, p, t, now) {
+    if (!t) return 'Нет цели рядом';
+    ctx.pushFx({ t: 'skill', s: 'gloomStrike', from: p.id, x: t.x, y: t.y });
+    for (const m of inRadius(ctx, t.x, t.y, 70)) m.weakUntil = Math.max(m.weakUntil || 0, now + 5000);
+    ctx.damageMonster(p, t, p.dmg * 1.8);
+    return null;
+  },
+
+  // Морвен: тёмная вспышка — тратит весь мрак
+  darkBurst(ctx, p) {
+    const dark = p.res || 0;
+    if (dark < 10) return 'Слишком мало мрака';
+    p.res = 0;
+    const mult = 1 + 0.04 * dark;
+    ctx.pushFx({ t: 'skill', s: 'darkBurst', from: p.id, x: p.x, y: p.y, r: 130, power: mult });
+    for (const m of inRadius(ctx, p.x, p.y, 130)) ctx.damageMonster(p, m, p.dmg * mult);
+    return null;
+  },
+
+  // Морвен: печать тьмы
+  darkSeal(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    t.darkSealBy = p.id; t.darkSealUntil = now + 12000;
+    ctx.pushFx({ t: 'skill', s: 'darkSeal', from: p.id, x: t.x, y: t.y });
+    return null;
+  },
+
+  // Эмет: каменный кулак
+  stoneFist(ctx, p, t, now) {
+    if (!t) return 'Нет цели рядом';
+    t.stunUntil = Math.max(t.stunUntil || 0, now + 1500);
+    ctx.pushFx({ t: 'skill', s: 'stoneFist', from: p.id, x: t.x, y: t.y });
+    ctx.damageMonster(p, t, p.dmg * 2.2);
+    return null;
+  },
+
+  // Эмет: землетрясение
+  golemQuake(ctx, p, _t, now) {
+    const r = 120;
+    ctx.pushFx({ t: 'skill', s: 'golemQuake', from: p.id, x: p.x, y: p.y, r });
+    for (const m of inRadius(ctx, p.x, p.y, r)) {
+      m.stunUntil = Math.max(m.stunUntil || 0, now + 1200);
+      ctx.damageMonster(p, m, p.dmg * 1.4);
+    }
+    return null;
+  },
+
+  // Эмет: каменная броня — защита ценой скорости
+  stoneArmor(ctx, p, _t, now) {
+    p.stoneArmorUntil = now + 8000;
+    ctx.pushFx({ t: 'skill', s: 'stoneArmor', from: p.id, x: p.x, y: p.y });
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -1446,12 +1567,50 @@ const PASSIVES = {
     dmgMult: (p) => 1 + 0.8 * (1 - p.hp / p.maxHp),
     onKill(ctx, p) { ctx.healPlayer(p, p.maxHp * 0.06); },
   },
+
+  // Зефира: драконье наследие — чешуя и аспекты сильнее при низком здоровье
+  dragonLegacy: {
+    dmgMult: (p) => (p.mightUntil > Date.now() ? 1.35 : 1),
+    dmgTakenMult: (p) => (1 - 0.4 * (1 - p.hp / p.maxHp)) * (p.mightUntil > Date.now() ? 0.75 : 1),
+    beforeCast: (p, sk) => ({ free: false, power: sk && sk.id !== 'beastMight' ? 1 + 0.5 * (1 - p.hp / p.maxHp) : 1 }),
+    note(p) {
+      const n = { fire: 'Пламя', ice: 'Лёд', poison: 'Яд', lightning: 'Молния' };
+      const sc = Math.round(40 * (1 - p.hp / p.maxHp));
+      return `аспект: ${n[p.form || 'fire']}${sc > 0 ? ` · чешуя −${sc}%` : ''}${p.mightUntil > Date.now() ? ' · звериная мощь' : ''}`;
+    },
+  },
+
+  // Морвен: тьма внутри — мрак усиливает урон и защиту; печать тьмы лечит при убийстве
+  innerDark: {
+    dmgMult: (p) => 1 + 0.3 * (p.res || 0) / 100,
+    dmgTakenMult: (p) => 1 - 0.25 * (p.res || 0) / 100,
+    targetMult: (p, m) => (m.darkSealBy === p.id && m.darkSealUntil > Date.now() ? 1.35 : 1),
+    onKill(ctx, p, now, m) {
+      if (m && m.darkSealBy === p.id && m.darkSealUntil > now) { ctx.healPlayer(p, p.maxHp * 0.15); ctx.pushFx({ t: 'skill', s: 'sealHeal', from: p.id, x: p.x, y: p.y, quiet: true }); }
+    },
+    note: (p) => `мрак ${Math.round(p.res || 0)}%`,
+  },
+
+  // Эмет: трещины — урон растёт, защита падает; на 20 — двойной удар
+  cracks: {
+    dmgMult: (p) => 1 + 0.03 * (p.cracks || 0),
+    dmgTakenMult: (p) => (1 + 0.02 * (p.cracks || 0)) * (p.stoneArmorUntil > Date.now() ? 0.5 : 1),
+    onHurt(ctx, p) {
+      p.cracks = Math.min(20, (p.cracks || 0) + 1);
+      p.lastCrack = Date.now();
+      if (p.cracks >= 20 && !p.crackReady) { p.crackReady = true; ctx.pushFx({ t: 'skill', s: 'cracksFull', from: p.id, x: p.x, y: p.y, quiet: true }); }
+      p.dirty = true;
+    },
+    basicMult(p) { if (!p.crackReady) return 1; p.crackReady = false; p.cracks = 0; p.dirty = true; return 2; },
+    onTick(p, now) { if (p.cracks && !p.crackReady && now - (p.lastCrack || 0) > 6000) { p.cracks = Math.max(0, p.cracks - 1); p.lastCrack = now - 5000; p.dirty = true; } },
+    note: (p) => `трещины ${p.cracks || 0}/20${p.crackReady ? ' · следующий удар двойной!' : ''}${p.stoneArmorUntil > Date.now() ? ' · каменная броня' : ''}`,
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['bomb', 'heavenSpear', 'bloodSpike', 'starShot', 'lightHail', 'arcaneVolley', 'iceGrip', 'darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['dragonBreath', 'dragonWings', 'gloomStrike', 'darkSeal', 'stoneFist', 'bomb', 'heavenSpear', 'bloodSpike', 'starShot', 'lightHail', 'arcaneVolley', 'iceGrip', 'darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { bomb: 280, heavenSpear: 300, bloodSpike: 260, witcherSign: 150, starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { dragonBreath: 170, dragonWings: 280, gloomStrike: 80, darkSeal: 260, stoneFist: 80, bomb: 280, heavenSpear: 300, bloodSpike: 260, witcherSign: 150, starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

@@ -4,7 +4,7 @@
 window.Lobby = (() => {
   const $ = (id) => document.getElementById(id);
   const BACK_SLOTS = [3, 4, 5, 6];
-  const RES_KEYS = { 'Мана': 'MP', 'Энергия': 'EP', 'Ярость': 'RP', 'Ци': 'Ци', 'Безумие': 'BP', 'Детали': 'ДТ', 'Руны': 'RP', 'Вера': 'FP', 'Стойкость': 'SP' };
+  const RES_KEYS = { 'Мана': 'MP', 'Энергия': 'EP', 'Ярость': 'RP', 'Ци': 'Ци', 'Безумие': 'BP', 'Детали': 'ДТ', 'Руны': 'RP', 'Вера': 'FP', 'Стойкость': 'SP', 'Мрак': 'DP', 'Сила камня': 'SP' };
 
   let opts, heroes = {}, rarities = {}, backgrounds = [];
   let profile = { heroes: [], chars: {}, bgs: ['throne', 'forest'], freeSpin: true, paidSpins: 0, spinPrice: 25 };

@@ -36,7 +36,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     ['wolf', 'bear', 'hawk', 'skeleton', 'sprite', 'turret'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
-    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy', 'note', 'necro', 'arrow', 'arcane', 'bolt', 'blood'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy', 'note', 'necro', 'arrow', 'arcane', 'bolt', 'blood', 'venom'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -143,7 +143,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const VOW = { protection: 0x8ad3ff, retribution: 0xffb030, mercy: 0xffd0e0 };
       const SONG = { inspire: 0xffb030, lullaby: 0x8a9aff, mock: 0xff6a9a };
       const auraCol = p.pact ? { fury: 0xff3020, stone: 0x9aa3ad, wind: 0x8ad3ff }[p.pact] : p.tree ? 0x5fd17a : p.elem ? ELEM[p.elem]
-        : p.bless ? 0xfff0a0 : p.vow ? VOW[p.vow] : p.song ? SONG[p.song] : null;
+        : p.bless ? 0xfff0a0 : p.vow ? VOW[p.vow] : p.song ? SONG[p.song]
+        : p.asp ? { fire: 0xff6a1a, ice: 0x8ad3ff, poison: 0x7ad84a, lightning: 0xffe94a }[p.asp]
+        : p.stoneArmor ? 0xa09a90 : p.might ? 0xd84a2a : null;
       // Песня барда: по кругу 180 разлетаются ноты
       if (p.song && (!e.nextNote || this.time.now > e.nextNote)) {
         e.nextNote = this.time.now + 450;
@@ -217,7 +219,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
       const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '')
-        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '') + (m.mo ? '🤡' : '') + (m.st2 ? '⭐' : '') + (m.bd ? '⛓' : '') + (m.bl ? '🩸' : '');
+        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '') + (m.mo ? '🤡' : '') + (m.st2 ? '⭐' : '') + (m.ds ? '🔯' : '') + (m.bd ? '⛓' : '') + (m.bl ? '🩸' : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -320,7 +322,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         // Отражённый урон (возмездие Малакора) — фиолетовым
         this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
-        const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { bolt: 0xffc850, blood: 0xc0101a, arrow: 0xfff6c0, arcane: 0xc8a0ff, note: 0xffe08a, necro: 0x5fffb0, holy: 0xfff0a0, spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
+        const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { venom: 0x7ad84a, bolt: 0xffc850, blood: 0xc0101a, arrow: 0xfff6c0, arcane: 0xc8a0ff, note: 0xffe08a, necro: 0x5fffb0, holy: 0xfff0a0, spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
           illusion: 0xff7ad0, fireball: 0xff8c1a, frost: 0x8ad3ff, spark: 0xffe94a, stone: 0xa07a4a }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
@@ -560,6 +562,55 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.burst(f.x, f.y, 0xff7ab0, 8);
         break;
       }
+      case 'dragonBreath': {
+        const col = { fire: 0xff6a1a, ice: 0x8ad3ff, poison: 0x7ad84a, lightning: 0xffe94a }[f.asp];
+        const ang = Math.atan2(f.dy, f.dx);
+        const g = this.add.graphics().setDepth(860);
+        g.fillStyle(col, 0.5).slice(f.x, f.y, 170, ang - 0.55, ang + 0.55).fillPath();
+        this.tweens.add({ targets: g, alpha: 0, duration: 500, onComplete: () => g.destroy() });
+        for (let k = 1; k <= 5; k++) this.time.delayedCall(k * 40, () => this.burst(f.x + f.dx * 32 * k, f.y + f.dy * 32 * k, col, 6));
+        (f.pts || []).forEach(([x, y]) => this.burst(x, y, col, 6));
+        this.floatText(f.x, f.y - 50, '🐉 ' + { fire: 'Пламя', ice: 'Лёд', poison: 'Яд', lightning: 'Молния' }[f.asp], '#' + col.toString(16).padStart(6, '0'), 14);
+        break;
+      }
+      case 'dragonDive': {
+        const col = { fire: 0xff6a1a, ice: 0x8ad3ff, poison: 0x7ad84a, lightning: 0xffe94a }[f.asp];
+        this.ring(f.x, f.y, f.r, col, 500, 7); this.burst(f.x, f.y, col, 26); this.cameras.main.shake(180, 0.01);
+        if (f.from === this.myId && this.me) { this.me.x = f.x; this.me.y = f.y + 4; }
+        break;
+      }
+      case 'beastMight':
+        this.ring(f.x, f.y, 34, 0xd84a2a, 500, 5); this.floatText(f.x, f.y - 50, '🐲 Звериная мощь!', '#ff8a5a', 14);
+        break;
+      case 'gloomStrike':
+        this.burst(f.x, f.y, 0x4a2a6a, 18); this.ring(f.x, f.y, 70, 0x6a3a9a, 450, 4);
+        break;
+      case 'darkBurst': {
+        const fl = this.add.circle(f.x, f.y, f.r, 0x1a0a24, 0.7).setDepth(830).setScale(0.2);
+        this.tweens.add({ targets: fl, scale: 1, alpha: 0, duration: 550, onComplete: () => fl.destroy() });
+        this.ring(f.x, f.y, f.r, 0x9b4dff, 600, 6); this.burst(f.x, f.y, 0x6a3a9a, 28);
+        this.floatText(f.x, f.y - 56, `💥 ×${f.power.toFixed(1)}`, '#c890ff', 15); this.cameras.main.shake(180, 0.008);
+        break;
+      }
+      case 'darkSeal':
+        this.ring(f.x, f.y, 30, 0x6a3a9a, 600, 4); this.floatText(f.x, f.y - 40, '🔯 Печать', '#c890ff', 12);
+        break;
+      case 'sealHeal':
+        this.floatText(f.x, f.y - 56, '🖤 Душа поглощена', '#c890ff', 12);
+        break;
+      case 'stoneFist':
+        this.ring(f.x, f.y, 30, 0xa09a90, 350, 6); this.burst(f.x, f.y, 0x8a8580, 16); this.cameras.main.shake(120, 0.007);
+        break;
+      case 'golemQuake':
+        this.ring(f.x, f.y, f.r, 0x8a6a4a, 600, 8); this.ring(f.x, f.y, f.r * 0.6, 0xa09a90, 450, 5);
+        this.burst(f.x, f.y, 0x6a5a4a, 30); this.cameras.main.shake(260, 0.012);
+        break;
+      case 'stoneArmor':
+        this.ring(f.x, f.y, 30, 0xa09a90, 500, 6); this.floatText(f.x, f.y - 50, '🪨 Каменная броня', '#d8d0c0', 13);
+        break;
+      case 'cracksFull':
+        this.floatText(f.x, f.y - 60, '💔 Трещины на пределе!', '#ffb08a', 13);
+        break;
       case 'buildTurret':
         this.burst(f.x, f.y, 0xc9a64d, 14); this.floatText(f.x, f.y - 36, '🔧 Турель!', '#ffc850', 13);
         break;

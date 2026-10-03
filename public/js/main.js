@@ -105,8 +105,9 @@
     if (s.form !== undefined || s.formKeys) applyForm(s);
     if (passiveDef) {
       const parts = [];
-      if (s.bonusDmg) parts.push(`+${s.bonusDmg}% урона`);
-      if (s.bonusSpd) parts.push(`+${s.bonusSpd}% скор.`);
+      const sg = (v) => (v > 0 ? '+' + v : '−' + Math.abs(v));
+      if (s.bonusDmg) parts.push(`${sg(s.bonusDmg)}% урона`);
+      if (s.bonusSpd) parts.push(`${sg(s.bonusSpd)}% скор.`);
       if (s.passiveNote) parts.push(s.passiveNote);
       $('passive').textContent = `${passiveDef.icon} ${parts.join(' · ') || passiveDef.name}`;
     }

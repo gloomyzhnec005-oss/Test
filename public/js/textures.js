@@ -90,6 +90,16 @@ window.Gfx = (() => {
       ctx.fillStyle = '#c9d1e0'; ctx.beginPath(); ctx.moveTo(26, -1); ctx.lineTo(29, 5); ctx.lineTo(23, 5); ctx.fill();
       rect(ctx, 24, 6, 4, 2, '#c0301e'); // повязка
     }
+    if (L.weapon === 'claws') {
+      rect(ctx, 23, 18, 2, 4, '#f2ecd8'); rect(ctx, 25, 19, 2, 4, '#f2ecd8'); rect(ctx, 6, 18, 2, 4, '#f2ecd8'); rect(ctx, 4, 19, 2, 4, '#f2ecd8');
+    }
+    if (L.scales) { rect(ctx, 10, 15, 2, 2, L.scales); rect(ctx, 20, 17, 2, 2, L.scales); rect(ctx, 13, 22, 2, 1, L.scales); }
+    if (L.weapon === 'fists') {
+      // Массивные каменные руки голема
+      rect(ctx, 3, 13, 6, 11, L.body); rect(ctx, 23, 13, 6, 11, L.body);
+      rect(ctx, 2, 22, 8, 6, '#6a6560'); rect(ctx, 22, 22, 8, 6, '#6a6560');
+      rect(ctx, 5, 16, 2, 2, L.trim); rect(ctx, 25, 16, 2, 2, L.trim); rect(ctx, 14, 17, 4, 2, L.trim); // руны
+    }
     if (L.weapon === 'wrench') {
       // Огромный гаечный ключ
       rect(ctx, 24, 8, 3, 18, '#8a8f99'); rect(ctx, 22, 4, 7, 5, '#a8b0b8'); rect(ctx, 24, 4, 3, 2, '#3a3f48');
@@ -167,6 +177,25 @@ window.Gfx = (() => {
         rect(ctx, 10, 4, 12, 3, L.hair); rect(ctx, 9, 6, 2, 13, L.hair); rect(ctx, 21, 6, 2, 13, L.hair);
         rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
         rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
+        break;
+      case 'dragonHorns':
+        // Рыжие волосы, драконьи рога назад, чешуйки на скулах
+        rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 13, L.hair); rect(ctx, 21, 5, 2, 13, L.hair);
+        rect(ctx, 8, 1, 3, 2, '#3a2a20'); rect(ctx, 6, 0, 3, 2, '#3a2a20'); rect(ctx, 21, 1, 3, 2, '#3a2a20'); rect(ctx, 23, 0, 3, 2, '#3a2a20');
+        rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes);
+        rect(ctx, 11, 11, 2, 1, L.scales); rect(ctx, 19, 11, 2, 1, L.scales);
+        break;
+      case 'darkHelm':
+        // Закрытый шлем с гребнем и фиолетовой прорезью
+        rect(ctx, 10, 3, 12, 12, L.headColor); rect(ctx, 15, 0, 2, 4, '#4a3a5a'); rect(ctx, 14, 1, 4, 1, '#4a3a5a');
+        rect(ctx, 11, 8, 10, 2, '#0a080c'); rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes);
+        rect(ctx, 10, 13, 12, 2, '#3a3440');
+        break;
+      case 'golem':
+        // Каменная голова без шеи, светящиеся руны
+        rect(ctx, 9, 3, 14, 12, L.headColor); rect(ctx, 9, 3, 14, 2, '#7a7570'); rect(ctx, 11, 12, 10, 3, '#5a5550');
+        rect(ctx, 12, 8, 3, 2, L.eyes); rect(ctx, 17, 8, 3, 2, L.eyes);
+        rect(ctx, 15, 4, 2, 3, L.eyes); rect(ctx, 20, 6, 1, 4, '#4a4540'); rect(ctx, 11, 5, 1, 3, '#4a4540'); // руна и трещины
         break;
       case 'goggles':
         // Рыжие косички и очки-гогглы на лбу
@@ -378,6 +407,8 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'venom') {
+      circle(ctx, 8, 8, 7, 'rgba(120,220,60,.35)'); circle(ctx, 8, 8, 4, '#7ad84a'); circle(ctx, 6, 6, 1.5, '#d8ffb0');
     } else if (kind === 'bolt') {
       rect(ctx, 2, 7, 10, 2, '#c9a64d'); rect(ctx, 11, 6, 4, 4, '#e8e2cc'); circle(ctx, 8, 8, 6, 'rgba(255,200,80,.25)');
     } else if (kind === 'blood') {
