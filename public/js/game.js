@@ -36,7 +36,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     ['wolf', 'bear', 'hawk', 'skeleton', 'sprite'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
-    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -140,7 +140,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
       // Пакт с духом (Зу'кра) — цветная аура; Облик древа (Нимуэ) — зелёная
       // ...и стихия Аурелиуса
       const ELEM = { fire: 0xff6a1a, ice: 0x8ad3ff, lightning: 0xffe94a, earth: 0xa07a4a };
-      const auraCol = p.pact ? { fury: 0xff3020, stone: 0x9aa3ad, wind: 0x8ad3ff }[p.pact] : p.tree ? 0x5fd17a : p.elem ? ELEM[p.elem] : null;
+      const VOW = { protection: 0x8ad3ff, retribution: 0xffb030, mercy: 0xffd0e0 };
+      const auraCol = p.pact ? { fury: 0xff3020, stone: 0x9aa3ad, wind: 0x8ad3ff }[p.pact] : p.tree ? 0x5fd17a : p.elem ? ELEM[p.elem]
+        : p.bless ? 0xfff0a0 : p.vow ? VOW[p.vow] : null;
       if (auraCol !== (e.auraCol ?? null)) {
         if (e.extraAura) { e.extraAura.destroy(); e.extraAura = null; }
         e.auraCol = auraCol;
@@ -250,6 +252,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
     for (const t of s.t || []) {
       seenT.add(t.id);
       if (!this.totems.has(t.id)) {
+        // Святая аура (золотой круг) — отдельный вид эффекта на земле
+        if (t.kind === 'holyAura') {
+          const area = this.add.circle(t.x, t.y, t.r, 0xffe08a, 0.18).setStrokeStyle(3, 0xffe08a, 0.8).setDepth(1).setScale(1, 0.5);
+          const img = this.add.text(t.x, t.y, '✝', { fontSize: '20px', color: '#fff6c0' }).setOrigin(0.5).setDepth(2).setAlpha(0.8);
+          this.tweens.add({ targets: area, alpha: 0.5, duration: 600, yoyo: true, repeat: -1 });
+          this.totems.set(t.id, { area, img });
+          continue;
+        }
         // Тотем исцеления (зелёный круг + столб) или осквернённая земля (тёмное пятно)
         const dark = t.kind === 'desecrate';
         const area = this.add.circle(t.x, t.y, t.r, dark ? 0x1a3a24 : 0x3fe08a, dark ? 0.45 : 0.08)
@@ -291,7 +301,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         // Отражённый урон (возмездие Малакора) — фиолетовым
         this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
-        const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
+        const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { holy: 0xfff0a0, spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
           illusion: 0xff7ad0, fireball: 0xff8c1a, frost: 0x8ad3ff, spark: 0xffe94a, stone: 0xa07a4a }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
@@ -526,6 +536,48 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.burst(f.x, f.y, 0xff7ab0, 8);
         break;
       }
+      case 'holyVow': {
+        const V = { protection: [0x8ad3ff, '🛡️ Обет защиты'], retribution: [0xffb030, '⚔️ Обет кары'], mercy: [0xffd0e0, '💛 Обет милосердия'] }[f.vow];
+        this.ring(f.x, f.y, 38, V[0], 500, 4);
+        this.floatText(f.x, f.y - 52, V[1], '#' + V[0].toString(16).padStart(6, '0'), 14);
+        break;
+      }
+      case 'heavenStrike': {
+        // Столп света с неба
+        const beam = this.add.rectangle(f.x, f.y - 90, 18, 180, 0xfff6c0, 0.75).setDepth(870);
+        this.tweens.add({ targets: beam, scaleX: 2.5, alpha: 0, duration: 450, onComplete: () => beam.destroy() });
+        this.burst(f.x, f.y, f.vow === 'retribution' ? 0xffb030 : 0xfff0a0, 18);
+        this.ring(f.x, f.y, 30, 0xffe08a, 400, 4);
+        if (f.vow === 'retribution') this.cameras.main.shake(140, 0.006);
+        break;
+      }
+      case 'holyAuraCast':
+        this.ring(f.x, f.y, f.r, 0xffe08a, 700, 5);
+        break;
+      case 'healingPrayer':
+        this.ring(f.x, f.y, f.r, 0xfff6c0, 800, 3);
+        for (let i = 0; i < 10; i++) {
+          const x = f.x + (Math.random() - 0.5) * 70, y = f.y + Math.random() * 10;
+          const t = this.add.text(x, y, '✚', { fontSize: '13px', color: '#fff6c0' }).setOrigin(0.5).setDepth(900);
+          this.tweens.add({ targets: t, y: y - 55, alpha: 0, delay: i * 40, duration: 850, onComplete: () => t.destroy() });
+        }
+        break;
+      case 'banishDarkness': {
+        const flash = this.add.circle(f.x, f.y, f.r, 0xffffff, 0.7).setDepth(880).setScale(0.3);
+        this.tweens.add({ targets: flash, scale: 1, alpha: 0, duration: 420, onComplete: () => flash.destroy() });
+        this.burst(f.x, f.y, 0xfff0a0, 20);
+        this.floatText(f.x, f.y - 40, '✝ Изыди!', '#fff6c0', 14);
+        break;
+      }
+      case 'blessing':
+        for (const id of f.ids || []) {
+          const e = this.players.get(id);
+          if (e) { this.ring(e.c.x, e.c.y, 28, 0xfff0a0, 600, 3); this.floatText(e.c.x, e.c.y - 40, '😇', '#fff', 14); }
+        }
+        break;
+      case 'faithRelease':
+        this.floatText(f.x, f.y - 66, '🕯️ Сила веры!', '#fff0a0', 14);
+        break;
       case 'elementSwap': {
         const C = { fire: [0xff6a1a, '🔥 Огонь'], ice: [0x8ad3ff, '❄️ Лёд'], lightning: [0xffe94a, '⚡ Молния'], earth: [0xa07a4a, '🪨 Земля'] }[f.el];
         this.ring(f.x, f.y, 36, C[0], 450, 4);

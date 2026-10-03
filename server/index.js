@@ -183,12 +183,12 @@ const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
   return (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1) * (p.linkUntil > now ? 1.3 : 1)
-    * (p.pactUntil > now && p.pactType === 'fury' ? 1.5 : 1)
+    * (p.pactUntil > now && p.pactType === 'fury' ? 1.5 : 1) * (p.blessUntil > now ? 1.2 : 1)
     * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
+  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (p.blessUntil > now ? 1.2 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1);
   return Math.round(formOf(p).cooldown / speed);
 };
 
@@ -218,7 +218,7 @@ function spawnMonster(type = pickMonsterType()) {
   const p = randomFreeSpot(def.zone, Math.min(maxR, def.zone + 12));
   const m = {
     id: monsterSeq++, type, x: p.x, y: p.y, homeX: p.x, homeY: p.y,
-    hp: def.hp, maxHp: def.hp, target: null, lastAttack: 0,
+    hp: def.hp, maxHp: def.hp, target: null, lastAttack: 0, undead: !!def.undead,
     wander: null, nextWander: 0, stunUntil: 0, rootUntil: 0, dots: [],
   };
   monsters.set(m.id, m);
@@ -238,7 +238,7 @@ function publicPlayer(p) {
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
-    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
+    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(), tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -351,7 +351,8 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
   const ps = passiveOf(target);
   // Множители входящего урона: «в ущерб защите» (Вайалд), «Зов стаи» (Урсус), пассивки (Брендан)
   let dmg = raw * (target.hero.dmgTaken || 1) * (target.packUntil > now ? 0.65 : 1)
-    * (target.pactUntil > now && target.pactType === 'stone' ? 0.6 : 1) * (ps && ps.dmgTakenMult ? ps.dmgTakenMult(target) : 1);
+    * (target.pactUntil > now && target.pactType === 'stone' ? 0.6 : 1)
+    * (target.blessUntil > now ? 0.8 : 1) * (target.holyAuraUntil > now ? target.holyAuraMult : 1) * (ps && ps.dmgTakenMult ? ps.dmgTakenMult(target) : 1);
   // Обет защиты (Брендан): 40% урона союзника принимает на себя защитник, остальное союзнику −20%
   const guardian = !viaVow && target.vowUntil > now ? players.get(target.vowBy) : null;
   if (guardian && !guardian.dead && Math.hypot(guardian.x - target.x, guardian.y - target.y) < 400) {
@@ -405,6 +406,7 @@ function syncCooldowns(p, now) {
 }
 const skillCtx = {
   moveEntity, syncCooldowns, passiveOf,
+  isUndead: (m) => !!C.MONSTERS[m.type].undead,
   monsters, players, damageMonster, healPlayer, teleport, knockback, addTotem, addGround, takeCorpse, giveShield, addPet, removePet,
   isSolidAt: (x, y) => world.isSolidAt(x, y),
   pushFx: (f) => fx.push(f),
@@ -461,6 +463,7 @@ io.on('connection', (socket) => {
     if (hero.pets) { p.pets = createPets(p); p.pets.forEach((pet) => pets.set(pet.id, pet)); }
     if (hero.summons) p.pets = []; // слуги появляются навыком «Восстание мёртвых»
     if (hero.elements) p.form = 'fire'; // Аурелиус начинает с огня
+    if (hero.vows) { p.form = 'protection'; p.vowSince = Date.now(); } // Валериан начинает с обета защиты
     p.joinedAt = Date.now();
     players.set(socket.id, p);
 
@@ -509,7 +512,9 @@ io.on('connection', (socket) => {
     // Усиленная атака после «Дыхания гармонии»
     const empowered = p.empoweredUntil > now;
     if (empowered) { p.empoweredUntil = 0; fx.push({ t: 'skill', s: 'empHit', from: p.id, x: m.x, y: m.y, quiet: true }); }
-    damageMonster(p, m, p.dmg * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15, proj: formOf(p).projectile, basic: true });
+    const ps1 = passiveOf(p);
+    const basic = ps1 && ps1.basicMult ? ps1.basicMult(p) : 1; // рвение Валериана
+    damageMonster(p, m, p.dmg * basic * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15, proj: formOf(p).projectile, basic: true });
     // Ресурс, который копится от ударов (ярость Вебранда)
     p.lastHit = now;
     if (p.hero.resource.perHit) { p.res = Math.min(p.resMax, p.res + p.hero.resource.perHit); markDirty(p); }

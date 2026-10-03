@@ -635,6 +635,89 @@ const SKILLS = {
     }), 350);
     return null;
   },
+
+  // Валериан: святой обет по кругу
+  holyVow(ctx, p, _t, now) {
+    const ORDER = ['protection', 'retribution', 'mercy'];
+    p.form = ORDER[(ORDER.indexOf(p.form) + 1) % ORDER.length];
+    p.vowSince = now; // верность обету начинается заново
+    ctx.pushFx({ t: 'skill', s: 'holyVow', from: p.id, x: p.x, y: p.y, vow: p.form });
+    return null;
+  },
+
+  // Валериан: небесный удар — эффект зависит от обета
+  heavenStrike(ctx, p, t, now) {
+    if (!t) return 'Нет цели рядом';
+    const pw = p.castPower || 1, vow = p.form;
+    ctx.pushFx({ t: 'skill', s: 'heavenStrike', from: p.id, x: t.x, y: t.y, vow });
+    if (vow === 'retribution') {
+      t.stunUntil = Math.max(t.stunUntil || 0, now + 1000);
+      ctx.damageMonster(p, t, p.dmg * 2.7 * pw);
+    } else {
+      ctx.damageMonster(p, t, p.dmg * 1.8 * pw);
+      if (vow === 'protection') ctx.giveShield(p, p.maxHp * 0.15 * pw, now + 8000);
+      if (vow === 'mercy') for (const o of ctx.players.values()) if (!o.dead && dist(o, p) <= 150) ctx.healPlayer(o, o.maxHp * 0.1 * pw);
+    }
+    return null;
+  },
+
+  // Валериан: святая аура — освящённая земля на 6 с
+  holyAura(ctx, p, _t, now) {
+    const pw = (p.castPower || 1) * (1 + 0.1 * (p.zeal || 0)), vow = p.form, r = 130, x = p.x, y = p.y;
+    ctx.addGround({
+      kind: 'holyAura', owner: p.id, x, y: y + 6, r, until: now + 6000,
+      tick(tnow) {
+        if (!ctx.players.has(p.id)) return;
+        for (const m of inRadius(ctx, x, y, r)) ctx.damageMonster(p, m, p.dmg * 0.5 * (vow === 'retribution' ? 1.8 : 1) * pw);
+        for (const o of ctx.players.values()) {
+          if (o.dead || Math.hypot(o.x - x, o.y - y) > r) continue;
+          ctx.healPlayer(o, o.maxHp * (vow === 'mercy' ? 0.04 : 0.02) * pw);
+          o.holyAuraUntil = tnow + 1100;
+          o.holyAuraMult = vow === 'protection' ? 0.65 : 0.8;
+        }
+      },
+    });
+    ctx.pushFx({ t: 'skill', s: 'holyAuraCast', from: p.id, x, y, r, vow });
+    return null;
+  },
+
+  // Юстина: молитва исцеления — лечение и снятие ослаблений
+  healingPrayer(ctx, p, _t, now) {
+    const pw = p.castPower || 1, r = 180;
+    ctx.pushFx({ t: 'skill', s: 'healingPrayer', from: p.id, x: p.x, y: p.y, r });
+    for (const o of ctx.players.values()) {
+      if (o.dead || dist(o, p) > r) continue;
+      ctx.healPlayer(o, o.maxHp * 0.25 * pw * (p.healBoost || 1));
+      o.debuffs = []; // ослабления на игроках (задел: монстры пока их не накладывают)
+    }
+    return null;
+  },
+
+  // Юстина: изгнание тьмы — урон и отбрасывание, двойной против нежити
+  banishDarkness(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, r = 90, x = t.x, y = t.y;
+    ctx.pushFx({ t: 'skill', s: 'banishDarkness', from: p.id, x, y, r });
+    for (const m of inRadius(ctx, x, y, r)) {
+      ctx.damageMonster(p, m, p.dmg * 1.5 * pw * (ctx.isUndead(m) ? 2 : 1));
+      const dx = m.x - x, dy = m.y - y, d = Math.hypot(dx, dy) || 1;
+      ctx.knockback(m, dx / d, dy / d, 60);
+    }
+    return null;
+  },
+
+  // Юстина: благословение союзникам
+  blessing(ctx, p, _t, now) {
+    const pw = p.castPower || 1, r = 200;
+    const ids = [];
+    for (const o of ctx.players.values()) {
+      if (o.dead || dist(o, p) > r) continue;
+      o.blessUntil = now + 8000 * pw;
+      ids.push(o.id);
+    }
+    ctx.pushFx({ t: 'skill', s: 'blessing', from: p.id, x: p.x, y: p.y, r, ids });
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -903,12 +986,39 @@ const PASSIVES = {
       return `стихия: ${names[p.form]} · чередование ${p.swapStacks || 0}/5 · застой +${idle}%`;
     },
   },
+
+  // Валериан: кара нечестивых — урон по монстрам и нежити, рвение за убийства, верность обету
+  smiteUnholy: {
+    targetMult: (p, m) => 1.2 * (m.undead ? 1.25 : 1),
+    loyalty: (p) => Math.min(5, Math.floor((Date.now() - (p.vowSince || p.joinedAt || Date.now())) / 5000)),
+    beforeCast(p, sk) { return { free: false, power: sk && sk.id === 'holyVow' ? 1 : 1 + 0.08 * this.loyalty(p) }; },
+    // Следующая обычная атака усилена рвением (заряды тратятся)
+    basicMult(p) { const z = p.zeal || 0; if (!z) return 1; p.zeal = 0; p.dirty = true; return 1 + 0.15 * z; },
+    onKill(ctx, p) { p.zeal = Math.min(5, (p.zeal || 0) + 1); p.dirty = true; },
+    onTick(p) { const l = this.loyalty(p); if (l !== p.lastLoyalty) { p.lastLoyalty = l; p.dirty = true; } },
+    note(p) {
+      const names = { protection: 'Защита', retribution: 'Кара', mercy: 'Милосердие' };
+      return `обет: ${names[p.form]} · верность ${this.loyalty(p)}/5 · рвение ${p.zeal || 0}/5`;
+    },
+  },
+
+  // Юстина: сила веры — свет копится от заклинаний; на 100 следующее сильнее, лечение вдвое
+  faithPower: {
+    beforeCast(p) { const full = (p.light || 0) >= 100; p.healBoost = full ? 2 : 1; return { free: false, power: full ? 1.6 : 1 }; },
+    afterCast(ctx, p, _b) {
+      if ((p.light || 0) >= 100) { p.light = 0; ctx.pushFx({ t: 'skill', s: 'faithRelease', from: p.id, x: p.x, y: p.y, quiet: true }); }
+      else p.light = Math.min(100, (p.light || 0) + 25);
+      p.healBoost = 1;
+      p.dirty = true;
+    },
+    note: (p) => ((p.light || 0) >= 100 ? 'свет 100 — следующее заклинание усилено!' : `свет ${p.light || 0}/100`),
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

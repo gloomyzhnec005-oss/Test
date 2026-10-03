@@ -131,6 +131,7 @@ window.Gfx = (() => {
         rect(ctx, 7, 1, 3, 4, '#efe6cf'); rect(ctx, 22, 1, 3, 4, '#efe6cf'); rect(ctx, 7, 0, 2, 2, '#efe6cf'); rect(ctx, 23, 0, 2, 2, '#efe6cf');
         break;
       case 'halo':
+        if (L.longHair && L.hair) { rect(ctx, 9, 5, 2, 15, L.hair); rect(ctx, 21, 5, 2, 15, L.hair); }
         ctx.strokeStyle = L.headColor; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.ellipse(16, 2.5, 6, 1.8, 0, 0, Math.PI * 2); ctx.stroke();
         break;
