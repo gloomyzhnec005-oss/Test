@@ -15,6 +15,8 @@ const PET_KINDS = {
   // Турель Ингрид: стреляет издалека, следует за хозяйкой, «ломается» и чинится вместо гибели
   // Дух-помощник Элнаэрис
   wisp: { name: 'Дух', hp: 0.5, dmg: 0.6, cooldown: 900, speed: 180, reach: 32 },
+  // Морской дух Волдана: бьёт струёй воды издалека
+  seaSpirit: { name: 'Морской дух', hp: 0.45, dmg: 0.45, cooldown: 1000, speed: 175, reach: 150, ranged: true, proj: 'water' },
   turret: { name: 'Турель', hp: 0.5, dmg: 0.45, cooldown: 800, speed: 150, reach: 190, ranged: true },
   clone: { name: 'Двойник', hp: 0.6, dmg: 0.2, cooldown: 1200, speed: 160, reach: 30 },
   // Поднятый монстр Ориона: здоровье и урон задаются от самого монстра (maxHp, dmgAbs)
@@ -149,7 +151,7 @@ function updatePets(ctx, owner, now, dt) {
         raw *= 2.5;
         target.stunUntil = Math.max(target.stunUntil || 0, now + 1500);
       }
-      ctx.damageMonster(owner, target, raw, { pet: pet.id, proj: k.ranged ? 'bolt' : null, fromX: pet.x, fromY: pet.y });
+      ctx.damageMonster(owner, target, raw, { pet: pet.id, proj: k.ranged ? k.proj || 'bolt' : null, fromX: pet.x, fromY: pet.y });
     }
   }
 }

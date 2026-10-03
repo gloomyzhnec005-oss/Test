@@ -120,7 +120,12 @@ window.Gfx = (() => {
       ctx.beginPath(); ctx.moveTo(26, 3); ctx.lineTo(21, 1); ctx.lineTo(21, 11); ctx.lineTo(26, 9); ctx.fill();
     }
     // Ноги и тело
-    if (L.flameBody) {
+    if (L.fishTail) {
+      // Рыбий хвост вместо ног (тритон, сирена)
+      ctx.fillStyle = L.legs; ctx.beginPath(); ctx.moveTo(10, 23); ctx.lineTo(22, 23); ctx.quadraticCurveTo(20, 28, 17, 29); ctx.lineTo(15, 29); ctx.quadraticCurveTo(12, 27, 10, 23); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(16, 28); ctx.lineTo(10, 31); ctx.lineTo(13, 27); ctx.fill(); ctx.beginPath(); ctx.moveTo(16, 28); ctx.lineTo(22, 31); ctx.lineTo(19, 27); ctx.fill();
+      rect(ctx, 13, 25, 2, 1, L.trim); rect(ctx, 17, 26, 2, 1, L.trim);
+    } else if (L.flameBody) {
       // Джинн: вместо ног — огненный вихрь
       ctx.fillStyle = L.legs; ctx.beginPath(); ctx.moveTo(9, 23); ctx.lineTo(23, 23); ctx.quadraticCurveTo(20, 28, 14, 31); ctx.quadraticCurveTo(15, 27, 9, 23); ctx.fill();
       ctx.fillStyle = L.trim; ctx.beginPath(); ctx.moveTo(12, 23); ctx.lineTo(20, 23); ctx.quadraticCurveTo(17, 26, 15, 29); ctx.fill();
@@ -290,6 +295,21 @@ window.Gfx = (() => {
         rect(ctx, 14, 1, 4, 3, L.headColor); rect(ctx, 15, 3, 2, 2, L.headColor);
         rect(ctx, 12, 7, 3, 1, '#3a2a1a'); rect(ctx, 17, 7, 3, 1, '#3a2a1a');
         break;
+      case 'triton':
+        // Тритон: плавник-гребень, жабры, корона из кораллов
+        rect(ctx, 11, 3, 10, 3, L.headColor); rect(ctx, 14, 0, 4, 4, L.headColor); rect(ctx, 15, -1, 2, 2, '#bfeee6');
+        rect(ctx, 8, 6, 3, 5, L.headColor); rect(ctx, 21, 6, 3, 5, L.headColor); // плавники-уши
+        rect(ctx, 12, 12, 1, 2, '#2a6a6a'); rect(ctx, 19, 12, 1, 2, '#2a6a6a');
+        rect(ctx, 11, 2, 2, 2, '#e8d070'); rect(ctx, 19, 2, 2, 2, '#e8d070');
+        rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes);
+        break;
+      case 'siren':
+        // Сирена: длинные волосы цвета морской волны с ракушкой
+        rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 17, L.hair); rect(ctx, 21, 5, 2, 17, L.hair); rect(ctx, 8, 14, 2, 8, L.hair);
+        circle(ctx, 20, 4, 2.2, '#ffd0d8'); rect(ctx, 19, 3, 1, 3, '#e8a0b0');
+        rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes); rect(ctx, 15, 12, 2, 1, '#c86a8a');
+        rect(ctx, 11, 15, 4, 3, '#f0e0b0'); rect(ctx, 17, 15, 4, 3, '#f0e0b0'); // ракушки
+        break;
       case 'moonCirclet':
         // Серебряный обруч с полумесяцем, длинные лунные волосы
         rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 15, L.hair); rect(ctx, 21, 5, 2, 15, L.hair);
@@ -322,6 +342,10 @@ window.Gfx = (() => {
     }
     // Оружие в руке
     switch (L.weapon) {
+      case 'trident':
+        rect(ctx, 25, 4, 2, 25, '#c9a64d'); rect(ctx, 22, 4, 8, 2, '#e8d070');
+        rect(ctx, 22, 0, 2, 5, '#e8d070'); rect(ctx, 25, -1, 2, 5, '#fff0a0'); rect(ctx, 28, 0, 2, 5, '#e8d070');
+        break;
       case 'sword': rect(ctx, 24, 6, 3, 16, '#dfe6ee'); rect(ctx, 22, 20, 7, 2, '#8a6a2a'); break;
       case 'mace':
         rect(ctx, 25, 10, 2, 14, '#6b4423'); circle(ctx, 26, 9, 4, '#9aa3ad');
@@ -477,6 +501,11 @@ window.Gfx = (() => {
       circle(ctx, 8, 8, 7, 'rgba(120,255,160,.4)'); circle(ctx, 8, 8, 4, '#7fe08a'); rect(ctx, 6, 5, 4, 2, '#d8ffb0');
     } else if (kind === 'dark') {
       circle(ctx, 8, 8, 7, 'rgba(150,60,255,.45)'); circle(ctx, 8, 8, 5, '#3a0a5a'); circle(ctx, 8, 8, 2.5, '#d08cff');
+    } else if (kind === 'water') {
+      circle(ctx, 8, 8, 7, 'rgba(80,170,255,.35)'); ctx.fillStyle = '#5ab8ff'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.quadraticCurveTo(8, 2, 2, 8); ctx.quadraticCurveTo(8, 14, 15, 8); ctx.fill(); rect(ctx, 6, 6, 3, 2, '#d8f0ff');
+    } else if (kind === 'sonic') {
+      ctx.strokeStyle = '#9ff0e0'; ctx.lineWidth = 1.5;
+      [3, 5.5, 8].forEach((r) => { ctx.beginPath(); ctx.arc(4, 8, r, -0.9, 0.9); ctx.stroke(); });
     } else if (kind === 'moon') {
       circle(ctx, 8, 8, 7, 'rgba(200,210,255,.4)'); circle(ctx, 8, 8, 5, '#f4f6ff'); circle(ctx, 10, 7, 4, 'rgba(60,70,140,.9)');
     } else if (kind === 'sand') {
@@ -540,6 +569,14 @@ window.Gfx = (() => {
       circle(ctx, 16, 8, 5, '#9aff9a'); rect(ctx, 14, 7, 1, 2, '#1a4a2a'); rect(ctx, 17, 7, 1, 2, '#1a4a2a');
       rect(ctx, 11, 3, 2, 4, '#3f8a4a'); rect(ctx, 19, 3, 2, 4, '#3f8a4a');
       rect(ctx, 8, 14, 4, 2, '#3f8a4a'); rect(ctx, 20, 14, 4, 2, '#3f8a4a');
+    } else if (kind === 'seaSpirit') {
+      // Морской дух: водяной сгусток с глазами и щупальцами
+      circle(ctx, 16, 29, 5, 'rgba(0,0,0,.15)');
+      circle(ctx, 16, 14, 12, 'rgba(80,170,255,.22)');
+      ctx.fillStyle = '#5ab8ff'; ctx.beginPath(); ctx.ellipse(16, 13, 8, 7, 0, 0, Math.PI * 2); ctx.fill();
+      [10, 14, 18, 22].forEach((x, i) => rect(ctx, x - 1, 18, 2, 5 + (i % 2) * 3, '#3a8ad8'));
+      rect(ctx, 12, 11, 3, 3, '#ffffff'); rect(ctx, 18, 11, 3, 3, '#ffffff'); rect(ctx, 13, 12, 1, 1, '#0a2a4a'); rect(ctx, 19, 12, 1, 1, '#0a2a4a');
+      rect(ctx, 13, 8, 4, 1, '#d8f0ff');
     } else if (kind === 'wisp') {
       // Дух-проводник Элнаэрис: светящаяся душа с хвостом
       circle(ctx, 16, 29, 5, 'rgba(0,0,0,.15)');

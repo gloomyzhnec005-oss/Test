@@ -33,10 +33,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
     });
     Object.keys(this.monsterDefs).forEach((k) => addTex('mon_' + k, Gfx.monster(k)));
     addTex('totem', Gfx.totem());
-    ['wolf', 'bear', 'hawk', 'skeleton', 'sprite', 'turret', 'wisp'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
+    ['wolf', 'bear', 'hawk', 'skeleton', 'sprite', 'turret', 'wisp', 'seaSpirit'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
-    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy', 'note', 'necro', 'arrow', 'arcane', 'bolt', 'blood', 'venom', 'moon', 'sand', 'rune', 'soul', 'dark', 'nature'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy', 'note', 'necro', 'arrow', 'arcane', 'bolt', 'blood', 'venom', 'moon', 'sand', 'rune', 'soul', 'water', 'sonic', 'dark', 'nature'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -145,7 +145,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const auraCol = p.pact ? { fury: 0xff3020, stone: 0x9aa3ad, wind: 0x8ad3ff }[p.pact] : p.tree ? 0x5fd17a : p.elem ? ELEM[p.elem]
         : p.bless ? 0xfff0a0 : p.vow ? VOW[p.vow] : p.song ? SONG[p.song]
         : p.asp ? { fire: 0xff6a1a, ice: 0x8ad3ff, poison: 0x7ad84a, lightning: 0xffe94a }[p.asp]
-        : p.phase ? { waxing: 0xc8d0ff, full: 0xf4f6ff, waning: 0x8a9aff, newmoon: 0x4a3a8a }[p.phase]
+        : p.abyss ? 0x8a2a5a : p.phase ? { waxing: 0xc8d0ff, full: 0xf4f6ff, waning: 0x8a9aff, newmoon: 0x4a3a8a }[p.phase]
         : p.wrune ? { fire: 0xff6a1a, ward: 0x5fb0ff, heal: 0x7dff8a }[p.wrune] : p.heat >= 70 ? 0xff6a1a
         : p.stoneArmor ? 0xa09a90 : p.might ? 0xd84a2a : null;
       // Песня барда: по кругу 180 разлетаются ноты
@@ -221,7 +221,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
       const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '')
-        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '') + (m.mo ? '🤡' : '') + (m.st2 ? '⭐' : '') + (m.ds ? '🔯' : '') + (m.bd ? '⛓' : '') + (m.bl ? '🩸' : '');
+        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '') + (m.mo ? '🤡' : '') + (m.st2 ? '⭐' : '') + (m.ds ? '🔯' : '') + (m.bd ? '⛓' : '') + (m.bl ? '🩸' : '') + (m.ch ? '💘' : '') + (m.cu ? '🕯️' : '') + (m.fs ? '❄️' + m.fs : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -247,10 +247,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
       seenP.add(pt.id);
       let e = this.pets.get(pt.id);
       if (!e) {
-        const names = { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга', sprite: 'Дух леса', clone: 'Двойник', turret: 'Турель', wisp: 'Дух' };
+        const names = { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга', sprite: 'Дух леса', clone: 'Двойник', turret: 'Турель', wisp: 'Дух', seaSpirit: 'Морской дух' };
         // Двойник рисуется спрайтом героя (розовый, полупрозрачный), поднятый монстр — своим спрайтом (зелёный)
         e = this.makeEntity(pt.skin || 'pet_' + pt.kind, pt.label || names[pt.kind], pt.owner === this.myId ? '#c8f0a0' : '#d8d0c0');
-        e.skinTint = pt.kind === 'clone' ? 0xffb0e8 : pt.kind === 'minion' ? 0x8affc0 : null;
+        e.skinTint = pt.kind === 'clone' ? 0xffb0e8 : pt.drowned ? 0x5a7aff : pt.kind === 'minion' ? 0x8affc0 : null;
         if (e.skinTint) e.sprite.setTint(e.skinTint);
         if (pt.kind === 'clone') e.sprite.setAlpha(0.65);
         e.c.setPosition(pt.x, pt.y);
@@ -262,7 +262,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       e.tx = pt.x; e.ty = pt.y; e.data = pt;
       this.setBar(e, pt.hp, pt.maxHp);
       e.c.setAlpha(pt.down ? 0.45 : 1);
-      e.label.setText(pt.down ? '💤' : pt.label || { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга', sprite: 'Дух леса', clone: 'Двойник', turret: 'Турель', wisp: 'Дух' }[pt.kind]);
+      e.label.setText(pt.down ? '💤' : pt.label || { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга', sprite: 'Дух леса', clone: 'Двойник', turret: 'Турель', wisp: 'Дух', seaSpirit: 'Морской дух' }[pt.kind]);
       if (pt.boost && !e.glow) {
         e.glow = this.add.circle(0, 4, 13).setStrokeStyle(2, 0xff7ab0, 0.9);
         e.c.addAt(e.glow, 0);
@@ -289,6 +289,23 @@ window.GameScene = class GameScene extends Phaser.Scene {
           const img = this.add.text(t.x, t.y, '🌪', { fontSize: '16px' }).setOrigin(0.5).setDepth(2).setAlpha(0.6);
           this.tweens.add({ targets: img, angle: 360, duration: 1500, repeat: -1 });
           this.tweens.add({ targets: area, alpha: 0.5, duration: 700, yoyo: true, repeat: -1 });
+          this.totems.set(t.id, { area, img });
+          continue;
+        }
+        // Вода Волдана
+        if (t.kind === 'water') {
+          const area = this.add.circle(t.x, t.y, t.r, 0x3a8ad8, 0.3).setStrokeStyle(2, 0x8ad3ff, 0.8).setDepth(1).setScale(1, 0.5);
+          const img = this.add.circle(t.x, t.y, t.r * 0.5).setStrokeStyle(2, 0xd8f0ff, 0.6).setDepth(1).setScale(1, 0.5);
+          this.tweens.add({ targets: img, scaleX: 2, scaleY: 1, alpha: 0, duration: 1400, repeat: -1 });
+          this.tweens.add({ targets: area, alpha: 0.55, duration: 900, yoyo: true, repeat: -1 });
+          this.totems.set(t.id, { area, img });
+          continue;
+        }
+        // Ледяная стена Итилиора
+        if (t.kind === 'iceWall') {
+          const area = this.add.rectangle(t.x, t.y, 22, 160, 0xbfe8ff, 0.75).setStrokeStyle(3, 0xffffff, 0.9).setRotation(t.ang || 0).setDepth(5 + t.y);
+          const img = this.add.rectangle(t.x, t.y, 8, 150, 0xffffff, 0.5).setRotation(t.ang || 0).setDepth(6 + t.y);
+          area.setScale(1, 0.1); this.tweens.add({ targets: area, scaleY: 1, duration: 250, ease: 'Back.easeOut' });
           this.totems.set(t.id, { area, img });
           continue;
         }
@@ -344,7 +361,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
         const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { venom: 0x7ad84a, bolt: 0xffc850, blood: 0xc0101a, arrow: 0xfff6c0, arcane: 0xc8a0ff, note: 0xffe08a, necro: 0x5fffb0, holy: 0xfff0a0, spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
-          illusion: 0xff7ad0, fireball: 0xff8c1a, frost: 0x8ad3ff, spark: 0xffe94a, stone: 0xa07a4a, moon: 0xdfe4ff, sand: 0xe8c878, rune: 0x5fb0ff, soul: 0xbfeaff }[f.proj] || 0xff4040;
+          illusion: 0xff7ad0, fireball: 0xff8c1a, frost: 0x8ad3ff, spark: 0xffe94a, stone: 0xa07a4a, moon: 0xdfe4ff, water: 0x5ab8ff, sonic: 0x9ff0e0, dark: 0xb04aff, sand: 0xe8c878, rune: 0x5fb0ff, soul: 0xbfeaff }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
       const attacker = f.pet ? this.pets.get(f.pet) : this.players.get(f.from);
@@ -556,6 +573,81 @@ window.GameScene = class GameScene extends Phaser.Scene {
         f.pts.forEach(([x, y]) => this.burst(x, y, 0xbfe8ff, 6));
         break;
       }
+      // ---------- Гидеон ----------
+      case 'darkPrayer': {
+        const orb = this.add.image(f.fx, f.fy, 'proj_dark').setScale(1.8).setDepth(860);
+        this.tweens.add({ targets: orb, x: f.x, y: f.y, duration: 250, onComplete: () => {
+          orb.destroy(); this.ring(f.x, f.y, 70, 0x8a2a5a, 500, 4); this.burst(f.x, f.y, 0xb04aff, 14);
+        } });
+        break;
+      }
+      case 'sacrifice': {
+        const ln = this.add.line(0, 0, f.x, f.y, f.fx, f.fy, 0xc01a3a, 0.9).setOrigin(0, 0).setLineWidth(4).setDepth(840);
+        this.tweens.add({ targets: ln, alpha: 0, duration: 700, onComplete: () => ln.destroy() });
+        this.burst(f.x, f.y, 0xc01a3a, 22); this.ring(f.fx, f.fy, 34, 0x8a2a5a, 600, 5);
+        this.floatText(f.x, f.y - 40, '🩸 Жертва принята', '#ff6a8a', 14); this.cameras.main.shake(140, 0.006);
+        break;
+      }
+      case 'abyssWrath': {
+        const fl = this.add.circle(f.x, f.y, f.r, 0x1a0a1a, 0.75).setDepth(830).setScale(0.2);
+        this.tweens.add({ targets: fl, scale: 1, alpha: 0, duration: 650, onComplete: () => fl.destroy() });
+        this.ring(f.x, f.y, f.r, 0x8a2a5a, 650, 7); this.burst(f.x, f.y, 0xb04aff, 26);
+        this.floatText(f.x, f.y - 50, '👁️', '#ff4a6a', 22); this.cameras.main.shake(200, 0.009);
+        break;
+      }
+      // ---------- Волдан ----------
+      case 'deepWave': {
+        const ang = Math.atan2(f.dy, f.dx);
+        const wave = this.add.rectangle(f.x, f.y, 26, 100, 0x3a8ad8, 0.6).setRotation(ang).setDepth(850).setStrokeStyle(3, 0xd8f0ff);
+        this.tweens.add({ targets: wave, x: f.x + f.dx * f.len, y: f.y + f.dy * f.len, scaleX: 2.2, alpha: 0, duration: 480,
+          ease: 'Cubic.easeOut', onComplete: () => wave.destroy() });
+        for (let i = 1; i <= 5; i++) this.time.delayedCall(i * 70, () => this.burst(f.x + f.dx * f.len * i / 5, f.y + f.dy * f.len * i / 5, 0x8ad3ff, 6));
+        break;
+      }
+      case 'createDeep':
+        this.ring(f.x, f.y, f.r, 0x8ad3ff, 600, 5); this.burst(f.x, f.y, 0x5ab8ff, 22);
+        break;
+      case 'seaSpirits':
+        (f.pts || []).forEach(([x, y]) => { this.ring(x, y, 22, 0x5ab8ff, 500, 3); this.burst(x, y, 0xd8f0ff, 10); });
+        break;
+      // ---------- Галатея ----------
+      case 'sirenSong': {
+        this.ring(f.x, f.y, f.r, 0x6ad8c8, 900, 4); this.ring(f.x, f.y, f.r * 0.6, 0xffb0e8, 700, 3);
+        for (let i = 0; i < 10; i++) {
+          const a = (i / 10) * Math.PI * 2;
+          const n = this.add.text(f.x, f.y, i % 2 ? '♪' : '♫', { fontSize: '15px', color: '#9ff0e0' }).setOrigin(0.5).setDepth(900);
+          this.tweens.add({ targets: n, x: f.x + Math.cos(a) * f.r * 0.9, y: f.y + Math.sin(a) * f.r * 0.5, alpha: 0, duration: 900, onComplete: () => n.destroy() });
+        }
+        for (const id of f.ids || []) { const m = this.monsters.get(id); if (m) this.floatText(m.c.x, m.c.y - 30, f.brawl ? '😵' : '💘', '#ff9ad8', 14); }
+        break;
+      }
+      case 'soundWave':
+        for (let i = 0; i < 3; i++) this.time.delayedCall(i * 90, () => this.ring(f.x, f.y, f.r, 0x9ff0e0, 450, 4 - i));
+        this.cameras.main.shake(140, 0.006);
+        break;
+      case 'drownedCall':
+        this.ring(f.x, f.y, 60, 0x3a8ad8, 600, 4); this.floatText(f.x, f.y - 56, `🧜 Утопленники ×${f.n}`, '#8ad3ff', 13);
+        break;
+      // ---------- Итилиор ----------
+      case 'iceArrow': {
+        const sp = this.add.image(f.fx, f.fy, 'proj_frost').setScale(2).setDepth(860);
+        sp.rotation = Phaser.Math.Angle.Between(f.fx, f.fy, f.x, f.y);
+        this.tweens.add({ targets: sp, x: f.x, y: f.y, duration: f.flight, onComplete: () => { sp.destroy(); this.burst(f.x, f.y, 0xbfe8ff, 12); this.ring(f.x, f.y, 22, 0x8ad3ff, 350, 3); } });
+        break;
+      }
+      case 'iceWall':
+        this.burst(f.x, f.y, 0xbfe8ff, 20);
+        break;
+      case 'frostBlast': {
+        const fl = this.add.circle(f.x, f.y, f.r, 0xbfe8ff, 0.5).setDepth(830).setScale(0.2);
+        this.tweens.add({ targets: fl, scale: 1, alpha: 0, duration: 500, onComplete: () => fl.destroy() });
+        this.ring(f.x, f.y, f.r, 0xffffff, 550, 6); this.burst(f.x, f.y, 0x8ad3ff, 28);
+        break;
+      }
+      case 'shatter':
+        this.burst(f.x, f.y, 0xffffff, 20); this.burst(f.x, f.y, 0x8ad3ff, 16); this.ring(f.x, f.y, f.r, 0xbfe8ff, 450, 5);
+        this.floatText(f.x, f.y - 30, '💎 Разбит!', '#bfe8ff', 13); this.cameras.main.shake(120, 0.006);
+        break;
       // ---------- Селена ----------
       case 'moonBeam': {
         const col = { waxing: 0xc8d0ff, full: 0xf4f6ff, waning: 0x8a9aff, newmoon: 0x6a4aaa }[f.ph];

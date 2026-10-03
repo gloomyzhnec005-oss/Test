@@ -1339,7 +1339,166 @@ const SKILLS = {
     ctx.pushFx({ t: 'skill', s: 'guideCall', from: p.id, x: pet.x, y: pet.y });
     return null;
   },
+
+  // ---------- Гидеон ----------
+  darkPrayer(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, amp = 0.2 + 0.02 * (p.darkCharges || 0);
+    ctx.pushFx({ t: 'skill', s: 'darkPrayer', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y });
+    for (const m of inRadius(ctx, t.x, t.y, 70)) {
+      m.curseUntil = now + 8000; m.curseAmp = amp;
+      ctx.damageMonster(p, m, p.dmg * 1.6 * pw);
+    }
+    return null;
+  },
+  sacrifice(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const def = ctx.monsterDef(t);
+    if (t.hp > t.maxHp * (def.boss ? 0.15 : 0.35)) return 'Жертва ещё слишком сильна';
+    ctx.pushFx({ t: 'skill', s: 'sacrifice', from: p.id, x: t.x, y: t.y, fx: p.x, fy: p.y });
+    ctx.damageMonster(p, t, t.hp + 1, { fixed: true });
+    p.darkCharges = Math.min(15, (p.darkCharges || 0) + 1);
+    p.abyssUntil = now + 10000;
+    ctx.healPlayer(p, p.maxHp * 0.1);
+    p.dirty = true;
+    return null;
+  },
+  abyssWrath(ctx, p, t, now) {
+    const pw = p.castPower || 1, x = t ? t.x : p.x, y = t ? t.y : p.y, r = 110;
+    ctx.pushFx({ t: 'skill', s: 'abyssWrath', from: p.id, x, y, r });
+    for (const m of inRadius(ctx, x, y, r)) {
+      m.fearUntil = now + 3000; m.fearX = x; m.fearY = y; m.target = null;
+      ctx.damageMonster(p, m, p.dmg * 1.8 * pw);
+    }
+    return null;
+  },
+
+  // ---------- Волдан ----------
+  deepWave(ctx, p, t) {
+    const pw = p.castPower || 1, len = 200, width = 55;
+    let dx = t ? t.x - p.x : p.dir, dy = t ? t.y - p.y : 0;
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    ctx.pushFx({ t: 'skill', s: 'deepWave', from: p.id, x: p.x, y: p.y, dx, dy, len });
+    for (const m of ctx.monsters.values()) {
+      const rx = m.x - p.x, ry = m.y - p.y, along = rx * dx + ry * dy, across = Math.abs(rx * dy - ry * dx);
+      if (along < -10 || along > len || across > width) continue;
+      ctx.damageMonster(p, m, p.dmg * 1.6 * pw);
+      ctx.knockback(m, dx, dy, 80);
+    }
+    return null;
+  },
+  createDeep(ctx, p, t, now) {
+    const x = t ? t.x : p.x, y = t ? t.y : p.y;
+    p.waterZones = (p.waterZones || []).filter((z) => z.until > now);
+    if (p.waterZones.length >= 3) { p.waterZones[0].until = now; p.waterZones.shift(); }
+    const zone = ctx.addGround({ kind: 'water', owner: p.id, x, y, r: 100, until: now + 15000, period: 500,
+      tick(tn) { for (const m of inRadius(ctx, x, y, 100)) m.slowUntil = Math.max(m.slowUntil || 0, tn + 700); } });
+    p.waterZones.push(zone);
+    ctx.pushFx({ t: 'skill', s: 'createDeep', from: p.id, x, y, r: 100 });
+    return null;
+  },
+  seaSpirits(ctx, p, _t, now) {
+    const n = PASSIVES.deepBreath.inZone(p) ? 3 : 2;
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const spirits = p.pets.filter((pet) => pet.kind === 'seaSpirit');
+      if (spirits.length >= 4) ctx.removePet(spirits[0]);
+      const a = (i / n) * Math.PI * 2;
+      const pet = createSummon(p, 'seaSpirit', p.x + Math.cos(a) * 30, p.y + Math.sin(a) * 20, 20000, now);
+      pet.dmgAbs = p.dmg * 0.6 * (p.castPower || 1);
+      ctx.addPet(p, pet);
+      pts.push([Math.round(pet.x), Math.round(pet.y)]);
+    }
+    ctx.pushFx({ t: 'skill', s: 'seaSpirits', from: p.id, x: p.x, y: p.y, pts });
+    return null;
+  },
+
+  // ---------- Галатея ----------
+  sirenSong(ctx, p, _t, now) {
+    const stacks = p.songStacks || 0, dur = 4000 + 1000 * stacks, brawl = stacks >= 3;
+    p.songStacks = 0; p.dirty = true;
+    const ids = [];
+    for (const m of inRadius(ctx, p.x, p.y, 200)) {
+      if (m.starUntil > now) continue;
+      m.charmUntil = now + dur; m.charmBy = p.id; m.target = null;
+      if (brawl) { m.confusedUntil = now + dur; m.confusedBy = p.id; }
+      ids.push(m.id);
+    }
+    ctx.pushFx({ t: 'skill', s: 'sirenSong', from: p.id, x: p.x, y: p.y, r: 200, brawl, ids });
+    return null;
+  },
+  soundWave(ctx, p, _t, now) {
+    const pw = p.castPower || 1;
+    ctx.pushFx({ t: 'skill', s: 'soundWave', from: p.id, x: p.x, y: p.y, r: 140 });
+    for (const m of inRadius(ctx, p.x, p.y, 140)) {
+      m.stunUntil = Math.max(m.stunUntil || 0, now + 1500);
+      ctx.damageMonster(p, m, p.dmg * 1.5 * pw);
+    }
+    return null;
+  },
+  drownedCall(ctx, p, _t, now) {
+    let n = 0, c;
+    while (n < 3 && (c = ctx.takeCorpse(p.x, p.y, 260, now))) {
+      const pet = ctx.raiseMinion(p, c, now, true);
+      pet.drowned = true;
+      pet.label = 'Утопленник';
+      n++;
+    }
+    if (!n) return 'Рядом нет павших монстров';
+    ctx.pushFx({ t: 'skill', s: 'drownedCall', from: p.id, x: p.x, y: p.y, n });
+    return null;
+  },
+
+  // ---------- Итилиор ----------
+  iceArrow(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, flight = Math.min(350, dist(p, t) * 1.1);
+    ctx.pushFx({ t: 'skill', s: 'iceArrow', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y, flight });
+    setTimeout(() => {
+      if (!alive(ctx, p, t)) return;
+      ctx.damageMonster(p, t, p.dmg * 1.7 * pw);
+      addFrost(ctx, p, t, 35);
+    }, flight);
+    return null;
+  },
+  iceWall(ctx, p, t, now) {
+    let dx = t ? t.x - p.x : p.dir, dy = t ? t.y - p.y : 0;
+    const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    const off = t ? Math.min(90, Math.max(50, d / 2)) : 70;
+    const x = p.x + dx * off, y = p.y + dy * off;
+    // Стена перпендикулярна направлению на цель
+    ctx.addGround({ kind: 'iceWall', owner: p.id, x, y, r: 80, wall: { nx: -dy, ny: dx, len: 160, thick: 22 }, ang: Math.atan2(dy, dx), until: now + 7000, tick() {} });
+    ctx.pushFx({ t: 'skill', s: 'iceWall', from: p.id, x, y });
+    return null;
+  },
+  frostBlast(ctx, p, _t, now) {
+    const pw = p.castPower || 1;
+    ctx.pushFx({ t: 'skill', s: 'frostBlast', from: p.id, x: p.x, y: p.y, r: 130 });
+    for (const m of inRadius(ctx, p.x, p.y, 130)) {
+      m.stunUntil = Math.max(m.stunUntil || 0, now + 2000); m.frozenUntil = now + 2000;
+      ctx.damageMonster(p, m, p.dmg * 1.2 * pw);
+      addFrost(ctx, p, m, 40);
+    }
+    return null;
+  },
 };
+
+// Мороз Итилиора: при 100 монстр разбивается и ранит соседей
+function addFrost(ctx, p, m, amount) {
+  if (!ctx.monsters.has(m.id) || m.hp <= 0) return;
+  m.frost = Math.min(100, (m.frost || 0) + amount);
+  m.frostAt = Date.now(); m.frostBy = p.id;
+  if (m.frost < 100) return;
+  m.frost = 0;
+  const boss = ctx.monsterDef(m).boss;
+  ctx.pushFx({ t: 'skill', s: 'shatter', from: p.id, x: m.x, y: m.y, r: 90, quiet: true });
+  const x = m.x, y = m.y;
+  ctx.damageMonster(p, m, boss ? m.maxHp * 0.2 : m.hp + 1, { fixed: true });
+  setImmediate(() => {
+    if (!ctx.players.has(p.id)) return;
+    for (const o of inRadius(ctx, x, y, 90)) { if (o === m) continue; ctx.damageMonster(p, o, p.dmg * 1.5); addFrost(ctx, p, o, 25); }
+  });
+}
 
 // Подрыв руны Гардина (при контакте или активации)
 function explodeRune(ctx, p, rune, power) {
@@ -1869,6 +2028,44 @@ const PASSIVES = {
     },
   },
 
+  // Гидеон: шёпот бездны — заряды тьмы за жертвы
+  abyssWhisper: {
+    dmgMult: (p) => (p.abyssUntil > Date.now() ? 1.3 + 0.02 * (p.darkCharges || 0) : 1),
+    dmgTakenMult: (p) => (p.abyssUntil > Date.now() ? 0.75 - 0.01 * (p.darkCharges || 0) : 1),
+    onTick(p, now) { const b = p.abyssUntil > now; if (b !== p.abyssShown) { p.abyssShown = b; p.dirty = true; } },
+    note: (p) => `заряды тьмы ${p.darkCharges || 0}/15${p.abyssUntil > Date.now() ? ' · благословение бездны' : ''}`,
+  },
+
+  // Волдан: дыхание глубин — сильнее в своей воде; зоны усиливают заклинания
+  deepBreath: {
+    inZone(p) { const now = Date.now(); return (p.waterZones || []).some((z) => z.until > now && Math.hypot(p.x - z.x, p.y - z.y) <= z.r); },
+    zones(p) { const now = Date.now(); return (p.waterZones || []).filter((z) => z.until > now).length; },
+    dmgMult(p) { return this.inZone(p) ? 1.25 : 1; },
+    dmgTakenMult(p) { return this.inZone(p) ? 0.8 : 1; },
+    beforeCast(p) { return { free: false, power: 1 + 0.15 * this.zones(p) }; },
+    onTick(p) { const z = this.zones(p) * 10 + (this.inZone(p) ? 1 : 0); if (z !== p.lastZoneState) { p.lastZoneState = z; p.dirty = true; } },
+    note(p) { return `зон воды ${this.zones(p)}/3${this.inZone(p) ? ' · в воде' : ''}`; },
+  },
+
+  // Галатея: голос глубин — очарованные уязвимы, убийства копят заряды песни
+  deepVoice: {
+    onKill(ctx, p) { p.songStacks = Math.min(5, (p.songStacks || 0) + 1); p.dirty = true; },
+    note: (p) => `заряды песни ${p.songStacks || 0}/5`,
+  },
+
+  // Итилиор: вечная мерзлота — мороз от атак, замороженные уязвимы
+  permafrost: {
+    targetMult: (p, m) => (m.frozenUntil > Date.now() ? 1.4 : 1),
+    onBasicHit(ctx, p, m) { addFrost(ctx, p, m, 10); },
+    onTick(p, now, ctx) {
+      // Мороз тает через 3 с без подпитки
+      if (!ctx || now - (p.frostTick || 0) < 500) return;
+      p.frostTick = now;
+      for (const m of ctx.monsters.values()) if (m.frost > 0 && m.frostBy === p.id && now - m.frostAt > 3000) m.frost = Math.max(0, m.frost - 5);
+    },
+    note: () => 'мороз копится на врагах · 100 — разбить',
+  },
+
   // Элнаэрис: грань жизни — души за убийства усиливают урон и защиту
   edgeOfLife: {
     dmgMult: (p) => 1 + 0.03 * (p.souls || 0),
@@ -1879,9 +2076,9 @@ const PASSIVES = {
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['moonBeam', 'sandVortex', 'blazeBall', 'dragonBreath', 'dragonWings', 'gloomStrike', 'darkSeal', 'stoneFist', 'bomb', 'heavenSpear', 'bloodSpike', 'starShot', 'lightHail', 'arcaneVolley', 'iceGrip', 'darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['darkPrayer', 'sacrifice', 'iceArrow', 'moonBeam', 'sandVortex', 'blazeBall', 'dragonBreath', 'dragonWings', 'gloomStrike', 'darkSeal', 'stoneFist', 'bomb', 'heavenSpear', 'bloodSpike', 'starShot', 'lightHail', 'arcaneVolley', 'iceGrip', 'darkArrow', 'heavenStrike', 'banishDarkness', 'elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { moonBeam: 280, sandVortex: 280, blazeBall: 260, flameWave: 170, duneWave: 200, soulWave: 210, dragonBreath: 170, dragonWings: 280, gloomStrike: 80, darkSeal: 260, stoneFist: 80, bomb: 280, heavenSpear: 300, bloodSpike: 260, witcherSign: 150, starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { darkPrayer: 280, sacrifice: 220, abyssWrath: 280, deepWave: 200, createDeep: 260, iceArrow: 330, iceWall: 260, moonBeam: 280, sandVortex: 280, blazeBall: 260, flameWave: 170, duneWave: 200, soulWave: 210, dragonBreath: 170, dragonWings: 280, gloomStrike: 80, darkSeal: 260, stoneFist: 80, bomb: 280, heavenSpear: 300, bloodSpike: 260, witcherSign: 150, starShot: 360, lightHail: 360, arcaneVolley: 300, iceGrip: 300, darkArrow: 300, heavenStrike: 80, banishDarkness: 300, elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

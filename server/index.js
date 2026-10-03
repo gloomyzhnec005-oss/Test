@@ -229,9 +229,24 @@ function spawnMonster(type = pickMonsterType()) {
 }
 for (let i = 0; i < C.MONSTER_COUNT; i++) spawnMonster();
 
+// Ледяная стена Итилиора: монстр не может зайти внутрь стены
+function inIceWall(x, y) {
+  for (const t of totems) {
+    if (t.kind !== 'iceWall') continue;
+    const rx = x - t.x, ry = y - t.y, w = t.wall;
+    const along = rx * w.nx + ry * w.ny, across = Math.abs(rx * w.ny - ry * w.nx);
+    if (Math.abs(along) <= w.len / 2 + 8 && across <= w.thick / 2 + 10) return true;
+  }
+  return false;
+}
 function moveEntity(e, dx, dy) {
   const r = 10;
   const nx = e.x + dx, ny = e.y + dy;
+  if (e.type && totems.length && !inIceWall(e.x, e.y) && inIceWall(nx, ny)) {
+    // Скользим вдоль стены, если можно
+    if (!inIceWall(nx, e.y)) e.x = nx; else if (!inIceWall(e.x, ny)) e.y = ny;
+    return;
+  }
   if (!world.isSolidAt(nx + Math.sign(dx) * r, e.y)) e.x = nx;
   if (!world.isSolidAt(e.x, ny + Math.sign(dy) * r)) e.y = ny;
 }
@@ -241,7 +256,7 @@ function publicPlayer(p) {
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
-    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, phase: p.hero.phases ? p.form : null, heat: Math.round(p.heat || 0), wrune: p.weaponRuneUntil > Date.now() ? p.weaponRuneType : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
+    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, phase: p.hero.phases ? p.form : null, heat: Math.round(p.heat || 0), abyss: p.abyssUntil > Date.now(), wrune: p.weaponRuneUntil > Date.now() ? p.weaponRuneType : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
     song: p.hero.songs ? p.form : null, haste: p.hasteUntil > Date.now(), fly: p.flyUntil > Date.now(), tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
@@ -265,7 +280,9 @@ function damageMonster(p, m, raw, opt = {}) {
   const ps = passiveOf(p);
   const now0 = Date.now();
   // Бонус против конкретной цели (пассивки) и пробитая защита монстра (Кира)
-  const tMult = (ps && ps.targetMult ? ps.targetMult(p, m) : 1) * (m.brokenUntil > now0 ? 1.25 : 1);
+  const tMult = (ps && ps.targetMult ? ps.targetMult(p, m) : 1) * (m.brokenUntil > now0 ? 1.25 : 1)
+    * (m.curseUntil > now0 ? 1 + (m.curseAmp || 0.2) : 1) // проклятие Гидеона
+    * (m.charmUntil > now0 ? 1.3 : 1); // очарование Галатеи
   // Следующая атака из дыма — критическая (Кира)
   if (opt.basic && p.nextCritUntil > now0) { crit = true; p.nextCritUntil = 0; }
   if (opt.basic && ps && ps.forceCrit && ps.forceCrit(p, m)) crit = true; // соколиный глаз Фаэлина
@@ -429,6 +446,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
       victim.cheatUsed = false;
       victim.shieldHp = 0;
       victim.souls = 0; // души Элнаэрис рассеиваются
+      if (victim.darkCharges) victim.darkCharges = Math.floor(victim.darkCharges / 2); // Гидеон теряет половину зарядов тьмы
       if (victim.hero.forms) victim.form = 'human'; // возрождается в облике друида
       markDirty(victim);
       victim.x = world.spawn.x; victim.y = world.spawn.y;
@@ -450,6 +468,7 @@ const skillCtx = {
   raiseMinion,
   monsters, players, damageMonster, healPlayer, teleport, knockback, addTotem, addGround, takeCorpse, giveShield, addPet, removePet,
   isSolidAt: (x, y) => world.isSolidAt(x, y),
+  monsterDef: (m) => C.MONSTERS[m.type] || {},
   pushFx: (f) => fx.push(f),
 };
 
@@ -565,6 +584,7 @@ io.on('connection', (socket) => {
     if (p.weaponRuneUntil > now && p.weaponRuneType === 'fire') { m.burnUntil = now + 3000; m.dots = (m.dots || []).concat({ until: now + 3000, dps: p.dmg * 0.3, by: p.id }); }
     if (p.nextAttackBoost) { basic *= p.nextAttackBoost; p.nextAttackBoost = 0; } // овация Джакомо
     damageMonster(p, m, p.dmg * basic * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15, proj: formOf(p).projectile, basic: true });
+    if (ps1 && ps1.onBasicHit && monsters.has(m.id)) ps1.onBasicHit(skillCtx, p, m, now); // мороз Итилиора
     // Ресурс, который копится от ударов (ярость Вебранда)
     p.lastHit = now;
     if (p.hero.resource.perHit) { p.res = Math.min(p.resMax, p.res + p.hero.resource.perHit); markDirty(p); }
@@ -686,6 +706,16 @@ setInterval(() => {
       }
       continue;
     }
+    // Очарование (песнь Галатеи): монстр не нападает и идёт к сирене
+    if (m.charmUntil > now) {
+      const siren = players.get(m.charmBy);
+      if (siren && !siren.dead) {
+        const dx = siren.x - m.x, dy = siren.y - m.y, d = Math.hypot(dx, dy) || 1;
+        if (d > 40 && m.rootUntil <= now) moveEntity(m, (dx / d) * def.speed * 0.7 * dt, (dy / d) * def.speed * 0.7 * dt);
+      }
+      m.target = null;
+      continue;
+    }
     const rooted = m.rootUntil > now;
     // Цель монстра — игрок или зверь-спутник; провокация Брендана перекрывает выбор
     const taunter = m.tauntUntil > now ? players.get(m.tauntBy) : null;
@@ -793,10 +823,10 @@ setInterval(() => {
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
       bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
-      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, ds: m.darkSealUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0 })),
-    pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, x: Math.round(pet.x), y: Math.round(pet.y),
+      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, ds: m.darkSealUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0, ch: m.charmUntil > now ? 1 : 0, cu: m.curseUntil > now ? 1 : 0, fs: m.frost > 0 ? Math.round(m.frost) : 0 })),
+    pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, drowned: pet.drowned ? 1 : 0, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
-    t: totems.map((t) => ({ id: t.id, kind: t.kind, sub: t.sub || null, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
+    t: totems.map((t) => ({ id: t.id, kind: t.kind, sub: t.sub || null, ang: t.ang ?? null, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
     fx,
   };
   io.emit('state', state);
