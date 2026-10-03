@@ -577,6 +577,64 @@ const SKILLS = {
     }
     return null;
   },
+
+  // Аурелиус: смена стихии по кругу
+  elementSwap(ctx, p, _t, now) {
+    const ORDER = ['fire', 'ice', 'lightning', 'earth'];
+    p.form = ORDER[(ORDER.indexOf(p.form) + 1) % ORDER.length];
+    const ps = ctx.passiveOf(p);
+    if (ps && ps.onShift) ps.onShift(p, now, ctx);
+    ctx.pushFx({ t: 'skill', s: 'elementSwap', from: p.id, x: p.x, y: p.y, el: p.form });
+    return null;
+  },
+
+  // Аурелиус: стихийный снаряд — эффект зависит от стихии
+  elementBolt(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, el = p.form;
+    const flight = Math.min(400, dist(p, t) * 1.3);
+    const chain = [t];
+    if (el === 'lightning') {
+      while (chain.length < 3) {
+        const last = chain[chain.length - 1];
+        let next = null, best = 140;
+        for (const m of ctx.monsters.values()) { if (chain.includes(m)) continue; const d = dist(m, last); if (d < best) { best = d; next = m; } }
+        if (!next) break;
+        chain.push(next);
+      }
+    }
+    ctx.pushFx({ t: 'skill', s: 'elementBolt', from: p.id, fx: p.x, fy: p.y, x: t.x, y: t.y, el, flight,
+      pts: chain.map((m) => [Math.round(m.x), Math.round(m.y)]) });
+    setTimeout(() => {
+      if (!alive(ctx, p)) return;
+      chain.forEach((m, i) => {
+        if (!ctx.monsters.has(m.id)) return;
+        const tn = Date.now();
+        if (el === 'fire') { m.burnUntil = tn + 4000; m.dots = (m.dots || []).concat({ until: tn + 4000, dps: p.dmg * 0.35 * pw, by: p.id }); }
+        if (el === 'ice') m.slowUntil = Math.max(m.slowUntil || 0, tn + 4000);
+        if (el === 'earth') m.stunUntil = Math.max(m.stunUntil || 0, tn + 1200);
+        ctx.damageMonster(p, m, p.dmg * 1.6 * pw * [1, 0.8, 0.6][i]);
+      });
+    }, el === 'lightning' ? 0 : flight);
+    return null;
+  },
+
+  // Аурелиус: стихийный шторм по области
+  elementStorm(ctx, p, t, now) {
+    if (!t) return 'Нет цели';
+    const pw = p.castPower || 1, el = p.form, r = 120, x = t.x, y = t.y;
+    ctx.pushFx({ t: 'skill', s: 'elementStorm', from: p.id, x, y, r, el });
+    const hit = (mult, fn) => { for (const m of inRadius(ctx, x, y, r)) { if (fn) fn(m, Date.now()); ctx.damageMonster(p, m, p.dmg * mult * pw); } };
+    if (el === 'fire') setTimeout(() => alive(ctx, p) && hit(2, (m, tn) => { m.burnUntil = tn + 5000; m.dots = (m.dots || []).concat({ until: tn + 5000, dps: p.dmg * 0.4 * pw, by: p.id }); }), 300);
+    if (el === 'ice') setTimeout(() => alive(ctx, p) && hit(1.5, (m, tn) => { m.stunUntil = Math.max(m.stunUntil || 0, tn + 2000); m.frozenUntil = tn + 2000; }), 300);
+    if (el === 'lightning') for (let i = 0; i < 3; i++) setTimeout(() => alive(ctx, p) && hit(0.8), 200 + i * 300);
+    if (el === 'earth') setTimeout(() => alive(ctx, p) && hit(2.2, (m, tn) => {
+      m.stunUntil = Math.max(m.stunUntil || 0, tn + 1000);
+      const dx = m.x - x, dy = m.y - y, d = Math.hypot(dx, dy) || 1;
+      ctx.knockback(m, dx / d, dy / d, 60);
+    }), 350);
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -816,12 +874,41 @@ const PASSIVES = {
       return `${form}${p.dualUntil > Date.now() ? ' · бафф ×' + this.power(p).toFixed(1) : ''}`;
     },
   },
+
+  // Аурелиус: власть над стихиями — бафф за смену стихии, сила за частую смену и за простой стихии
+  elementalMastery: {
+    onShift(p, now, ctx) {
+      p.swapStacks = now - (p.lastSwap || 0) < 8000 ? Math.min(5, (p.swapStacks || 0) + 1) : 0;
+      p.lastSwap = now;
+      p.elemBuffUntil = now + 5000;
+      if (p.form === 'earth') ctx.giveShield(p, p.maxHp * 0.15, now + 5000);
+      p.dirty = true;
+    },
+    buff: (p, el) => p.elemBuffUntil > Date.now() && p.form === el,
+    dmgMult(p) { return (this.buff(p, 'fire') ? 1.25 : 1) * (1 + 0.06 * (p.swapStacks || 0)); },
+    speedMult(p) { return (this.buff(p, 'lightning') ? 1.3 : 1) * (1 + 0.05 * (p.swapStacks || 0)); },
+    dmgTakenMult(p) { return this.buff(p, 'ice') ? 0.75 : 1; },
+    // Перед навыком: сила за простой текущей стихии (смена стихии не считается)
+    beforeCast(p, sk) {
+      if (sk && sk.id === 'elementSwap') return { free: false, power: 1 };
+      p.elemUsed = p.elemUsed || {};
+      const idle = (Date.now() - (p.elemUsed[p.form] || p.joinedAt || Date.now())) / 1000;
+      return { free: false, power: 1 + Math.min(0.5, 0.02 * idle) };
+    },
+    afterCast(ctx, p, _boosted, sk) { if (sk && sk.id !== 'elementSwap') { p.elemUsed = p.elemUsed || {}; p.elemUsed[p.form] = Date.now(); } },
+    onTick(p, now) { if (p.swapStacks && now - p.lastSwap > 8000) { p.swapStacks = 0; p.dirty = true; } },
+    note(p) {
+      const names = { fire: 'Огонь', ice: 'Лёд', lightning: 'Молния', earth: 'Земля' };
+      const idle = Math.min(50, Math.round(2 * (Date.now() - ((p.elemUsed || {})[p.form] || p.joinedAt || Date.now())) / 1000));
+      return `стихия: ${names[p.form]} · чередование ${p.swapStacks || 0}/5 · застой +${idle}%`;
+    },
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['elementBolt', 'elementStorm', 'feralCharge', 'darkFlame', 'naturesThorns', 'exposeStrike', 'poisonBlade', 'shadowStrike', 'execution', 'lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { elementBolt: 300, elementStorm: 300, feralCharge: 230, exposeStrike: 75, poisonBlade: 75, shadowStrike: 85, execution: 80, lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

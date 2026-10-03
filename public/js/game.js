@@ -36,7 +36,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     ['wolf', 'bear', 'hawk', 'skeleton', 'sprite'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
-    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта
@@ -138,7 +138,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: e.aura, scale: 1.25, alpha: 0.5, duration: 300, yoyo: true, repeat: -1 });
       } else if (!p.rage && e.aura) { e.aura.destroy(); e.aura = null; }
       // Пакт с духом (Зу'кра) — цветная аура; Облик древа (Нимуэ) — зелёная
-      const auraCol = p.pact ? { fury: 0xff3020, stone: 0x9aa3ad, wind: 0x8ad3ff }[p.pact] : p.tree ? 0x5fd17a : null;
+      // ...и стихия Аурелиуса
+      const ELEM = { fire: 0xff6a1a, ice: 0x8ad3ff, lightning: 0xffe94a, earth: 0xa07a4a };
+      const auraCol = p.pact ? { fury: 0xff3020, stone: 0x9aa3ad, wind: 0x8ad3ff }[p.pact] : p.tree ? 0x5fd17a : p.elem ? ELEM[p.elem] : null;
       if (auraCol !== (e.auraCol ?? null)) {
         if (e.extraAura) { e.extraAura.destroy(); e.extraAura = null; }
         e.auraCol = auraCol;
@@ -196,7 +198,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
       const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '')
-        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '');
+        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -289,7 +291,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
         // Отражённый урон (возмездие Малакора) — фиолетовым
         this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
-        const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a, illusion: 0xff7ad0 }[f.proj] || 0xff4040;
+        const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
+          illusion: 0xff7ad0, fireball: 0xff8c1a, frost: 0x8ad3ff, spark: 0xffe94a, stone: 0xa07a4a }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
       const attacker = f.pet ? this.pets.get(f.pet) : this.players.get(f.from);
@@ -521,6 +524,61 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: ln, alpha: 0, duration: 700, onComplete: () => ln.destroy() });
         this.burst(f.fx, f.fy, 0xff7ab0, 14);
         this.burst(f.x, f.y, 0xff7ab0, 8);
+        break;
+      }
+      case 'elementSwap': {
+        const C = { fire: [0xff6a1a, '🔥 Огонь'], ice: [0x8ad3ff, '❄️ Лёд'], lightning: [0xffe94a, '⚡ Молния'], earth: [0xa07a4a, '🪨 Земля'] }[f.el];
+        this.ring(f.x, f.y, 36, C[0], 450, 4);
+        this.burst(f.x, f.y, C[0], 14);
+        this.floatText(f.x, f.y - 50, C[1], '#' + C[0].toString(16).padStart(6, '0'), 14);
+        break;
+      }
+      case 'elementBolt': {
+        const C = { fire: 0xff6a1a, ice: 0x8ad3ff, lightning: 0xffe94a, earth: 0xa07a4a }[f.el];
+        if (f.el === 'lightning') {
+          // Молния: мгновенная цепь от мага через цели
+          const g = this.add.graphics().setDepth(870);
+          const pts = [[f.fx, f.fy], ...f.pts];
+          const draw = () => {
+            g.clear(); g.lineStyle(3, 0xfff6a0, 1);
+            for (let i = 0; i < pts.length - 1; i++) {
+              const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
+              g.beginPath(); g.moveTo(x1, y1);
+              for (let k = 1; k < 5; k++) g.lineTo(x1 + (x2 - x1) * k / 5 + (Math.random() - 0.5) * 14, y1 + (y2 - y1) * k / 5 + (Math.random() - 0.5) * 14);
+              g.lineTo(x2, y2); g.strokePath();
+            }
+          };
+          draw(); this.time.addEvent({ delay: 60, repeat: 3, callback: draw }); this.time.delayedCall(260, () => g.destroy());
+        } else {
+          const tex = { fire: 'proj_fireball', ice: 'proj_frost', earth: 'proj_stone' }[f.el];
+          const orb = this.add.image(f.fx, f.fy, tex).setScale(1.8).setDepth(860);
+          orb.rotation = Phaser.Math.Angle.Between(f.fx, f.fy, f.x, f.y);
+          this.tweens.add({ targets: orb, x: f.x, y: f.y, duration: f.flight, onComplete: () => { orb.destroy(); this.burst(f.x, f.y, C, 14); this.ring(f.x, f.y, 24, C, 350, 3); } });
+        }
+        break;
+      }
+      case 'elementStorm': {
+        const C = { fire: 0xff6a1a, ice: 0x8ad3ff, lightning: 0xffe94a, earth: 0xa07a4a }[f.el];
+        this.ring(f.x, f.y, f.r, C, 900, 4);
+        const zone = this.add.circle(f.x, f.y, f.r, C, 0.18).setDepth(820).setScale(1, 0.55);
+        this.tweens.add({ targets: zone, alpha: 0, duration: 1300, onComplete: () => zone.destroy() });
+        const drops = f.el === 'lightning' ? 3 : 12;
+        for (let i = 0; i < drops; i++) {
+          const delay = f.el === 'lightning' ? 200 + i * 300 : i * 25;
+          this.time.delayedCall(delay, () => {
+            const x = f.x + (Math.random() - 0.5) * f.r * 1.4, y = f.y + (Math.random() - 0.5) * f.r * 0.8;
+            if (f.el === 'lightning') {
+              const bolt = this.add.line(0, 0, x, y - 200, x, y, 0xfff6a0, 1).setOrigin(0, 0).setLineWidth(4).setDepth(880);
+              this.tweens.add({ targets: bolt, alpha: 0, duration: 200, onComplete: () => bolt.destroy() });
+              this.burst(x, y, 0xffe94a, 10); this.cameras.main.shake(80, 0.004);
+            } else {
+              const tex = { fire: 'proj_fireball', ice: 'proj_frost', earth: 'proj_stone' }[f.el];
+              const d = this.add.image(x + 40, y - 160, tex).setDepth(870).setScale(1.3).setRotation(Math.PI / 2);
+              this.tweens.add({ targets: d, x, y, duration: 300, ease: 'Quad.easeIn', onComplete: () => { d.destroy(); this.burst(x, y, C, 5); } });
+            }
+          });
+        }
+        if (f.el === 'earth') this.time.delayedCall(350, () => this.cameras.main.shake(220, 0.01));
         break;
       }
       case 'shapeshift':

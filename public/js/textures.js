@@ -319,6 +319,12 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'frost') {
+      ctx.fillStyle = '#bfe8ff'; ctx.beginPath(); ctx.moveTo(15, 8); ctx.lineTo(8, 4); ctx.lineTo(1, 8); ctx.lineTo(8, 12); ctx.fill();
+      circle(ctx, 8, 8, 7, 'rgba(140,210,255,.3)'); rect(ctx, 6, 7, 6, 2, '#ffffff');
+    } else if (kind === 'spark') {
+      circle(ctx, 8, 8, 7, 'rgba(255,240,120,.35)');
+      ctx.strokeStyle = '#fff6a0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(2, 4); ctx.lineTo(8, 8); ctx.lineTo(5, 10); ctx.lineTo(14, 13); ctx.stroke();
     } else if (kind === 'illusion') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,210,.35)'); circle(ctx, 8, 8, 4, '#ffb0e8'); rect(ctx, 7, 3, 2, 10, 'rgba(255,255,255,.7)');
     } else if (kind === 'darkfire') {

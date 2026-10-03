@@ -176,7 +176,9 @@ const statsFor = (heroId, lvl) => {
 // Усиления урона и скорости атаки: временные эффекты навыков и пассивные навыки
 const startRes = (p) => (p.hero.resource.start ?? 1) * p.resMax;
 // Текущий облик героя (Талиесин): свои дальность, скорость атаки, бег и снаряд
-const formOf = (p) => (p.hero.forms ? p.hero.forms[p.form || 'human'] : p.hero);
+// Аурелиус: стихия меняет только снаряд обычной атаки
+const formOf = (p) => (p.hero.forms ? p.hero.forms[p.form || 'human']
+  : p.hero.elements ? { ...p.hero, projectile: p.hero.elements[p.form || 'fire'].projectile } : p.hero);
 const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
@@ -236,7 +238,7 @@ function publicPlayer(p) {
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
-    pact: p.pactUntil > Date.now() ? p.pactType : null, tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
+    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -458,6 +460,8 @@ io.on('connection', (socket) => {
     p.res = startRes(p);
     if (hero.pets) { p.pets = createPets(p); p.pets.forEach((pet) => pets.set(pet.id, pet)); }
     if (hero.summons) p.pets = []; // слуги появляются навыком «Восстание мёртвых»
+    if (hero.elements) p.form = 'fire'; // Аурелиус начинает с огня
+    p.joinedAt = Date.now();
     players.set(socket.id, p);
 
     socket.emit('welcome', {
@@ -520,7 +524,7 @@ io.on('connection', (socket) => {
     const fail = (reason) => socket.emit('skillFail', reason);
     if (now < (p.skillReadyAt[sk.id] || 0)) return fail('Умение ещё не готово');
     const ps = passiveOf(p);
-    const cast = ps && ps.beforeCast ? ps.beforeCast(p) : { free: false, power: 1 };
+    const cast = ps && ps.beforeCast ? ps.beforeCast(p, sk) : { free: false, power: 1 };
     if (!cast.free && p.res < sk.cost) return fail(`Не хватает: ${p.hero.resource.name}`);
     const hpCost = sk.hpCost ? p.hp * sk.hpCost : 0;
     if (hpCost && p.hp - hpCost < 1) return fail('Слишком мало здоровья');
@@ -545,7 +549,7 @@ io.on('connection', (socket) => {
     if (sk.id !== 'shadowCloak') p.stealthUntil = 0; // навык выводит из тени
     if (!cast.free) p.res -= sk.cost;
     if (hpCost) { p.hp -= hpCost; p.lastHurt = now; fx.push({ t: 'hit', kind: 'p', target: p.id, dmg: Math.round(hpCost), from: null }); }
-    if (ps && ps.afterCast) ps.afterCast(skillCtx, p, cast.free);
+    if (ps && ps.afterCast) ps.afterCast(skillCtx, p, cast.free, sk);
     // Успешная казнь (Кассиан) не уходит на перезарядку
     const cd = p.skillNoCd ? 0 : sk.cooldown;
     p.skillNoCd = false;
@@ -730,7 +734,7 @@ setInterval(() => {
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
       bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
-      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0 })),
+      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0 })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? pet.owner.heroId : null, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
