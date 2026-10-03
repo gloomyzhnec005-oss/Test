@@ -55,34 +55,88 @@ window.Gfx = (() => {
     return c;
   }
 
-  // Герои (32x32)
-  function hero(cls, color) {
+  // Герои (32x32). Внешность задаётся параметрами look из server/config.js (HEROES[id].look)
+  function hero(look = {}) {
     const [c, ctx] = canvas(32, 32);
-    const col = hex(color);
+    const L = Object.assign({ body: '#888', trim: '#5a3a1a', legs: '#3b2a1a', skin: '#f2c9a0', headColor: '#555' }, look);
     circle(ctx, 16, 29, 9, 'rgba(0,0,0,.25)'); // тень
-    rect(ctx, 11, 24, 4, 6, '#3b2a1a'); rect(ctx, 17, 24, 4, 6, '#3b2a1a'); // ноги
-    rect(ctx, 9, 14, 14, 11, col); // тело
-    rect(ctx, 9, 21, 14, 2, '#5a3a1a'); // пояс
-    rect(ctx, 11, 5, 10, 10, '#f2c9a0'); // голова
-    rect(ctx, 17, 8, 2, 2, '#222'); // глаз (смотрит вправо)
-    if (cls === 'warrior') {
-      rect(ctx, 10, 3, 12, 5, '#a8b0b8'); rect(ctx, 15, 1, 2, 3, '#d9534f'); // шлем
-      rect(ctx, 24, 6, 3, 16, '#dfe6ee'); rect(ctx, 22, 20, 7, 2, '#8a6a2a'); // меч
-      rect(ctx, 4, 14, 6, 9, '#7a5230'); rect(ctx, 5, 16, 4, 5, '#c9a64d'); // щит
-    } else if (cls === 'mage') {
-      ctx.fillStyle = '#3a4fbf';
-      ctx.beginPath(); ctx.moveTo(8, 7); ctx.lineTo(24, 7); ctx.lineTo(17, -2); ctx.fill(); // шляпа
-      rect(ctx, 9, 25, 14, 4, col); // мантия
-      rect(ctx, 25, 4, 2, 24, '#7a5230'); circle(ctx, 26, 4, 3, '#7fe7ff'); // посох
-      rect(ctx, 12, 14, 8, 6, '#cbd6ff');
-    } else {
-      rect(ctx, 10, 3, 12, 4, '#2f6b2f'); rect(ctx, 21, 4, 4, 2, '#2f6b2f'); // капюшон
-      ctx.strokeStyle = '#8a5a2a'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(22, 17, 9, -1.2, 1.2); ctx.stroke(); // лук
-      ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(25.5, 8.5); ctx.lineTo(25.5, 25.5); ctx.stroke();
-      rect(ctx, 5, 12, 4, 12, '#6b4423'); // колчан
+    // Плащ за спиной
+    if (L.cape) { rect(ctx, 8, 13, 12, 14, L.cape); }
+    // Оружие за спиной / в руке (рисуется до тела, если двуручное)
+    if (L.weapon === 'scythe') {
+      rect(ctx, 25, 2, 2, 27, '#3a2a1a');
+      ctx.fillStyle = '#cfd6e0'; ctx.beginPath(); ctx.moveTo(26, 2); ctx.quadraticCurveTo(14, 0, 9, 8); ctx.lineTo(13, 6); ctx.quadraticCurveTo(20, 3, 26, 5); ctx.fill();
     }
+    if (L.weapon === 'axe') {
+      rect(ctx, 25, 3, 2, 22, '#6b4423');
+      ctx.fillStyle = '#b8c0c8';
+      ctx.beginPath(); ctx.moveTo(26, 3); ctx.lineTo(31, 1); ctx.lineTo(31, 12); ctx.lineTo(26, 9); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(26, 3); ctx.lineTo(21, 1); ctx.lineTo(21, 11); ctx.lineTo(26, 9); ctx.fill();
+    }
+    // Ноги и тело
+    rect(ctx, 11, 24, 4, 6, L.legs); rect(ctx, 17, 24, 4, 6, L.legs);
+    rect(ctx, 9, 14, 14, 11, L.body);
+    rect(ctx, 9, 21, 14, 2, L.trim); // пояс
+    if (['wizard', 'halo', 'leafCrown'].includes(L.head) || L.weapon === 'scythe') rect(ctx, 9, 24, 14, 4, L.body); // мантия
+    rect(ctx, 15, 14, 2, 7, L.trim); // застёжка
+    // Голова
+    rect(ctx, 11, 5, 10, 10, L.skin);
+    if (L.hair) rect(ctx, 10, 4, 12, 3, L.hair);
+    if (L.beard) { rect(ctx, 11, 11, 10, 4, L.beard); rect(ctx, 13, 15, 6, 2, L.beard); }
+    rect(ctx, 17, 8, 2, 2, L.eyes || '#222');
+    switch (L.head) {
+      case 'helmet':
+        rect(ctx, 10, 3, 12, 5, L.headColor); rect(ctx, 10, 7, 2, 5, L.headColor);
+        if (L.plume) rect(ctx, 15, 0, 2, 4, L.plume);
+        break;
+      case 'hood':
+        rect(ctx, 10, 3, 12, 4, L.headColor); rect(ctx, 9, 5, 2, 9, L.headColor); rect(ctx, 21, 4, 3, 2, L.headColor);
+        if (L.eyes) { rect(ctx, 11, 7, 10, 4, '#0b0810'); rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes); }
+        break;
+      case 'wizard':
+        ctx.fillStyle = L.headColor;
+        ctx.beginPath(); ctx.moveTo(7, 7); ctx.lineTo(25, 7); ctx.lineTo(19, -2); ctx.fill();
+        rect(ctx, 8, 6, 16, 2, L.trim);
+        break;
+      case 'cowl':
+        rect(ctx, 10, 3, 12, 5, L.headColor); rect(ctx, 11, 10, 10, 5, L.headColor);
+        rect(ctx, 13, 8, 2, 2, L.eyes || '#fff'); rect(ctx, 17, 8, 2, 2, L.eyes || '#fff');
+        break;
+      case 'horns':
+        rect(ctx, 10, 3, 12, 4, L.headColor);
+        rect(ctx, 7, 1, 3, 4, '#efe6cf'); rect(ctx, 22, 1, 3, 4, '#efe6cf'); rect(ctx, 7, 0, 2, 2, '#efe6cf'); rect(ctx, 23, 0, 2, 2, '#efe6cf');
+        break;
+      case 'halo':
+        ctx.strokeStyle = L.headColor; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.ellipse(16, 2.5, 6, 1.8, 0, 0, Math.PI * 2); ctx.stroke();
+        break;
+      case 'leafCrown':
+        rect(ctx, 10, 3, 12, 2, L.headColor);
+        [[10, 1], [14, 0], [18, 0], [21, 1]].forEach(([x, y]) => rect(ctx, x, y, 2, 3, L.headColor));
+        if (L.hair) { rect(ctx, 9, 5, 2, 12, L.hair); rect(ctx, 21, 5, 2, 12, L.hair); }
+        break;
+    }
+    // Оружие в руке
+    switch (L.weapon) {
+      case 'sword': rect(ctx, 24, 6, 3, 16, '#dfe6ee'); rect(ctx, 22, 20, 7, 2, '#8a6a2a'); break;
+      case 'mace':
+        rect(ctx, 25, 10, 2, 14, '#6b4423'); circle(ctx, 26, 9, 4, '#9aa3ad');
+        rect(ctx, 25, 4, 2, 2, '#c9ced6'); rect(ctx, 29, 8, 2, 2, '#c9ced6'); rect(ctx, 21, 8, 2, 2, '#c9ced6');
+        break;
+      case 'staff': rect(ctx, 25, 4, 2, 24, '#7a5230'); circle(ctx, 26, 4, 3, L.gem || '#7fe7ff'); break;
+      case 'bow':
+        ctx.strokeStyle = '#8a5a2a'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(22, 17, 9, -1.2, 1.2); ctx.stroke();
+        ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(25.5, 8.5); ctx.lineTo(25.5, 25.5); ctx.stroke();
+        rect(ctx, 5, 12, 4, 12, '#6b4423');
+        break;
+      case 'daggers':
+        rect(ctx, 24, 15, 2, 7, '#c9d1e0'); rect(ctx, 23, 21, 4, 2, L.trim);
+        rect(ctx, 6, 15, 2, 7, '#c9d1e0'); rect(ctx, 5, 21, 4, 2, L.trim);
+        break;
+    }
+    if (L.offhand === 'shield') { rect(ctx, 4, 14, 7, 10, '#7a5230'); rect(ctx, 5, 15, 5, 8, L.trim); rect(ctx, 7, 16, 1, 6, '#7a5230'); }
     return c;
   }
 
@@ -140,6 +194,12 @@ window.Gfx = (() => {
     const [c, ctx] = canvas(16, 16);
     if (kind === 'fireball') {
       circle(ctx, 8, 8, 7, 'rgba(255,120,0,.5)'); circle(ctx, 8, 8, 5, '#ff8c1a'); circle(ctx, 8, 8, 2.5, '#fff27a');
+    } else if (kind === 'holy') {
+      circle(ctx, 8, 8, 7, 'rgba(255,240,150,.45)'); circle(ctx, 8, 8, 4, '#fff6c0'); rect(ctx, 7, 3, 2, 10, '#fff'); rect(ctx, 3, 7, 10, 2, '#fff');
+    } else if (kind === 'nature') {
+      circle(ctx, 8, 8, 7, 'rgba(120,255,160,.4)'); circle(ctx, 8, 8, 4, '#7fe08a'); rect(ctx, 6, 5, 4, 2, '#d8ffb0');
+    } else if (kind === 'dark') {
+      circle(ctx, 8, 8, 7, 'rgba(150,60,255,.45)'); circle(ctx, 8, 8, 5, '#3a0a5a'); circle(ctx, 8, 8, 2.5, '#d08cff');
     } else {
       rect(ctx, 1, 7, 12, 2, '#c8a46a'); rect(ctx, 12, 6, 3, 4, '#ddd'); rect(ctx, 0, 6, 2, 4, '#fff');
     }

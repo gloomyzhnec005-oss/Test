@@ -1,20 +1,22 @@
 // Лобби в стиле Lineage 2: выбранный герой в центре на платформе (окно 2),
-// остальные позади (окна 3–6), инфо-панель (окно 1), «Начать» (окно 7), меню (окно 8).
+// остальные полученные герои позади (окна 3–6), инфо-панель (окно 1), «Начать» (окно 7), меню (окно 8).
+// Герои получаются через гачу («Получить персонажа»): первая крутка бесплатная.
 window.Lobby = (() => {
   const $ = (id) => document.getElementById(id);
-  // Слоты: выбранный — 2; остальные бесплатные — 3 и 4; 5 и 6 — закрытые места под будущих героев
-  const BACK_SLOTS = [3, 4];
-  const LOCKED_SLOTS = [5, 6];
+  const BACK_SLOTS = [3, 4, 5, 6];
+  const RES_KEYS = { 'Мана': 'MP', 'Энергия': 'EP', 'Ярость': 'RP' };
 
-  let opts, classes = {}, backgrounds = [], profile = { chars: {}, bgs: ['throne', 'forest'] };
-  let order = []; // order[0] — выбранный герой
+  let opts, heroes = {}, rarities = {}, backgrounds = [];
+  let profile = { heroes: [], chars: {}, bgs: ['throne', 'forest'], freeSpin: true, paidSpins: 0, spinPrice: 25 };
+  let order = []; // полученные герои; order[0] — выбранный
   let bgId = 'throne';
-  let heroEls = {};
   let fxType = 'embers';
   let running = false;
+  let spinning = false;
 
   const hex = (n) => '#' + n.toString(16).padStart(6, '0');
   const haptic = (fn, arg) => { const h = opts.tg && opts.tg.HapticFeedback; if (h && h[fn]) h[fn](arg); };
+  const rarityOf = (id) => rarities[heroes[id].rarity];
 
   function toast(text) {
     const t = $('toast');
@@ -24,11 +26,20 @@ window.Lobby = (() => {
     toast.tm = setTimeout(() => t.classList.add('hidden'), 2600);
   }
 
-  function heroCanvas(cls, color) {
+  function heroCanvas(id) {
     const c = document.createElement('canvas');
     c.width = 32; c.height = 32;
-    c.getContext('2d').drawImage(Gfx.hero(cls, color), 0, 0);
+    c.getContext('2d').drawImage(Gfx.hero(id ? heroes[id].look : { body: '#222', legs: '#111', skin: '#222', head: 'hood', headColor: '#111' }), 0, 0);
     return c;
+  }
+
+  async function api(url, body) {
+    const r = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: opts.tg ? opts.tg.initData : '', guestId: opts.guestId, ...body }),
+    });
+    const data = await r.json().catch(() => ({}));
+    return { ok: r.ok, status: r.status, data };
   }
 
   // ---------- Имя игрока ----------
@@ -42,75 +53,87 @@ window.Lobby = (() => {
 
   // ---------- Окно 1 ----------
   function renderPanel() {
-    const cls = order[0];
-    const c = classes[cls];
-    if (!c) return;
-    const ch = profile.chars[cls] || { level: 1, xp: 0, xpNext: 40, maxHp: c.hp, resMax: c.resource.max };
     $('lpName').textContent = playerName();
+    const id = order[0];
+    if (!id) {
+      $('lpHero').textContent = 'Нет героя';
+      $('lpTitle').textContent = '';
+      $('lpLevel').textContent = '—';
+      $('lpRarity').textContent = '';
+      ['Hp', 'Res', 'Xp'].forEach((k) => { $('lp' + k).textContent = ''; $('lp' + k + 'Fill').style.width = '0%'; });
+      $('lpResKey').textContent = 'MP';
+      return;
+    }
+    const h = heroes[id], r = rarityOf(id);
+    const ch = profile.chars[id] || { level: 1, xp: 0, xpNext: 40, maxHp: h.hp, resMax: h.resource.max };
+    $('lpHero').textContent = h.name;
+    $('lpTitle').textContent = h.title;
     $('lpLevel').textContent = ch.level;
-    $('lpClass').textContent = c.name;
+    $('lpRarity').textContent = r.name;
+    $('lpRarity').style.color = r.color;
     $('lpHp').textContent = `${ch.maxHp} / ${ch.maxHp}`;
     $('lpHpFill').style.width = '100%';
-    $('lpResKey').textContent = c.resource.name === 'Мана' ? 'MP' : 'EP';
-    $('lpRes').textContent = `${c.resource.name}: ${ch.resMax} / ${ch.resMax}`;
+    $('lpResKey').textContent = RES_KEYS[h.resource.name] || 'MP';
+    $('lpRes').textContent = `${h.resource.name}: ${ch.resMax} / ${ch.resMax}`;
     $('lpResFill').style.width = '100%';
-    $('lpResFill').style.background = c.resource.color;
+    $('lpResFill').style.background = h.resource.color;
     const pct = Math.min(100, (100 * ch.xp) / ch.xpNext);
     $('lpXp').textContent = `${pct.toFixed(2)}%`;
     $('lpXpFill').style.width = pct + '%';
   }
 
   // ---------- Окна 2–6 ----------
+  function heroEl(id, slot) {
+    const el = document.createElement('div');
+    el.className = 'hero' + (id ? '' : ' mystery');
+    el.dataset.slot = slot;
+    if (id) el.dataset.id = id;
+    if (id) {
+      const h = heroes[id], r = rarityOf(id);
+      const lvl = (profile.chars[id] || {}).level || 1;
+      el.style.setProperty('--hero', hex(h.color));
+      el.style.setProperty('--rarity', r.color);
+      el.innerHTML = `<div class="hero-name"><b>${h.name}</b><span>Ур. ${lvl}</span></div><div class="hero-shadow"></div>`;
+      el.onclick = () => select(id);
+    } else {
+      el.innerHTML = `<div class="hero-name"><b>${slot === 2 ? 'Получите героя' : '?'}</b></div><div class="hero-shadow"></div><div class="mystery-mark">?</div>`;
+      el.onclick = () => openGacha();
+    }
+    el.appendChild(heroCanvas(id));
+    el.classList.toggle('selected', slot === 2);
+    el.classList.toggle('flip', slot === 4 || slot === 6);
+    return el;
+  }
+
   function buildStage() {
     const stage = $('stage');
     stage.innerHTML = '';
-    heroEls = {};
-    for (const key of Object.keys(classes)) {
-      const c = classes[key];
-      const el = document.createElement('div');
-      el.className = 'hero';
-      el.style.setProperty('--hero', hex(c.color));
-      el.innerHTML = `<div class="hero-name"><b>${c.name}</b><span></span></div><div class="hero-shadow"></div>`;
-      el.appendChild(heroCanvas(key, c.color));
-      el.onclick = () => select(key);
-      stage.appendChild(el);
-      heroEls[key] = el;
-    }
-    // Закрытые места
-    const ghosts = ['warrior', 'mage'];
-    LOCKED_SLOTS.forEach((slot, i) => {
-      const el = document.createElement('div');
-      el.className = 'hero locked';
-      el.dataset.slot = slot;
-      el.innerHTML = `<div class="hero-name"><b>🔒 Скоро</b></div><div class="hero-shadow"></div>`;
-      el.appendChild(heroCanvas(ghosts[i], 0x444444));
-      el.onclick = () => { haptic('notificationOccurred', 'warning'); toast('Новые герои появятся в следующих обновлениях'); };
-      stage.appendChild(el);
-    });
-    layoutStage();
-  }
-
-  function layoutStage() {
-    order.forEach((key, i) => {
-      const el = heroEls[key];
-      const slot = i === 0 ? 2 : BACK_SLOTS[i - 1];
-      el.dataset.slot = slot;
-      el.classList.toggle('selected', i === 0);
-      // Задний ряд смотрит в центр
-      el.classList.toggle('flip', slot === 4 || slot === 6);
-      const lvl = (profile.chars[key] || {}).level || 1;
-      el.querySelector('.hero-name span').textContent = `Ур. ${lvl}`;
-    });
-    $('playBtn').textContent = 'Начать';
+    stage.appendChild(heroEl(order[0] || null, 2));
+    BACK_SLOTS.forEach((slot, i) => stage.appendChild(heroEl(order[i + 1] || null, slot)));
     renderPanel();
+    const has = order.length > 0;
+    $('playBtn').textContent = has ? 'Начать' : 'Получить персонажа';
+    $('playBtn').classList.toggle('summon', !has);
   }
 
-  function select(key) {
-    if (order[0] === key) return;
-    order = [key, ...order.filter((k) => k !== key)];
-    opts.store.set('lastClass', key);
+  // Перестановка без пересоздания: элементы плавно переезжают между слотами
+  function select(id) {
+    if (order[0] === id) return;
+    order = [id, ...order.filter((k) => k !== id)];
+    opts.store.set('lastHero', id);
     haptic('impactOccurred', 'medium');
-    layoutStage();
+    const byId = new Map([...$('stage').querySelectorAll('.hero[data-id]')].map((el) => [el.dataset.id, el]));
+    // Если выбран герой, не стоявший на сцене (больше 5 героев), — пересобираем
+    if (!byId.has(id)) { buildStage(); return; }
+    const slots = [2, ...BACK_SLOTS];
+    order.slice(0, slots.length).forEach((hid, i) => {
+      const el = byId.get(hid);
+      if (!el) return;
+      el.dataset.slot = slots[i];
+      el.classList.toggle('selected', i === 0);
+      el.classList.toggle('flip', slots[i] === 4 || slots[i] === 6);
+    });
+    renderPanel();
   }
 
   // ---------- Фон ----------
@@ -191,32 +214,163 @@ window.Lobby = (() => {
     $('sheet').classList.remove('hidden');
     haptic('impactOccurred', 'light');
   }
-  const closeSheet = () => $('sheet').classList.add('hidden');
+  const closeSheet = () => { if (!spinning) $('sheet').classList.add('hidden'); };
 
-  function heroesSheet() {
+  // ---------- Гача ----------
+  function openGacha() { openSheet('Призыв героя', gachaSheet()); }
+
+  function spinLabel() {
+    const pool = Object.keys(heroes).filter((id) => !profile.heroes.includes(id));
+    if (!pool.length) return ['Все герои получены', true];
+    if (profile.freeSpin) return ['✨ Получить персонажа · бесплатно', false];
+    if (profile.paidSpins > 0) return [`✨ Получить персонажа · круток: ${profile.paidSpins}`, false];
+    return [`✨ Получить персонажа · ${profile.spinPrice} ⭐`, false];
+  }
+
+  function gachaSheet() {
     const box = document.createElement('div');
-    box.innerHTML = '<p class="sheet-hint">Бесплатно: выберите одного из трёх героев</p>';
-    const max = { hp: 200, dmg: 35, range: 300, speed: 200 };
-    for (const key of Object.keys(classes)) {
-      const c = classes[key];
-      const lvl = (profile.chars[key] || {}).level || 1;
-      const row = document.createElement('button');
-      row.className = 'pick-row' + (order[0] === key ? ' active' : '');
-      row.style.setProperty('--hero', hex(c.color));
-      const bar = (label, v, m) => `<div class="mini-stat"><span>${label}</span><i><u style="width:${Math.min(100, (100 * v) / m)}%"></u></i><b>${v}</b></div>`;
-      row.innerHTML = `
-        <div class="pick-info">
-          <div class="pick-title"><b>${c.name}</b><span>Ур. ${lvl}</span><em>${order[0] === key ? '✓ Выбран' : 'Бесплатно'}</em></div>
-          <div class="pick-role">${c.role} · ${c.resource.name}</div>
-          ${bar('❤️', c.hp, max.hp)}${bar('🗡', c.dmg, max.dmg)}${bar('🎯', c.range, max.range)}${bar('👟', c.speed, max.speed)}
-        </div>`;
-      row.prepend(heroCanvas(key, c.color));
-      row.onclick = () => { select(key); closeSheet(); };
-      box.appendChild(row);
+    box.className = 'gacha';
+    const total = Object.values(rarities).reduce((s, r) => s + r.weight, 0);
+    const chances = Object.values(rarities)
+      .map((r) => `<span style="color:${r.color}">${r.name} ${Math.round((100 * r.weight) / total)}%</span>`).join(' · ');
+    const [label, disabled] = spinLabel();
+    box.innerHTML = `
+      <div class="reel-wrap"><div class="reel-marker"></div><div id="reel" class="reel"></div></div>
+      <button id="spinBtn" class="l2-btn spin-btn" ${disabled ? 'disabled' : ''}>${label}</button>
+      <p class="sheet-hint">Каждый герой уникален: своё имя, оружие и умение. Повторов нет — выпадают только новые герои.</p>
+      <p class="chances">${chances}</p>
+      <div class="sheet-sub">Все герои · получено ${profile.heroes.length} из ${Object.keys(heroes).length}</div>
+      <div class="hero-grid"></div>`;
+    // Барабан в покое: показываем случайные карточки
+    fillReel(box.querySelector('#reel'), null);
+    const grid = box.querySelector('.hero-grid');
+    for (const id of Object.keys(heroes)) {
+      const h = heroes[id], r = rarityOf(id), owned = profile.heroes.includes(id);
+      const card = document.createElement('button');
+      card.className = 'hero-card' + (owned ? ' owned' : '') + (order[0] === id ? ' active' : '');
+      card.style.setProperty('--rarity', r.color);
+      card.style.setProperty('--hero', hex(h.color));
+      card.appendChild(heroCanvas(id));
+      const lvl = owned ? `Ур. ${(profile.chars[id] || {}).level || 1}` : '🔒';
+      card.insertAdjacentHTML('beforeend', `<b>${h.name}</b><span>${r.name}</span><em>${lvl}</em>`);
+      card.onclick = () => (owned ? (select(id), closeSheet()) : showHeroInfo(id, false));
+      grid.appendChild(card);
     }
+    box.querySelector('#spinBtn').onclick = spin;
     return box;
   }
 
+  function reelCard(id) {
+    const card = document.createElement('div');
+    card.className = 'reel-card';
+    card.style.setProperty('--rarity', rarityOf(id).color);
+    card.appendChild(heroCanvas(id));
+    card.insertAdjacentHTML('beforeend', `<b>${heroes[id].name}</b>`);
+    return card;
+  }
+
+  // Заполняет барабан карточками; если задан result — он окажется под маркером на позиции WIN_INDEX
+  const WIN_INDEX = 36;
+  function fillReel(reel, result) {
+    reel.innerHTML = '';
+    reel.style.transition = 'none';
+    reel.style.transform = 'translateX(0)';
+    const ids = Object.keys(heroes);
+    const weight = (id) => rarityOf(id).weight;
+    const total = ids.reduce((s, id) => s + weight(id), 0);
+    const pick = () => { let r = Math.random() * total; for (const id of ids) { r -= weight(id); if (r < 0) return id; } return ids[0]; };
+    const n = result ? WIN_INDEX + 4 : 8;
+    for (let i = 0; i < n; i++) reel.appendChild(reelCard(result && i === WIN_INDEX ? result : pick()));
+  }
+
+  async function spin() {
+    if (spinning) return;
+    const btn = $('spinBtn');
+    // Нужна оплата — открываем счёт в Telegram Stars
+    if (!profile.freeSpin && profile.paidSpins <= 0) return buySpin();
+    spinning = true;
+    btn.disabled = true;
+    btn.textContent = 'Призыв...';
+    const { ok, data } = await api('/api/gacha/spin', {});
+    if (!ok) {
+      spinning = false;
+      if (data.needPayment) { profile.freeSpin = false; profile.paidSpins = 0; return buySpin(); }
+      toast(data.error || 'Ошибка призыва');
+      btn.disabled = false;
+      btn.textContent = spinLabel()[0];
+      return;
+    }
+    const reel = $('reel');
+    fillReel(reel, data.hero);
+    const card = reel.children[WIN_INDEX];
+    const wrap = reel.parentElement;
+    // Небольшой случайный сдвиг внутри карточки, чтобы остановка выглядела живой
+    const jitter = (Math.random() - 0.5) * card.offsetWidth * 0.6;
+    const target = card.offsetLeft + card.offsetWidth / 2 - wrap.clientWidth / 2 + jitter;
+    reel.getBoundingClientRect(); // применить сброс перед анимацией
+    reel.style.transition = 'transform 4.2s cubic-bezier(.12,.75,.12,1)';
+    reel.style.transform = `translateX(${-target}px)`;
+    // Щелчки барабана (вибрация)
+    let ticks = 0;
+    const tickTimer = setInterval(() => { if (++ticks < 18) haptic('selectionChanged'); }, 160);
+    setTimeout(() => {
+      clearInterval(tickTimer);
+      spinning = false;
+      profile = data.profile;
+      order = [data.hero, ...order.filter((k) => k !== data.hero)];
+      opts.store.set('lastHero', data.hero);
+      buildStage();
+      haptic('notificationOccurred', 'success');
+      showHeroInfo(data.hero, true);
+    }, 4400);
+  }
+
+  async function buySpin() {
+    const tg = opts.tg;
+    if (!tg || !opts.tgUser || !tg.openInvoice) { toast('Крутки за Telegram Stars доступны только в Telegram'); return; }
+    const { ok, data } = await api('/api/invoice', { item: 'spin' });
+    if (!ok) { toast(data.error || 'Оплата недоступна'); return; }
+    tg.openInvoice(data.link, async (status) => {
+      if (status !== 'paid') return;
+      for (let i = 0; i < 6 && profile.paidSpins <= 0; i++) {
+        await new Promise((res) => setTimeout(res, 800));
+        await loadProfile();
+      }
+      if (profile.paidSpins > 0) spin();
+      else toast('Оплата получена, крутка появится через несколько секунд');
+    });
+  }
+
+  // Карточка героя: после призыва (isNew) или при просмотре ещё не полученного
+  function showHeroInfo(id, isNew) {
+    const h = heroes[id], r = rarityOf(id);
+    const box = $('reveal');
+    box.style.setProperty('--rarity', r.color);
+    box.style.setProperty('--hero', hex(h.color));
+    const stat = (icon, label, v, max) => `<div class="mini-stat"><span>${icon}</span><i><u style="width:${Math.min(100, (100 * v) / max)}%"></u></i><b>${v}</b></div>`;
+    const atk = h.projectile ? 'дальний бой' : 'ближний бой';
+    box.querySelector('.reveal-card').innerHTML = `
+      ${isNew ? '<div class="reveal-new">Новый герой!</div>' : ''}
+      <div class="reveal-rarity">${r.name}</div>
+      <div class="reveal-art"></div>
+      <h2>${h.name}</h2>
+      <div class="reveal-title">«${h.title}» · ${atk} · ${h.resource.name}</div>
+      <p class="reveal-desc">${h.desc}</p>
+      <div class="reveal-skill"><span>${h.skill.icon}</span><div><b>${h.skill.name}</b>
+        <small>${h.skill.cost} ${h.resource.name.toLowerCase()} · перезарядка ${h.skill.cooldown / 1000} с</small>
+        <p>${h.skill.desc}</p></div></div>
+      ${stat('❤️', 'HP', h.hp, 200)}${stat('🗡', 'Урон', h.dmg, 35)}${stat('🎯', 'Дальность', h.range, 300)}${stat('👟', 'Скорость', h.speed, 200)}
+      <button class="l2-btn reveal-ok">${isNew ? 'Забрать' : 'Закрыть'}</button>`;
+    box.querySelector('.reveal-art').appendChild(heroCanvas(id));
+    box.classList.remove('hidden');
+    box.classList.toggle('is-new', isNew);
+    box.querySelector('.reveal-ok').onclick = () => {
+      box.classList.add('hidden');
+      if (isNew) $('sheet').classList.add('hidden');
+    };
+  }
+
+  // ---------- Фоны ----------
   function bgSheet() {
     const box = document.createElement('div');
     box.className = 'bg-grid';
@@ -243,19 +397,13 @@ window.Lobby = (() => {
     const tg = opts.tg;
     if (!tg || !opts.tgUser || !tg.openInvoice) { toast('Покупка за Telegram Stars доступна только в Telegram'); return; }
     try {
-      const r = await fetch('/api/invoice', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: tg.initData, bgId: bg.id }),
-      });
-      const data = await r.json();
-      if (!r.ok) { toast(data.error || 'Оплата недоступна'); return; }
+      const { ok, data } = await api('/api/invoice', { item: 'bg', bgId: bg.id });
+      if (!ok) { toast(data.error || 'Оплата недоступна'); return; }
       tg.openInvoice(data.link, async (status) => {
         if (status !== 'paid') return;
-        // Ждём, пока бот получит successful_payment, и обновляем профиль
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 5 && !profile.bgs.includes(bg.id); i++) {
           await new Promise((res) => setTimeout(res, 800));
           await loadProfile();
-          if (profile.bgs.includes(bg.id)) break;
         }
         if (profile.bgs.includes(bg.id)) { applyBg(bg.id); toast(`Фон «${bg.name}» куплен!`); haptic('notificationOccurred', 'success'); }
         closeSheet();
@@ -267,12 +415,9 @@ window.Lobby = (() => {
 
   async function loadProfile() {
     try {
-      const r = await fetch('/api/profile', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initData: opts.tg ? opts.tg.initData : '', guestId: opts.guestId }),
-      });
-      if (r.ok) profile = await r.json();
-      else $('status').textContent = (await r.json()).error || '';
+      const { ok, data } = await api('/api/profile', {});
+      if (ok) profile = data;
+      else $('status').textContent = data.error || '';
     } catch { /* офлайн — остаются значения по умолчанию */ }
   }
 
@@ -286,7 +431,8 @@ window.Lobby = (() => {
 
     try {
       const cfg = await (await fetch('/api/config')).json();
-      classes = cfg.classes;
+      heroes = cfg.heroes;
+      rarities = cfg.rarities;
       backgrounds = cfg.backgrounds;
     } catch {
       $('status').textContent = 'Сервер недоступен';
@@ -294,19 +440,18 @@ window.Lobby = (() => {
     }
     await loadProfile();
 
-    const keys = Object.keys(classes);
-    const last = opts.store.get('lastClass');
-    order = keys.includes(last) ? [last, ...keys.filter((k) => k !== last)] : keys;
+    const lastHero = opts.store.get('lastHero');
+    order = profile.heroes.includes(lastHero) ? [lastHero, ...profile.heroes.filter((k) => k !== lastHero)] : [...profile.heroes];
     const savedBg = opts.store.get('lobbyBg');
     if (savedBg && profile.bgs.includes(savedBg) && savedBg !== bgId) applyBg(savedBg, false);
     buildStage();
     $('playBtn').disabled = false;
 
-    $('menuHeroes').onclick = () => openSheet('Выбор персонажа', heroesSheet());
+    $('menuHeroes').onclick = openGacha;
     $('menuBg').onclick = () => openSheet('Фон лобби', bgSheet());
     $('sheetClose').onclick = closeSheet;
     $('sheet').onclick = (e) => { if (e.target === $('sheet')) closeSheet(); };
-    $('playBtn').onclick = () => opts.onStart(order[0], playerName());
+    $('playBtn').onclick = () => (order[0] ? opts.onStart(order[0], playerName()) : openGacha());
 
     $('lpRename').onclick = () => { $('guestName').value = playerName(); $('renameBox').classList.remove('hidden'); $('guestName').focus(); };
     $('renameBox').onclick = (e) => { if (e.target === $('renameBox')) $('renameBox').classList.add('hidden'); };

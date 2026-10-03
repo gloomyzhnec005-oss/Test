@@ -18,7 +18,7 @@
   if (!guestId) { guestId = Math.random().toString(36).slice(2) + Date.now().toString(36); store.set('guestId', guestId); }
 
   // ---------- Ввод ----------
-  const input = { vec: { x: 0, y: 0 }, attack: false };
+  const input = { vec: { x: 0, y: 0 }, attack: false, skill: false };
 
   const joy = $('joystick'), stick = $('stick');
   let joyId = null;
@@ -71,10 +71,15 @@
   };
 
   // ---------- HUD ----------
+  let resName = '';
   function setStats(s) {
     $('lvl').textContent = s.level;
     $('hpFill').style.width = (100 * s.hp / s.maxHp) + '%';
     $('hpText').textContent = `${s.hp} / ${s.maxHp}`;
+    if (s.resMax) {
+      $('resFill').style.width = (100 * s.res / s.resMax) + '%';
+      $('resText').textContent = `${resName}: ${s.res} / ${s.resMax}`;
+    }
     $('xpFill').style.width = (100 * s.xp / s.xpNext) + '%';
     $('xpText').textContent = `${s.xp} / ${s.xpNext} XP`;
     $('gold').textContent = s.gold;
@@ -117,6 +122,36 @@
     else h.impactOccurred(kind);
   };
 
+  // ---------- Умение ----------
+  const skillBtn = $('skillBtn');
+  skillBtn.addEventListener('pointerdown', (e) => { input.skill = true; skillBtn.classList.add('pressed'); e.preventDefault(); });
+  const skillUp = () => skillBtn.classList.remove('pressed');
+  skillBtn.addEventListener('pointerup', skillUp);
+  skillBtn.addEventListener('pointerleave', skillUp);
+  let cdTimer = 0;
+  function startSkillCd(ms) {
+    const until = performance.now() + ms;
+    skillBtn.classList.add('cooling');
+    cancelAnimationFrame(cdTimer);
+    const tick = () => {
+      const left = until - performance.now();
+      if (left <= 0) { skillBtn.classList.remove('cooling'); $('skillCd').style.background = ''; $('skillCd').textContent = ''; return; }
+      const deg = 360 * (left / ms);
+      $('skillCd').style.background = `conic-gradient(rgba(0,0,0,.7) ${deg}deg, transparent 0)`;
+      $('skillCd').textContent = Math.ceil(left / 1000);
+      cdTimer = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+  function hudToast(text) {
+    const t = $('hudToast');
+    t.textContent = text;
+    t.classList.remove('hidden');
+    clearTimeout(hudToast.tm);
+    hudToast.tm = setTimeout(() => t.classList.add('hidden'), 1500);
+    vibrate('light');
+  }
+
   // ---------- Запуск ----------
   let socket = null, game = null;
 
@@ -126,17 +161,24 @@
 
     socket = io({ transports: ['websocket', 'polling'] });
     socket.on('connect', () => {
-      socket.emit('join', { cls: selected, initData: tg ? tg.initData : '', guestId, guestName: name });
+      socket.emit('join', { hero: selected, initData: tg ? tg.initData : '', guestId, guestName: name });
     });
     socket.on('error_msg', (m) => { Lobby.setStatus(m); Lobby.setBusy(false); socket.disconnect(); });
     socket.on('chat', addChat);
     socket.on('stats', setStats);
+    socket.on('skillUsed', ({ cooldown }) => startSkillCd(cooldown));
+    socket.on('skillFail', hudToast);
     socket.on('disconnect', () => { if (game) addChat({ sys: true, text: 'Связь потеряна, переподключение...' }); });
     socket.on('welcome', (w) => {
       if (game) { location.reload(); return; } // переподключение после обрыва — начинаем заново
       Lobby.hide();
       $('hud').classList.remove('hidden');
-      $('heroName').textContent = name;
+      const hero = w.heroes[selected];
+      $('heroName').textContent = `${name} · ${hero.name}`;
+      resName = hero.resource.name;
+      $('resFill').style.background = hero.resource.color;
+      $('skillIcon').textContent = hero.skill.icon;
+      $('skillName').textContent = hero.skill.name;
       setStats(w.stats);
       buildMinimap(w.map);
       const ui = {

@@ -19,7 +19,8 @@
     <!-- Окно 1: информация о герое -->
     <div id="heroPanel" class="l2-panel hero-panel">
       <div class="hp-row"><span class="hp-key">Имя</span><b id="lpName">—</b><button id="lpRename" class="icon-btn hidden" aria-label="Сменить имя">✏️</button></div>
-      <div class="hp-row"><span class="hp-key">Ур.</span><b id="lpLevel">1</b><span id="lpClass" class="hp-class"></span></div>
+      <div class="hp-row"><span class="hp-key">Герой</span><b id="lpHero">—</b><span id="lpTitle" class="hp-class"></span></div>
+      <div class="hp-row"><span class="hp-key">Ур.</span><b id="lpLevel">—</b><span id="lpRarity" class="hp-rarity"></span></div>
       <div class="l2-bar"><span class="hp-key">HP</span><div class="l2-track hp"><i id="lpHpFill"></i><em id="lpHp"></em></div></div>
       <div class="l2-bar"><span class="hp-key" id="lpResKey">MP</span><div class="l2-track res"><i id="lpResFill"></i><em id="lpRes"></em></div></div>
       <div class="l2-bar"><span class="hp-key">Exp</span><div class="l2-track xp"><i id="lpXpFill"></i><em id="lpXp"></em></div></div>
@@ -35,7 +36,7 @@
 
     <!-- Окно 8: меню -->
     <div class="l2-panel lobby-menu">
-      <button id="menuHeroes" class="l2-btn">👤 Персонаж</button>
+      <button id="menuHeroes" class="l2-btn">✨ Получить персонажа</button>
       <button id="menuBg" class="l2-btn">🏰 Фон лобби</button>
     </div>
 
@@ -55,6 +56,8 @@
         <button class="l2-btn">Сохранить</button>
       </form>
     </div>
+    <!-- Карточка героя (после призыва) -->
+    <div id="reveal" class="reveal hidden"><div class="reveal-rays"></div><div class="reveal-card l2-panel"></div></div>
     <div id="toast" class="toast hidden"></div>
   </div>
 
@@ -67,6 +70,7 @@
       <div class="panel stats">
         <div class="row"><span id="lvl" class="lvl">1</span><span id="heroName"></span></div>
         <div class="bar hp"><div id="hpFill"></div><span id="hpText"></span></div>
+        <div class="bar res"><div id="resFill"></div><span id="resText"></span></div>
         <div class="bar xp"><div id="xpFill"></div><span id="xpText"></span></div>
         <div class="row small"><span>💰 <b id="gold">0</b></span><span>💀 <b id="kills">0</b></span><span>🗡 <b id="dmg">0</b></span></div>
       </div>
@@ -82,6 +86,8 @@
     <button id="exitBtn" class="round small-btn">🏠</button>
     <div id="joystick" class="joystick"><div id="stick"></div></div>
     <button id="attackBtn" class="round attack">⚔️</button>
+    <button id="skillBtn" class="round skill"><span id="skillIcon">✨</span><i id="skillCd"></i><em id="skillName"></em></button>
+    <div id="hudToast" class="hud-toast hidden"></div>
   </div>
 
   <div id="deathScreen" class="overlay hidden">
