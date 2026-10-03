@@ -69,9 +69,10 @@ window.Gfx = (() => {
     }
     if (L.weapon === 'greatsword') {
       // Тяжёлый двуручный меч за спиной/в руке
-      rect(ctx, 23, 0, 5, 22, '#9aa3ad'); rect(ctx, 24, 0, 2, 22, '#d6dde6'); rect(ctx, 23, 0, 5, 1, '#6b7380');
+      const gc = L.bladeColor || '#9aa3ad';
+      rect(ctx, 23, 0, 5, 22, gc); rect(ctx, 24, 0, 2, 22, L.bladeColor ? '#8affc0' : '#d6dde6'); rect(ctx, 23, 0, 5, 1, '#6b7380');
       rect(ctx, 20, 21, 11, 2, '#5a3a1a'); rect(ctx, 24, 23, 3, 6, '#3a2a1a');
-      rect(ctx, 23, 8, 5, 2, '#8a1a10'); // кровь на клинке
+      if (!L.bladeColor) rect(ctx, 23, 8, 5, 2, '#8a1a10'); // кровь на клинке
     }
     if (L.weapon === 'totemStaff') {
       // Посох с черепом-тотемом и перьями
@@ -147,6 +148,13 @@ window.Gfx = (() => {
         rect(ctx, 9, 0, 2, 5, '#8a6a3a'); rect(ctx, 7, 0, 2, 2, '#8a6a3a'); rect(ctx, 21, 0, 2, 5, '#8a6a3a'); rect(ctx, 23, 0, 2, 2, '#8a6a3a');
         rect(ctx, 14, 2, 4, 2, '#c9a64d'); rect(ctx, 15, 1, 2, 1, '#9ff0ff');
         break;
+      case 'deathHelm':
+        // Закрытый шлем рыцаря смерти с рогами и светящимися глазами
+        rect(ctx, 10, 3, 12, 12, L.headColor); rect(ctx, 11, 4, 10, 1, '#5a6460');
+        rect(ctx, 12, 8, 8, 2, '#0a0e0c'); rect(ctx, 13, 8, 2, 2, L.eyes); rect(ctx, 17, 8, 2, 2, L.eyes);
+        rect(ctx, 15, 11, 2, 4, '#0a0e0c');
+        rect(ctx, 8, 2, 2, 5, '#c9c2b0'); rect(ctx, 7, 0, 2, 3, '#c9c2b0'); rect(ctx, 22, 2, 2, 5, '#c9c2b0'); rect(ctx, 23, 0, 2, 3, '#c9c2b0');
+        break;
       case 'elf':
         // Длинные светлые волосы, острые уши, повязка на лице
         rect(ctx, 10, 3, 12, 3, L.hair); rect(ctx, 9, 5, 2, 14, L.hair); rect(ctx, 21, 5, 2, 9, L.hair);
@@ -205,9 +213,10 @@ window.Gfx = (() => {
     if (L.beads) for (let i = 0; i < 5; i++) rect(ctx, 10 + i * 3, 14 + (i % 2), 2, 2, L.beads); // чётки
     if (L.weapon === 'greatsword') {
       // Тяжёлый двуручный меч за спиной/в руке
-      rect(ctx, 23, 0, 5, 22, '#9aa3ad'); rect(ctx, 24, 0, 2, 22, '#d6dde6'); rect(ctx, 23, 0, 5, 1, '#6b7380');
+      const gc = L.bladeColor || '#9aa3ad';
+      rect(ctx, 23, 0, 5, 22, gc); rect(ctx, 24, 0, 2, 22, L.bladeColor ? '#8affc0' : '#d6dde6'); rect(ctx, 23, 0, 5, 1, '#6b7380');
       rect(ctx, 20, 21, 11, 2, '#5a3a1a'); rect(ctx, 24, 23, 3, 6, '#3a2a1a');
-      rect(ctx, 23, 8, 5, 2, '#8a1a10'); // кровь на клинке
+      if (!L.bladeColor) rect(ctx, 23, 8, 5, 2, '#8a1a10'); // кровь на клинке
     }
     if (L.weapon === 'totemStaff') {
       // Посох с черепом-тотемом и перьями
@@ -316,6 +325,15 @@ window.Gfx = (() => {
       rect(ctx, 21, 8, 10, 10, '#6b4a2c'); rect(ctx, 21, 6, 3, 3, '#5a3e24'); rect(ctx, 28, 6, 3, 3, '#5a3e24');
       rect(ctx, 27, 13, 4, 4, '#a07a52'); rect(ctx, 29, 13, 2, 1, '#1a0e06'); rect(ctx, 25, 10, 2, 2, '#1a0e06');
       rect(ctx, 6, 24, 5, 6, '#4a3420'); rect(ctx, 19, 24, 5, 6, '#4a3420');
+    } else if (kind === 'skeleton') {
+      // Скелет-слуга с зелёным некротическим свечением
+      circle(ctx, 16, 28, 8, 'rgba(0,0,0,.25)');
+      circle(ctx, 16, 16, 12, 'rgba(63,191,122,.18)');
+      rect(ctx, 11, 4, 10, 9, '#d8e8d0'); rect(ctx, 13, 7, 2, 3, '#3fbf7a'); rect(ctx, 17, 7, 2, 3, '#3fbf7a');
+      rect(ctx, 15, 13, 2, 9, '#d8e8d0');
+      for (let i = 0; i < 3; i++) rect(ctx, 11, 14 + i * 3, 10, 1, '#d8e8d0');
+      rect(ctx, 12, 22, 2, 7, '#d8e8d0'); rect(ctx, 18, 22, 2, 7, '#d8e8d0');
+      rect(ctx, 22, 8, 2, 14, '#7a8a80');
     } else {
       // Сокол парит над землёй — тень отдельно внизу
       circle(ctx, 16, 29, 6, 'rgba(0,0,0,.2)');

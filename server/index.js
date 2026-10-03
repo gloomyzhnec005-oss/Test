@@ -232,6 +232,7 @@ function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
+    sh: p.shieldUntil > Date.now() && p.shieldHp > 0, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
@@ -239,7 +240,8 @@ function privateStats(p) {
     gold: p.char.gold, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((p.hero.cooldown / attackCd(p) - 1) * 100),
-    passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '' };
+    passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '',
+    shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0 };
 }
 // Статы отправляются не чаще 4 раз в секунду (см. игровой цикл)
 const markDirty = (p) => { p.dirty = true; };
@@ -253,6 +255,7 @@ function damageMonster(p, m, raw, opt = {}) {
   // fixed — урон без множителей (отражённый урон Малакора)
   const dmg = opt.fixed ? Math.max(1, Math.round(raw))
     : Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 : 1)));
+  if (ps && ps.onDealt) ps.onDealt(skillCtx, p, Math.min(dmg, m.hp), Date.now()); // вампиризм Кельт'о
   m.hp -= dmg;
   m.target = opt.pet || p.id; // монстр отвечает тому, кто ударил: хозяину или зверю
   fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null, reflect: !!opt.reflect,
@@ -264,6 +267,8 @@ function damageMonster(p, m, raw, opt = {}) {
     const gold = Math.round(def.xp / 3 * (0.5 + Math.random()) * rw.gold);
     fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp, gold, by: p.id, contract: !!rw.contract });
     monsters.delete(m.id);
+    corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type });
+    if (corpses.length > 40) corpses.shift();
     grantXp(p, xp, gold);
     if (ps && ps.onKill) ps.onKill(skillCtx, p, Date.now(), m);
     if (def.boss) io.emit('chat', { sys: true, text: `${p.name} победил босса «${def.name}»!` });
@@ -288,14 +293,94 @@ function teleport(p, x, y) {
   p.x = x; p.y = y; p.lastMove = Date.now();
   p.socket.emit('correct', { x, y });
 }
-// Тотемы (Аламариэль): лечат союзников рядом раз в секунду
+// Эффекты на земле: тотем Аламариэль (лечит союзников) и осквернённая земля Кельт'о (свой tick).
+// Срабатывают раз в секунду.
 let totems = [];
 let totemSeq = 1;
 function addTotem(t) {
-  const totem = { id: totemSeq++, next: Date.now() + 1000, ...t };
+  const totem = { id: totemSeq++, kind: 'totem', next: Date.now() + 1000, ...t };
   totems.push(totem);
   return totem;
 }
+const addGround = (g) => addTotem({ ...g, next: Date.now() + 300 });
+
+// Павшие враги (для «Восстания мёртвых»): хранятся 15 с
+let corpses = [];
+function takeCorpse(x, y, r, now) {
+  corpses = corpses.filter((c) => now - c.t < 15000);
+  let best = null, bd = r;
+  for (const c of corpses) { const d = Math.hypot(c.x - x, c.y - y); if (d < bd) { bd = d; best = c; } }
+  if (best) corpses = corpses.filter((c) => c !== best);
+  return best;
+}
+
+// Барьер, поглощающий урон (Брендан); суммируется, но не больше 60% здоровья цели
+function giveShield(o, amount, until) {
+  const now = Date.now();
+  const cur = o.shieldUntil > now ? o.shieldHp : 0;
+  o.shieldHp = Math.min(o.maxHp * 0.6, cur + amount);
+  o.shieldUntil = Math.max(o.shieldUntil || 0, until);
+  fx.push({ t: 'shield', target: o.id, amount: Math.round(amount) });
+  markDirty(o);
+}
+function addPet(owner, pet) { owner.pets.push(pet); pets.set(pet.id, pet); }
+function removePet(pet) {
+  pets.delete(pet.id);
+  const list = pet.owner.pets;
+  const i = list.indexOf(pet);
+  if (i >= 0) list.splice(i, 1);
+}
+// Урон по игроку от монстра: уклонение, защитные эффекты, обет защиты, барьер, пассивки, смерть
+function hurtPlayer(target, raw, m, now, viaVow = false) {
+  // Уклонение в дыму (Найри)
+  if (target.dodgeUntil > now && Math.random() < 0.5) { fx.push({ t: 'dodge', target: target.id }); return; }
+  const ps = passiveOf(target);
+  // Множители входящего урона: «в ущерб защите» (Вайалд), «Зов стаи» (Урсус), пассивки (Брендан)
+  let dmg = raw * (target.hero.dmgTaken || 1) * (target.packUntil > now ? 0.65 : 1) * (ps && ps.dmgTakenMult ? ps.dmgTakenMult(target) : 1);
+  // Обет защиты (Брендан): 40% урона союзника принимает на себя защитник, остальное союзнику −20%
+  const guardian = !viaVow && target.vowUntil > now ? players.get(target.vowBy) : null;
+  if (guardian && !guardian.dead && Math.hypot(guardian.x - target.x, guardian.y - target.y) < 400) {
+    const share = dmg * 0.4;
+    hurtPlayer(guardian, share, m, now, true);
+    dmg = (dmg - share) * 0.8;
+  }
+  dmg = Math.round(dmg);
+  // Барьер поглощает урон первым
+  if (target.shieldHp > 0 && target.shieldUntil > now) {
+    const absorbed = Math.min(target.shieldHp, dmg);
+    target.shieldHp -= absorbed;
+    dmg -= absorbed;
+    fx.push({ t: 'absorb', target: target.id, amount: absorbed });
+    markDirty(target);
+    if (dmg <= 0) return;
+  }
+  target.hp -= dmg;
+  target.lastHurt = now;
+  fx.push({ t: 'hit', kind: 'p', target: target.id, dmg, from: m ? m.id : null });
+  if (ps && ps.onHurt && target.hp > 0) ps.onHurt(skillCtx, target, dmg, m);
+  // Пассивка может спасти от смерти (Вебранд)
+  if (target.hp <= 0 && ps && ps.onLethal) ps.onLethal(skillCtx, target);
+  if (target.hp <= 0) {
+    target.hp = 0;
+    target.dead = true;
+    if (m) m.target = null;
+    fx.push({ t: 'pdeath', target: target.id });
+    const victim = target;
+    setTimeout(() => {
+      if (!players.has(victim.id)) return;
+      victim.dead = false;
+      victim.hp = victim.maxHp;
+      victim.res = startRes(victim);
+      victim.cheatUsed = false;
+      victim.shieldHp = 0;
+      markDirty(victim);
+      victim.x = world.spawn.x; victim.y = world.spawn.y;
+      victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });
+    }, 4000);
+  }
+  markDirty(target);
+}
+
 // Отправить клиенту оставшееся время перезарядки умений (после сокращения)
 function syncCooldowns(p, now) {
   const left = {};
@@ -304,7 +389,7 @@ function syncCooldowns(p, now) {
 }
 const skillCtx = {
   moveEntity, syncCooldowns,
-  monsters, players, damageMonster, healPlayer, teleport, knockback, addTotem,
+  monsters, players, damageMonster, healPlayer, teleport, knockback, addTotem, addGround, takeCorpse, giveShield, addPet, removePet,
   isSolidAt: (x, y) => world.isSolidAt(x, y),
   pushFx: (f) => fx.push(f),
 };
@@ -358,6 +443,7 @@ io.on('connection', (socket) => {
     p.hp = p.maxHp;
     p.res = startRes(p);
     if (hero.pets) { p.pets = createPets(p); p.pets.forEach((pet) => pets.set(pet.id, pet)); }
+    if (hero.summons) p.pets = []; // слуги появляются навыком «Восстание мёртвых»
     players.set(socket.id, p);
 
     socket.emit('welcome', {
@@ -402,7 +488,7 @@ io.on('connection', (socket) => {
     // Усиленная атака после «Дыхания гармонии»
     const empowered = p.empoweredUntil > now;
     if (empowered) { p.empoweredUntil = 0; fx.push({ t: 'skill', s: 'empHit', from: p.id, x: m.x, y: m.y, quiet: true }); }
-    damageMonster(p, m, p.dmg * (empowered ? 2 : 1), { crit: Math.random() < 0.15, proj: p.hero.projectile, basic: true });
+    damageMonster(p, m, p.dmg * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15, proj: p.hero.projectile, basic: true });
     // Ресурс, который копится от ударов (ярость Вебранда)
     p.lastHit = now;
     if (p.hero.resource.perHit) { p.res = Math.min(p.resMax, p.res + p.hero.resource.perHit); markDirty(p); }
@@ -487,7 +573,9 @@ setInterval(() => {
     }
     if (m.stunUntil > now) continue; // оглушён
     const rooted = m.rootUntil > now;
-    // Цель монстра — игрок или зверь-спутник
+    // Цель монстра — игрок или зверь-спутник; провокация Брендана перекрывает выбор
+    const taunter = m.tauntUntil > now ? players.get(m.tauntBy) : null;
+    if (taunter && !taunter.dead) m.target = taunter.id;
     let target = m.target ? players.get(m.target) || pets.get(m.target) : null;
     if (target && (target.dead || target.down || Math.hypot(target.x - m.x, target.y - m.y) > def.aggro * 1.8)) target = null;
     if (!target) {
@@ -512,42 +600,13 @@ setInterval(() => {
       const d = Math.hypot(dx, dy);
       if (d > C.MONSTER_ATTACK_RANGE) {
         if (rooted) continue;
-        const s = def.speed * dt;
+        const s = def.speed * dt * (m.slowUntil > now ? 0.6 : 1); // замедление (осквернённая земля)
         moveEntity(m, (dx / d) * s, (dy / d) * s);
       } else if (now - m.lastAttack > C.MONSTER_ATTACK_CD) {
         m.lastAttack = now;
         // Удар по зверю: зверь не гибнет, а «падает» и отступает
         if (target.owner) { hurtPet(skillCtx, target, Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)), now); continue; }
-        // Уклонение в дыму (Найри)
-        if (target.dodgeUntil > now && Math.random() < 0.5) { fx.push({ t: 'dodge', target: target.id }); continue; }
-        // Рёв ярости Вебранда ослабляет урон монстра; «Зов стаи» Урсуса защищает хозяина
-        const dmg = Math.round(def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1) * (target.hero.dmgTaken || 1)
-          * (target.packUntil > now ? 0.65 : 1));
-        target.hp -= dmg;
-        target.lastHurt = now;
-        fx.push({ t: 'hit', kind: 'p', target: target.id, dmg, from: m.id });
-        const ps = passiveOf(target);
-        if (ps && ps.onHurt && target.hp > 0) ps.onHurt(skillCtx, target, dmg, m);
-        // Пассивка может спасти от смерти (Вебранд)
-        if (target.hp <= 0 && ps && ps.onLethal) ps.onLethal(skillCtx, target);
-        if (target.hp <= 0) {
-          target.hp = 0;
-          target.dead = true;
-          m.target = null;
-          fx.push({ t: 'pdeath', target: target.id });
-          const victim = target;
-          setTimeout(() => {
-            if (!players.has(victim.id)) return;
-            victim.dead = false;
-            victim.hp = victim.maxHp;
-            victim.res = startRes(victim);
-            victim.cheatUsed = false;
-            markDirty(victim);
-            victim.x = world.spawn.x; victim.y = world.spawn.y;
-            victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });
-          }, 4000);
-        }
-        markDirty(target);
+        hurtPlayer(target, def.dmg * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1), m, now);
       }
     } else {
       if (rooted) continue;
@@ -596,6 +655,7 @@ setInterval(() => {
   for (const t of totems) {
     if (now >= t.next && now <= t.until) {
       t.next += 1000;
+      if (t.tick) { t.tick(now); continue; }
       for (const o of players.values()) {
         if (!o.dead && Math.hypot(o.x - t.x, o.y - t.y) <= t.r) healPlayer(o, o.maxHp * t.heal);
       }
@@ -608,10 +668,11 @@ setInterval(() => {
     p: [...players.values()].map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
     m: [...monsters.values()].map((m) => ({ id: m.id, type: m.type, x: Math.round(m.x), y: Math.round(m.y),
       hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
-      mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0 })),
+      mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0,
+      sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0 })),
     pt: [...pets.values()].map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
-    t: totems.map((t) => ({ id: t.id, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
+    t: totems.map((t) => ({ id: t.id, kind: t.kind, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
     fx,
   };
   io.emit('state', state);

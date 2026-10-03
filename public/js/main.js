@@ -76,7 +76,7 @@
   function setStats(s) {
     $('lvl').textContent = s.level;
     $('hpFill').style.width = (100 * s.hp / s.maxHp) + '%';
-    $('hpText').textContent = `${s.hp} / ${s.maxHp}`;
+    $('hpText').textContent = `${s.hp} / ${s.maxHp}${s.shield ? ` +🛡${s.shield}` : ''}`;
     if (s.resMax) {
       $('resFill').style.width = (100 * s.res / s.resMax) + '%';
       $('resText').textContent = `${resName}: ${s.res} / ${s.resMax}`;

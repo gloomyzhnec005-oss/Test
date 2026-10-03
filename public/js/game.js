@@ -30,7 +30,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     Object.entries(this.heroes).forEach(([k, h]) => addTex('hero_' + k, Gfx.hero(h.look)));
     Object.keys(this.monsterDefs).forEach((k) => addTex('mon_' + k, Gfx.monster(k)));
     addTex('totem', Gfx.totem());
-    ['wolf', 'bear', 'hawk'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
+    ['wolf', 'bear', 'hawk', 'skeleton'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
     ['stone', 'spirit', 'spear', 'dagger', 'shadow'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
@@ -134,6 +134,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.c.addAt(e.aura, 0);
         this.tweens.add({ targets: e.aura, scale: 1.25, alpha: 0.5, duration: 300, yoyo: true, repeat: -1 });
       } else if (!p.rage && e.aura) { e.aura.destroy(); e.aura = null; }
+      // Барьер (Брендан)
+      if (p.sh && !e.bubble) {
+        e.bubble = this.add.circle(0, -2, 20).setStrokeStyle(2, 0x8ad3ff, 1).setFillStyle(0x8ad3ff, 0.18);
+        e.c.add(e.bubble);
+        this.tweens.add({ targets: e.bubble, alpha: 0.6, duration: 500, yoyo: true, repeat: -1 });
+      } else if (!p.sh && e.bubble) { e.bubble.destroy(); e.bubble = null; }
       // Дымовая завеса: полупрозрачность
       e.sprite.setAlpha(p.smoke ? 0.45 : 1);
       // Щит «Зова стаи»
@@ -168,7 +174,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
-      const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '');
+      const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '');
       if (status !== (e.status || '')) {
         e.status = status;
         if (!e.statusText) {
@@ -194,7 +200,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       seenP.add(pt.id);
       let e = this.pets.get(pt.id);
       if (!e) {
-        const names = { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол' };
+        const names = { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга' };
         e = this.makeEntity('pet_' + pt.kind, names[pt.kind], pt.owner === this.myId ? '#c8f0a0' : '#d8d0c0');
         e.c.setPosition(pt.x, pt.y);
         e.label.setFontSize(8);
@@ -205,7 +211,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       e.tx = pt.x; e.ty = pt.y; e.data = pt;
       this.setBar(e, pt.hp, pt.maxHp);
       e.c.setAlpha(pt.down ? 0.45 : 1);
-      e.label.setText(pt.down ? '💤' : { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол' }[pt.kind]);
+      e.label.setText(pt.down ? '💤' : { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга' }[pt.kind]);
       if (pt.boost && !e.glow) {
         e.glow = this.add.circle(0, 4, 13).setStrokeStyle(2, 0xff7ab0, 0.9);
         e.c.addAt(e.glow, 0);
@@ -218,8 +224,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
     for (const t of s.t || []) {
       seenT.add(t.id);
       if (!this.totems.has(t.id)) {
-        const area = this.add.circle(t.x, t.y, t.r, 0x3fe08a, 0.08).setStrokeStyle(2, 0x3fe08a, 0.5).setDepth(1).setScale(1, 0.5);
-        const img = this.add.image(t.x, t.y, 'totem').setOrigin(0.5, 0.95).setDepth(10 + t.y);
+        // Тотем исцеления (зелёный круг + столб) или осквернённая земля (тёмное пятно)
+        const dark = t.kind === 'desecrate';
+        const area = this.add.circle(t.x, t.y, t.r, dark ? 0x1a3a24 : 0x3fe08a, dark ? 0.45 : 0.08)
+          .setStrokeStyle(2, dark ? 0x3fbf7a : 0x3fe08a, 0.6).setDepth(1).setScale(1, 0.5);
+        const img = dark ? this.add.text(t.x, t.y, '☠', { fontSize: '18px', color: '#5fffb0' }).setOrigin(0.5).setDepth(2).setAlpha(0.7)
+          : this.add.image(t.x, t.y, 'totem').setOrigin(0.5, 0.95).setDepth(10 + t.y);
         this.tweens.add({ targets: area, alpha: 0.4, duration: 500, yoyo: true, repeat: -1 });
         this.totems.set(t.id, { area, img });
       }
@@ -299,6 +309,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
     } else if (f.t === 'hit' && f.kind === 'pet') {
       const e = this.pets.get(f.target);
       if (e) { this.floatText(e.c.x, e.c.y - 16, '-' + f.dmg, '#ff9a7a', 11); e.sprite.setTint(0xff6060); this.time.delayedCall(120, () => e.sprite.clearTint()); }
+    } else if (f.t === 'absorb') {
+      const e = this.players.get(f.target);
+      if (e) this.floatText(e.c.x, e.c.y - 22, '🛡 ' + f.amount, '#8ad3ff', 11);
+    } else if (f.t === 'shield') {
+      const e = this.players.get(f.target);
+      if (e) { this.floatText(e.c.x, e.c.y - 30, '+🛡 ' + f.amount, '#8ad3ff', 12); this.ring(e.c.x, e.c.y, 26, 0x8ad3ff, 500, 3); }
+    } else if (f.t === 'petGone') {
+      this.burst(f.x, f.y, 0x5fffb0, 10);
     } else if (f.t === 'dodge') {
       const e = this.players.get(f.target);
       if (e) this.floatText(e.c.x, e.c.y - 22, 'Уклонение', '#c8d8e8', 11);
@@ -476,6 +494,43 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.burst(f.x, f.y, 0xff7ab0, 8);
         break;
       }
+      case 'lifeSteal':
+        for (let i = 0; i < 8; i++) {
+          const o = this.add.image(f.fx, f.fy, 'proj_shadow').setDepth(850).setScale(0.6).setTint(0xff4060);
+          this.tweens.add({ targets: o, x: f.x, y: f.y, delay: i * 40, duration: 450, onComplete: () => o.destroy() });
+        }
+        break;
+      case 'desecrate':
+        this.ring(f.x, f.y, f.r, 0x3fbf7a, 600, 4);
+        this.burst(f.x, f.y, 0x1a3a24, 16);
+        break;
+      case 'raiseDead':
+        this.ring(f.x, f.y, 30, 0x5fffb0, 600, 4);
+        this.burst(f.x, f.y, 0x5fffb0, 20);
+        this.floatText(f.x, f.y - 36, 'Восстань!', '#5fffb0', 14);
+        break;
+      case 'shieldWall':
+        this.ring(f.x, f.y, f.r, 0x8ad3ff, 700, 5);
+        break;
+      case 'taunt':
+        this.ring(f.x, f.y, f.r, 0xff6040, 600, 4);
+        this.floatText(f.x, f.y - 56, 'Ко мне!', '#ff9a6a', 16);
+        for (const id of f.ids || []) {
+          const m = this.monsters.get(id);
+          if (m) this.floatText(m.c.x, m.c.y - 30, '❗', '#ff6040', 14);
+        }
+        break;
+      case 'vow': {
+        const ally = this.players.get(f.ally);
+        const ln = this.add.line(0, 0, f.x, f.y, ally ? ally.c.x : f.ax, ally ? ally.c.y : f.ay, 0xffd36a, 0.9).setOrigin(0, 0).setLineWidth(3).setDepth(840);
+        this.tweens.add({ targets: ln, alpha: 0, duration: 900, onComplete: () => ln.destroy() });
+        this.floatText(f.x, f.y - 50, 'Клянусь защищать!', '#ffd36a', 12);
+        break;
+      }
+      case 'autoShield':
+        this.floatText(f.x, f.y - 50, 'Несокрушим!', '#8ad3ff', 15);
+        this.ring(f.x, f.y, 40, 0x8ad3ff, 600, 5);
+        break;
       case 'punishSeal':
         this.ring(f.x, f.y, 36, 0x9b4dff, 600, 4);
         this.ring(f.x, f.y, 22, 0x2a0a3a, 500, 6);

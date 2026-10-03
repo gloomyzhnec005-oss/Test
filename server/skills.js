@@ -1,6 +1,7 @@
 // Уникальные умения героев. Каждое умение — функция (ctx, p, target, now) → строка ошибки или null.
-// ctx: { monsters, players, pushFx, damageMonster, healPlayer, teleport, knockback, isSolidAt, addTotem }
-const { petDmg, petsNear } = require('./pets');
+// ctx: { monsters, players, pushFx, damageMonster, healPlayer, teleport, knockback, isSolidAt, addTotem, addGround,
+//        giveShield, takeCorpse, addPet, removePet, syncCooldowns, moveEntity }
+const { petDmg, petsNear, createSummon } = require('./pets');
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const inRadius = (ctx, x, y, r) => [...ctx.monsters.values()].filter((m) => Math.hypot(m.x - x, m.y - y) <= r);
 const isMarked = (p, m) => m.markedBy === p.id && m.markUntil > Date.now(); // метка Найри
@@ -268,6 +269,82 @@ const SKILLS = {
     }
     return null;
   },
+
+  // Кельт'о: похищение жизни — урон и лечение на его величину
+  lifeSteal(ctx, p, t) {
+    if (!t) return 'Нет цели';
+    ctx.pushFx({ t: 'skill', s: 'lifeSteal', from: p.id, fx: t.x, fy: t.y, x: p.x, y: p.y });
+    const dealt = ctx.damageMonster(p, t, p.dmg * 1.8);
+    ctx.healPlayer(p, dealt);
+    return null;
+  },
+
+  // Кельт'о: осквернённая земля — зона на 6 с: урон, замедление, лечение рыцаря
+  desecrate(ctx, p, _t, now) {
+    const r = 100, x = p.x, y = p.y;
+    ctx.addGround({
+      kind: 'desecrate', owner: p.id, x, y: y + 6, r, until: now + 6000,
+      tick(tnow) {
+        if (!ctx.players.has(p.id) || p.dead) return;
+        let dealt = 0;
+        for (const m of inRadius(ctx, x, y, r)) {
+          m.slowUntil = Math.max(m.slowUntil || 0, tnow + 1200);
+          dealt += ctx.damageMonster(p, m, p.dmg * 0.5);
+        }
+        if (dealt > 0) ctx.healPlayer(p, dealt * 0.5);
+      },
+    });
+    ctx.pushFx({ t: 'skill', s: 'desecrate', from: p.id, x, y, r });
+    return null;
+  },
+
+  // Кельт'о: восстание мёртвых — скелет-слуга из недавно павшего врага
+  raiseDead(ctx, p, _t, now) {
+    const corpse = ctx.takeCorpse(p.x, p.y, 220, now);
+    if (!corpse) return 'Нет павших врагов рядом';
+    // Не больше двух слуг: самый старый рассыпается
+    const servants = p.pets.filter((pet) => pet.temp);
+    if (servants.length >= 2) ctx.removePet(servants[0]);
+    const pet = createSummon(p, 'skeleton', corpse.x, corpse.y, 20000, now);
+    ctx.addPet(p, pet);
+    ctx.pushFx({ t: 'skill', s: 'raiseDead', from: p.id, x: corpse.x, y: corpse.y });
+    return null;
+  },
+
+  // Брендан: стена щитов — барьер себе и союзникам рядом
+  shieldWall(ctx, p, _t, now) {
+    const r = 150, amount = p.maxHp * 0.25;
+    ctx.pushFx({ t: 'skill', s: 'shieldWall', from: p.id, x: p.x, y: p.y, r });
+    for (const o of ctx.players.values()) {
+      if (o.dead || dist(o, p) > r) continue;
+      ctx.giveShield(o, amount, now + 8000);
+    }
+    return null;
+  },
+
+  // Брендан: провокация — враги вокруг атакуют только его
+  taunt(ctx, p, _t, now) {
+    const r = 180;
+    const targets = inRadius(ctx, p.x, p.y, r);
+    for (const m of targets) { m.tauntBy = p.id; m.tauntUntil = now + 5000; m.target = p.id; }
+    ctx.pushFx({ t: 'skill', s: 'taunt', from: p.id, x: p.x, y: p.y, r, ids: targets.map((m) => m.id) });
+    return null;
+  },
+
+  // Брендан: обет защиты — связь с ближайшим союзником
+  vowOfProtection(ctx, p, _t, now) {
+    let ally = null, best = 250;
+    for (const o of ctx.players.values()) {
+      if (o === p || o.dead) continue;
+      const d = dist(o, p);
+      if (d < best) { best = d; ally = o; }
+    }
+    if (!ally) return 'Нет союзника рядом';
+    ally.vowBy = p.id;
+    ally.vowUntil = now + 12000;
+    ctx.pushFx({ t: 'skill', s: 'vow', from: p.id, x: p.x, y: p.y, ally: ally.id, ax: ally.x, ay: ally.y });
+    return null;
+  },
 };
 
 // Пассивные навыки: модификаторы урона/скорости атаки и реакция на получение урона
@@ -368,12 +445,45 @@ const PASSIVES = {
     },
     note: (p) => `гнев кары ${Math.round(p.wrath || 0)}%`,
   },
+
+  // Кельт'о: проклятие нежити — вампиризм растёт за удары в бою; убийство лечит и усиливает атаку
+  undeadCurse: {
+    onDealt(ctx, p, dmg, now) {
+      p.devour = Math.min(20, (p.devour || 0) + 1);
+      p.lastDevour = now;
+      const steal = dmg * (0.1 + 0.01 * p.devour);
+      if (steal >= 1 && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + steal); p.dirty = true; }
+    },
+    onKill(ctx, p, now) {
+      ctx.healPlayer(p, p.maxHp * 0.08);
+      p.empoweredUntil = now + 8000;
+      p.empMult = 1.5;
+    },
+    onTick(p, now) { if (p.devour && now - p.lastDevour > 5000) { p.devour = 0; p.dirty = true; } },
+    note: (p) => `вампиризм ${10 + (p.devour || 0)}%`,
+  },
+
+  // Брендан: несокрушимость — защита растёт от ударов, авто-щит при низком здоровье
+  unbreakable: {
+    dmgTakenMult: (p) => 1 - 0.03 * (p.bulwark || 0),
+    onHurt(ctx, p) {
+      const now = Date.now();
+      p.bulwark = Math.min(10, (p.bulwark || 0) + 1);
+      if (p.hp / p.maxHp < 0.3 && now >= (p.autoShieldAt || 0)) {
+        p.autoShieldAt = now + 30000;
+        ctx.giveShield(p, p.maxHp * 0.3, now + 8000);
+        ctx.pushFx({ t: 'skill', s: 'autoShield', from: p.id, x: p.x, y: p.y, quiet: true });
+      }
+    },
+    onTick(p, now) { if (p.bulwark && now - p.lastHurt > 5000) { p.bulwark = 0; p.dirty = true; } },
+    note: (p) => `защита +${3 * (p.bulwark || 0)}% · щит ${Date.now() >= (p.autoShieldAt || 0) ? 'готов' : 'через ' + Math.ceil(((p.autoShieldAt || 0) - Date.now()) / 1000) + ' с'}`,
+  },
 };
 
 // Умения, которым нужна цель в пределах дальности (для остальных цель не обязательна)
-const NEEDS_TARGET = new Set(['punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
+const NEEDS_TARGET = new Set(['lifeSteal', 'punishSeal', 'darkBlade', 'markPrey', 'shadowDash', 'sic', 'enlighten', 'stoneThrow', 'twinSlash', 'spiritWrath', 'chainLightning']);
 // Дальность умения (по умолчанию — дальность атаки героя, но не меньше 120)
-const SKILL_RANGE = { punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
+const SKILL_RANGE = { lifeSteal: 200, punishSeal: 300, darkBlade: 260, markPrey: 320, shadowDash: 260, sic: 320, enlighten: 80, qiWave: 170, stoneThrow: 320, twinSlash: 80, blindRage: 200 };
 const skillRange = (id, hero) => SKILL_RANGE[id] ?? Math.max(hero.range, 120) + 20;
 
 module.exports = { SKILLS, PASSIVES, NEEDS_TARGET, skillRange };

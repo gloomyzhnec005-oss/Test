@@ -7,6 +7,8 @@ const PET_KINDS = {
   wolf: { name: 'Клык', hp: 0.5, dmg: 0.45, cooldown: 900, speed: 190, reach: 30 },
   bear: { name: 'Бурый', hp: 0.85, dmg: 0.6, cooldown: 1300, speed: 150, reach: 34 },
   hawk: { name: 'Сокол', hp: 0.35, dmg: 0.3, cooldown: 700, speed: 230, reach: 26 },
+  // Скелет-слуга Кельт'о: временный, при «падении» рассыпается
+  skeleton: { name: 'Слуга', hp: 0.45, dmg: 0.55, cooldown: 1000, speed: 155, reach: 30 },
 };
 const PET_ORDER = ['wolf', 'bear', 'hawk'];
 const LEASH = 230; // дальше этого от хозяина звери бросают бой и бегут к нему
@@ -28,6 +30,16 @@ function createPets(owner) {
   });
 }
 
+// Временный слуга (Восстание мёртвых): появляется в точке павшего врага и живёт lifeMs
+function createSummon(owner, kind, x, y, lifeMs, now) {
+  const maxHp = Math.round(owner.maxHp * PET_KINDS[kind].hp);
+  return {
+    id: 'pet' + petSeq++, kind, slot: owner.pets.length, owner, temp: true, expires: now + lifeMs,
+    x, y, hp: maxHp, maxHp, down: false, downUntil: 0, target: null, lastAttack: 0,
+    sicTarget: null, sicUntil: 0, sicFirst: false, boostUntil: 0,
+  };
+}
+
 // Пересчитывает здоровье зверей при повышении уровня хозяина
 function rescalePets(owner) {
   for (const pet of owner.pets || []) {
@@ -43,6 +55,7 @@ function petDmg(pet, now) {
 
 // «Падение» зверя: не смерть, а временное отступление
 function knockDown(ctx, pet, now) {
+  if (pet.temp) { ctx.pushFx({ t: 'petGone', id: pet.id, x: pet.x, y: pet.y }); ctx.removePet(pet); return; }
   pet.hp = 0;
   pet.down = true;
   pet.downUntil = now + DOWN_MS;
@@ -76,10 +89,11 @@ function nearestMonster(ctx, x, y, r) {
 }
 
 function updatePets(ctx, owner, now, dt) {
-  for (const pet of owner.pets) {
+  for (const pet of [...owner.pets]) {
     const k = PET_KINDS[pet.kind];
+    if (pet.temp && now >= pet.expires) { ctx.pushFx({ t: 'petGone', id: pet.id, x: pet.x, y: pet.y }); ctx.removePet(pet); continue; }
     // Позиция «у ног» хозяина: звери расходятся веером вокруг него
-    const ang = (pet.slot / owner.pets.length) * Math.PI * 2 + 0.6;
+    const ang = (owner.pets.indexOf(pet) / owner.pets.length) * Math.PI * 2 + 0.6;
     const homeX = owner.x + Math.cos(ang) * 30, homeY = owner.y + Math.sin(ang) * 22;
     const fromOwner = Math.hypot(pet.x - owner.x, pet.y - owner.y);
 
@@ -128,6 +142,6 @@ function updatePets(ctx, owner, now, dt) {
 }
 
 // Звери в радиусе от хозяина (для пассивки)
-const petsNear = (owner, r = 200) => (owner.pets || []).filter((pet) => !pet.down && Math.hypot(pet.x - owner.x, pet.y - owner.y) <= r);
+const petsNear = (owner, r = 200) => (owner.pets || []).filter((pet) => !pet.temp && !pet.down && Math.hypot(pet.x - owner.x, pet.y - owner.y) <= r);
 
-module.exports = { PET_KINDS, createPets, rescalePets, updatePets, hurtPet, knockDown, petDmg, petsNear };
+module.exports = { PET_KINDS, createPets, createSummon, rescalePets, updatePets, hurtPet, knockDown, petDmg, petsNear };
