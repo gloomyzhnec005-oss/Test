@@ -503,3 +503,9 @@ input, select, textarea { font-size: 16px !important; }
   background: rgba(60,10,10,.8); border: 1px solid #ff6a5a; color: #ffd0c0; font-family: Georgia, serif; font-size: 14px; pointer-events: none !important; }
 .skill.locked { filter: grayscale(1) brightness(.55); }
 .skill.locked::after { content: '🔒'; position: absolute; right: -2px; top: -2px; font-size: 16px; }
+
+/* Нарисованные скины: кадр листа в карточках, портрет на сцене лобби и в окне героя */
+canvas.skin { object-fit: contain; }
+.hero canvas.portrait { position: absolute; left: -10%; bottom: 0; width: 120%; height: 140%; object-fit: contain; object-position: center bottom; image-rendering: auto; }
+.hero:has(canvas.portrait) .hero-name { bottom: 140%; }
+.reveal-art canvas.portrait { width: auto; height: 240px; image-rendering: auto; }

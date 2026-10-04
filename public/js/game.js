@@ -20,8 +20,21 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.me = null;
   }
 
+  preload() {
+    // Нарисованные скины героев: листы 8 направлений
+    for (const [id, sk] of Object.entries(Skins.LIST)) {
+      if (this.heroes[id]) this.load.spritesheet('skin_' + id, sk.sheet, { frameWidth: sk.w, frameHeight: sk.h });
+    }
+  }
+
   create() {
     const T = this.T;
+    for (const [id, sk] of Object.entries(Skins.LIST)) {
+      if (!this.textures.exists('skin_' + id)) continue;
+      for (let r = 0; r < 8; r++) {
+        this.anims.create({ key: `skin_${id}_${r}`, frames: this.anims.generateFrameNumbers('skin_' + id, { start: r * sk.frames, end: r * sk.frames + sk.frames - 1 }), frameRate: 10, repeat: -1 });
+      }
+    }
 
     // Текстуры
     const addTex = (key, cnv) => { if (!this.textures.exists(key)) this.textures.addCanvas(key, cnv); };
@@ -243,7 +256,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
   // ---------- Сущности ----------
   makeEntity(texture, name, nameColor, interactiveId) {
-    const sprite = this.add.image(0, 0, texture);
+    const sprite = this.add.sprite(0, 0, texture);
     const label = this.add.text(0, -26, name, {
       fontSize: '10px', fontFamily: 'Arial', color: nameColor, stroke: '#000', strokeThickness: 3, resolution: 2,
     }).setOrigin(0.5, 1);
@@ -255,6 +268,32 @@ window.GameScene = class GameScene extends Phaser.Scene {
       sprite.setData('monsterId', interactiveId);
     }
     return { c, sprite, bar, label, tx: 0, ty: 0 };
+  }
+
+  // Нарисованный скин: анимированный лист 8 направлений вместо процедурного спрайта
+  applySkin(e, heroId) {
+    e.skin = this.textures.exists('skin_' + heroId) ? heroId : null;
+    e.skinOn = !!e.skin;
+    if (!e.skin) { e.sprite.stop(); e.sprite.setTexture('hero_' + heroId).setOrigin(0.5); return; }
+    const sk = Skins.get(heroId);
+    e.row = e.row || 0;
+    e.sprite.setFlipX(false).setTexture('skin_' + heroId, e.row * sk.frames).setOrigin(0.5, (sk.h - 15) / sk.h);
+    const top = -(sk.h - 15) - 2;
+    e.label.y = top - 4; e.bar.y = top; e.c.list[1].y = top;
+  }
+
+  // Направление и шаг скина: (vx, vy) — куда идём; moving — идём ли сейчас
+  animSkin(e, vx, vy, moving) {
+    if (!e.skinOn) return;
+    if (vx || vy) e.row = Skins.rowFor(vx, vy);
+    const key = `skin_${e.skin}_${e.row}`;
+    if (moving) {
+      if (!e.sprite.anims.isPlaying || e.sprite.anims.currentAnim.key !== key) e.sprite.play(key, true);
+    } else {
+      if (e.sprite.anims.isPlaying) e.sprite.stop();
+      const f = e.row * Skins.get(e.skin).frames;
+      if (e.sprite.frame.name !== f) e.sprite.setFrame(f);
+    }
   }
 
   setBar(e, hp, maxHp) {
@@ -273,6 +312,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const isMe = p.id === this.myId;
         e = this.makeEntity('hero_' + p.hero, `${p.name} [${p.lvl}]`, isMe ? '#ffcc4d' : '#ffffff');
         e.c.setPosition(p.x, p.y);
+        this.applySkin(e, p.hero);
         this.players.set(p.id, e);
         if (isMe) {
           this.me = { x: p.x, y: p.y, e, data: p, dir: 1 };
@@ -366,12 +406,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.c.addAt(e.emp, 0);
         this.tweens.add({ targets: e.emp, scale: 1.2, duration: 400, yoyo: true, repeat: -1 });
       } else if (!p.emp && e.emp) { e.emp.destroy(); e.emp = null; }
-      if (p.id !== this.myId) e.sprite.setFlipX(p.dir === -1);
+      if (p.id !== this.myId && !e.skinOn) e.sprite.setFlipX(p.dir === -1);
       else this.me.data = p;
       // Смена облика (Талиесин): другой спрайт
       if ((p.form || null) !== (e.form || null)) {
         e.form = p.form || null;
-        e.sprite.setTexture(p.form === 'beast' ? 'hero_' + p.hero + '_beast' : 'hero_' + p.hero);
+        if (p.form === 'beast') { e.sprite.stop(); e.sprite.setTexture('hero_' + p.hero + '_beast').setOrigin(0.5); e.skinOn = false; } else this.applySkin(e, p.hero);
       }
     }
     for (const [id, e] of this.players) if (!seen.has(id)) { e.c.destroy(); this.players.delete(id); }
@@ -1694,6 +1734,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.autoWalk = null;
     this.lastAttack = now;
     me.dir = t.c.x < me.x ? -1 : 1;
+    if (me.e.skinOn) me.e.row = Skins.rowFor(t.c.x - me.x, t.c.y - me.y); // лицом к цели
     this.net.emit('attack', { targetId: t.data.id });
   }
 
@@ -1703,7 +1744,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const k = Math.min(1, dt * 12);
     for (const [id, e] of this.players) {
       if (id === this.myId) continue;
-      e.c.x += (e.tx - e.c.x) * k; e.c.y += (e.ty - e.c.y) * k;
+      const mx = e.tx - e.c.x, my = e.ty - e.c.y;
+      e.c.x += mx * k; e.c.y += my * k;
+      if (e.skinOn) {
+        const moving = Math.hypot(mx, my) > 1.5;
+        this.animSkin(e, moving ? mx : 0, moving ? my : 0, moving);
+      }
     }
     for (const e of this.monsters.values()) { e.c.x += (e.tx - e.c.x) * k; e.c.y += (e.ty - e.c.y) * k; }
     for (const e of this.pets.values()) {
@@ -1750,9 +1796,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
     me.e.c.setPosition(me.x, me.y);
     this.checkNear();
     this.revealFog();
-    me.e.sprite.setFlipX(me.dir === -1);
-    // Лёгкая «походка»
-    me.e.sprite.y = len > 0 ? Math.sin(time / 70) * 1.5 : 0;
+    const walking = len > 0 && !me.data.dead && !this.myStats.rooted && !held;
+    if (me.e.skinOn) this.animSkin(me.e, walking ? vx : 0, walking ? vy : 0, walking);
+    else {
+      me.e.sprite.setFlipX(me.dir === -1);
+      // Лёгкая «походка»
+      me.e.sprite.y = len > 0 ? Math.sin(time / 70) * 1.5 : 0;
+    }
 
     if (time - this.lastSend > 66) {
       this.lastSend = time;

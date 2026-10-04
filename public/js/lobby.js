@@ -26,7 +26,9 @@ window.Lobby = (() => {
     toast.tm = setTimeout(() => t.classList.add('hidden'), 2600);
   }
 
-  function heroCanvas(id) {
+  function heroCanvas(id, big) {
+    const sk = id && window.Skins && Skins.canvas(id, big);
+    if (sk) return sk;
     const c = document.createElement('canvas');
     c.width = 32; c.height = 32;
     c.getContext('2d').drawImage(Gfx.hero(id ? heroes[id].look : { body: '#222', legs: '#111', skin: '#222', head: 'hood', headColor: '#111' }), 0, 0);
@@ -100,7 +102,7 @@ window.Lobby = (() => {
       el.innerHTML = `<div class="hero-name"><b>${slot === 2 ? 'Получите героя' : '?'}</b></div><div class="hero-shadow"></div><div class="mystery-mark">?</div>`;
       el.onclick = () => openGacha();
     }
-    el.appendChild(heroCanvas(id));
+    el.appendChild(heroCanvas(id, true));
     // Звери-спутники стоят у ног хозяина
     if (id && heroes[id].pets) {
       ['wolf', 'bear', 'hawk'].forEach((k) => {
@@ -383,7 +385,7 @@ window.Lobby = (() => {
         <small>Пассивный навык</small><p>${h.passive.desc}</p></div></div>` : ''}
       ${stat('❤️', 'HP', h.hp, 200)}${stat('🗡', 'Урон', h.dmg, 35)}${stat('🎯', 'Дальность', h.range, 300)}${stat('👟', 'Скорость', h.speed, 200)}
       <button class="l2-btn reveal-ok">${isNew ? 'Забрать' : 'Закрыть'}</button>`;
-    box.querySelector('.reveal-art').appendChild(heroCanvas(id));
+    box.querySelector('.reveal-art').appendChild(heroCanvas(id, true));
     // Второй облик героя-оборотня
     if (h.forms) {
       const bc = document.createElement('canvas');
