@@ -11,6 +11,9 @@ const { verifyInitData } = require('./auth');
 const { SKILLS, PASSIVES, NEEDS_TARGET, skillRange } = require('./skills');
 const { createPets, createSummon, rescalePets, updatePets, hurtPet } = require('./pets');
 const I = require('./items');
+const MOBX = require('./mobs');
+const createDungeons = require('./dungeon');
+C.MONSTERS = MOBX.MOBS; // 75 видов монстров + миньоны (server/mobs.js)
 const createMeta = require('./meta');
 
 const PORT = process.env.PORT || 3000;
@@ -183,6 +186,44 @@ const meta = createMeta({
   statsFor: (...a) => statsFor(...a), unlockedSkills: (...a) => unlockedSkills(...a),
 });
 
+// Бой монстров, данжи-лабиринты, выживание и мировые боссы (server/dungeon.js)
+const D = createDungeons({
+  C, world, monsters, players, pets,
+  pushFx: (f) => fx.push(f),
+  hurtPlayer: (...a) => hurtPlayer(...a),
+  hurtPet: (pet, dmg, now) => hurtPet(skillCtx, pet, dmg, now),
+  markDirty: (p) => markDirty(p),
+  moveEntity: (...a) => moveEntity(...a),
+  moveToZone: (...a) => moveToZone(...a),
+  partyMembers: (p) => partyMembers(p),
+  getProfile: (uid) => getProfile(uid),
+  addPassXp: (pr, n) => meta.addPassXp(pr, n),
+  giveLoot: (...a) => giveLoot(...a),
+  rollItem: (...a) => I.rollItem(...a),
+  corpses: () => corpses,
+  removeCorpse: (c) => { corpses = corpses.filter((x) => x !== c); },
+  broadcast: (text) => io.emit('chat', { sys: true, text }),
+  // Отбрасывание героя (таран, воздушный удар)
+  knockPlayer(p, dx, dy, distPx) {
+    const l = Math.hypot(dx, dy) || 1;
+    for (let i = 0; i < 6; i++) {
+      const nx = p.x + dx / l * distPx / 6, ny = p.y + dy / l * distPx / 6;
+      if (world.isSolidAt(nx, ny)) break;
+      p.x = nx; p.y = ny;
+    }
+    p.socket.emit('correct', { x: p.x, y: p.y });
+  },
+  // Подчинение: герой бьёт себя или ближайшего союзника
+  selfHit(p, k) { fx.push({ t: 'mtext', x: p.x, y: p.y - 20, text: 'Подчинён!', color: '#ff6ad8' }); hurtPlayer(p, p.dmg * k, null, Date.now()); },
+  allyHit(p) {
+    let ally = null, bd = 220;
+    for (const o of players.values()) if (o !== p && !o.dead && o.zone === p.zone && Math.hypot(o.x - p.x, o.y - p.y) < bd) { ally = o; bd = Math.hypot(o.x - p.x, o.y - p.y); }
+    if (ally) { fx.push({ t: 'mtext', x: p.x, y: p.y - 20, text: `Атакует ${ally.name}!`, color: '#ff6ad8' }); hurtPlayer(ally, p.dmg, null, Date.now()); }
+    else D_selfHit(p);
+  },
+});
+function D_selfHit(p) { fx.push({ t: 'mtext', x: p.x, y: p.y - 20, text: 'Подчинён!', color: '#ff6ad8' }); hurtPlayer(p, p.dmg * 0.6, null, Date.now()); }
+
 // Определяет игрока: Telegram (подпись initData) или гость
 function resolveUid(initData, guestId) {
   const tgUser = verifyInitData(initData, BOT_TOKEN);
@@ -238,6 +279,7 @@ const dmgMult = (p, now = Date.now()) => {
     * (p.pactUntil > now && p.pactType === 'fury' ? 1.5 : 1) * (p.blessUntil > now ? 1.2 : 1)
     * (p.songUntil > now ? 1 + 0.15 * (p.songPw || 1) : 1) // песнь вдохновения Джакомо
     * (p.cryUntil > now ? 1.2 : 1) // клич валькирии
+    * (p.weakUntil > now ? 0.7 : 1) // проклятие слабости монстров
     * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
@@ -247,51 +289,7 @@ const attackCd = (p, now = Date.now()) => {
 };
 
 // ---------- Зоны ----------
-// Охотничьи земли «просыпаются», когда в них заходит игрок, и засыпают через 2 минуты без игроков
 const zoneOf = (e) => world.zoneAtX(e.x);
-const activeHunts = new Map(); // zoneId -> время, когда зона опустела (0 — в зоне есть игроки)
-
-function pickMonsterType(mix) {
-  let roll = Math.random();
-  for (const [type, w] of Object.entries(mix)) { if ((roll -= w) <= 0) return type; }
-  return Object.keys(mix)[0];
-}
-
-function spawnMonster(z, type = pickMonsterType(z.mix)) {
-  const def = C.MONSTERS[type];
-  const p = world.freeSpot(z, def.boss ? 20 : 7, Math.min(z.w, z.h) / 2 - 3);
-  return createMonster(z, type, p, 1, 1);
-}
-function createMonster(z, type, p, hpK, dmgK, extra = {}) {
-  const def = C.MONSTERS[type];
-  const hp = Math.round(def.hp * z.power.hp * hpK);
-  const m = {
-    id: monsterSeq++, type, x: p.x, y: p.y, homeX: p.x, homeY: p.y, zone: z.id, tier: z.tier,
-    dmgMult: z.power.dmg * dmgK, xpMult: z.power.xp, ...extra,
-    hp, maxHp: hp, target: null, lastAttack: 0, undead: !!def.undead, boss: !!def.boss,
-    wander: null, nextWander: 0, stunUntil: 0, rootUntil: 0, dots: [],
-  };
-  monsters.set(m.id, m);
-  return m;
-}
-function wakeZone(z) {
-  if (z.kind !== 'hunt') return;
-  if (!activeHunts.has(z.id)) for (let i = 0; i < z.monsterCount; i++) spawnMonster(z);
-  activeHunts.set(z.id, 0);
-}
-// Раз в 10 с: усыпляем пустые охотничьи земли
-setInterval(() => {
-  const now = Date.now();
-  const busy = new Set([...players.values()].map((p) => p.zone));
-  for (const [id, since] of activeHunts) {
-    if (busy.has(id)) { activeHunts.set(id, 0); continue; }
-    if (!since) { activeHunts.set(id, now); continue; }
-    if (now - since > 120000) {
-      activeHunts.delete(id);
-      for (const m of monsters.values()) if (m.zone === id) monsters.delete(m.id);
-    }
-  }
-}, 10000);
 
 // Перенос игрока в другую зону (город, портал, телепорт)
 function moveToZone(p, zoneId, pos) {
@@ -301,7 +299,6 @@ function moveToZone(p, zoneId, pos) {
   p.zone = z.id;
   p.zoneTier = z.tier;
   p.socket.join('z:' + z.id);
-  wakeZone(z);
   const at = pos || { x: z.spawn.x + (Math.random() - 0.5) * 48, y: z.spawn.y + (Math.random() - 0.5) * 24 };
   p.x = at.x; p.y = at.y; p.lastMove = Date.now();
   p.stealthUntil = 0;
@@ -323,6 +320,12 @@ function inIceWall(x, y) {
 function moveEntity(e, dx, dy) {
   const r = 10;
   const nx = e.x + dx, ny = e.y + dy;
+  // Летающие и призрачные монстры проходят сквозь стены (но не за край зоны)
+  if (e.noclip) {
+    const z = world.zoneAtX(e.x);
+    if (z && world.zoneAtX(nx) === z && nx > z.ox + 40 && ny > z.oy + 40 && nx < z.ox + z.w * C.TILE - 40 && ny < z.oy + z.h * C.TILE - 40) { e.x = nx; e.y = ny; }
+    return;
+  }
   if (e.type && totems.length && !inIceWall(e.x, e.y) && inIceWall(nx, ny)) {
     // Скользим вдоль стены, если можно
     if (!inIceWall(nx, e.y)) e.x = nx; else if (!inIceWall(e.x, ny)) e.y = ny;
@@ -337,7 +340,7 @@ function publicPlayer(p) {
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
-    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, phase: p.hero.phases ? p.form : null, heat: Math.round(p.heat || 0), abyss: p.abyssUntil > Date.now(), flame: p.hero.flames ? p.form : null, ash: p.ashArmorUntil > Date.now(), rootSelf: p.rootSelfUntil > Date.now(), cry: p.crystals && p.crystals.length ? p.crystals : null, wrune: p.weaponRuneUntil > Date.now() ? p.weaponRuneType : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
+    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, phase: p.hero.phases ? p.form : null, heat: Math.round(p.heat || 0), abyss: p.abyssUntil > Date.now(), pcc: D.ccActive(p), pdot: (p.pdots || []).filter((x) => x.until > Date.now()).map((x) => x.kind)[0] || null, pslow: p.slowUntil > Date.now(), pweak: p.weakUntil > Date.now(), flame: p.hero.flames ? p.form : null, ash: p.ashArmorUntil > Date.now(), rootSelf: p.rootSelfUntil > Date.now(), cry: p.crystals && p.crystals.length ? p.crystals : null, wrune: p.weaponRuneUntil > Date.now() ? p.weaponRuneType : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
     song: p.hero.songs ? p.form : null, haste: p.hasteUntil > Date.now(), fly: p.flyUntil > Date.now(), tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
@@ -349,6 +352,7 @@ function privateStats(p) {
     formKeys: p.potion ? { potion: p.potion, sign: p.sign } : p.rune ? { rune: p.rune } : p.facet ? { facet: p.facet } : null,
     passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '',
     shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0, haste: p.hasteUntil > Date.now(), rooted: p.rootSelfUntil > Date.now(),
+    cc: D.ccActive(p), slow: p.slowUntil > Date.now(), weak: p.weakUntil > Date.now(),
     flyBoost: (1 + ((p.gear && p.gear.ms) || 0) / 100) * (p.flyUntil > Date.now() ? 1 + 0.03 * (p.blessings || 0) : 1) * (p.stoneArmorUntil > Date.now() ? 0.7 : 1) };
 }
 // Статы отправляются не чаще 4 раз в секунду (см. игровой цикл)
@@ -363,7 +367,8 @@ function damageMonster(p, m, raw, opt = {}) {
   // Бонус против конкретной цели (пассивки) и пробитая защита монстра (Кира)
   const tMult = (ps && ps.targetMult ? ps.targetMult(p, m) : 1) * (m.brokenUntil > now0 ? 1.25 : 1)
     * (m.curseUntil > now0 ? 1 + (m.curseAmp || 0.2) : 1) // проклятие Гидеона
-    * (m.charmUntil > now0 ? 1.3 : 1); // очарование Галатеи
+    * (m.charmUntil > now0 ? 1.3 : 1) // очарование Галатеи
+    * D.takenMult(m, opt, now0); // защита монстра: броня, иммунитеты, «Каменная кожа»
   // Следующая атака из дыма — критическая (Кира)
   if (opt.basic && p.nextCritUntil > now0) { crit = true; p.nextCritUntil = 0; }
   if (opt.basic && ps && ps.forceCrit && ps.forceCrit(p, m)) crit = true; // соколиный глаз Фаэлина
@@ -383,27 +388,34 @@ function damageMonster(p, m, raw, opt = {}) {
     }
   }
   if (p.feralLeechUntil > now0 && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + Math.min(dmg, m.hp) * 0.4); markDirty(p); } // жажда зверя
-  m.hp -= dmg;
+  // Щит монстра поглощает урон первым
+  let left = dmg;
+  if (m.shieldHp > 0) { const a = Math.min(m.shieldHp, left); m.shieldHp -= a; left -= a; }
+  m.hp -= left;
+  D.onHurt(m, p, dmg, opt, now0);
+  D.onMonsterHp(m, now0);
+  if (m.hp <= 0 && D.preventDeath(m)) { fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, fx: p.x, fy: p.y, tx: m.x, ty: m.y }); return dmg; }
   if (!opt.confused) m.target = opt.pet || p.id; // монстр отвечает тому, кто ударил (кроме драки под мороком)
   fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null, pfx: opt.fromX ?? null, pfy: opt.fromY ?? null, shared: !!opt.shared, reflect: !!opt.reflect, confused: !!opt.confused,
     fx: p.x, fy: p.y, tx: m.x, ty: m.y });
   if (m.hp <= 0) {
     const def = C.MONSTERS[m.type];
     const rw = ps && ps.rewardMult ? ps.rewardMult(p, m) : { xp: 1, gold: 1 };
-    const baseXp = def.xp * (m.xpMult || 1);
+    // Монстры намного ниже уровнем дают меньше опыта
+    const diff = p.char.level - (m.level || 1);
+    const baseXp = m.xp * (diff > 4 ? Math.max(0.1, 1 - 0.15 * (diff - 4)) : 1);
     const xp = Math.round(baseXp * rw.xp);
     const gold = Math.round(baseXp / 3 * (0.5 + Math.random()) * rw.gold);
     fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp, gold, by: p.id, contract: !!rw.contract });
     monsters.delete(m.id);
-    corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type });
+    corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type, zone: m.zone, level: m.level, maxHp: m.maxHp, dmg: m.dmg, speed: m.speed });
     if (corpses.length > 40) corpses.shift();
     grantXp(p, xp, gold);
     shareKill(p, m, xp);
     dropLoot(p, m);
     if (ps && ps.onKill) ps.onKill(skillCtx, p, Date.now(), m);
-    if (def.boss) io.emit('chat', { sys: true, text: `${p.name} победил босса «${def.name}»!` });
-    const mz = world.byId.get(m.zone);
-    if (mz && mz.kind === 'hunt') setTimeout(() => { if (activeHunts.has(mz.id)) spawnMonster(mz); }, C.MONSTER_RESPAWN_MS);
+    if (m.rank === 'boss') io.emit('chat', { sys: true, text: `${p.name} победил босса «${m.name || def.name}»!` });
+    D.onKilled(m, p);
   }
   return dmg;
 }
@@ -456,14 +468,14 @@ function giveShield(o, amount, until) {
 }
 // Поднятый монстр-слуга Ориона: облик и сила самого монстра, до 5 слуг
 function raiseMinion(owner, corpse, now, auto = false) {
-  const def = C.MONSTERS[corpse.type] || C.MONSTERS.slime;
+  const def = { hp: corpse.maxHp || 100, dmg: corpse.dmg || 10, speed: corpse.speed || 80, name: (C.MONSTERS[corpse.type] || {}).name || 'Слуга' };
   const minions = owner.pets.filter((pet) => pet.kind === 'minion');
   if (minions.length >= 5) removePet(minions[0]);
   const pet = createSummon(owner, 'minion', corpse.x, corpse.y, 30000, now);
   pet.maxHp = Math.round(def.hp * 0.8); pet.hp = pet.maxHp;
   pet.dmgAbs = def.dmg * 1.2;
   pet.speedAbs = Math.max(110, def.speed * 1.3);
-  pet.monsterType = corpse.type || 'slime';
+  pet.monsterType = corpse.type || 'skeleton';
   pet.label = def.name;
   addPet(owner, pet);
   fx.push({ t: 'skill', s: 'raiseCorpse', from: owner.id, x: corpse.x, y: corpse.y, auto, quiet: auto });
@@ -489,7 +501,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
   let dmg = raw * (target.hero.dmgTaken || 1) * (target.packUntil > now ? 0.65 : 1)
     * (target.pactUntil > now && target.pactType === 'stone' ? 0.6 : 1)
     * (target.blessUntil > now ? 0.8 : 1) * (target.holyAuraUntil > now ? target.holyAuraMult : 1) * (ps && ps.dmgTakenMult ? ps.dmgTakenMult(target) : 1)
-    * (1 - ((target.gear && target.gear.def) || 0) / 100) // защита с экипировки
+    * (1 - ((target.gear && target.gear.def) || 0) / 100 * (1 - ((m && m._pierce) || 0))) // защита с экипировки (бронебойные игнорируют часть)
     * (m && target.hero.fireImmune && C.MONSTERS[m.type] && C.MONSTERS[m.type].fire ? 0.3 : 1); // Кальдеро не боится огня
   // Обет защиты (Брендан): 40% урона союзника принимает на себя защитник, остальное союзнику −20%
   const guardian = !viaVow && target.vowUntil > now ? players.get(target.vowBy) : null;
@@ -519,6 +531,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
   if (target.hp <= 0) {
     target.hp = 0;
     target.dead = true;
+    target.cc = null; target.pdots = [];
     if (m) m.target = null;
     fx.push({ t: 'pdeath', target: target.id });
     // Гибель союзника рядом усиливает Талмиру
@@ -575,7 +588,8 @@ function grantXp(p, amount, gold, shared = false) {
   pr.gold += gold; // общий кошелёк аккаунта
   if (!shared) p.char.kills += 1;
   let leveled = false;
-  while (p.char.xp >= xpForLevel(p.char.level)) {
+  if (p.char.level >= MOBX.MAX_LEVEL) p.char.xp = Math.min(p.char.xp, xpForLevel(p.char.level) - 1);
+  while (p.char.level < MOBX.MAX_LEVEL && p.char.xp >= xpForLevel(p.char.level)) {
     p.char.xp -= xpForLevel(p.char.level);
     p.char.level += 1;
     leveled = true;
@@ -627,13 +641,15 @@ function shareKill(killer, m, xp) {
 }
 // Добыча: обычный монстр — шанс предмета убийце; босс — 2 предмета каждому из группы рядом
 function dropLoot(killer, m) {
-  const def = C.MONSTERS[m.type], tier = m.tier || 1, boss = def.boss;
+  const tier = m.tier || 1, boss = m.rank === 'boss' || m.rank === 'mini';
+  if (m.rank === 'world') return; // награда мирового босса — по вкладу (server/dungeon.js)
   const receivers = boss ? partyMembers(killer).filter((o) => o.zone === killer.zone && Math.hypot(o.x - m.x, o.y - m.y) < 900) : [killer];
   for (const o of receivers) {
     const pr = getProfile(o.uid);
-    meta.addPassXp(pr, boss ? 20 : 1);
+    meta.addPassXp(pr, m.rank === 'boss' ? 20 : m.rank === 'mini' ? 8 : 1);
     const luck = (pr.buffs || {}).luck > Date.now() ? 1.3 : 1;
-    const rolls = boss ? 2 : Math.random() < C.DROPS.chance * luck * (m.lootMult || 1) ? 1 : 0;
+    const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
+    const rolls = m.rank === 'boss' ? 2 : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) ? 1 : 0;
     for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, boss ? C.DROPS.boss[tier] : C.DROPS.weights[tier]), m);
   }
 }
@@ -645,64 +661,6 @@ function giveLoot(o, pr, item, at) {
   if (res.dupe && Object.values(pr.equip).includes(res.item.id)) refreshPlayer(o);
   return v;
 }
-
-// ---------- Данж выживания: волны монстров, отдельная копия на игрока или группу ----------
-const survivals = new Map();
-const SURV_TYPES = ['slime', 'wolf', 'skeleton', 'orc'];
-function startSurvival(p) {
-  const town = world.byId.get(p.zone);
-  const z = world.addSurvival(town.id);
-  const group = partyMembers(p).filter((o) => o.zone === p.zone && !o.dead);
-  survivals.set(z.id, { z, wave: 0, nextAt: Date.now() + 4000, cleared: true });
-  for (const o of group) {
-    moveToZone(o, z.id);
-    o.socket.emit('chat', { sys: true, text: `Данж выживания${group.length > 1 ? ` (группа: ${group.length})` : ''}: держитесь как можно дольше! Первая волна через 4 с` });
-  }
-}
-function spawnWave(s, inside) {
-  const z = s.z, w = s.wave;
-  const n = Math.min(30, Math.round((3 + w * 2) * (1 + 0.35 * (inside - 1))));
-  const c = z.abs(15, 15);
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + Math.random() * 0.3, r = 10.5 * C.TILE;
-    const pos = { x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r };
-    const type = SURV_TYPES[Math.min(3, Math.floor((w - 1) / 2) + (Math.random() < 0.3 ? 1 : 0))];
-    createMonster(z, type, pos, 1 + 0.15 * (w - 1), 1 + 0.06 * (w - 1), { aggro: 2000, lootMult: 0.5 });
-  }
-  if (w % 5 === 0) createMonster(z, 'dragon', { x: c.x, y: c.y - 9 * C.TILE }, (1 + 0.15 * (w - 1)) * (1 + 0.5 * (inside - 1)), 1 + 0.06 * (w - 1), { aggro: 2000 });
-}
-function rewardWave(s, inside) {
-  const z = s.z;
-  for (const o of inside) {
-    if (o.dead) continue;
-    const pr = getProfile(o.uid);
-    const gold = 25 * s.wave * z.tier;
-    pr.gold += gold;
-    meta.addPassXp(pr, 5);
-    pr.survivalBest = Math.max(pr.survivalBest || 0, s.wave);
-    o.socket.emit('chat', { sys: true, text: `Волна ${s.wave} пройдена! +${gold} 💰 · рекорд: ${pr.survivalBest}` });
-    if (s.wave % 5 === 0 || Math.random() < 0.25) giveLoot(o, pr, I.rollItem(z.tier, s.wave % 5 === 0 ? C.DROPS.boss[z.tier] : C.DROPS.weights[z.tier]), o);
-    markDirty(o);
-  }
-}
-setInterval(() => {
-  const now = Date.now();
-  for (const [id, s] of survivals) {
-    const inside = [...players.values()].filter((o) => o.zone === id);
-    if (!inside.length) {
-      for (const m of monsters.values()) if (m.zone === id) monsters.delete(m.id);
-      survivals.delete(id);
-      world.removeZone(s.z);
-      continue;
-    }
-    if ([...monsters.values()].some((m) => m.zone === id)) continue;
-    if (!s.cleared) { s.cleared = true; s.nextAt = now + 4000; rewardWave(s, inside); }
-    if (now < s.nextAt) continue;
-    s.wave++; s.cleared = false;
-    spawnWave(s, inside.length);
-    for (const o of inside) o.socket.emit('survival', { wave: s.wave, boss: s.wave % 5 === 0 });
-  }
-}, 500);
 
 // ---------- Сокеты ----------
 io.on('connection', (socket) => {
@@ -773,9 +731,11 @@ io.on('connection', (socket) => {
     const x = Number(d.x), y = Number(d.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     if (p.rootSelfUntil > now) { socket.emit('correct', { x: p.x, y: p.y }); return; } // укоренение Ву'гажа
+    const cct = D.ccActive(p, now);
+    if (cct === 'stun' || cct === 'freeze' || cct === 'root') { socket.emit('correct', { x: p.x, y: p.y }); return; } // контроль от монстров
     // Античит: ограничение скорости (у облика зверя бег быстрее; после смены облика даём запас)
     const flyBoost = p.flyUntil > now ? 1 + 0.03 * (p.blessings || 0) : 1; // полёт Талмиры
-    const maxDist = Math.max(formOf(p).speed, p.hero.speed) * (p.hasteUntil > now ? 1.25 : 1) * flyBoost * (1 + ((p.gear && p.gear.ms) || 0) / 100) * dt * 1.6 + 12;
+    const maxDist = (p.slowUntil > now ? 1 : 1) * Math.max(formOf(p).speed, p.hero.speed) * (p.hasteUntil > now ? 1.25 : 1) * flyBoost * (1 + ((p.gear && p.gear.ms) || 0) / 100) * dt * 1.6 + 12;
     const dist = Math.hypot(x - p.x, y - p.y);
     if (dist > maxDist || world.isSolidAt(x, y)) {
       socket.emit('correct', { x: p.x, y: p.y });
@@ -791,6 +751,8 @@ io.on('connection', (socket) => {
     if (!p || p.dead || !d) return;
     const now = Date.now();
     if (now - p.lastAttack < attackCd(p, now) * 0.9) return;
+    const ccA = D.ccActive(p, now);
+    if (ccA === 'stun' || ccA === 'freeze') return;
     const m = monsters.get(d.targetId);
     if (!m || m.hp <= 0) return;
     if (Math.hypot(m.x - p.x, m.y - p.y) > formOf(p).range + 20) return;
@@ -818,6 +780,8 @@ io.on('connection', (socket) => {
     const now = Date.now();
     const sk = p.hero.skills.find((k) => k.id === d.id) || p.hero.skills[0];
     const fail = (reason) => socket.emit('skillFail', reason);
+    const ccS = D.ccActive(p, now);
+    if (ccS === 'stun' || ccS === 'freeze') return fail(ccS === 'stun' ? '💫 Оглушение!' : '🧊 Заморожен!');
     // Умения открываются по уровню или дубликатам героя
     const si = p.hero.skills.indexOf(sk);
     if (si >= p.unlocked) { const u = C.SKILL_UNLOCK[si]; return fail(`🔒 Откроется на ${u.lvl} уровне или с ${u.dup} дубл.`); }
@@ -846,6 +810,7 @@ io.on('connection', (socket) => {
     p.castFree = false;
     if (err) return fail(err);
     if (sk.id !== 'shadowCloak') p.stealthUntil = 0; // навык выводит из тени
+    p.lastSkill = sk.name; // для «Зеркала» Аватара бездны
     if (!cast.free) p.res -= sk.cost;
     if (hpCost) { p.hp -= hpCost; p.lastHurt = now; fx.push({ t: 'hit', kind: 'p', target: p.id, dmg: Math.round(hpCost), from: null }); }
     if (ps && ps.afterCast) ps.afterCast(skillCtx, p, cast.free, sk);
@@ -864,7 +829,8 @@ io.on('connection', (socket) => {
     const z = world.byId.get(p.zone);
     const obj = z && z.objs.find((o) => o.id === d.via);
     if (!obj || Math.hypot(obj.x - p.x, obj.y - p.y) > 110) return socket.emit('skillFail', 'Подойдите ближе');
-    if (obj.id === 'survival') return startSurvival(p);
+    if (obj.id === 'survival') return D.startSurvival(p);
+    if (obj.dungeon !== undefined) return D.startDungeon(p, z.id, obj.dungeon);
     let to = obj.to;
     if (obj.id === 'teleport') {
       to = String(d.to || '');
@@ -874,7 +840,7 @@ io.on('connection', (socket) => {
     if (!to) return;
     moveToZone(p, to);
     const nz = world.byId.get(to);
-    socket.emit('chat', { sys: true, text: nz.kind === 'town' ? `Вы прибыли в город ${nz.name}` : `Портал: ${nz.name} (${nz.sub})` });
+    socket.emit('chat', { sys: true, text: nz.kind === 'town' ? `Вы прибыли в город ${nz.name}` : nz.kind === 'worldboss' ? D.worldBossInfo(nz.town) : `Портал: ${nz.name} (${nz.sub})` });
   });
 
   // Инвентарь, магазины, рынок, аукцион, пропуск, арена (server/meta.js)
@@ -941,6 +907,7 @@ setInterval(() => {
   // ИИ монстров
   for (const m of monsters.values()) {
     const def = C.MONSTERS[m.type];
+    const mspeed = D.curSpeed(m, now);
     // Периодический урон (корни Сильваны)
     if (m.dots.length) {
       for (const d of m.dots) {
@@ -960,7 +927,7 @@ setInterval(() => {
     if (m.starUntil > now) { m.fearUntil = 0; m.confusedUntil = 0; } // звёздная метка Фаэлина не даёт скрыться
     if (m.fearUntil > now) {
       const dx = m.x - m.fearX, dy = m.y - m.fearY, d = Math.hypot(dx, dy) || 1;
-      moveEntity(m, (dx / d) * def.speed * dt, (dy / d) * def.speed * dt);
+      moveEntity(m, (dx / d) * mspeed * dt, (dy / d) * mspeed * dt);
       continue;
     }
     // Морок (Ле Блан): монстр нападает на соседа-монстра, без соседей — бродит
@@ -973,11 +940,11 @@ setInterval(() => {
       }
       if (other) {
         const dx = other.x - m.x, dy = other.y - m.y, d = Math.hypot(dx, dy) || 1;
-        if (d > C.MONSTER_ATTACK_RANGE) { if (m.rootUntil <= now) moveEntity(m, (dx / d) * def.speed * 0.8 * dt, (dy / d) * def.speed * 0.8 * dt); }
-        else if (now - m.lastAttack > C.MONSTER_ATTACK_CD) {
+        if (d > C.MONSTER_ATTACK_RANGE) { if (m.rootUntil <= now) moveEntity(m, (dx / d) * mspeed * 0.8 * dt, (dy / d) * mspeed * 0.8 * dt); }
+        else if (now - m.lastAttack > m.cd) {
           m.lastAttack = now;
           const caster = players.get(m.confusedBy);
-          const dmg = def.dmg * (m.dmgMult || 1) * (0.8 + Math.random() * 0.4);
+          const dmg = m.dmg * (0.8 + Math.random() * 0.4);
           if (caster) damageMonster(caster, other, dmg, { fixed: true, confused: true });
           else other.hp -= dmg;
         }
@@ -989,7 +956,7 @@ setInterval(() => {
       const siren = players.get(m.charmBy);
       if (siren && !siren.dead) {
         const dx = siren.x - m.x, dy = siren.y - m.y, d = Math.hypot(dx, dy) || 1;
-        if (d > 40 && m.rootUntil <= now) moveEntity(m, (dx / d) * def.speed * 0.7 * dt, (dy / d) * def.speed * 0.7 * dt);
+        if (d > 40 && m.rootUntil <= now) moveEntity(m, (dx / d) * mspeed * 0.7 * dt, (dy / d) * mspeed * 0.7 * dt);
       }
       m.target = null;
       continue;
@@ -1017,23 +984,20 @@ setInterval(() => {
       target = best;
     }
     m.target = target ? target.id : null;
+    // Умения, дальний бой и пассивные механики монстра (server/dungeon.js)
+    if (D.act(m, target, now, dt)) continue;
 
     if (target) {
       const dx = target.x - m.x, dy = target.y - m.y;
       const d = Math.hypot(dx, dy);
-      if (d > C.MONSTER_ATTACK_RANGE) {
+      if (d > D.meleeRange(m)) {
         if (rooted) continue;
-        const s = def.speed * dt * (m.slowUntil > now ? 0.6 : 1); // замедление (осквернённая земля, яд)
+        const s = mspeed * dt; // замедление (осквернённая земля, яд) уже учтено
         if (Math.abs(dx) > 2) m.face = Math.sign(dx); // куда смотрит монстр (удар в спину)
         moveEntity(m, (dx / d) * s, (dy / d) * s);
-      } else if (now - m.lastAttack > C.MONSTER_ATTACK_CD) {
+      } else if (now - m.lastAttack > m.cd) {
         m.lastAttack = now;
-        if (m.blindUntil > now && Math.random() < 0.5) { fx.push({ t: 'miss', x: m.x, y: m.y }); continue; } // ослеплён песком Сирокко
-        // Удар по зверю: зверь не гибнет, а «падает» и отступает
-        if (target.owner) { hurtPet(skillCtx, target, Math.round(def.dmg * (m.dmgMult || 1) * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)), now); continue; }
-        // Насмешка Джакомо снижает урон монстра
-        hurtPlayer(target, def.dmg * (m.dmgMult || 1) * (0.8 + Math.random() * 0.4) * (m.weakUntil > now ? 0.6 : 1)
-          * (m.mockUntil > now ? Math.max(0.4, 1 - 0.25 * (m.mockPw || 1)) : 1), m, now);
+        D.melee(m, target, now); // промах при ослеплении, насмешка, вампиризм, яд — внутри
       }
     } else {
       if (rooted) continue;
@@ -1047,7 +1011,7 @@ setInterval(() => {
         const dx = m.wander.x - m.x, dy = m.wander.y - m.y;
         const d = Math.hypot(dx, dy);
         if (d > 4) {
-          const s = def.speed * 0.4 * dt;
+          const s = m.speed * 0.4 * dt;
           moveEntity(m, (dx / d) * s, (dy / d) * s);
         }
       }
@@ -1057,6 +1021,8 @@ setInterval(() => {
 
   // Регенерация: здоровье вне боя, ресурс (мана/энергия/ярость) всегда
   for (const p of players.values()) {
+    if (p.dead) continue;
+    D.tickPlayer(p, now); // яд, кровотечение, горение от монстров
     if (p.dead) continue;
     // Регенерация от «Лесного благословения» (Нимуэ)
     if (p.regenUntil > now && p.hp < p.maxHp) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * p.regenRate * dt); markDirty(p); }
@@ -1113,7 +1079,7 @@ setInterval(() => {
   for (const Z of byZone.values()) {
   const state = {
     p: Z.p.map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
-    m: Z.m.map((m) => ({ id: m.id, type: m.type, tr: m.tier, x: Math.round(m.x), y: Math.round(m.y),
+    m: Z.m.map((m) => ({ id: m.id, type: m.type, tr: m.tier, lv: m.level, rk: m.rank, nm: m.name, inv: m.inv ? 1 : 0, sz: m.size, sh: m.shieldHp > 0 ? 1 : 0, fm: m.form || m.phase || m.element || null, x: Math.round(m.x), y: Math.round(m.y),
       hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
       mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0,
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,

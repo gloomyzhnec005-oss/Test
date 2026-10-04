@@ -141,6 +141,16 @@
     ctx.drawImage(minimapBase, 0, 0, cnv.width, cnv.height);
     ctx.fillStyle = '#ff4040';
     const ox = map.ox || 0, oy = map.oy || 0;
+    // В данже мини-карта показывает только разведанное
+    const ex = map.fog && window.gameScene && window.gameScene.explored.get(map.id);
+    if (ex) {
+      ctx.fillStyle = '#050608';
+      const k = Math.ceil(sx) + 1;
+      for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) if (!ex.has(y * map.w + x)) ctx.fillRect(Math.floor(x * sx), Math.floor(y * sy), k, Math.ceil(sy) + 1);
+      ctx.fillStyle = '#ff4040';
+      for (const m of state.m) if (ex.has(Math.floor((m.y - oy) / tile) * map.w + Math.floor((m.x - ox) / tile))) ctx.fillRect((m.x - ox) / tile * sx - 1, (m.y - oy) / tile * sy - 1, 2, 2);
+      state = { ...state, m: [] };
+    }
     for (const m of state.m) ctx.fillRect((m.x - ox) / tile * sx - 1, (m.y - oy) / tile * sy - 1, 2, 2);
     ctx.fillStyle = '#c890ff';
     for (const o of map.objs || []) if (o.kind === 'portal') ctx.fillRect((o.x - ox) / tile * sx - 2, (o.y - oy) / tile * sy - 2, 4, 4);
@@ -278,6 +288,12 @@
         Town.open('👥 Группа', box);
       };
       // ---------- Данж выживания: номер волны ----------
+      // Прогресс данжа-лабиринта
+      socket.on('dungeon', (d) => {
+        const b = $('waveBadge');
+        b.textContent = `🗺️ ${d.killed}/${d.total} · ★ ${d.minisKilled}/${d.minis} · ${d.boss ? '🏆 пройден!' : '👑 ' + d.bossName}`;
+        b.classList.remove('hidden');
+      });
       socket.on('survival', (d) => {
         const b = $('waveBadge');
         b.textContent = `💀 Волна ${d.wave}${d.boss ? ' · ДРАКОН!' : ''}`;
@@ -301,7 +317,7 @@
           Town.setContext({ zone: z });
           Town.close();
           $('townBar').classList.toggle('hidden', z.kind !== 'town'); // события, призыв, пропуск, магазин — только в городе
-          if (z.kind !== 'survival') $('waveBadge').classList.add('hidden');
+          if (z.kind !== 'survival' && z.kind !== 'dungeon') $('waveBadge').classList.add('hidden');
           const b = $('zoneBanner');
           b.querySelector('b').textContent = z.name;
           b.querySelector('small').textContent = z.kind === 'town' ? `${z.sub} · уровень ${z.level}` : z.sub;

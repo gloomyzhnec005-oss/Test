@@ -495,7 +495,7 @@ html, body {
 .party-frame { position: absolute; left: 8px; top: calc(118px + env(safe-area-inset-top)); font-size: 11px; display: flex; flex-direction: column; gap: 3px; pointer-events: none !important; }
 .party-frame div { background: rgba(10,14,22,.72); border-radius: 6px; padding: 3px 7px; color: #c8f0a0; }
 .party-frame div small { color: #8a9aa8; }
-.wave-badge { position: absolute; left: 50%; top: calc(150px + env(safe-area-inset-top)); transform: translateX(-50%); padding: 5px 14px; border-radius: 14px;
+.wave-badge { position: absolute; left: 50%; top: calc(172px + env(safe-area-inset-top)); transform: translateX(-50%); padding: 4px 12px; border-radius: 14px; max-width: 64%; text-align: center; font-size: 12px !important;
   background: rgba(60,10,10,.8); border: 1px solid #ff6a5a; color: #ffd0c0; font-family: Georgia, serif; font-size: 14px; pointer-events: none !important; }
 .skill.locked { filter: grayscale(1) brightness(.55); }
 .skill.locked::after { content: '🔒'; position: absolute; right: -2px; top: -2px; font-size: 16px; }

@@ -984,15 +984,8 @@ module.exports = {
   ],
 
   // Монстры. zone — минимальное расстояние от центра (в тайлах), где они появляются
-  MONSTERS: {
-    slime:    { name: 'Слизень',   hp: 40,  dmg: 5,  speed: 55,  xp: 12, aggro: 150, zone: 6,  color: 0x7ed957 },
-    wolf:     { name: 'Волк',      hp: 75,  dmg: 9,  speed: 95,  xp: 25, aggro: 210, zone: 14, color: 0x8d8d8d },
-    skeleton: { name: 'Скелет',    hp: 130, dmg: 14, speed: 75,  xp: 45, aggro: 220, zone: 22, color: 0xe8e2c8, undead: true },
-    orc:      { name: 'Орк',       hp: 220, dmg: 22, speed: 70,  xp: 80, aggro: 230, zone: 30, color: 0x4f7a28 },
-    dragon:   { name: 'Дракончик', hp: 600, dmg: 35, speed: 80,  xp: 300, aggro: 260, zone: 35, color: 0xb0302a, boss: true, fire: true },
-  },
-  MONSTER_COUNT: 70,
-  MONSTER_RESPAWN_MS: 12000,
+  // Монстры — в server/mobs.js (75 видов, классы, умения, баланс по уровням)
+
   MONSTER_ATTACK_RANGE: 34,
   MONSTER_ATTACK_CD: 1100,
 };

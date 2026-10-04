@@ -30,12 +30,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
       addTex('hero_' + k, Gfx.hero(h.look));
       if (h.forms) addTex('hero_' + k + '_beast', Gfx.werebeast(h.beastLook)); // звериный облик
     });
-    Object.keys(this.monsterDefs).forEach((k) => addTex('mon_' + k, Gfx.monster(k)));
+    Object.entries(this.monsterDefs).forEach(([k, def]) => addTex('mon_' + k, Gfx.mob(def.look)));
+    this.explored = new Map(); // разведанные тайлы данжей: zoneId → Set
     addTex('totem', Gfx.totem());
     ['wolf', 'bear', 'hawk', 'skeleton', 'sprite', 'turret', 'wisp', 'seaSpirit'].forEach((k) => addTex('pet_' + k, Gfx.pet(k)));
     this.totems = new Map();
     this.pets = new Map();
-    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy', 'note', 'necro', 'arrow', 'arcane', 'bolt', 'blood', 'venom', 'moon', 'sand', 'rune', 'soul', 'water', 'sonic', 'crystal', 'dark', 'nature'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
+    ['stone', 'spirit', 'spear', 'dagger', 'shadow', 'darkfire', 'leaf', 'illusion', 'fireball', 'frost', 'spark', 'holy', 'note', 'necro', 'arrow', 'arcane', 'bolt', 'blood', 'venom', 'moon', 'sand', 'rune', 'soul', 'water', 'sonic', 'crystal', 'axe', 'feather', 'web', 'trap', 'dark', 'nature'].forEach((k) => addTex('proj_' + k, Gfx.projectile(k)));
     addTex('particle', Gfx.particle());
 
     // Тайловая карта текущей зоны (город или охотничьи земли)
@@ -69,6 +70,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (this.me) { this.me.x = d.x; this.me.y = d.y; this.me.e.c.setPosition(d.x, d.y); }
       this.cameras.main.flash(350, 255, 255, 255);
     });
+    // Новые объекты зоны (выход из пройденного данжа)
+    this.net.on('zoneObjs', (objs) => {
+      if (!this.zone) return;
+      const keepMe = this.me && { x: this.me.x, y: this.me.y };
+      this.buildZone({ ...this.zone, objs });
+      if (keepMe) { this.me.x = keepMe.x; this.me.y = keepMe.y; }
+      this.cameras.main.flash(300, 120, 255, 140);
+    });
     this.net.on('correct', (d) => {
       if (!this.me) return;
       this.me.x = d.x; this.me.y = d.y;
@@ -90,6 +99,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
   // Строит карту зоны: тайлы, здания, порталы, телепорт
   buildZone(z) {
     const T = this.T;
+    if (this.fogLayer) { this.fogLayer.destroy(); this.fogLayer = null; }
     if (this.layer) { this.layer.destroy(); this.tilemap.destroy(); }
     this.zoneObjs.forEach((o) => o.destroy());
     this.zoneObjs = [];
@@ -101,6 +111,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.layer = this.tilemap.createLayer(0, ts, z.ox, z.oy).setDepth(0);
     this.solid = new Set(z.solid);
     this.mapW = z.w; this.mapH = z.h; this.tiles = z.tiles;
+    // Туман войны: в данже карта открывается по мере прохождения
+    this.fogTile = null;
+    if (z.fog) {
+      this.fogLayer = this.tilemap.createBlankLayer('fog', ts, z.ox, z.oy).setDepth(2400);
+      this.fogLayer.fill(9);
+      if (!this.explored.has(z.id)) this.explored.set(z.id, new Set());
+      for (const i of this.explored.get(z.id)) this.fogLayer.removeTileAt(i % z.w, Math.floor(i / z.w));
+    }
     this.cameras.main.setBounds(z.ox, z.oy, z.w * T, z.h * T);
     this.cameras.main.setBackgroundColor({ green: '#2f6a28', abyss: '#07040c', sky: '#bfe0ff' }[z.theme]);
     const keep = (o) => { this.zoneObjs.push(o); return o; };
@@ -126,7 +144,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: beam, alpha: 0.05, duration: 1200, yoyo: true, repeat: -1 });
         keep(this.add.text(o.x, o.y - 30, `${o.icon} ${o.name}`, labelStyle).setOrigin(0.5, 1).setDepth(3000));
       } else if (o.kind === 'portal') {
-        const col = o.id === 'back' ? 0xffd36a : PORTAL_COL[(o.num - 1) % 6];
+        const col = o.world ? 0xff3a3a : o.id === 'exit' ? 0x7dff8a : !o.num ? 0xffd36a : PORTAL_COL[(o.num - 1) % 6];
         keep(this.add.ellipse(o.x, o.y + 22, 50, 14, 0x000000, 0.3).setDepth(1));
         // Каменная арка и вращающаяся воронка
         keep(this.add.rectangle(o.x - 24, o.y, 8, 50, 0x6a6560).setDepth(10 + o.y + 20));
@@ -137,13 +155,31 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const core = keep(this.add.ellipse(o.x, o.y + 2, 18, 26, 0xffffff, 0.5).setDepth(10 + o.y + 1));
         this.tweens.add({ targets: swirl, scaleX: 0.8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         this.tweens.add({ targets: core, alpha: 0.15, scale: 1.4, duration: 900, yoyo: true, repeat: -1 });
-        const title = o.id === 'back' ? `${o.icon} ${o.name}` : `${['I', 'II', 'III', 'IV', 'V', 'VI'][o.num - 1]} · ${o.name}`;
+        const title = !o.num ? `${o.icon} ${o.name}${o.world ? ` · ур. ${o.lv[0]}` : ''}` : `${['I', 'II', 'III', 'IV', 'V', 'VI'][o.num - 1]} · ${o.name} · ур. ${o.lv[0]}–${o.lv[1]}`;
         keep(this.add.text(o.x, o.y - 32, title, { ...labelStyle, fontSize: '10px' }).setOrigin(0.5, 1).setDepth(3000));
       }
     }
     this.nearObj = undefined;
     if (this.layer && this.scale) this.resize();
     this.ui.onZone(z);
+  }
+
+  // Раскрыть туман вокруг героя (радиус 7 тайлов)
+  revealFog() {
+    const z = this.zone;
+    if (!this.fogLayer || !this.me) return;
+    const tx = Math.floor((this.me.x - z.ox) / this.T), ty = Math.floor((this.me.y - z.oy) / this.T);
+    const key = tx * 1000 + ty;
+    if (key === this.fogTile) return;
+    this.fogTile = key;
+    const set = this.explored.get(z.id), R = 7;
+    for (let y = ty - R; y <= ty + R; y++) for (let x = tx - R; x <= tx + R; x++) {
+      if (x < 0 || y < 0 || x >= z.w || y >= z.h || (x - tx) ** 2 + (y - ty) ** 2 > R * R) continue;
+      const i = y * z.w + x;
+      if (set.has(i)) continue;
+      set.add(i);
+      this.fogLayer.removeTileAt(x, y);
+    }
   }
 
   // Тап по зданию/порталу: герой сам идёт к нему (если уже рядом — сразу действие)
@@ -223,7 +259,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
   setBar(e, hp, maxHp) {
     const k = Phaser.Math.Clamp(hp / maxHp, 0, 1);
-    e.bar.width = 28 * k;
+    e.bar.width = (e.bigBar || 28) * k;
     e.bar.fillColor = k > 0.5 ? 0x5ad65a : k > 0.25 ? 0xffc040 : 0xe24c4c;
   }
 
@@ -294,6 +330,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const tt = this.time.now / 600;
         e.cryObjs.forEach((o, i) => { const a = tt + (i / e.cryObjs.length) * Math.PI * 2; o.setPosition(Math.cos(a) * 20, -2 + Math.sin(a) * 9); });
       }
+      // Состояния от монстров: контроль, яд, замедление, проклятие
+      const pst = ({ stun: '💫', freeze: '🧊', root: '🕸️', confuse: '😵' }[p.pcc] || '') + ({ poison: '🧪', bleed: '🩸', burn: '🔥' }[p.pdot] || '') + (p.pslow ? '🐌' : '') + (p.pweak ? '💔' : '');
+      if (pst !== (e.pst || '')) {
+        e.pst = pst;
+        if (!e.pstText) { e.pstText = this.add.text(0, e.label.y - 12, '', { fontSize: '11px', resolution: 2 }).setOrigin(0.5, 1); e.c.add(e.pstText); }
+        e.pstText.setText(pst);
+      }
       if (!!p.tree !== !!e.tree) { e.tree = !!p.tree; if (p.tree) e.sprite.setTint(0xb8ffb8); else e.sprite.clearTint(); }
       // Полёт (Талмира): герой поднят над землёй
       const flyY = p.fly ? -16 : 0;
@@ -340,9 +383,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
       let e = this.monsters.get(m.id);
       if (!e) {
         const def = this.monsterDefs[m.type];
-        e = this.makeEntity('mon_' + m.type, def.name + (m.tr > 1 ? ' ' + '★'.repeat(m.tr - 1) : ''), def.boss ? '#ff6b6b' : m.tr === 2 ? '#d8a0ff' : m.tr === 3 ? '#a0e8ff' : '#ffd9a0', m.id);
+        // Цвет имени по рангу: синий — усиленный, жёлтый — редкий, оранжевый — полубосс, красный — босс, фиолетовый — мировой
+        const RC = { normal: '#ffd9a0', summon: '#c8c0b0', magic: '#8ab8ff', rare: '#ffe066', mini: '#ffa040', boss: '#ff5a5a', world: '#d080ff' };
+        const prefix = { magic: 'Усиленный ', mini: '★ ', boss: '👑 ', world: '👹 ' }[m.rk] || '';
+        e = this.makeEntity('mon_' + m.type, `${prefix}${m.nm || def.name} · ${m.lv}`, RC[m.rk] || '#ffd9a0', m.id);
         e.c.setPosition(m.x, m.y);
-        if (def.boss) { e.label.y = -34; e.bar.y = e.bar.y - 8; e.c.list[1].y -= 8; }
+        const sz = m.sz || 1;
+        e.sprite.setScale(sz);
+        if (sz > 1.05) { const up = 16 * (sz - 1); e.label.y -= up; e.bar.y -= up; e.c.list[1].y -= up; e.bar.width = 28 * Math.min(2.2, sz); e.c.list[1].width = 28 * Math.min(2.2, sz); e.bar.x = -e.bar.width / 2; e.c.list[1].x = 0; e.bigBar = e.bar.width; }
+        if (m.rk === 'world' || m.rk === 'boss') e.label.setFontSize(12);
+        if (m.rk === 'rare' || m.rk === 'magic') { const glow = this.add.circle(0, 6, 16 * sz, m.rk === 'rare' ? 0xffe066 : 0x8ab8ff, 0.18); e.c.addAt(glow, 0); }
         e.c.setAlpha(0);
         this.tweens.add({ targets: e.c, alpha: 1, duration: 400 });
         this.monsters.set(m.id, e);
@@ -363,6 +413,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
       e.tx = m.x; e.ty = m.y; e.data = m;
       this.setBar(e, m.hp, m.maxHp);
+      e.c.setAlpha(m.inv ? 0.18 : 1); // тень в невидимости
+      if (!!m.sh !== !!e.shRing) { if (m.sh) { e.shRing = this.add.circle(0, 2, 15 * (m.sz || 1)).setStrokeStyle(2, 0xbfe8ff, 0.9); e.c.add(e.shRing); } else { e.shRing.destroy(); e.shRing = null; } }
     }
     for (const [id, e] of this.monsters) {
       if (!seenM.has(id)) {
@@ -580,6 +632,45 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.floatText(f.x, f.y - 46, f.name, f.color, 13);
       this.burst(f.x, f.y, parseInt(f.color.slice(1), 16), 14);
       if (f.to === this.myId) this.ui.vibrate('success');
+    } else if (f.t === 'tele') {
+      // Предупреждение об ударе по площади: круг наполняется, пока не ударит
+      const ring = this.add.circle(f.x, f.y, f.r).setStrokeStyle(2, f.color, 0.9).setDepth(5).setScale(1, 0.55);
+      const fill = this.add.circle(f.x, f.y, f.r, f.color, 0.28).setDepth(5).setScale(0.05, 0.03);
+      this.tweens.add({ targets: fill, scaleX: 1, scaleY: 0.55, duration: f.ms, onComplete: () => { ring.destroy(); fill.destroy(); } });
+      if (f.label) this.floatText(f.x, f.y - f.r * 0.55 - 10, f.label, '#ffd0a0', 12);
+    } else if (f.t === 'teleHit') {
+      const fl = this.add.circle(f.x, f.y, f.r, f.color, 0.5).setDepth(830).setScale(1, 0.55);
+      this.tweens.add({ targets: fl, alpha: 0, duration: 350, onComplete: () => fl.destroy() });
+      this.burst(f.x, f.y, f.color, 14);
+      if (this.me && Math.hypot(this.me.x - f.x, this.me.y - f.y) < f.r) this.cameras.main.shake(140, 0.006);
+    } else if (f.t === 'mshot') {
+      const key = this.textures.exists('proj_' + f.proj) ? 'proj_' + f.proj : 'proj_arrow';
+      const pr = this.add.image(f.fx, f.fy, key).setDepth(860).setScale(1.2);
+      pr.rotation = Phaser.Math.Angle.Between(f.fx, f.fy, f.x, f.y);
+      if (key === 'proj_arrow' || key === 'proj_bolt') pr.setTint(0xffa0a0);
+      this.tweens.add({ targets: pr, x: f.x, y: f.y, duration: f.ms, onComplete: () => pr.destroy() });
+      // Точка попадания — от снаряда можно увернуться
+      const mark = this.add.circle(f.x, f.y + 4, 9).setStrokeStyle(1, 0xff6a5a, 0.6).setDepth(4).setScale(1, 0.5);
+      this.tweens.add({ targets: mark, alpha: 0, duration: f.ms, onComplete: () => mark.destroy() });
+    } else if (f.t === 'mtext') {
+      this.floatText(f.x, f.y - 40, f.text, f.color || '#ffe08a', f.big ? 16 : 12);
+    } else if (f.t === 'mdash') {
+      this.burst(f.x, f.y, 0xd8d0c0, 12); this.ring(f.x, f.y, 26, 0xffffff, 300, 3);
+      if (f.name) this.floatText(f.x, f.y - 40, f.name, '#ffb060', 12);
+    } else if (f.t === 'msum') {
+      this.ring(f.x, f.y, 40, 0x5fffb0, 500, 4); this.burst(f.x, f.y, 0x5fffb0, 10);
+    } else if (f.t === 'mheal') {
+      this.burst(f.x, f.y, 0x7dff8a, 10); this.floatText(f.x, f.y - 30, '+', '#7dff8a', 16);
+      if (f.fx !== undefined) { const ln = this.add.line(0, 0, f.fx, f.fy, f.x, f.y, 0x7dff8a, 0.7).setOrigin(0, 0).setLineWidth(2).setDepth(840); this.tweens.add({ targets: ln, alpha: 0, duration: 500, onComplete: () => ln.destroy() }); }
+    } else if (f.t === 'mbuff') {
+      this.ring(f.x, f.y, f.r, f.kind === 'shield' ? 0xbfe8ff : f.kind === 'spd' ? 0xffd84a : 0xff6a5a, 600, 3);
+    } else if (f.t === 'mrevive') {
+      this.burst(f.x, f.y, 0x5fffb0, 16); this.floatText(f.x, f.y - 36, f.big ? 'Возрождение!' : 'Восстаёт!', '#5fffb0', f.big ? 16 : 12);
+    } else if (f.t === 'pcc') {
+      const e = this.players.get(f.target);
+      const txt = { stun: '💫 Оглушение', freeze: '🧊 Заморозка', root: '🕸️ Обездвижен', confuse: '😵 Подчинение', weak: '💔 Слабость' }[f.cc];
+      if (e && txt) this.floatText(e.c.x, e.c.y - 34, txt, '#ffb0b0', 12);
+      if (f.target === this.myId) this.ui.vibrate('heavy');
     } else if (f.t === 'miss') {
       this.floatText(f.x, f.y - 30, 'Промах', '#e8d49a', 11);
     } else if (f.t === 'dodge') {
@@ -1642,10 +1733,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const t = this.monsters.get(this.autoWalk);
       if (t) { vx = t.c.x - me.x; vy = t.c.y - me.y; } else this.autoWalk = null;
     }
+    // Контроль от монстров: оглушение/заморозка/паутина — стоим; подчинение — управление наоборот
+    const cc = this.myStats.cc;
+    if (cc === 'confuse') { vx = -vx; vy = -vy; }
+    const held = cc === 'stun' || cc === 'freeze' || cc === 'root';
     const len = Math.hypot(vx, vy);
-    if (len > 0 && !me.data.dead && !this.myStats.rooted) {
+    if (len > 0 && !me.data.dead && !this.myStats.rooted && !held) {
       const n = Math.min(1, len) / len;
-      const speed = this.prof().speed * (this.myStats.haste ? 1.25 : 1) * (this.myStats.flyBoost || 1); // свет ветра, полёт
+      const speed = this.prof().speed * (this.myStats.haste ? 1.25 : 1) * (this.myStats.flyBoost || 1) * (this.myStats.slow ? 0.6 : 1); // свет ветра, полёт
       const dx = vx * n * speed * dt, dy = vy * n * speed * dt;
       const r = 10;
       if (!this.isSolidAt(me.x + dx + Math.sign(dx) * r, me.y)) me.x += dx;
@@ -1654,6 +1749,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
     me.e.c.setPosition(me.x, me.y);
     this.checkNear();
+    this.revealFog();
     me.e.sprite.setFlipX(me.dir === -1);
     // Лёгкая «походка»
     me.e.sprite.y = len > 0 ? Math.sin(time / 70) * 1.5 : 0;
@@ -1685,7 +1781,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const t = this.targetId && this.monsters.get(this.targetId);
     if (t) {
       this.targetRing.setVisible(true).setPosition(t.c.x, t.c.y + 12);
-      this.ui.onTarget(this.monsterDefs[t.data.type].name, t.data.hp, t.data.maxHp);
+      this.ui.onTarget(`${t.data.nm || this.monsterDefs[t.data.type].name} · ур. ${t.data.lv}`, t.data.hp, t.data.maxHp);
     } else {
       this.targetRing.setVisible(false);
       this.ui.onTarget(null);
