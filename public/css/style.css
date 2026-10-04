@@ -6,6 +6,10 @@ html, body {
   user-select: none; -webkit-user-select: none; touch-action: none;
 }
 .hidden { display: none !important; }
+/* iOS: без двойного тапа-приближения на кнопках; поля ввода не меньше 16px, иначе Safari приближает страницу при фокусе */
+button, a, canvas, #hud, #hud *, .joystick { touch-action: manipulation; }
+#game canvas, .joystick, .joystick * { touch-action: none; }
+input, select, textarea { font-size: 16px !important; }
 #game { position: fixed; inset: 0; }
 
 /* ---------- Лобби (в стиле Lineage 2) ---------- */

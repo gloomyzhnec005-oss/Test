@@ -10,6 +10,34 @@
   }
 
   const $ = (id) => document.getElementById(id);
+
+  // ---------- Защита от приближения страницы (iOS Safari игнорирует user-scalable=no) ----------
+  const block = (e) => e.preventDefault();
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((ev) => document.addEventListener(ev, block, { passive: false }));
+  document.addEventListener('dblclick', block, { passive: false });
+  // Двойной тап: второй тап быстрее 350 мс не должен приближать (кроме полей ввода)
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd < 350 && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) e.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+  // Щипок двумя пальцами вне игрового поля
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && !e.target.closest('#game')) e.preventDefault(); }, { passive: false });
+  // Если страница всё же приблизилась (например, после фокуса на поле) — возвращаем масштаб 1
+  const vpMeta = document.querySelector('meta[name=viewport]');
+  const VP = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+  const resetZoom = () => {
+    const vv = window.visualViewport;
+    if (!vv || vv.scale <= 1.01 || /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName)) return;
+    vpMeta.setAttribute('content', VP + ', minimum-scale=1');
+    setTimeout(() => vpMeta.setAttribute('content', VP), 50);
+    window.scrollTo(0, 0);
+  };
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', () => setTimeout(resetZoom, 300));
+  document.addEventListener('focusout', () => setTimeout(resetZoom, 300));
+  window.addEventListener('pageshow', resetZoom);
+  setInterval(resetZoom, 2000);
   const store = {
     get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
     set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
