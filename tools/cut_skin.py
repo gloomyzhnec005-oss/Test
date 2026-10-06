@@ -1,6 +1,6 @@
 # Нарезка скина героя из картинки ИИ-генератора.
 # Вход: одна картинка — слева сетка 7 рядов × 5 кадров (вниз, вниз-вправо, вправо, вверх-вправо, вверх, вниз-влево, влево),
-# справа портрет; фон — нарисованная «шахматка» прозрачности.
+# справа портрет; фон — сплошной зелёный (хромакей) или нарисованная «шахматка» прозрачности.
 # Выход: public/assets/heroes/<id>_sheet.png (8 направлений, 36×48, вверх-влево — зеркало вверх-вправо) и <id>_portrait.png.
 # Запуск: pip install pillow numpy scipy
 #         python3 tools/cut_skin.py картинка.png <id героя> public/assets/heroes [x границы сетки и портрета, по умолчанию 720]
@@ -12,25 +12,33 @@ src, hid, out = sys.argv[1], sys.argv[2], sys.argv[3]
 im = np.array(Image.open(src).convert('RGB')).astype(int)
 H, W, _ = im.shape
 mx, mn = im.max(2), im.min(2)
-bgc = (mn > 215) & (mx - mn < 14)          # клетки «шахматки»
-# фон = то, что связано с краем через светлые серые пиксели
-lab, _ = ndimage.label(bgc)
-edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
-# + все крупные области шахматки (между спрайтами)
-sizes = ndimage.sum(np.ones_like(lab), lab, range(lab.max() + 1))
-bg = np.isin(lab, list(edge)) | (sizes[lab] > 400) & bgc
-# убираем светлую кайму по краю
-ring = ndimage.binary_dilation(bg) & ~bg & (mn > 190) & (mx - mn < 30)
-bg |= ring
-bg |= (mn > 226) & (mx - mn < 6)                 # чистая светло-серая шахматка внутри силуэта
-# у портрета мягкое свечение поверх шахматки: срезаем светлую кайму глубже
-near = ndimage.binary_dilation(bg, iterations=3)
-halo = near & ~bg & (mn > 190) & (mx - mn < 70)
-halo[:, :int(sys.argv[4]) if len(sys.argv) > 4 else 720] = False
-bg |= halo
+split = int(sys.argv[4]) if len(sys.argv) > 4 else 720
+r_, g_, b_ = im[..., 0], im[..., 1], im[..., 2]
+corner = im[:8, :8].reshape(-1, 3).mean(0)
+if corner[1] > 150 and corner[1] - max(corner[0], corner[2]) > 80:
+  # хромакей: сплошной зелёный фон
+  spill = g_ - np.maximum(r_, b_)
+  bg = (g_ > 120) & (spill > 60)
+  edge = ndimage.binary_dilation(bg, iterations=2) & ~bg
+  bg |= edge & (spill > 25)                        # зелёная кайма по краю
+  # остаток зелени на краях приглушаем до уровня красного/синего
+  fix = ndimage.binary_dilation(bg, iterations=3) & ~bg & (spill > 0)
+  im[..., 1] = np.where(fix, np.maximum(r_, b_), g_)
+else:
+  # нарисованная «шахматка» прозрачности
+  bgc = (mn > 215) & (mx - mn < 14)
+  lab, _ = ndimage.label(bgc)
+  edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+  sizes = ndimage.sum(np.ones_like(lab), lab, range(lab.max() + 1))
+  bg = np.isin(lab, list(edge)) | (sizes[lab] > 400) & bgc
+  bg |= ndimage.binary_dilation(bg) & ~bg & (mn > 190) & (mx - mn < 30)  # светлая кайма
+  bg |= (mn > 226) & (mx - mn < 6)                 # шахматка внутри силуэта
+  # у портрета мягкое свечение поверх шахматки: срезаем светлую кайму глубже
+  halo = ndimage.binary_dilation(bg, iterations=3) & ~bg & (mn > 190) & (mx - mn < 70)
+  halo[:, :split] = False
+  bg |= halo
 alpha = (~bg).astype(np.uint8) * 255
 rgba = np.dstack([im.astype(np.uint8), alpha])
-split = int(sys.argv[4]) if len(sys.argv) > 4 else 720
 fg = ~bg; fgL = fg.copy(); fgL[:, split:] = False
 lab2, n = ndimage.label(ndimage.binary_dilation(fgL, iterations=3))
 objs = [(s, i + 1) for i, s in enumerate(ndimage.find_objects(lab2)) if (s[0].stop - s[0].start) * (s[1].stop - s[1].start) > 1500]
