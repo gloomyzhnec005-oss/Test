@@ -20,6 +20,12 @@ module.exports = function startBot({ onPaid, isValidPayload } = {}) {
       playButton(),
     ));
   bot.command('play', (ctx) => ctx.reply('Открыть игру:', playButton()));
+  // Админ-панель: только для Telegram ID из ADMIN_TG_IDS, вход без пароля
+  const admins = String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean);
+  bot.command('admin', (ctx) => {
+    if (!admins.includes(String(ctx.from.id))) return ctx.reply(`Нет доступа. Ваш Telegram ID: ${ctx.from.id}`);
+    return ctx.reply('Админ-панель:', Markup.inlineKeyboard([Markup.button.webApp('⚙️ Открыть админку', WEBAPP_URL.replace(/\/$/, '') + '/admin.html')]));
+  });
   bot.help((ctx) => ctx.reply('/play — открыть игру\nДжойстик слева — движение, кнопка справа — атака.'));
 
   // Оплата в Telegram Stars

@@ -15,6 +15,7 @@ const MOBX = require('./mobs');
 const createDungeons = require('./dungeon');
 C.MONSTERS = MOBX.MOBS; // 75 видов монстров + миньоны (server/mobs.js)
 const createMeta = require('./meta');
+const createAdmin = require('./admin');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
@@ -62,6 +63,18 @@ const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/vendor/phaser.min.js', (req, res) =>
   res.sendFile(path.join(__dirname, '..', 'node_modules', 'phaser', 'dist', 'phaser.min.js')));
+// Админ-панель (server/admin.js): свой разбор JSON с большим лимитом, поэтому подключается раньше общего
+const admin = createAdmin({
+  C, I, MOBX, verifyInitData, dataDir: path.dirname(DATA_FILE),
+  get players() { return players; }, get monsters() { return monsters; }, get world() { return world; },
+  get D() { return D; }, get meta() { return meta; }, get io() { return io; }, profiles: null,
+  getProfile: (uid) => getProfile(uid), getChar: (uid, h) => getChar(uid, h), saveProfiles: () => saveProfiles(),
+  refreshUid: (uid) => refreshUid(uid), markDirty: (p) => markDirty(p), moveToZone: (...a) => moveToZone(...a),
+  hurtPlayer: (...a) => hurtPlayer(...a), grantXp: (...a) => grantXp(...a), syncCooldowns: (...a) => syncCooldowns(...a),
+});
+Object.defineProperty(admin.ctx, 'profiles', { get: () => profiles });
+const S = admin.settings;
+app.use('/admin/api', admin.router);
 app.use(express.json({ limit: '16kb' }));
 // Профиль игрока для лобби: полученные герои, их прогресс, крутки гачи, фоны
 function profileView(who) {
@@ -74,13 +87,15 @@ function profileView(who) {
   const bgs = C.LOBBY_BACKGROUNDS.filter((b) => b.price === 0 || pr.bgs.includes(b.id)).map((b) => b.id);
   return {
     name: who.name, heroes: pr.heroes, chars, bgs,
-    freeSpin: !pr.freeSpinUsed || FREE_SPINS, paidSpins: pr.paidSpins, spinPrice: C.GACHA.spinPrice, gold: pr.gold, dupeMax: C.GACHA.heroDupeMax,
+    freeSpin: !pr.freeSpinUsed || FREE_SPINS || S.freeSpins, paidSpins: pr.paidSpins, spinPrice: C.GACHA.spinPrice, gold: pr.gold, dupeMax: C.GACHA.heroDupeMax,
   };
 }
 app.post('/api/profile', (req, res) => {
   const { initData, guestId } = req.body || {};
   const who = resolveUid(initData, guestId);
   if (!who) return res.status(403).json({ error: 'Откройте игру через Telegram-бота' });
+  const ban = getProfile(who.uid).banned;
+  if (ban) return res.status(403).json({ error: `Вы заблокированы: ${ban.reason}` });
   res.json(profileView(who));
 });
 
@@ -93,7 +108,7 @@ app.post('/api/gacha/spin', (req, res) => {
   // В пуле все герои: новый — открывается, уже полученный — становится дубликатом (до 10 копий)
   const pool = Object.keys(C.HEROES).filter((id) => !pr.heroes.includes(id) || (pr.heroDupes[id] || 0) < C.GACHA.heroDupeMax);
   if (!pool.length) return res.status(400).json({ error: 'Все герои собраны полностью' });
-  if (FREE_SPINS || !pr.freeSpinUsed) pr.freeSpinUsed = true;
+  if (FREE_SPINS || S.freeSpins || !pr.freeSpinUsed) pr.freeSpinUsed = true;
   else if (pr.paidSpins > 0) pr.paidSpins -= 1;
   else return res.status(402).json({ error: 'Нет круток', needPayment: true });
 
@@ -163,6 +178,7 @@ function onPaid(payload) {
   if (kind === 'spin') pr.paidSpins += 1;
   else if (meta.INVOICES[kind]) { meta.onPaid(kind, pr); refreshUid(uid); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
   else if (!pr.bgs.includes(id)) pr.bgs.push(id);
+  admin.log('pay', `${pr.name || uid}: оплата ${kind}${id ? ' ' + id : ''}`);
   saveProfiles();
   return true;
 }
@@ -361,6 +377,7 @@ const markDirty = (p) => { p.dirty = true; };
 // Урон монстру с учётом разброса и усилений; возвращает нанесённый урон
 function damageMonster(p, m, raw, opt = {}) {
   if (!monsters.has(m.id) || m.hp <= 0) return 0;
+  if (p.oneShot) raw = m.maxHp * 1000; // тест из админки: убийство с одного удара
   let crit = opt.crit ?? false;
   const ps = passiveOf(p);
   const now0 = Date.now();
@@ -491,6 +508,7 @@ function removePet(pet) {
 }
 // Урон по игроку от монстра: уклонение, защитные эффекты, обет защиты, барьер, пассивки, смерть
 function hurtPlayer(target, raw, m, now, viaVow = false) {
+  if (target.god) return; // тест из админки: бессмертие
   // Подмена двойником (Ле Блан): удар достаётся иллюзии
   const ps0 = passiveOf(target);
   if (!viaVow && ps0 && ps0.avoidHit && ps0.avoidHit(skillCtx, target, m, now)) return;
@@ -581,8 +599,8 @@ const skillCtx = {
 function grantXp(p, amount, gold, shared = false) {
   const pr = getProfile(p.uid), now = Date.now();
   const sub = meta.isSub(pr) ? meta.SHOP.sub.xpBonus : 0;
-  amount = Math.round(amount * (1 + ((p.gear && p.gear.xp) || 0) / 100 + sub + ((pr.buffs || {}).xp > now ? 0.5 : 0)));
-  gold = Math.round(gold * (1 + ((p.gear && p.gear.gold) || 0) / 100 + sub));
+  amount = Math.round(amount * (1 + ((p.gear && p.gear.xp) || 0) / 100 + sub + ((pr.buffs || {}).xp > now ? 0.5 : 0)) * S.xpMult);
+  gold = Math.round(gold * (1 + ((p.gear && p.gear.gold) || 0) / 100 + sub) * S.goldMult);
   p.char.xp += amount;
   p.char.gold += gold;
   pr.gold += gold; // общий кошелёк аккаунта
@@ -649,7 +667,7 @@ function dropLoot(killer, m) {
     meta.addPassXp(pr, m.rank === 'boss' ? 20 : m.rank === 'mini' ? 8 : 1);
     const luck = (pr.buffs || {}).luck > Date.now() ? 1.3 : 1;
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
-    const rolls = m.rank === 'boss' ? 2 : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) ? 1 : 0;
+    const rolls = m.rank === 'boss' ? 2 : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult ? 1 : 0;
     for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, boss ? C.DROPS.boss[tier] : C.DROPS.weights[tier]), m);
   }
 }
@@ -673,6 +691,9 @@ io.on('connection', (socket) => {
     }
     const uid = who.uid;
     const heroId = String(data.hero || '');
+    const prj = getProfile(uid);
+    if (prj.banned) return socket.emit('error_msg', `Вы заблокированы: ${prj.banned.reason}`);
+    if (S.maintenance && !(prj.test || {}).tester) return socket.emit('error_msg', 'Технические работы, зайдите позже');
     if (!C.HEROES[heroId] || !getProfile(uid).heroes.includes(heroId)) {
       socket.emit('error_msg', 'Сначала получите персонажа');
       return;
@@ -689,6 +710,8 @@ io.on('connection', (socket) => {
     };
     p.hp = p.maxHp;
     p.res = startRes(p);
+    p.god = !!(prj.test || {}).god; p.oneShot = !!(prj.test || {}).oneShot; // тестовые режимы из админки
+    prj.name = p.name; prj.lastSeen = Date.now();
     if (hero.pets) { p.pets = createPets(p); p.pets.forEach((pet) => pets.set(pet.id, pet)); }
     if (hero.summons) p.pets = []; // слуги появляются навыком «Восстание мёртвых»
     if (hero.elements) p.form = 'fire'; // Аурелиус начинает с огня
@@ -720,6 +743,8 @@ io.on('connection', (socket) => {
       stats: privateStats(p),
     });
     io.emit('chat', { sys: true, text: `${p.name} (${hero.name}, ${hero.title}) вошёл в мир` });
+    if (S.motd) socket.emit('chat', { sys: true, text: `📢 ${S.motd}` });
+    admin.log('join', `${p.name} (${uid}) вошёл: ${hero.name}`);
   });
 
   socket.on('move', (d) => {
@@ -888,6 +913,7 @@ io.on('connection', (socket) => {
     if (!p) return;
     leaveParty(p);
     players.delete(socket.id);
+    getProfile(p.uid).lastSeen = Date.now();
     (p.pets || []).forEach((pet) => pets.delete(pet.id));
     io.emit('chat', { sys: true, text: `${p.name} покинул мир` });
     saveProfiles();

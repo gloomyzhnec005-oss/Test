@@ -466,6 +466,6 @@ module.exports = function createMeta(deps) {
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
   };
 
-  return { handle, addPassXp, isSub, bagSize, onPaid, INVOICES, SHOP, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
+  return { handle, addPassXp, passOf, isSub, bagSize, onPaid, INVOICES, SHOP, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
 };
 module.exports.simulate = simulate;

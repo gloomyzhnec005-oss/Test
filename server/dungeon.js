@@ -651,6 +651,6 @@ module.exports = function createDungeons(d) {
 
   return {
     create, act, melee, meleeRange, curSpeed, takenMult, onHurt, preventDeath, onKilled, onMonsterHp,
-    startDungeon, startSurvival, worldBossInfo, ccActive, ccPlayer, tickPlayer, runs, survivals,
+    startDungeon, startSurvival, worldBossInfo, ccActive, ccPlayer, tickPlayer, runs, survivals, wbState,
   };
 };

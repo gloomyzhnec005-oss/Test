@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Админ-панель</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <div id="login" class="login hidden">
+    <h1>⚙️ Админ-панель</h1>
+    <p class="muted">Введите пароль администратора</p>
+    <input id="pass" type="password" placeholder="Пароль" autocomplete="current-password">
+    <button id="loginBtn" class="btn primary">Войти</button>
+    <p id="loginErr" class="err"></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <header>
+      <b>⚙️ Админка</b>
+      <span id="via" class="muted"></span>
+      <button id="logout" class="btn small ghost">Выйти</button>
+    </header>
+    <nav id="tabs">
+      <button data-tab="overview" class="on">Обзор</button>
+      <button data-tab="players">Игроки</button>
+      <button data-tab="world">Мир</button>
+      <button data-tab="settings">Настройки</button>
+      <button data-tab="log">Журнал</button>
+    </nav>
+    <main>
+      <section id="tab-overview"></section>
+      <section id="tab-players" class="hidden"></section>
+      <section id="tab-world" class="hidden"></section>
+      <section id="tab-settings" class="hidden"></section>
+      <section id="tab-log" class="hidden"></section>
+    </main>
+  </div>
+
+  <div id="sheet" class="sheet hidden">
+    <div class="sheet-box">
+      <div class="sheet-head"><b id="sheetTitle"></b><button id="sheetClose" class="btn small ghost">✕</button></div>
+      <div id="sheetBody"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="js/admin.js"></script>
+</body>
+</html>
