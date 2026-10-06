@@ -4,7 +4,7 @@
 window.Skins = (() => {
   const LIST = {
     bohai: { sheet: 'assets/heroes/bohai_sheet.png', portrait: 'assets/heroes/bohai_portrait.png', w: 36, h: 48, frames: 5 },
-    vebrand: { sheet: 'assets/heroes/vebrand_sheet.png', portrait: 'assets/heroes/vebrand_portrait.png', w: 36, h: 48, frames: 5 },
+    morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   const DIRS = ['down', 'down-right', 'right', 'up-right', 'up', 'up-left', 'left', 'down-left'];
   // угол движения (0 = вправо, по часовой) → ряд листа
