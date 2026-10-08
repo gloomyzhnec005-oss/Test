@@ -7,9 +7,10 @@ window.WorldArt = (() => {
   const OBJECTS = {
     green: ['tree', 'goldTree', 'bush', 'stump', 'boulder', 'crystal', 'dragonStatue', 'lantern', 'fence', 'well', 'crates', 'flowers'],
     abyss: ['tree', 'goldTree', 'bush', 'crystal', 'boulder', 'lantern', 'banner', 'chainPost', 'cage', 'bones', 'dragonStatue', 'cauldron'],
+    sky: ['tree', 'goldTree', 'bush', 'crystal', 'boulder', 'dragonStatue', 'nest', 'lantern', 'fountain', 'column', 'harp', 'floatStone'],
   };
   const PORTALS = ['teleport', 'arch', 'boss', 'exit', 'sign', 'chest'];
-  const THEMES = { green: true, abyss: true };
+  const THEMES = { green: true, abyss: true, sky: true };
   const base = (th) => `assets/world/${th}`;
   // Загрузка в Phaser (вызывается из preload сцены)
   function preload(scene) {
