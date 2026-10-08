@@ -508,7 +508,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
           // Нарисованный монстр: ноги на точке позиции, полоска здоровья и имя над головой
           e.mskin = m.type;
           e.sprite.setFrame(ms.walk[0]).setOrigin(0.5, (ms.h - 15) / ms.h);
-          const top = -(ms.h - 15) * sz - 3;
+          const top = -((ms.body || ms.h) - 15) * sz - 3;   // body — рост без запаса под поднятое оружие
           e.label.y = top - 4; e.bar.y = top; e.c.list[1].y = top;
         }
         if (sz > 1.05) { const up = 16 * (sz - 1); e.label.y -= up; e.bar.y -= up; e.c.list[1].y -= up; e.bar.width = 28 * Math.min(2.2, sz); e.c.list[1].width = 28 * Math.min(2.2, sz); e.bar.x = -e.bar.width / 2; e.c.list[1].x = 0; e.bigBar = e.bar.width; }

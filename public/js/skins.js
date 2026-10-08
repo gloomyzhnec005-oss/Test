@@ -26,6 +26,7 @@ window.Skins = (() => {
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
   const MOBS = {
     goblinRaider: { sheet: 'assets/mobs/goblinRaider.png', w: 33, h: 38, walk: [0, 1, 2, 3], attack: [5, 4] },
+    orcWarrior: { sheet: 'assets/mobs/orcWarrior.png', w: 44, h: 61, body: 48, walk: [0, 1, 2, 3], attack: [4, 5] },
   };
   const DIRS = ['down', 'down-right', 'right', 'up-right', 'up', 'up-left', 'left', 'down-left'];
   // угол движения (0 = вправо, по часовой) → ряд листа
