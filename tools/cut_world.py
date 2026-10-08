@@ -97,7 +97,7 @@ assert len(P) == 6, f'порталов {len(P)}, нужно 6'
 PW = {'teleport': 110, 'arch': 64, 'boss': 92, 'exit': 64, 'sign': 36, 'chest': 32}
 for n, img in zip(PORT, P): fit(img, PW[n]).save(f'{base}/portals/{n}.png')
 # ---------- Фоны лобби (4 картинки справа внизу) ----------
-if 'lobby' in REGIONS:
+if 'lobby' in REGIONS and '--lobby' in sys.argv:  # мелкие фоны с общего листа мылятся — только по запросу
     os.makedirs(f'{out}/../lobby', exist_ok=True)
     L = items(REGIONS['lobby'])
     for k, img in enumerate(L[:4]):
