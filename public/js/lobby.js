@@ -479,7 +479,7 @@ window.Lobby = (() => {
   function summon(id, dupe) {
     const h = heroes[id], rk = h.rarity, steps = RANK().slice(0, rankOf(rk) + 1);
     const box = document.createElement('div');
-    box.className = 'summon';
+    box.className = 'sm-overlay';
     box.innerHTML = `<div class="sm-rays"></div><div class="sm-seal"><i></i><i></i><i></i><span>◈</span></div>
       <div class="sm-art"></div><div class="sm-text"></div><div class="sm-name"></div><div class="sm-skip">нажмите, чтобы пропустить</div>`;
     $('reveal').parentElement.appendChild(box);

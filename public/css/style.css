@@ -609,40 +609,40 @@ canvas.skin { object-fit: contain; }
 .gacha .reel-wrap { height: 110px; }
 
 /* ---------- Призыв: раскрытие печати ---------- */
-.summon { --c: #b8c4d6; position: absolute; inset: 0; z-index: 12; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center;
+.sm-overlay { --c: #b8c4d6; position: absolute; inset: 0; z-index: 12; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--c) 30%, #000) 0%, #000 65%); transition: background .4s; cursor: pointer; }
 .sm-rays { position: absolute; left: calc(50% - 85vmax); top: calc(42% - 85vmax); width: 170vmax; height: 170vmax; opacity: .25; transition: opacity .4s;
   background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--c) 60%, transparent) 0 6deg, transparent 6deg 18deg); animation: spin 18s linear infinite; }
-.summon[data-rk="epic"] .sm-rays { opacity: .45; animation-duration: 9s; }
-.summon[data-rk="legendary"] .sm-rays { opacity: .7; animation-duration: 5s; }
+.sm-overlay[data-rk="epic"] .sm-rays { opacity: .45; animation-duration: 9s; }
+.sm-overlay[data-rk="legendary"] .sm-rays { opacity: .7; animation-duration: 5s; }
 .sm-seal { position: absolute; top: 42%; left: 50%; width: min(52vw, 220px); aspect-ratio: 1; transform: translate(-50%, -50%); transition: opacity .3s, transform .4s; }
 .sm-seal i { position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--c); box-shadow: 0 0 18px var(--c), inset 0 0 18px var(--c); transition: border-color .3s, box-shadow .3s; }
 .sm-seal i:nth-child(2) { inset: 14%; border-style: dashed; animation: spin 6s linear infinite; }
 .sm-seal i:nth-child(3) { inset: 28%; border-style: double; border-width: 6px; animation: spin 4s linear infinite reverse; }
 .sm-seal span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: min(18vw, 76px); color: var(--c); text-shadow: 0 0 20px var(--c), 0 0 40px var(--c); }
-.summon.pulse .sm-seal { animation: sealHit .55s ease-out; }
+.sm-overlay.pulse .sm-seal { animation: sealHit .55s ease-out; }
 @keyframes sealHit { 0% { transform: translate(-50%, -50%) scale(1.35); filter: brightness(2.2); } 100% { transform: translate(-50%, -50%) scale(1); filter: none; } }
 .sm-text { position: absolute; top: calc(42% + min(30vw, 130px)); text-align: center; }
 .sm-text b { display: block; font-size: 26px; color: var(--c); text-shadow: 0 0 14px var(--c), 0 2px 3px #000; letter-spacing: 1px; }
 .sm-text small { font-size: 18px; color: var(--c); letter-spacing: 3px; }
-.summon.pulse .sm-text b { animation: textPop .5s ease-out; }
+.sm-overlay.pulse .sm-text b { animation: textPop .5s ease-out; }
 @keyframes textPop { 0% { transform: scale(1.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-.summon.burst .sm-seal { opacity: 0; transform: translate(-50%, -50%) scale(2.2); }
-.summon.burst::after { content: ''; position: absolute; inset: 0; background: #fff; animation: flash .6s ease-out forwards; pointer-events: none; }
+.sm-overlay.burst .sm-seal { opacity: 0; transform: translate(-50%, -50%) scale(2.2); }
+.sm-overlay.burst::after { content: ''; position: absolute; inset: 0; background: #fff; animation: flash .6s ease-out forwards; pointer-events: none; }
 @keyframes flash { from { opacity: .9; } to { opacity: 0; } }
-.summon.shake { animation: shake .45s linear 2; }
+.sm-overlay.shake { animation: shake .45s linear 2; }
 @keyframes shake { 20% { transform: translate(-6px, 3px); } 40% { transform: translate(5px, -4px); } 60% { transform: translate(-4px, -3px); } 80% { transform: translate(4px, 4px); } }
 .sm-art { position: absolute; top: 42%; left: 50%; width: min(58vw, 240px); height: min(58vw, 240px); transform: translate(-50%, -50%) scale(.6); opacity: 0; transition: transform .6s cubic-bezier(.2,1.6,.4,1), opacity .4s; }
 .sm-art canvas { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; filter: brightness(0) drop-shadow(0 0 12px var(--c)); transition: filter 1s; }
 .sm-art canvas.portrait { image-rendering: auto; }
-.summon.shown .sm-art { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-.summon.lit .sm-art canvas { filter: drop-shadow(0 0 14px var(--c)); }
+.sm-overlay.shown .sm-art { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.sm-overlay.lit .sm-art canvas { filter: drop-shadow(0 0 14px var(--c)); }
 .sm-name { position: absolute; top: calc(42% + min(30vw, 130px) + 56px); text-align: center; opacity: 0; transition: opacity .5s; }
-.summon.shown .sm-name { opacity: 1; }
+.sm-overlay.shown .sm-name { opacity: 1; }
 .sm-name small { display: block; font-size: 12px; color: #ffe08a; letter-spacing: 2px; text-transform: uppercase; }
 .sm-name b { display: block; font-size: 24px; color: #fff3d0; text-shadow: 0 0 10px var(--c); }
 .sm-name em { font-size: 13px; color: #ffcc66; }
-.summon.shown .sm-text { top: calc(42% - min(30vw, 130px) - 60px); transition: top .5s; }
+.sm-overlay.shown .sm-text { top: calc(42% - min(30vw, 130px) - 60px); transition: top .5s; }
 .sm-skip { position: absolute; bottom: calc(16px + env(safe-area-inset-bottom)); font-size: 11px; color: rgba(255,255,255,.4); }
 .sm-spark { position: absolute; left: 50%; top: 42%; width: calc(6px * var(--s)); height: calc(6px * var(--s)); border-radius: 50%; box-shadow: 0 0 8px currentColor;
   animation: spark 1.1s ease-out forwards; pointer-events: none; }
