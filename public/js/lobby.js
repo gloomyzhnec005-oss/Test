@@ -138,6 +138,79 @@ window.Lobby = (() => {
     const has = order.length > 0;
     $('playBtn').textContent = has ? 'Начать' : 'Получить персонажа';
     $('playBtn').classList.toggle('summon', !has);
+    renderRoster();
+  }
+
+  // ---------- Все свои герои: лента, стрелки, свайп, окно «Мои герои» ----------
+  // Постоянный порядок: редкость (лучшие первыми), затем уровень, затем имя
+  const lvlOf = (id) => (profile.chars[id] || {}).level || 1;
+  const rosterSort = {
+    rarity: (a, b) => rankOf(heroes[b].rarity) - rankOf(heroes[a].rarity) || lvlOf(b) - lvlOf(a) || heroes[a].name.localeCompare(heroes[b].name),
+    level: (a, b) => lvlOf(b) - lvlOf(a) || rankOf(heroes[b].rarity) - rankOf(heroes[a].rarity),
+    name: (a, b) => heroes[a].name.localeCompare(heroes[b].name),
+  };
+  const roster = (sort = 'rarity') => profile.heroes.filter((id) => heroes[id]).sort(rosterSort[sort]);
+  function chip(id) {
+    const c = document.createElement('button');
+    c.className = 'r-chip';
+    c.dataset.id = id;
+    c.style.setProperty('--rarity', rarityOf(id).color);
+    c.appendChild(heroCanvas(id));
+    c.insertAdjacentHTML('beforeend', `<em>${lvlOf(id)}</em>`);
+    return c;
+  }
+  function renderRoster() {
+    const box = $('roster'), list = roster();
+    box.classList.toggle('hidden', list.length < 2);
+    $('heroPrev').classList.toggle('hidden', list.length < 2);
+    $('heroNext').classList.toggle('hidden', list.length < 2);
+    $('menuRoster').classList.toggle('hidden', list.length < 2);
+    $('menuRoster').textContent = `👥 Герои · ${list.length}`;
+    box.innerHTML = '';
+    list.forEach((id) => box.appendChild(chip(id)));
+    markRoster();
+  }
+  function markRoster() {
+    const box = $('roster');
+    box.querySelectorAll('.r-chip').forEach((c) => c.classList.toggle('active', c.dataset.id === order[0]));
+    const a = box.querySelector('.r-chip.active');
+    if (a) box.scrollTo({ left: a.offsetLeft - box.clientWidth / 2 + a.offsetWidth / 2, behavior: 'smooth' });
+  }
+  function cycle(dir) {
+    const list = roster();
+    if (list.length < 2) return;
+    const i = list.indexOf(order[0]);
+    select(list[(i + dir + list.length) % list.length]);
+  }
+  function rosterSheet() {
+    const box = document.createElement('div');
+    const rk = [['all', 'Все']].concat(RANK().slice().reverse().map((k) => [k, rarities[k].name]));
+    box.innerHTML = `<input class="r-search" placeholder="Поиск по имени" maxlength="20" />
+      <div class="r-filter">${rk.map(([k, n]) => `<button class="tw-tab${k === 'all' ? ' on' : ''}" data-rk="${k}" ${k !== 'all' ? `style="color:${rarities[k].color}"` : ''}>${n}</button>`).join('')}</div>
+      <div class="r-filter r-sort"><span>Сортировка:</span><button class="tw-tab on" data-sort="rarity">редкость</button><button class="tw-tab" data-sort="level">уровень</button><button class="tw-tab" data-sort="name">имя</button></div>
+      <div class="hero-grid"></div>`;
+    let f = 'all', sort = 'rarity', q = '';
+    const grid = box.querySelector('.hero-grid');
+    const draw = () => {
+      grid.innerHTML = '';
+      const list = roster(sort).filter((id) => (f === 'all' || heroes[id].rarity === f) && (!q || heroes[id].name.toLowerCase().includes(q)));
+      for (const id of list) {
+        const h = heroes[id], r = rarityOf(id), d = (profile.chars[id] || {}).dupes || 0;
+        const card = document.createElement('button');
+        card.className = 'hero-card owned' + (order[0] === id ? ' active' : '');
+        card.style.setProperty('--rarity', r.color);
+        card.appendChild(heroCanvas(id));
+        card.insertAdjacentHTML('beforeend', `<b>${h.name}</b><span>${r.name}</span><em>Ур. ${lvlOf(id)}${d ? ` ★${d}` : ''}</em>`);
+        card.onclick = () => { select(id); closeSheet(); };
+        grid.appendChild(card);
+      }
+      if (!list.length) grid.innerHTML = '<p class="sheet-hint" style="grid-column:1/-1">Никого не найдено</p>';
+    };
+    box.querySelectorAll('[data-rk]').forEach((b) => { b.onclick = () => { f = b.dataset.rk; box.querySelectorAll('[data-rk]').forEach((x) => x.classList.toggle('on', x === b)); draw(); }; });
+    box.querySelectorAll('[data-sort]').forEach((b) => { b.onclick = () => { sort = b.dataset.sort; box.querySelectorAll('[data-sort]').forEach((x) => x.classList.toggle('on', x === b)); draw(); }; });
+    box.querySelector('.r-search').oninput = (e) => { q = e.target.value.trim().toLowerCase(); draw(); };
+    draw();
+    return box;
   }
 
   // Перестановка без пересоздания: элементы плавно переезжают между слотами
@@ -149,6 +222,7 @@ window.Lobby = (() => {
     const byId = new Map([...$('stage').querySelectorAll('.hero[data-id]')].map((el) => [el.dataset.id, el]));
     // Если выбран герой, не стоявший на сцене (больше 5 героев), — пересобираем
     if (!byId.has(id)) { buildStage(); return; }
+    markRoster();
     const slots = [2, ...BACK_SLOTS];
     order.slice(0, slots.length).forEach((hid, i) => {
       const el = byId.get(hid);
@@ -289,17 +363,36 @@ window.Lobby = (() => {
     return box;
   }
 
-  function reelCard(id) {
+  // ---------- Барабан: рубашки карт по редкости ----------
+  // На барабане видна только редкость (цвет и звёзды), герой скрыт до раскрытия печати
+  // Только редкости, у которых есть герои (сейчас — эпические и легендарные), от низшей к высшей
+  const RANK = () => Object.keys(rarities).filter((k) => Object.values(heroes).some((h) => h.rarity === k));
+  const rankOf = (rk) => RANK().indexOf(rk);
+  const gRank = (rk) => Object.keys(rarities).indexOf(rk);    // место среди всех редкостей
+  const STARS = (rk) => '✦'.repeat(gRank(rk) + 1);
+  // Необязательные картинки рубашек: assets/gacha/back_<редкость>.png (если файла нет — рисуется CSS)
+  const backArt = {};
+  function loadBackArt() {
+    for (const rk of RANK()) {
+      const im = new Image();
+      im.onload = () => { backArt[rk] = `url(assets/gacha/back_${rk}.png)`; };
+      im.src = `assets/gacha/back_${rk}.png`;
+    }
+  }
+  function reelCard(rk) {
+    const r = rarities[rk];
     const card = document.createElement('div');
-    card.className = 'reel-card';
-    card.style.setProperty('--rarity', rarityOf(id).color);
-    card.appendChild(heroCanvas(id));
-    card.insertAdjacentHTML('beforeend', `<b>${heroes[id].name}</b>`);
+    card.className = 'reel-card back rk-' + rk;
+    card.dataset.rk = rk;
+    card.style.setProperty('--rarity', r.color);
+    if (backArt[rk]) card.style.setProperty('--art', backArt[rk]);
+    card.innerHTML = `<div class="rc-seal">◈</div><b>${STARS(rk)}</b><small>${r.name}</small>`;
     return card;
   }
 
-  // Заполняет барабан карточками; если задан result — он окажется под маркером на позиции WIN_INDEX
-  const WIN_INDEX = 36;
+  // Заполняет барабан; если задан result — его редкость окажется под маркером на позиции WIN_INDEX.
+  // Рядом с выигрышем иногда кладётся карта выше рангом — барабан «чуть-чуть не докрутил».
+  const WIN_INDEX = 40;
   function fillReel(reel, result) {
     reel.innerHTML = '';
     reel.style.transition = 'none';
@@ -307,9 +400,19 @@ window.Lobby = (() => {
     const ids = Object.keys(heroes);
     const weight = (id) => rarityOf(id).weight;
     const total = ids.reduce((s, id) => s + weight(id), 0);
-    const pick = () => { let r = Math.random() * total; for (const id of ids) { r -= weight(id); if (r < 0) return id; } return ids[0]; };
-    const n = result ? WIN_INDEX + 4 : 8;
-    for (let i = 0; i < n; i++) reel.appendChild(reelCard(result && i === WIN_INDEX ? result : pick()));
+    const pick = () => { let r = Math.random() * total; for (const id of ids) { r -= weight(id); if (r < 0) return heroes[id].rarity; } return heroes[ids[0]].rarity; };
+    const n = result ? WIN_INDEX + 5 : 9;
+    const cards = Array.from({ length: n }, pick);
+    let near = false;
+    if (result) {
+      const rk = heroes[result].rarity, top = RANK()[RANK().length - 1];
+      cards[WIN_INDEX] = rk;
+      if (rk !== top && Math.random() < 0.55) { cards[WIN_INDEX + 1] = top; near = true; }
+      // На подходе к финишу — побольше ярких карт, чтобы держать интригу
+      for (const k of [WIN_INDEX - 3, WIN_INDEX - 6]) if (Math.random() < 0.6) cards[k] = RANK()[Math.max(2, rankOf(rk))] || top;
+    }
+    cards.forEach((rk) => reel.appendChild(reelCard(rk)));
+    return near;
   }
 
   async function spin() {
@@ -329,29 +432,97 @@ window.Lobby = (() => {
       btn.textContent = spinLabel()[0];
       return;
     }
+    const rk = heroes[data.hero].rarity, high = rankOf(rk) >= RANK().length - 1;
     const reel = $('reel');
-    fillReel(reel, data.hero);
+    const near = fillReel(reel, data.hero);
     const card = reel.children[WIN_INDEX];
     const wrap = reel.parentElement;
-    // Небольшой случайный сдвиг внутри карточки, чтобы остановка выглядела живой
-    const jitter = (Math.random() - 0.5) * card.offsetWidth * 0.6;
+    wrap.classList.add('spinning');
+    // Остановка: при «почти» — у самого края, вплотную к карте выше рангом
+    const jitter = near ? card.offsetWidth * 0.4 : (Math.random() - 0.5) * card.offsetWidth * 0.6;
     const target = card.offsetLeft + card.offsetWidth / 2 - wrap.clientWidth / 2 + jitter;
+    const dur = high ? 6200 : 5000;
     reel.getBoundingClientRect(); // применить сброс перед анимацией
-    reel.style.transition = 'transform 4.2s cubic-bezier(.12,.75,.12,1)';
+    reel.style.transition = `transform ${dur}ms cubic-bezier(.08,.8,.1,1)`;
     reel.style.transform = `translateX(${-target}px)`;
-    // Щелчки барабана (вибрация)
-    let ticks = 0;
-    const tickTimer = setInterval(() => { if (++ticks < 18) haptic('selectionChanged'); }, 160);
-    setTimeout(() => {
-      clearInterval(tickTimer);
-      spinning = false;
+    // Карта под маркером подсвечивается, каждая смена — щелчок (вибрация)
+    let hot = null, alive = true;
+    const step = card.offsetWidth + 6;
+    const track = () => {
+      if (!alive) return;
+      const m = new DOMMatrix(getComputedStyle(reel).transform);
+      const i = Math.floor((-m.m41 + wrap.clientWidth / 2 - 6) / step);
+      const c = reel.children[i];
+      if (c && c !== hot) { if (hot) hot.classList.remove('hot'); c.classList.add('hot'); hot = c; haptic('selectionChanged'); }
+      requestAnimationFrame(track);
+    };
+    requestAnimationFrame(track);
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true; alive = false;
+      wrap.classList.remove('spinning');
+      card.classList.add('win');
+      if (near) reel.children[WIN_INDEX + 1].classList.add('miss');
       profile = data.profile;
       order = [data.hero, ...order.filter((k) => k !== data.hero)];
       opts.store.set('lastHero', data.hero);
       buildStage();
-      haptic('notificationOccurred', 'success');
-      showHeroInfo(data.hero, true, data.dupe);
-    }, 4400);
+      setTimeout(() => summon(data.hero, data.dupe), near ? 700 : 350);
+    };
+    setTimeout(finish, dur + 150);
+    wrap.onclick = () => { reel.style.transition = 'none'; reel.style.transform = `translateX(${-target}px)`; finish(); };
+  }
+
+  // ---------- Раскрытие печати ----------
+  // Печать загорается редкостями по очереди — от обычной до выпавшей, затем трескается и показывает силуэт героя
+  function summon(id, dupe) {
+    const h = heroes[id], rk = h.rarity, steps = RANK().slice(0, rankOf(rk) + 1);
+    const box = document.createElement('div');
+    box.className = 'summon';
+    box.innerHTML = `<div class="sm-rays"></div><div class="sm-seal"><i></i><i></i><i></i><span>◈</span></div>
+      <div class="sm-art"></div><div class="sm-text"></div><div class="sm-name"></div><div class="sm-skip">нажмите, чтобы пропустить</div>`;
+    $('reveal').parentElement.appendChild(box);
+    const art = box.querySelector('.sm-art');
+    art.appendChild(heroCanvas(id, true));
+    const text = box.querySelector('.sm-text');
+    const timers = [];
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+    let t = 200;
+    steps.forEach((k, i) => {
+      at(t, () => {
+        const r = rarities[k];
+        box.style.setProperty('--c', r.color);
+        box.dataset.rk = k;
+        box.classList.remove('pulse'); void box.offsetWidth; box.classList.add('pulse');
+        text.innerHTML = `<b>${r.name}${'!'.repeat(Math.max(0, gRank(k) - 1))}</b><small>${STARS(k)}</small>`;
+        haptic('impactOccurred', gRank(k) >= 3 ? 'heavy' : gRank(k) >= 2 ? 'medium' : 'light');
+      });
+      t += i === steps.length - 2 ? 1100 : 750;          // перед последней ступенью — пауза подольше
+    });
+    const top = steps.length === RANK().length;
+    at(t, () => {
+      box.classList.add('burst');
+      if (top) { box.classList.add('shake'); haptic('notificationOccurred', 'success'); }
+      burst(box, rarities[rk].color, [10, 20, 34, 60][gRank(rk)] || 20);
+    });
+    at(t + 500, () => { box.classList.add('shown'); box.querySelector('.sm-name').innerHTML = `${dupe ? `<small>Дубликат ★${dupe}</small>` : '<small>Новый герой</small>'}<b>${h.name}</b><em>«${h.title}»</em>`; });
+    at(t + 1500, () => box.classList.add('lit'));
+    const end = () => { timers.forEach(clearTimeout); box.remove(); showHeroInfo(id, true, dupe); };
+    at(t + 3200, end);
+    box.onclick = () => (box.classList.contains('lit') ? end() : (timers.forEach(clearTimeout), timers.length = 0,
+      box.style.setProperty('--c', rarities[rk].color), box.classList.add('burst', 'shown', 'lit'),
+      box.querySelector('.sm-name').innerHTML = `<b>${h.name}</b><em>«${h.title}»</em>`, text.innerHTML = `<b>${rarities[rk].name}</b>`, at(900, end)));
+    spinning = false;
+  }
+  function burst(box, color, n) {
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement('i');
+      p.className = 'sm-spark';
+      const a = Math.random() * Math.PI * 2, d = 90 + Math.random() * 180;
+      p.style.cssText = `--dx:${Math.cos(a) * d}px;--dy:${Math.sin(a) * d}px;--s:${0.5 + Math.random()};background:${Math.random() < 0.3 ? '#fff' : color};animation-delay:${Math.random() * 0.15}s`;
+      box.appendChild(p);
+    }
   }
 
   async function buySpin() {
@@ -502,6 +673,7 @@ window.Lobby = (() => {
       return;
     }
     await loadProfile();
+    loadBackArt();
 
     const lastHero = opts.store.get('lastHero');
     order = profile.heroes.includes(lastHero) ? [lastHero, ...profile.heroes.filter((k) => k !== lastHero)] : [...profile.heroes];
@@ -512,6 +684,19 @@ window.Lobby = (() => {
 
     $('menuHeroes').onclick = openGacha;
     $('menuBg').onclick = () => openSheet('Фон лобби', bgSheet());
+    $('menuRoster').onclick = () => openSheet('Мои герои', rosterSheet());
+    $('heroPrev').onclick = () => cycle(-1);
+    $('heroNext').onclick = () => cycle(1);
+    $('roster').onclick = (e) => { const c = e.target.closest('.r-chip'); if (c) select(c.dataset.id); };
+    // Свайп по сцене влево/вправо — следующий/предыдущий герой
+    let sx = null, sy = 0;
+    $('stage').addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+    $('stage').addEventListener('touchend', (e) => {
+      if (sx == null) return;
+      const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+      sx = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) cycle(dx < 0 ? 1 : -1);
+    }, { passive: true });
     $('menuAdmin').onclick = () => { location.href = '/admin.html'; };
     $('sheetClose').onclick = closeSheet;
     $('sheet').onclick = (e) => { if (e.target === $('sheet')) closeSheet(); };

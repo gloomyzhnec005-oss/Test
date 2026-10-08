@@ -264,7 +264,17 @@ window.Town = (() => {
       if (r.error) return toast(r.needPayment ? 'Нет круток — купите за Stars' : r.error);
       const res = el(`<p class="sheet-hint">Результат призыва · ⇧ — дубликат усилил ваш предмет</p>`);
       res.append(Bag.grid(r.results, (it) => Bag.card(it)));
-      res.querySelectorAll('.it').forEach((c, i) => { if (r.results[i] && r.results[i].dupe) c.insertAdjacentHTML('beforeend', '<u>⇧</u>'); });
+      // Карты лежат рубашкой вверх и переворачиваются от худшей к лучшей; перед легендарной — пауза и вспышка
+      const RO = Bag.inv().rarOrder;
+      const cells = [...res.querySelectorAll('.it')].map((c) => ({ c, it: r.results.find((x) => x.id === c.dataset.id) }));
+      cells.forEach(({ c, it }) => { c.classList.add('face'); c.style.setProperty('--rc', it.color); if (it.dupe) c.insertAdjacentHTML('beforeend', '<u>⇧</u>'); });
+      let t = 250;
+      cells.slice().reverse().sort((a, b) => RO.indexOf(a.it.rar) - RO.indexOf(b.it.rar)).forEach(({ c, it }) => {
+        const high = RO.indexOf(it.rar) >= RO.indexOf('legendary');
+        if (high) { setTimeout(() => c.classList.add('tease'), t); t += 900; }
+        setTimeout(() => { c.classList.remove('face', 'tease'); c.classList.add('flip', high ? 'flip-high' : 'flip-low'); }, t);
+        t += high ? 500 : 110;
+      });
       const again = document.createElement('button'); again.className = 'l2-btn wide'; again.textContent = 'Назад к алтарю'; again.onclick = gachaPanel;
       res.append(again);
       open('🎁 Призыв предметов', res);
