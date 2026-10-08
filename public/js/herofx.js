@@ -179,7 +179,10 @@ window.HeroFx = (() => {
   };
   // Удар по нарисованным листам для героев без собственной функции: кадры атаки + серп + вспышка
   function sheetAttack(sc, a, x, y, f) {
-    if (!heroAnim(sc, a, x, y)) return false;
+    if (!heroAnim(sc, a, x, y)) {
+      if (!hasFx(sc, a.skin, 'slash')) return false;
+      lunge(sc, a, x - a.c.x, y - a.c.y, 12, 80); // кадров атаки нет — рывок к цели
+    }
     a.combo = ((a.combo || 0) + 1) % 2;
     const ang = Math.atan2(y - a.c.y, x - a.c.x);
     sc.time.delayedCall(90, () => fxPlay(sc, a.skin, 'slash', (a.c.x + x) / 2, (a.c.y + y) / 2 - 10, { rot: ang, scale: 0.9, flipY: a.combo === 1 }));
@@ -190,7 +193,7 @@ window.HeroFx = (() => {
     return true;
   }
   function attack(sc, a, f, x, y) {
-    const fn = a && a.skin && (ATTACK[a.skin] || (hasAttack(sc, a.skin) && sheetAttack));
+    const fn = a && a.skin && (ATTACK[a.skin] || ((hasAttack(sc, a.skin) || hasFx(sc, a.skin, 'slash')) && sheetAttack));
     if (!fn) return false;
     face(a, x, y);
     return fn(sc, a, x, y, f);
@@ -429,6 +432,31 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    vayald: {
+      twinSlash(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y) || lunge(sc, c, f.x - c.c.x, f.y - c.c.y, 14, 90);
+        afterimage(sc, c, 0xff2a3a, 0.6, 300);
+        fxPlay(sc, 'vayald', 'twinSlash', f.x, f.y - 10, { scale: 1.4, repeat: 1 });
+        for (let i = 0; i < 4; i++) sc.time.delayedCall(60 + i * 110, () => fxPlay(sc, 'vayald', 'hit', f.x + (Math.random() - 0.5) * 16, f.y - 10 + (Math.random() - 0.5) * 12, { scale: 0.9 }));
+        shake(sc, f, 200, 0.006);
+        return true;
+      },
+      bloodFrenzy(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'vayald', 'bloodFrenzy', c.c.x, c.c.y - 6, { scale: 1.7, follow: c, dy: -6 });
+        afterimage(sc, c, 0xff2a3a, 0.7, 500);
+        sc.floatText(c.c.x, c.c.y - 56, '🩸 Кровавое безумие!', '#ff5a5a', 14);
+        shake(sc, f, 160, 0.006);
+        return true;
+      },
+      blindRage(sc, f, c) {
+        const ang = Math.atan2(f.y - f.fy, f.x - f.fx), dist = Math.hypot(f.x - f.fx, f.y - f.fy);
+        fxPlay(sc, 'vayald', 'blindRage', (f.fx + f.x) / 2, (f.fy + f.y) / 2 - 10, { rot: ang, scale: Math.max(1.2, dist / 55), flipY: f.x < f.fx });
+        for (let i = 0; i < 4; i++) sc.time.delayedCall(i * 50, () => afterimage(sc, c, 0xff2a3a, 0.5, 260));
+        shake(sc, f, 180, 0.008);
+        return true;
+      },
+    },
     vebrand: {
       bloodWhirl(sc, f, c) {
         heroAnim(sc, c, c.c.x, c.c.y + 20);

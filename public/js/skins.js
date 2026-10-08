@@ -16,6 +16,11 @@ window.Skins = (() => {
       attack: { sheet: 'assets/heroes/vebrand_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
       fx: { sheet: 'assets/heroes/vebrand_fx.png', size: 72, frames: 5, rows: ['slash', 'hit', 'bloodWhirl', 'furyRoar', 'stoneThrow', 'aura'] },
     },
+    vayald: {
+      sheet: 'assets/heroes/vayald_sheet.png', portrait: 'assets/heroes/vayald_portrait.png', w: 36, h: 48, frames: 5,
+      // Кадров атаки пока нет (удар — рывком), только нарисованные эффекты
+      fx: { sheet: 'assets/heroes/vayald_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'twinSlash', 'bloodFrenzy', 'blindRage', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   const DIRS = ['down', 'down-right', 'right', 'up-right', 'up', 'up-left', 'left', 'down-left'];

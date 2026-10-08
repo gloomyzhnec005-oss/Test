@@ -5,7 +5,7 @@
 # Выход: public/assets/heroes/<id>_attack.png (R × 5 кадров) и <id>_fx.png (N × K кадров) с прозрачностью.
 # Число рядов и кадров печатается в конце — их нужно вписать в public/js/skins.js.
 # Масштаб героя подгоняется под его лист ходьбы <id>_sheet.png, чтобы рост совпадал.
-# Запуск: python3 tools/cut_fx.py картинка.png <id героя> public/assets/heroes [x границы героя и эффектов] [кадров в ряду эффектов]
+# Запуск: python3 tools/cut_fx.py картинка.png <id героя> public/assets/heroes [x границы героя и эффектов, 0 — только эффекты] [кадров в ряду эффектов]
 import sys, numpy as np
 from PIL import Image
 from scipy import ndimage
@@ -44,57 +44,59 @@ divider = (~is_bg(im)).mean(0) > 0.85
 im[:, divider] = [0, 255, 0] if green else [0, 0, 0]
 mx = im.max(2)
 
-# ---------- Герой ----------
-if green:
-    spill = im[..., 1] - np.maximum(im[..., 0], im[..., 2])
-    bg = (im[..., 1] > 120) & (spill > 60)
-    bg |= ndimage.binary_dilation(bg, iterations=2) & (spill > 20)       # зелёная кайма
-    fix = ndimage.binary_dilation(bg, iterations=3) & ~bg & (spill > 0)
-    im[..., 1] = np.where(fix, np.maximum(im[..., 0], im[..., 2]), im[..., 1])
-else:
-    # Чёрный фон: тёмные пиксели, связанные с пустым пространством вокруг кадров
-    dark = mx <= 24
-    lab, _ = ndimage.label(dark)
-    sizes = ndimage.sum(np.ones_like(lab), lab, range(lab.max() + 1))
-    bg = dark & (sizes[lab] > 3000)
-hero = ~bg
-hero[:, split:] = False
-rows = bands((hero & (mx > 30)).sum(1))
-assert len(rows) >= 6, f'ожидалось не меньше 6 рядов героя, найдено {len(rows)}'
-cells = []
-for (y0, y1) in rows:
-    cs = bands((hero[y0:y1] & (mx[y0:y1] > 30)).sum(0), th=1, min_len=15)
-    # слипшиеся соседние кадры делим поровну
-    while len(cs) < 5:
-        i = max(range(len(cs)), key=lambda k: cs[k][1] - cs[k][0])
-        a, b = cs[i]; m = (a + b) // 2
-        cs[i:i + 1] = [(a, m), (m, b)]
-    cells.append([(y0, y1, x0, x1) for (x0, x1) in cs[:5]])
+if split > 0:  # split = 0 — на картинке только эффекты
+    # ---------- Герой ----------
+    if green:
+        spill = im[..., 1] - np.maximum(im[..., 0], im[..., 2])
+        bg = (im[..., 1] > 120) & (spill > 60)
+        bg |= ndimage.binary_dilation(bg, iterations=2) & (spill > 20)       # зелёная кайма
+        fix = ndimage.binary_dilation(bg, iterations=3) & ~bg & (spill > 0)
+        im[..., 1] = np.where(fix, np.maximum(im[..., 0], im[..., 2]), im[..., 1])
+    else:
+        # Чёрный фон: тёмные пиксели, связанные с пустым пространством вокруг кадров
+        dark = mx <= 24
+        lab, _ = ndimage.label(dark)
+        sizes = ndimage.sum(np.ones_like(lab), lab, range(lab.max() + 1))
+        bg = dark & (sizes[lab] > 3000)
+    hero = ~bg
+    hero[:, split:] = False
+    rows = bands((hero & (mx > 30)).sum(1))
+    assert len(rows) >= 6, f'ожидалось не меньше 6 рядов героя, найдено {len(rows)}'
+    cells = []
+    for (y0, y1) in rows:
+        cs = bands((hero[y0:y1] & (mx[y0:y1] > 30)).sum(0), th=1, min_len=15)
+        # слипшиеся соседние кадры делим поровну
+        while len(cs) < 5:
+            i = max(range(len(cs)), key=lambda k: cs[k][1] - cs[k][0])
+            a, b = cs[i]; m = (a + b) // 2
+            cs[i:i + 1] = [(a, m), (m, b)]
+        cells.append([(y0, y1, x0, x1) for (x0, x1) in cs[:5]])
 
-# Масштаб: рост в позе умения (ряд 6) = рост в листе ходьбы
-try:
-    walk = np.array(Image.open(f'{out}/{hid}_sheet.png'))[..., 3] > 0
-    wh = np.median([np.ptp(np.nonzero(walk[r * 48:(r + 1) * 48, 0:36].any(1))[0]) + 1 for r in range(8)])
-except FileNotFoundError:
-    wh = 45
-ch = np.median([y1 - y0 for (y0, y1, _, _) in cells[-1]])
-S = wh / ch
-CW, CH = 72, 60
-sheet = Image.new('RGBA', (CW * 5, CH * len(cells)), (0, 0, 0, 0))
-rgba = np.dstack([im.astype(np.uint8), (hero * 255).astype(np.uint8)])
-for r, row in enumerate(cells):
-    base = max(c[1] for c in row)
-    for f, (y0, y1, x0, x1) in enumerate(row):
-        crop = rgba[y0:base, x0:x1].copy()
-        a = crop[..., 3] > 0
-        legs = a[int(a.shape[0] * 0.6):]                 # центр по ногам: посох не сдвигает героя
-        cx = np.nonzero(legs.any(0))[0].mean() if legs.any() else crop.shape[1] / 2
-        img = Image.fromarray(crop)
-        w, h = max(1, round(img.width * S)), max(1, round(img.height * S))
-        img = img.resize((w, h), Image.LANCZOS)
-        arr = np.array(img); arr[..., 3] = np.where(arr[..., 3] > 110, 255, 0); img = Image.fromarray(arr)
-        sheet.paste(img, (f * CW + round(CW / 2 - cx * S), r * CH + CH - 1 - h), img)
-sheet.save(f'{out}/{hid}_attack.png')
+    # Масштаб: рост в позе умения (ряд 6) = рост в листе ходьбы
+    try:
+        walk = np.array(Image.open(f'{out}/{hid}_sheet.png'))[..., 3] > 0
+        wh = np.median([np.ptp(np.nonzero(walk[r * 48:(r + 1) * 48, 0:36].any(1))[0]) + 1 for r in range(8)])
+    except FileNotFoundError:
+        wh = 45
+    ch = np.median([y1 - y0 for (y0, y1, _, _) in cells[-1]])
+    S = wh / ch
+    CW, CH = 72, 60
+    sheet = Image.new('RGBA', (CW * 5, CH * len(cells)), (0, 0, 0, 0))
+    rgba = np.dstack([im.astype(np.uint8), (hero * 255).astype(np.uint8)])
+    for r, row in enumerate(cells):
+        base = max(c[1] for c in row)
+        for f, (y0, y1, x0, x1) in enumerate(row):
+            crop = rgba[y0:base, x0:x1].copy()
+            a = crop[..., 3] > 0
+            legs = a[int(a.shape[0] * 0.6):]                 # центр по ногам: посох не сдвигает героя
+            cx = np.nonzero(legs.any(0))[0].mean() if legs.any() else crop.shape[1] / 2
+            img = Image.fromarray(crop)
+            w, h = max(1, round(img.width * S)), max(1, round(img.height * S))
+            img = img.resize((w, h), Image.LANCZOS)
+            arr = np.array(img); arr[..., 3] = np.where(arr[..., 3] > 110, 255, 0); img = Image.fromarray(arr)
+            sheet.paste(img, (f * CW + round(CW / 2 - cx * S), r * CH + CH - 1 - h), img)
+    sheet.save(f'{out}/{hid}_attack.png')
+
 
 # ---------- Эффекты ----------
 fx = np.where(is_bg(im), 0, mx); fx[:, :split] = 0
@@ -138,4 +140,4 @@ for r, (y0, y1) in enumerate(frows):
         cell = Image.fromarray(np.dstack([rgb, alpha]).clip(0, 255).astype(np.uint8)).resize((FS, FS), Image.LANCZOS)
         fsheet.paste(cell, (f * FS, r * FS), cell)
 fsheet.save(f'{out}/{hid}_fx.png')
-print('split', split, 'scale', round(S, 3), 'hero rows', len(cells), 'fx rows', len(frows), 'fx frames', N)
+print('split', split, 'hero rows', len(cells) if split > 0 else 0, 'fx rows', len(frows), 'fx frames', N)
