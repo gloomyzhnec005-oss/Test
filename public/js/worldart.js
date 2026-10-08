@@ -32,7 +32,7 @@ window.WorldArt = (() => {
   // Какое дерево стоит на клетке леса
   const treeAt = (x, y) => { const h = hash(x + 7, y + 3); return h < 55 ? 'tree' : h < 72 ? 'goldTree' : 'bush'; };
   // Фоны лобби по городу, из которого игрок вышел (public/assets/lobby/<тема>_1..4.jpg)
-  const LOBBY = { green: 4, abyss: 4 };
+  const LOBBY = { green: 4, abyss: 3, sky: 1 };
   const lobbyBgs = (th) => Array.from({ length: LOBBY[th] || 0 }, (_, i) => `assets/lobby/${th}_${i + 1}.jpg`);
   return { has, preload, remap, treeAt, hash, lobbyBgs };
 })();
