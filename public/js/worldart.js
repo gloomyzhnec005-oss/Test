@@ -3,16 +3,20 @@
 // tiles.png — 16 тайлов 32×32: 0–9 как в Gfx.tileset, 10 трава-2, 11 мох, 12 стена руин, 13 пол данжа, 14 стена данжа, 15 трава.
 window.WorldArt = (() => {
   const PLACES = ['warehouse', 'equip', 'alchemy', 'smith', 'auction', 'market', 'runes', 'trainer', 'gacha', 'events', 'arena', 'survival'];
-  const OBJECTS = ['tree', 'goldTree', 'bush', 'stump', 'boulder', 'crystal', 'dragonStatue', 'lantern', 'fence', 'well', 'crates', 'flowers'];
+  // Объекты своего набора у каждого мира; игра использует tree/goldTree/bush, lantern и dragonStatue
+  const OBJECTS = {
+    green: ['tree', 'goldTree', 'bush', 'stump', 'boulder', 'crystal', 'dragonStatue', 'lantern', 'fence', 'well', 'crates', 'flowers'],
+    abyss: ['tree', 'goldTree', 'bush', 'crystal', 'boulder', 'lantern', 'banner', 'chainPost', 'cage', 'bones', 'dragonStatue', 'cauldron'],
+  };
   const PORTALS = ['teleport', 'arch', 'boss', 'exit', 'sign', 'chest'];
-  const THEMES = { green: true };
+  const THEMES = { green: true, abyss: true };
   const base = (th) => `assets/world/${th}`;
   // Загрузка в Phaser (вызывается из preload сцены)
   function preload(scene) {
     for (const th of Object.keys(THEMES)) {
       scene.load.image('tiles_' + th, `${base(th)}/tiles.png`);
       for (const p of PLACES) scene.load.image(`bld_${th}_${p}`, `${base(th)}/buildings/${p}.png`);
-      for (const o of OBJECTS) scene.load.image(`obj_${th}_${o}`, `${base(th)}/objects/${o}.png`);
+      for (const o of OBJECTS[th]) scene.load.image(`obj_${th}_${o}`, `${base(th)}/objects/${o}.png`);
       for (const o of PORTALS) scene.load.image(`ptl_${th}_${o}`, `${base(th)}/portals/${o}.png`);
     }
   }
@@ -27,5 +31,8 @@ window.WorldArt = (() => {
   }
   // Какое дерево стоит на клетке леса
   const treeAt = (x, y) => { const h = hash(x + 7, y + 3); return h < 55 ? 'tree' : h < 72 ? 'goldTree' : 'bush'; };
-  return { has, preload, remap, treeAt, hash };
+  // Фоны лобби по городу, из которого игрок вышел (public/assets/lobby/<тема>_1..4.jpg)
+  const LOBBY = { green: 4, abyss: 4 };
+  const lobbyBgs = (th) => Array.from({ length: LOBBY[th] || 0 }, (_, i) => `assets/lobby/${th}_${i + 1}.jpg`);
+  return { has, preload, remap, treeAt, hash, lobbyBgs };
 })();

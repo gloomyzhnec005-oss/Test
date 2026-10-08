@@ -9,7 +9,18 @@ window.Lobby = (() => {
   let opts, heroes = {}, rarities = {}, backgrounds = [];
   let profile = { heroes: [], chars: {}, bgs: ['throne', 'forest'], freeSpin: true, paidSpins: 0, spinPrice: 25 };
   let order = []; // полученные герои; order[0] — выбранный
-  let bgId = 'throne';
+  let bgId = 'city'; // 'city' — фон города, из которого игрок вышел; иначе выбранный фон
+  let cityPick = null;
+  // Фон города: картинки мира последнего города (WorldArt.lobbyBgs), одна случайная на сессию
+  function cityBg() {
+    let th = 'green';
+    try { th = localStorage.getItem('lastTown') || 'green'; } catch { /* */ }
+    const list = window.WorldArt ? WorldArt.lobbyBgs(th) : [];
+    if (!list.length) return null;
+    if (!cityPick || !list.includes(cityPick)) cityPick = list[Math.floor(Math.random() * list.length)];
+    return 'img:' + cityPick;
+  }
+  const realBg = (id) => (id === 'city' ? cityBg() || 'throne' : id);
   let fxType = 'embers';
   let running = false;
   let spinning = false;
@@ -160,7 +171,7 @@ window.Lobby = (() => {
     const cnv = $('lobbyBg');
     const w = window.innerWidth, h = window.innerHeight;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const res = LobbyBg.paint(cnv, bgId, w, h, dpr);
+    const res = LobbyBg.paint(cnv, realBg(bgId), w, h, dpr, () => running && paintBg());
     cnv.style.width = w + 'px';
     cnv.style.height = h + 'px';
     fxType = res.particles;
@@ -406,6 +417,18 @@ window.Lobby = (() => {
     const box = document.createElement('div');
     box.className = 'bg-grid';
     const tw = 140, th = Math.round(tw * Math.min(2, window.innerHeight / window.innerWidth));
+    // Фон города — по умолчанию: меняется вместе с городом, из которого вы вышли
+    if (cityBg()) {
+      const card = document.createElement('button');
+      card.className = 'bg-card' + (bgId === 'city' ? ' active' : '');
+      const thumb = document.createElement('canvas');
+      const paintThumb = () => LobbyBg.paint(thumb, cityBg(), tw, th, 1, paintThumb);
+      paintThumb();
+      card.appendChild(thumb);
+      card.insertAdjacentHTML('beforeend', `<div class="bg-label"><b>🏙 Фон города</b><span>${bgId === 'city' ? '✓ Выбран' : 'Меняется с городом'}</span></div>`);
+      card.onclick = () => { cityPick = null; applyBg('city'); closeSheet(); };
+      box.appendChild(card);
+    }
     for (const bg of backgrounds) {
       const owned = profile.bgs.includes(bg.id);
       const card = document.createElement('button');
@@ -482,7 +505,7 @@ window.Lobby = (() => {
     const lastHero = opts.store.get('lastHero');
     order = profile.heroes.includes(lastHero) ? [lastHero, ...profile.heroes.filter((k) => k !== lastHero)] : [...profile.heroes];
     const savedBg = opts.store.get('lobbyBg');
-    if (savedBg && profile.bgs.includes(savedBg) && savedBg !== bgId) applyBg(savedBg, false);
+    if (savedBg && (savedBg === 'city' || profile.bgs.includes(savedBg)) && savedBg !== bgId) applyBg(savedBg, false);
     buildStage();
     $('playBtn').disabled = false;
 

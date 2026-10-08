@@ -9,8 +9,8 @@ from scipy import ndimage
 
 src, theme, out = sys.argv[1], sys.argv[2], sys.argv[3]
 REGIONS = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {
-    'tiles': [0, 40, 480, 470], 'objects': [480, 30, 1000, 510], 'b1': [1000, 30, 1470, 510],
-    'b2': [0, 540, 380, 1000], 'b3': [380, 540, 725, 1000], 'portals': [725, 540, 1140, 1000],
+    'tiles': [0, 40, 480, 470], 'objects': [480, 30, 1000, 510], 'b1': [1000, 0, 1470, 510],
+    'b2': [0, 540, 380, 1000], 'b3': [380, 540, 725, 1000], 'portals': [725, 540, 1140, 1000], 'lobby': [1140, 560, 1470, 1000],
 }
 im = np.array(Image.open(src).convert('RGB')).astype(int)
 r, g, b = im[..., 0], im[..., 1], im[..., 2]
@@ -58,19 +58,25 @@ def tile(img, part=None):
     if part: fx, fy, fs = part; sq = sq.crop((int(fx * s), int(fy * s), int((fx + fs) * s), int((fy + fs) * s)))
     return sq.resize((32, 32), Image.LANCZOS)
 PART = {5: (0.36, 0.36, 0.28), 7: (0.04, 0.04, 0.3)}   # дорога — середина полосы, площадь — угол без круга
+if theme != 'green': PART = {7: (0.04, 0.04, 0.3)}       # в других мирах дорога — ровные плиты целиком
 # порядок игры: 0 трава, 1 вода, 2 под деревом, 3 дорога, 4 цветы, 5 земля, 6 скала, 7 под зданием, 8 площадь, 9 туман,
 # 10 трава-2, 11 мох, 12 стена руин, 13 пол данжа, 14 стена данжа, 15 трава
 ORDER = [0, 4, 0, 5, 2, 6, 8, 6, 7, None, 1, 3, 9, 10, 11, 0]
+if theme == 'abyss': ORDER[8] = 5   # площадь с рунами слишком пёстрая при повторе — берём плиты дороги
 sheet = Image.new('RGB', (32 * 16, 32), (0, 0, 0))
 for i, k in enumerate(ORDER):
     if k is not None: sheet.paste(tile(T[k], PART.get(k)), (i * 32, 0))
 sheet.save(f'{base}/tiles.png')
 
 # ---------- Объекты ----------
-OBJ = ['tree', 'goldTree', 'bush', 'stump', 'boulder', 'crystal', 'dragonStatue', 'lantern', 'fence', 'well', 'crates', 'flowers']
+# Имена объектов по порядку в блоке; игра использует tree/goldTree/bush (деревья), lantern (у телепорта), dragonStatue (у врат босса)
+OBJ = {
+    'green': ['tree', 'goldTree', 'bush', 'stump', 'boulder', 'crystal', 'dragonStatue', 'lantern', 'fence', 'well', 'crates', 'flowers'],
+    'abyss': ['tree', 'goldTree', 'bush', 'crystal', 'boulder', 'lantern', 'banner', 'chainPost', 'cage', 'bones', 'dragonStatue', 'cauldron'],
+}.get(theme, ['tree', 'goldTree', 'bush', 'stump', 'boulder', 'crystal', 'dragonStatue', 'lantern', 'fence', 'well', 'crates', 'flowers'])
 O = items(REGIONS['objects'])
 assert len(O) == 12, f'объектов {len(O)}, нужно 12'
-WIDTH = {'tree': 64, 'goldTree': 60, 'bush': 40, 'stump': 30, 'boulder': 40, 'crystal': 34, 'dragonStatue': 48, 'lantern': 22, 'fence': 44, 'well': 40, 'crates': 44, 'flowers': 36}
+WIDTH = {'banner': 30, 'chainPost': 30, 'cage': 32, 'bones': 40, 'cauldron': 36, 'tree': 64, 'goldTree': 60, 'bush': 40, 'stump': 30, 'boulder': 40, 'crystal': 34, 'dragonStatue': 48, 'lantern': 22, 'fence': 44, 'well': 40, 'crates': 44, 'flowers': 36}
 for n, img in zip(OBJ, O): fit(img, WIDTH[n]).save(f'{base}/objects/{n}.png')
 
 # ---------- Здания ----------
@@ -85,4 +91,13 @@ P = items(REGIONS['portals'])
 assert len(P) == 6, f'порталов {len(P)}, нужно 6'
 PW = {'teleport': 110, 'arch': 64, 'boss': 92, 'exit': 64, 'sign': 36, 'chest': 32}
 for n, img in zip(PORT, P): fit(img, PW[n]).save(f'{base}/portals/{n}.png')
+# ---------- Фоны лобби (4 картинки справа внизу) ----------
+if 'lobby' in REGIONS:
+    os.makedirs(f'{out}/../lobby', exist_ok=True)
+    L = items(REGIONS['lobby'])
+    for k, img in enumerate(L[:4]):
+        a = np.array(img)
+        a = a[3:-3, 3:-3]                                    # без рамки
+        Image.fromarray(a).convert('RGB').resize((a.shape[1] * 3, a.shape[0] * 3), Image.LANCZOS).save(f'{out}/../lobby/{theme}_{k + 1}.jpg', quality=88)
+    print('фонов лобби:', len(L[:4]))
 print('готово:', base)

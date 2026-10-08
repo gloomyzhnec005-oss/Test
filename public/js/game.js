@@ -128,6 +128,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.zoneObjs.forEach((o) => o.destroy());
     this.zoneObjs = [];
     this.zone = z;
+    if (z.kind === 'town') { try { localStorage.setItem('lastTown', z.theme); } catch { /* приватный режим */ } } // фон лобби — по этому городу
     const data2d = [];
     const art = WorldArt.has(z.theme), dungeon = z.kind !== 'town' && z.kind !== 'worldboss';
     for (let y = 0; y < z.h; y++) {

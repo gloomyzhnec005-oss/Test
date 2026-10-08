@@ -313,11 +313,30 @@ window.LobbyBg = (() => {
 
   const painters = { throne, forest, dragon, ice };
 
-  function paint(canvas, id, w, h, dpr = 1) {
+  // Нарисованный фон-картинка (фон города): «img:путь». Пока картинка грузится — тёмная заливка, затем onReady.
+  const imgs = {};
+  function paintImage(ctx, src, w, h, onReady) {
+    let im = imgs[src];
+    if (!im) { im = imgs[src] = new Image(); im.src = src; }
+    if (!im.complete || !im.naturalWidth) {
+      ctx.fillStyle = '#0c0a10'; ctx.fillRect(0, 0, w, h);
+      if (onReady) im.addEventListener('load', onReady, { once: true });
+      return { lights: [], particles: 'embers' };
+    }
+    const k = Math.max(w / im.naturalWidth, h / im.naturalHeight); // как object-fit: cover
+    const dw = im.naturalWidth * k, dh = im.naturalHeight * k;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(im, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    vignette(ctx, w, h, 0.55);
+    const dark = /abyss/.test(src);
+    return { lights: [], particles: dark ? 'embers' : 'fireflies' };
+  }
+  function paint(canvas, id, w, h, dpr = 1, onReady) {
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (String(id).startsWith('img:')) return paintImage(ctx, id.slice(4), w, h, onReady);
     return (painters[id] || throne)(ctx, w, h);
   }
 
