@@ -76,18 +76,42 @@ window.Town = (() => {
   }
 
   // ---------- Магазины ----------
-  async function shopPanel(kind, title) {
+  // Строка товара-материала: кнопки ×1 / ×5 / ×10 (с учётом дневного лимита)
+  function matRow(o, kind, reload) {
+    const m = o.mat;
+    const r = el(`<div class="tw-ev"><div class="row-it">${Bag.cell(m)}</div><div><b style="color:${m.color}">${m.icon} ${m.name}</b>
+      <small>${o.price} 💰 за шт.${o.left !== null ? ` · осталось сегодня ${o.left}` : ''}</small><small>${m.desc}</small></div><div class="btn-col"></div></div>`).firstElementChild;
+    r.querySelector('.row-it').onclick = () => Bag.card(m, []);
+    const col = r.querySelector('.btn-col');
+    for (const n of o.left !== null ? [1, o.left].filter((x, i, a) => x > 0 && a.indexOf(x) === i) : [1, 5, 10]) {
+      const b = document.createElement('button'); b.className = 'l2-btn'; b.textContent = `×${n} · ${o.price * n}`;
+      b.disabled = o.sold;
+      b.onclick = async () => { const res = await Bag.act('buy', { kind, oid: o.oid, n }); toast(res.error || res.toast); reload(); };
+      col.append(b);
+    }
+    return r;
+  }
+  async function shopList(kind) {
     const r = await Bag.act('shop', { kind });
     const box = document.createElement('div');
-    box.innerHTML = `<p class="sheet-hint">${TIER_LABEL[ctx.zone.tier]} · витрина обновляется каждый день · 💰 ${r.gold}</p>`;
+    const reload = async () => { const nb = await shopList(kind); box.replaceWith(nb); };
+    box.innerHTML = `<p class="sheet-hint">${TIER_LABEL[ctx.zone.tier]} · ${kind === 'alchemy' || kind === 'smith' ? 'товары не кончаются (кроме отмеченных)' : 'витрина обновляется каждый день'} · 💰 ${r.gold}</p>`;
     for (const o of r.offers || []) {
       const it = o.item;
-      box.append(it ? row(it, it.name, `${it.rarName} · ${Object.entries(it.stats).map(([k, v]) => Bag.statLine(k, v)).join(', ')}`,
-        o.sold ? 'Куплено' : `${o.price} 💰`, async () => { const res = await Bag.act('buy', { kind, oid: o.oid }); toast(res.error || res.toast); shopPanel(kind, title); }, o.sold)
-        : row(null, `${o.icon} ${o.name}`, o.desc, `${o.price} 💰`, async () => { const res = await Bag.act('buy', { kind, oid: o.oid }); toast(res.error || res.toast); shopPanel(kind, title); }));
+      if (o.mat) { box.append(matRow(o, kind, reload)); continue; }
+      box.append(row(it, it.name, `${it.rarName} · ${Object.entries(it.stats).map(([k, v]) => Bag.statLine(k, v)).join(', ')}`,
+        o.sold ? 'Куплено' : `${o.price} 💰`, async () => { const res = await Bag.act('buy', { kind, oid: o.oid }); toast(res.error || res.toast); reload(); }, o.sold));
     }
-    if (kind === 'alchemy') box.insertAdjacentHTML('beforeend', soon('📜 Свитки появятся позже'));
-    open(title, box);
+    return box;
+  }
+  async function shopPanel(kind, title) {
+    const sellTab = async () => {
+      const inv = await Bag.refresh();
+      const box = el('<p class="sheet-hint">Продажа торговцу — тап по предмету. Дороже можно продать игрокам на рынке и аукционе.</p>');
+      box.append(Bag.grid(inv.mats, (m) => Bag.card(m, Bag.matActions(m, () => shopPanel(kind, title))), { empty: 'Ресурсов нет', keepOrder: true }));
+      return box;
+    };
+    open(title, tabs([['Купить', () => shopList(kind)], ['Продать', sellTab]]));
   }
 
   // ---------- Склад ----------
@@ -104,14 +128,15 @@ window.Town = (() => {
   }
 
   // ---------- Рунная мастерская ----------
-  async function runesPanel(weaponId) {
+  async function runesBody(weaponId) {
     const inv = await Bag.refresh();
     const weapons = inv.items.filter((i) => i.cat === 'weapon');
     const box = document.createElement('div');
-    if (!weapons.length) { box.innerHTML = soon('Нет оружия — руны вставляются в оружие'); return open('💠 Рунная мастерская', box); }
+    if (!weapons.length) { box.innerHTML = soon('Нет оружия — руны вставляются в оружие'); return box; }
+    const reload = async (id) => box.replaceWith(await runesBody(id));
     const w = weapons.find((i) => i.id === weaponId) || weapons.find((i) => Bag.isEquipped(i)) || weapons[0];
-    box.innerHTML = `<p class="sheet-hint">Выберите оружие, затем руну из сумки. Извлечение руны — ${50 * w.tier} 💰</p><div class="ic-sec">Оружие</div>`;
-    box.append(Bag.grid(weapons, (it) => runesPanel(it.id), { selected: new Set([w.id]) }));
+    box.innerHTML = `<p class="sheet-hint">Выберите оружие, затем руну из сумки. Гнёзд: обычное/редкое 1, эпическое/легендарное 2, мифическое 3. Извлечение руны — ${50 * w.tier} 💰</p><div class="ic-sec">Оружие</div>`;
+    box.append(Bag.grid(weapons, (it) => reload(it.id), { selected: new Set([w.id]) }));
     box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Гнёзда «${w.name}»: ${w.runes.length} / ${w.sockets}</div>`);
     const sock = document.createElement('div');
     sock.className = 'merge-slots';
@@ -120,15 +145,16 @@ window.Town = (() => {
       const b = e.target.closest('.it');
       const idx = [...sock.children].indexOf(b);
       if (!b || idx < 0 || idx >= w.runes.length) return;
-      const r = await Bag.act('unsocket', { weapon: w.id, idx }); toast(r.error || r.toast); runesPanel(w.id);
+      const r = await Bag.act('unsocket', { weapon: w.id, idx }); toast(r.error || r.toast); reload(w.id);
     };
     box.append(sock);
     box.insertAdjacentHTML('beforeend', '<div class="ic-sec">Руны в сумке — тап, чтобы вставить</div>');
     box.append(Bag.grid(inv.items.filter((i) => i.cat === 'rune' && i.loc !== 'wh'), async (rn) => {
-      const r = await Bag.act('socket', { weapon: w.id, rune: rn.id }); toast(r.error || r.toast); runesPanel(w.id);
-    }, { empty: 'Рун нет — их можно купить в лавке эликсиров или выбить' }));
-    open('💠 Рунная мастерская', box);
+      const r = await Bag.act('socket', { weapon: w.id, rune: rn.id }); toast(r.error || r.toast); reload(w.id);
+    }, { empty: 'Рун нет — купите во вкладке «Купить руны» или выбейте с монстров' }));
+    return box;
   }
+  const runesPanel = () => open('💠 Рунная мастерская', tabs([['Вставить руну', () => runesBody()], ['Купить руны', () => shopList('runes')]]));
 
   // ---------- Рынок (фиксированная цена) ----------
   async function marketPanel(tab = 0) {
@@ -147,7 +173,10 @@ window.Town = (() => {
       const add = document.createElement('button');
       add.className = 'l2-btn wide'; add.textContent = '＋ Выставить предмет';
       add.onclick = () => Bag.pick('Что продаём?', () => true, (it) => priceForm(it, 'Цена', (price) => Bag.act('marketSell', { id: it.id, price }), () => marketPanel(1)));
-      box.append(add);
+      const addM = document.createElement('button');
+      addM.className = 'l2-btn wide'; addM.textContent = '＋ Выставить материалы';
+      addM.onclick = () => pickMat((m) => matForm(m, 'Цена за всю стопку', (price, n) => Bag.act('marketSell', { mat: m.mat, n, price }), () => marketPanel(1)));
+      box.append(add, addM);
       return box;
     };
     open('🏪 Рынок', tabs([['Купить', buyTab], ['Мой прилавок', myTab]], tab));
@@ -158,6 +187,27 @@ window.Town = (() => {
     box.querySelector('button.l2-btn.wide').onclick = async () => {
       const v = box.querySelector('input').value, sel = box.querySelector('select');
       const res = await submit(Number(v), sel ? sel.value : null);
+      toast(res.error || res.toast);
+      if (!res.error) done();
+    };
+    open('Цена', box);
+  }
+
+  // Выбор материала и формы «количество + цена»
+  async function pickMat(onPick) {
+    const inv = await Bag.refresh();
+    const box = el('<p class="sheet-hint">Какие материалы, свитки или зелья продаём?</p>');
+    box.append(Bag.grid(inv.mats, onPick, { empty: 'Ресурсов нет', keepOrder: true }));
+    open('Что продаём?', box);
+  }
+  function matForm(m, label, submit, done, extra = '') {
+    const box = el(`<div class="tw-form"><input class="qty" type="number" min="1" max="${m.n}" inputmode="numeric" value="${m.n}" placeholder="Количество (до ${m.n})">
+      <input class="price" type="number" min="10" inputmode="numeric" placeholder="${label}, 💰" value="${Math.max(10, m.sell * m.n * 2)}">${extra}</div>
+      <p class="sheet-hint">Торговец купит за ${m.sell} 💰 штуку — ставьте цену выше, игроки покупают дешевле, чем в лавке</p><button class="l2-btn wide">Подтвердить</button>`);
+    box.prepend(row(m, `${m.name}`, `в наличии ${m.n}`, null));
+    box.querySelector('button.l2-btn.wide').onclick = async () => {
+      const sel = box.querySelector('select');
+      const res = await submit(Number(box.querySelector('.price').value), Number(box.querySelector('.qty').value), sel ? sel.value : null);
       toast(res.error || res.toast);
       if (!res.error) done();
     };
@@ -188,7 +238,11 @@ window.Town = (() => {
       add.onclick = () => Bag.pick('Что выставляем?', () => true, (it) => priceForm(it, 'Стартовая цена',
         (start, hours) => Bag.act('auctionSell', { id: it.id, start, hours }), () => auctionPanel(1),
         '<select><option value="2">2 ч</option><option value="8" selected>8 ч</option><option value="24">24 ч</option></select>'));
-      box.append(add);
+      const addM = document.createElement('button');
+      addM.className = 'l2-btn wide'; addM.textContent = '＋ Выставить материалы';
+      addM.onclick = () => pickMat((m) => matForm(m, 'Стартовая цена за стопку', (start, n, hours) => Bag.act('auctionSell', { mat: m.mat, n, start, hours }), () => auctionPanel(1),
+        '<select><option value="2">2 ч</option><option value="8" selected>8 ч</option><option value="24">24 ч</option></select>'));
+      box.append(add, addM);
       return box;
     };
     open('🏛️ Аукционный дом', tabs([['Торги', lotsTab], ['Мои лоты', myTab]], tab));
@@ -200,7 +254,7 @@ window.Town = (() => {
     const box = el(`<p class="sheet-hint">Алтарь призыва · ${ctx.zone.name}</p>
       <div class="tw-banner hero"><b>✨ Призыв героя</b><small>Новый герой или дубликат: +5% к статам и раньше открытые умения</small><button class="l2-btn" id="twHeroSpin">Призвать</button></div>
       <div class="tw-banner items"><b>🎁 Призыв предметов</b>
-        <small>Оружие, броня, бижутерия и руны мира ${ROMAN[ctx.zone.tier]} · редкий 62% · эпический 29% · легендарный 7.5% · мифический 1.5%<br>
+        <small>Экипировка и руны мира ${ROMAN[ctx.zone.tier]} · редкий 62% · эпический 29% · легендарный 7.5% · мифический 1.5% · каждая эпическая и лучше — с шансом 25% вещь комплекта<br>
         Гарант легендарного: ${inv.pity} / ${inv.pityMax} · бесплатно сегодня: ${inv.freeItemSpins} · круток: ${inv.itemSpins}</small>
         <div class="btn-row"><button class="l2-btn" data-n="1">Призвать ×1</button><button class="l2-btn" data-n="10">×10</button></div>
         <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · 15 ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · 135 ⭐</button></div></div>`);
@@ -259,6 +313,8 @@ window.Town = (() => {
         <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · ${s.itemSpin.price} ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · ${s.itemSpin.price10} ⭐</button></div></div>
       <div class="tw-banner pass"><b>🎟️ Премиум батл-пасс</b><small>Мифический предмет на 30 уровне, легендарные на 20 и 25</small>
         <button class="l2-btn" data-buy="pass" ${s.premium ? 'disabled' : ''}>${s.premium ? 'Уже куплен' : `${s.passPrice} ⭐`}</button></div>
+      ${(s.chests || []).map((c) => `<div class="tw-banner items"><b>${{ kitSmith: '🧰', chestSet: '🎁', chestSet5: '🎁', chestLegend: '👑' }[c.id] || '🎁'} ${c.title}</b><small>${c.desc} · открывается в сумке, награда — мира, где вы его открыли</small>
+        <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}
       <div class="tw-banner ad"><b>📺 Награда за рекламу</b><small>Осталось сегодня: ${s.adsLeft} · золото, каждая 5-я — крутка предмета</small>
         <button class="l2-btn" id="watchAd" ${s.adsLeft > 0 ? '' : 'disabled'}>Смотреть</button></div>`);
     box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, storePanel); });
@@ -373,19 +429,61 @@ window.Town = (() => {
     open('📖 Зал мастеров', tabs([['Умения', skills], ['Ветка характеристик', tree]]));
   }
 
-  function smithPanel() {
-    open('🔨 Кузница', tabs([['Соединение 5 → 1', () => Bag.mergeTab()], ['Дубликаты', `<p class="sheet-hint">Дубликат — тот же предмет той же редкости и мира, выпавший с монстра или из призыва.
-      Он не занимает место, а усиливает оригинал на 5% (до +50%, 10 копий). Редкость не меняется.</p>
-      <p class="sheet-hint">Соединение — страховка для невезучих: из любых пяти предметов одной редкости — один следующей.
-      Дубликаты — путь к максимальной силе конкретного предмета.</p>`]]));
+  // ---------- Кузница: ковка (улучшение редкости), вещи комплектов, разбор, лавка кузнеца ----------
+  const needList = (c) => Object.entries(c.need).map(([k, n]) => `<span class="${(c.have[k] || 0) >= n ? 'ok' : 'bad'}">${c.names[k]} ${c.have[k] || 0}/${n}</span>`).join(' ');
+  async function forgeBody(itemId) {
+    const inv = await Bag.refresh();
+    const box = document.createElement('div');
+    const reload = async (id) => box.replaceWith(await forgeBody(id));
+    const items = inv.items.filter((i) => i.loc !== 'wh');
+    const it = items.find((i) => i.id === itemId);
+    box.innerHTML = `<p class="sheet-hint">Ковка поднимает редкость предмета на ступень: свиток + материалы мира предмета + золото. Атрибуты выпадают заново.
+      Чертёж превращает эпический (и лучше) предмет в вещь комплекта того же слота. 💰 ${inv.gold}</p>`;
+    if (it) {
+      const r = await Bag.act('craftInfo', { id: it.id });
+      const sec = el(`<div class="forge"><div class="row-it">${Bag.cell(it)}</div><div><b style="color:${it.color}">${it.name}</b><small>${it.rarName} · мир ${ROMAN[it.tier]}</small></div></div>`);
+      sec.querySelector('.row-it').onclick = () => Bag.card(it, []);
+      box.append(sec);
+      if (r.up) {
+        const u = el(`<div class="tw-ev"><div><b>⚒️ Улучшить до: ${inv.rarities[r.up.next].name}</b><small>${needList(r.up)}</small><small>${r.up.gold} 💰</small></div><button class="l2-btn">Ковать</button></div>`).firstElementChild;
+        u.querySelector('button').onclick = async () => { const res = await Bag.act('upgrade', { id: it.id }); toast(res.error || res.toast); if (!res.error) Bag.card(res.result, []); reload(it.id); };
+        box.append(u);
+      } else box.insertAdjacentHTML('beforeend', soon('Мифический предмет — улучшать некуда. Усиливайте его дубликатами.'));
+      for (const st of r.sets) {
+        const u = el(`<div class="tw-ev"><div><b>🗺️ ${st.name}</b><small>${needList(st)}</small><small>${st.gold} 💰</small></div><button class="l2-btn">Создать</button></div>`).firstElementChild;
+        u.querySelector('button').onclick = async () => { const res = await Bag.act('setCraft', { id: it.id, bp: st.bp }); toast(res.error || res.toast); if (!res.error) Bag.card(res.result, []); reload(it.id); };
+        box.append(u);
+      }
+      if (!r.sets.length && !it.set && inv.rarOrder.indexOf(it.rar) >= 2) box.insertAdjacentHTML('beforeend', soon(`Нет чертежей мира ${ROMAN[it.tier]} — они падают с полубоссов и боссов данжей`));
+      if (!Bag.isEquipped(it)) {
+        const sv = el(`<div class="tw-ev"><div><b>♻️ Разобрать</b><small>Получите: ${r.salvage}</small></div><button class="l2-btn warn">Разобрать</button></div>`).firstElementChild;
+        sv.querySelector('button').onclick = async () => { const res = await Bag.act('salvage', { id: it.id }); toast(res.error || res.toast); reload(); };
+        box.append(sv);
+      }
+    }
+    box.insertAdjacentHTML('beforeend', `<div class="ic-sec">${it ? 'Другой предмет' : 'Выберите предмет'}</div>`);
+    box.append(Bag.grid(items.filter((i) => i.cat !== 'rune'), (x) => reload(x.id), { selected: new Set(it ? [it.id] : []), empty: 'Нет предметов' }));
+    return box;
+  }
+  function recipesTab() {
+    const R = [['Обычный → редкий', '📜 Свиток подмастерья · руда ×5 · 150 💰'], ['Редкий → эпический', '📜 Свиток мастера · руда ×12 · эссенция ×5 · 600 💰'],
+      ['Эпический → легендарный', '📜 Свиток грандмастера · руда ×25 · эссенция ×15 · редкий материал ×1 · 2500 💰'],
+      ['Легендарный → мифический', '📜 Свиток легенды · руда ×50 · эссенция ×30 · редкий материал ×3 · 8000 💰'],
+      ['Вещь комплекта', '🗺️ Чертёж · эпический+ предмет того же мира · руда ×15 · эссенция ×10 · редкий материал ×1 · 1500 💰']];
+    return el(`<p class="sheet-hint">Золото — для мира I; в мире II ×2.2, в мире III ×4.5. Материалы — того же мира, что и предмет.</p>`
+      + R.map(([a, b]) => `<div class="tw-ev"><div><b>${a}</b><small>${b}</small></div></div>`).join('')
+      + `<p class="sheet-hint">Где брать: руда и эссенция — с любых монстров мира; редкие материалы — полубоссы, боссы и мировые боссы; свитки мастера — полубоссы и боссы; свитки грандмастера и легенды — боссы миров II–III и мировые боссы; чертежи — только в «своём» данже (каждый данж отвечает за 2 комплекта).</p>`);
+  }
+  function smithPanel(itemId) {
+    open('🔨 Кузница', tabs([['Ковка', () => forgeBody(itemId)], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Рецепты', recipesTab], ['Лавка кузнеца', () => shopList('smith')]]));
   }
 
   const PANELS = {
     warehouse: warehousePanel,
     equip: () => shopPanel('equip', '⚔️ Оружие и доспехи'),
-    alchemy: () => shopPanel('alchemy', '🧪 Эликсиры и руны'),
+    alchemy: () => shopPanel('alchemy', '🧪 Эликсиры и свитки'),
     smith: smithPanel,
-    runes: () => runesPanel(),
+    runes: runesPanel,
     trainer: trainerPanel,
     auction: () => auctionPanel(),
     market: () => marketPanel(),
@@ -400,7 +498,7 @@ window.Town = (() => {
 
   return {
     setContext: (c) => { ctx = { ...ctx, ...c }; },
-    openPlace: (id) => PANELS[id] && PANELS[id](),
+    openPlace: (id, arg) => PANELS[id] && PANELS[id](arg),
     open, close, tabs, toast,
     lastTab: () => lastTabIdx,
     heroes: () => ctx.heroes,

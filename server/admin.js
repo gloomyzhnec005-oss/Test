@@ -179,13 +179,27 @@ module.exports = function createAdmin(ctx) {
         const n = Math.round(num(d.count, 1, 50, 1));
         let got = 0;
         for (let i = 0; i < n; i++) {
-          const item = cat ? I.createItem(cat, rar, tier) : I.rollItem(tier, { [rar]: 1 });
+          const item = I.CLASSES[d.set] ? I.createSetItem(d.set, tier, rar, cat && I.SLOTS[cat] ? cat : null) : cat ? I.createItem(cat, rar, tier) : I.rollItem(tier, { [rar]: 1 });
           const res = ctx.meta.grant(pr, item);
           if (res && res.error) break;
           got++;
         }
         refresh();
         return { text: `Выдано предметов: ${got}${got < n ? ' (сумка заполнена)' : ''}` };
+      }
+      case 'giveMat': {
+        if (!I.MATS[d.mat]) return { error: 'Нет такого ресурса' };
+        const n = Math.round(num(d.count, 1, 9999, 1));
+        I.addMat(pr, d.mat, n);
+        return { text: `Выдано: ${I.MATS[d.mat].name} ×${n}` };
+      }
+      case 'fullSet': {
+        const cls = I.CLASSES[d.set] ? d.set : null;
+        if (!cls) return { error: 'Выберите класс комплекта' };
+        const tier = Math.round(num(d.tier, 1, 3, 1)), rar = I.ITEM_RARITIES[d.rar] ? d.rar : 'epic';
+        for (const slot of I.SLOT_ORDER) ctx.meta.grant(pr, I.createSetItem(cls, tier, rar, slot));
+        refresh();
+        return { text: `Выдан полный комплект: ${I.SETS[cls + tier].name}` };
       }
       case 'clearItems': pr.items = []; pr.equip = {}; refresh(); return { text: 'Предметы и экипировка удалены' };
       case 'sub': {
@@ -334,7 +348,8 @@ module.exports = function createAdmin(ctx) {
     heroes: Object.entries(C.HEROES).map(([id, h]) => ({ id, name: h.name, title: h.title, rarity: h.rarity })),
     mobs: mobList(), ranks: Object.keys(MOBX.RANK),
     zones: [...ctx.world.byId.values()].filter((z) => z.kind === 'town' || String(z.id).startsWith('wb_')).map((z) => ({ id: z.id, name: zoneName(z.id) })),
-    cats: I.CATEGORIES, rarities: Object.fromEntries(Object.entries(I.ITEM_RARITIES).map(([k, v]) => [k, v.name])), maxLevel: MOBX.MAX_LEVEL, dupeMax: C.GACHA.heroDupeMax,
+    cats: I.CATEGORIES, classes: Object.fromEntries(Object.entries(I.CLASSES).map(([k, c]) => [k, c.name])),
+    mats: Object.fromEntries(Object.entries(I.MATS).map(([k, m]) => [k, `${m.icon} ${m.name}`])), rarities: Object.fromEntries(Object.entries(I.ITEM_RARITIES).map(([k, v]) => [k, v.name])), maxLevel: MOBX.MAX_LEVEL, dupeMax: C.GACHA.heroDupeMax,
   })));
   r.post('/players', act((d) => {
     const q = String(d.q || '').toLowerCase();

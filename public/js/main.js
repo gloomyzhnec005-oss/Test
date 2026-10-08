@@ -294,6 +294,12 @@
       });
       $('piYes').onclick = () => { socket.emit('party', { op: 'accept', id: inviteId }); $('partyInvite').classList.add('hidden'); };
       $('piNo').onclick = () => $('partyInvite').classList.add('hidden');
+      // Быстрое зелье: сначала большое, потом обычное
+      $('potBtn').onclick = async () => {
+        let r = await Bag.act('useMat', { mat: 'potHp2' });
+        if (r.error === 'Нет такого предмета') r = await Bag.act('useMat', { mat: 'potHp' });
+        Town.toast(r.error === 'Нет такого предмета' ? 'Нет зелий — купите в лавке эликсиров' : r.error || r.toast);
+      };
       $('partyBtn').onclick = () => {
         const box = document.createElement('div');
         const me = socket.id;

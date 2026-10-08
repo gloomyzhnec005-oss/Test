@@ -221,6 +221,10 @@
         <div class="row"><select id="itCat"><option value="">Любая категория</option>${opt(M.cats)}</select><select id="itRar">${opt(M.rarities, 'legendary')}</select>
           <select id="itTier"><option value="1">Мир I</option><option value="2">Мир II</option><option value="3">Мир III</option></select>
           <input id="itCount" type="number" value="1" min="1" max="50"><button class="btn" data-a="giveItem">Выдать</button></div>
+        <div class="row"><label>Комплект</label><select id="itSet"><option value="">— без комплекта —</option>${opt(M.classes)}</select>
+          <button class="btn" data-a="fullSet">Выдать полный комплект</button></div>
+        <p class="muted">Если выбран комплект, «Выдать» даёт вещи этого комплекта (слот — из категории).</p>
+        <div class="row"><label>Ресурс</label><select id="matId" class="wide">${opt(M.mats)}</select><input id="matN" type="number" value="10" min="1"><button class="btn" data-a="giveMat">Выдать</button></div>
         <div class="row"><button class="btn danger" data-a="clearItems">Удалить все предметы</button></div>
       </div>
 
@@ -271,7 +275,9 @@
         spins: () => edit('spins', { value: v('spinsVal') }), freeSpin: () => edit('freeSpin'), itemSpins: () => edit('itemSpins', { value: v('iSpinsVal') }),
         allHeroes: () => edit('allHeroes'), allLevel: () => edit('level', { value: v('allLvl') }), allDupes: () => edit('dupes', { value: v('allDup') }),
         allSkills: () => edit('skills', { value: 3 }), noSkills: () => edit('skills', { value: 0 }),
-        giveItem: () => edit('giveItem', { cat: v('itCat'), rar: v('itRar'), tier: v('itTier'), count: v('itCount') }),
+        giveItem: () => edit('giveItem', { cat: v('itCat'), rar: v('itRar'), tier: v('itTier'), count: v('itCount'), set: v('itSet') }),
+        fullSet: () => edit('fullSet', { set: v('itSet'), rar: v('itRar'), tier: v('itTier') }),
+        giveMat: () => edit('giveMat', { mat: v('matId'), count: v('matN') }),
         clearItems: () => confirm('Удалить все предметы игрока?') && edit('clearItems'),
         sub: () => edit('sub', { value: v('subDays') }), subOff: () => edit('sub', { value: 0 }), passXp: () => edit('passXp', { value: v('passXp') }),
         ban: () => confirm('Забанить игрока?') && edit('ban', { reason: v('banReason') }), unban: () => edit('unban'), kick: () => edit('kick'),

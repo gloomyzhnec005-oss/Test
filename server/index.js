@@ -16,6 +16,7 @@ const createDungeons = require('./dungeon');
 C.MONSTERS = MOBX.MOBS; // 75 видов монстров + миньоны (server/mobs.js)
 const createMeta = require('./meta');
 const createAdmin = require('./admin');
+const Loot = require('./loot');
 
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
@@ -45,6 +46,7 @@ function getProfile(uid) {
   pr.equip ??= {};
   pr.heroDupes ??= {};
   pr.itemSpins ??= 0;
+  I.migrate(pr); // старые слоты бижутерии → кольцо и амулет, стопки материалов
   if (pr.gold === undefined) pr.gold = Object.values(pr.chars).reduce((sum, c) => sum + (c.gold || 0), 0);
   // Удалённые из игры герои пропадают из профиля; если не осталось ни одного — возвращаем бесплатную крутку
   const before = pr.heroes.length;
@@ -206,6 +208,8 @@ const meta = createMeta({
   C, getProfile, saveProfiles, players, profiles,
   refreshPlayer: (p) => refreshPlayer(p), notifyUid: (uid, t) => notifyUid(uid, t),
   statsFor: (...a) => statsFor(...a), unlockedSkills: (...a) => unlockedSkills(...a),
+  // Свиток возвращения: в город текущего мира
+  toTown: (p) => { const z = world.byId.get(p.zone); const home = z && world.byId.get(z.town || z.id); if (!home || home.id === p.zone) return false; moveToZone(p, home.id); return true; },
 });
 
 // Бой монстров, данжи-лабиринты, выживание и мировые боссы (server/dungeon.js)
@@ -221,6 +225,7 @@ const D = createDungeons({
   getProfile: (uid) => getProfile(uid),
   addPassXp: (pr, n) => meta.addPassXp(pr, n),
   giveLoot: (...a) => giveLoot(...a),
+  giveMats: (...a) => giveMats(...a), rollMats: (...a) => Loot.rollMats(...a),
   rollItem: (...a) => I.rollItem(...a),
   corpses: () => corpses,
   removeCorpse: (c) => { corpses = corpses.filter((x) => x !== c); },
@@ -261,7 +266,7 @@ const xpForLevel = (lvl) => Math.round(40 * Math.pow(lvl, 1.6));
 // Статы героя: уровень + экипировка (pr.equip) + дубликаты героя (+5% за копию)
 const statsFor = (heroId, lvl, pr = null) => {
   const b = C.HEROES[heroId];
-  const g = pr ? I.gearStats(pr) : {};
+  const g = pr ? I.gearStats(pr, heroId) : {};
   const dk = 1 + I.DUPE_STEP * ((pr && pr.heroDupes && pr.heroDupes[heroId]) || 0);
   return {
     maxHp: Math.round((b.hp * (1 + 0.12 * (lvl - 1)) + (g.hp || 0)) * (1 + (g.hpP || 0) / 100) * dk),
@@ -279,7 +284,7 @@ function unlockedSkills(pr, heroId, byProgressOnly = false) {
 // Пересчёт статов игрока после смены экипировки, уровня или дубликатов
 function refreshPlayer(p) {
   const pr = getProfile(p.uid);
-  p.gear = I.gearStats(pr);
+  p.gear = I.gearStats(pr, p.heroId);
   const k = p.hp / (p.maxHp || 1);
   Object.assign(p, statsFor(p.heroId, p.char.level, pr));
   p.hp = Math.min(p.maxHp, Math.max(1, Math.round(p.maxHp * k)));
@@ -677,7 +682,24 @@ function dropLoot(killer, m) {
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
     const rolls = m.rank === 'boss' ? 2 : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult ? 1 : 0;
     for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, boss ? C.DROPS.boss[tier] : C.DROPS.weights[tier]), m);
+    // Материалы, свитки, чертежи и вещи комплектов данжа (server/loot.js)
+    const z = world.byId.get(m.zone);
+    const dungeon = z && z.kind === 'dungeon' ? { sets: Loot.dungeonSets(z.tier, z.dgIndex) } : null;
+    const drop = Loot.rollMats(m, tier, dungeon, luck * (m.lootMult ?? 1) * S.dropMult);
+    giveMats(o, pr, drop.mats, m);
+    for (const it of drop.items) giveLoot(o, pr, it, m);
   }
+}
+// Выдать стопку материалов: всплывающая надпись, в чат — только ценное (свитки, чертежи, редкие материалы)
+function giveMats(o, pr, mats, at) {
+  const names = [];
+  for (const [id, n] of Object.entries(mats)) {
+    I.addMat(pr, id, n);
+    const M = I.MATS[id];
+    names.push(`${M.icon}${n > 1 ? '×' + n : ''}`);
+    if (['scroll', 'blueprint'].includes(M.kind) || id.startsWith('core')) o.socket.emit('chat', { sys: true, text: `Добыча: ${M.icon} ${M.name}${n > 1 ? ' ×' + n : ''}` });
+  }
+  if (names.length && at) fx.push({ t: 'loot', x: at.x, y: at.y + 12, to: o.id, name: names.join(' '), color: '#e8d49a' });
 }
 function giveLoot(o, pr, item, at) {
   const res = meta.grant(pr, item);
@@ -714,7 +736,7 @@ io.on('connection', (socket) => {
       x: 0, y: 0, zone: null,
       dir: 1, dead: false, lastAttack: 0, lastHurt: 0, lastMove: Date.now(),
       skillReadyAt: {}, wrath: 0, roarUntil: 0, frenzyUntil: 0, bloodStacks: 0, lastKill: 0, favor: 0, empoweredUntil: 0, cheatUsed: false, lastHit: 0, dirty: false, lastStats: 0,
-      ...statsFor(heroId, char.level, getProfile(uid)), gear: I.gearStats(getProfile(uid)), unlocked: unlockedSkills(getProfile(uid), heroId),
+      ...statsFor(heroId, char.level, getProfile(uid)), gear: I.gearStats(getProfile(uid), heroId), unlocked: unlockedSkills(getProfile(uid), heroId),
     };
     p.hp = p.maxHp;
     p.res = startRes(p);

@@ -542,3 +542,21 @@ canvas.skin { object-fit: contain; }
 .joystick { left: 52px; bottom: calc(44px + env(safe-area-inset-bottom)); }
 .target, .wave-badge { left: 162px; right: 88px; width: auto; max-width: none; transform: none; }
 #targetName { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+#potBtn { top: calc(248px + env(safe-area-inset-top)); }
+/* Комплекты, материалы, кузница */
+.it.set { box-shadow: inset 0 0 0 2px #ffd36a55; }
+.it s { position: absolute; left: 2px; top: 0; font-size: 9px; text-decoration: none; color: #ffd36a; }
+.ic-rune.on { color: #7dff8a; }
+.ic-attr.warn { color: #ffb08a; }
+.bag-slots { grid-template-columns: repeat(4, 1fr); }
+.btn-col { display: flex; flex-direction: column; gap: 4px; }
+.btn-col .l2-btn { padding: 4px 8px; font-size: 11px; white-space: nowrap; }
+.forge { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
+.forge .row-it { width: 52px; flex: 0 0 52px; }
+.tw-ev small .ok { color: #7dff8a; } .tw-ev small .bad { color: #ff8a8a; }
+.tw-ev small span { margin-right: 6px; white-space: nowrap; }
+.tw-form .qty { margin-bottom: 6px; }
+/* Баннеры магазина: класс .hero занят героями лобби — сбрасываем их позиционирование */
+.tw-banner.hero { position: static; width: auto; height: auto; transform: none; filter: none; cursor: default; }
+.forge b, .forge small { display: block; }

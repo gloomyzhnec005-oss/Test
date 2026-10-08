@@ -607,6 +607,7 @@ module.exports = function createDungeons(d) {
       d.addPassXp(pr, 40);
       p.socket.emit('chat', { sys: true, text: `👹 Мировой босс повержен! Ваш вклад ${Math.round((m.contrib[p.uid] / total) * 100)}% · +${gold} 💰` });
       for (let i = 0; i < 2 + (part > 0.15 ? 1 : 0); i++) d.giveLoot(p, pr, d.rollItem(m.tier, C.DROPS.boss[m.tier]), m);
+      d.giveMats(p, pr, d.rollMats({ rank: 'world' }, m.tier, null).mats, m); // материалы, свитки и чертёж
       d.markDirty(p);
     }
     d.broadcast(`👹 Мировой босс «${MOBS[m.type].name}» повержен! Следующий — через ${Math.round(X.WORLD_BOSS_RESPAWN / 60000)} минут.`);
