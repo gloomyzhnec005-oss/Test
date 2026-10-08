@@ -5,7 +5,7 @@
 # Выход: public/assets/heroes/<id>_attack.png (R × 5 кадров) и <id>_fx.png (N × K кадров) с прозрачностью.
 # Число рядов и кадров печатается в конце — их нужно вписать в public/js/skins.js.
 # Масштаб героя подгоняется под его лист ходьбы <id>_sheet.png, чтобы рост совпадал.
-# Запуск: python3 tools/cut_fx.py картинка.png <id героя> public/assets/heroes [x границы героя и эффектов, 0 — только эффекты] [кадров в ряду эффектов]
+# Запуск: python3 tools/cut_fx.py картинка.png <id героя> public/assets/heroes [x границы героя и эффектов, 0 — только эффекты, ширина картинки — только герой] [кадров в ряду эффектов]
 import sys, numpy as np
 from PIL import Image
 from scipy import ndimage
@@ -98,46 +98,48 @@ if split > 0:  # split = 0 — на картинке только эффекты
     sheet.save(f'{out}/{hid}_attack.png')
 
 
-# ---------- Эффекты ----------
-fx = np.where(is_bg(im), 0, mx); fx[:, :split] = 0
-frows = bands((fx > 30).sum(1))
-FS = 72
-# число кадров в ряду эффектов — по первому ряду (след удара: отдельные пятна)
-r0 = bands((fx > 30).sum(1))[0]
-N = len(bands((fx[r0[0]:r0[1]] > 30).sum(0), th=1, min_len=15)) or 6
-N = int(sys.argv[5]) if len(sys.argv) > 5 else N if 4 <= N <= 8 else 6
-fsheet = Image.new('RGBA', (FS * N, FS * len(frows)), (0, 0, 0, 0))
-ys, xs = np.nonzero(fx > 30)
-fx0, fx1 = xs.min(), xs.max() + 1
-step = (fx1 - fx0) / N
-for r, (y0, y1) in enumerate(frows):
-    # границы кадров: самые пустые столбцы около ожидаемых мест (кадры стоят неровно)
-    prof = np.convolve(fx[y0:y1].sum(0).astype(float), np.ones(9) / 9, mode='same')
-    cuts = [fx0]
-    for k in range(1, N):
-        b = int(fx0 + step * k); lo, hi = int(b - step * 0.35), int(b + step * 0.35)
-        cuts.append(lo + int(np.argmin(prof[lo:hi])))
-    cuts.append(fx1)
-    for f in range(N):
-        # ячейка ровно по своему кадру (без соседей), затем вписываем в квадрат
-        box = [cuts[f], int(y0 - 2), cuts[f + 1], int(min(H, y1 + 2))]
-        part = im[box[1]:box[3], max(box[0], split):box[2]].astype(float)
-        if green:
-            # хромакей: прозрачность по «зелёности», зелёную кайму убираем
-            sp = part[..., 1] - np.maximum(part[..., 0], part[..., 2])
-            a = np.clip(1 - (sp - 15) / 70, 0, 1) * 255
-            part[..., 1] = np.where(sp > 0, np.maximum(part[..., 0], part[..., 2]), part[..., 1])
-        else:
-            # чёрный фон: альфа по яркости, цвет восстанавливаем
-            a = part.max(2)
-            part = np.where(a[..., None] > 0, part * 255 / np.maximum(a[..., None], 1), 0)
-        a = np.where(a < 14, 0, a)
-        side = max(part.shape[0], part.shape[1])
-        rgb = np.zeros((side, side, 3)); alpha = np.zeros((side, side))
-        oy, ox = (side - part.shape[0]) // 2, (side - part.shape[1]) // 2
-        rgb[oy:oy + part.shape[0], ox:ox + part.shape[1]] = part
-        alpha[oy:oy + part.shape[0], ox:ox + part.shape[1]] = a
-        cell = Image.fromarray(np.dstack([rgb, alpha]).clip(0, 255).astype(np.uint8)).resize((FS, FS), Image.LANCZOS)
-        fsheet.paste(cell, (f * FS, r * FS), cell)
-fsheet.save(f'{out}/{hid}_fx.png')
-print('split', split, 'hero rows', len(cells) if split > 0 else 0, 'fx rows', len(frows), 'fx frames', N)
+if split < W - 10:  # split = ширина картинки — на картинке только герой
+    # ---------- Эффекты ----------
+    fx = np.where(is_bg(im), 0, mx); fx[:, :split] = 0
+    frows = bands((fx > 30).sum(1))
+    FS = 72
+    # число кадров в ряду эффектов — по первому ряду (след удара: отдельные пятна)
+    r0 = bands((fx > 30).sum(1))[0]
+    N = len(bands((fx[r0[0]:r0[1]] > 30).sum(0), th=1, min_len=15)) or 6
+    N = int(sys.argv[5]) if len(sys.argv) > 5 else N if 4 <= N <= 8 else 6
+    fsheet = Image.new('RGBA', (FS * N, FS * len(frows)), (0, 0, 0, 0))
+    ys, xs = np.nonzero(fx > 30)
+    fx0, fx1 = xs.min(), xs.max() + 1
+    step = (fx1 - fx0) / N
+    for r, (y0, y1) in enumerate(frows):
+        # границы кадров: самые пустые столбцы около ожидаемых мест (кадры стоят неровно)
+        prof = np.convolve(fx[y0:y1].sum(0).astype(float), np.ones(9) / 9, mode='same')
+        cuts = [fx0]
+        for k in range(1, N):
+            b = int(fx0 + step * k); lo, hi = int(b - step * 0.35), int(b + step * 0.35)
+            cuts.append(lo + int(np.argmin(prof[lo:hi])))
+        cuts.append(fx1)
+        for f in range(N):
+            # ячейка ровно по своему кадру (без соседей), затем вписываем в квадрат
+            box = [cuts[f], int(y0 - 2), cuts[f + 1], int(min(H, y1 + 2))]
+            part = im[box[1]:box[3], max(box[0], split):box[2]].astype(float)
+            if green:
+                # хромакей: прозрачность по «зелёности», зелёную кайму убираем
+                sp = part[..., 1] - np.maximum(part[..., 0], part[..., 2])
+                a = np.clip(1 - (sp - 15) / 70, 0, 1) * 255
+                part[..., 1] = np.where(sp > 0, np.maximum(part[..., 0], part[..., 2]), part[..., 1])
+            else:
+                # чёрный фон: альфа по яркости, цвет восстанавливаем
+                a = part.max(2)
+                part = np.where(a[..., None] > 0, part * 255 / np.maximum(a[..., None], 1), 0)
+            a = np.where(a < 14, 0, a)
+            side = max(part.shape[0], part.shape[1])
+            rgb = np.zeros((side, side, 3)); alpha = np.zeros((side, side))
+            oy, ox = (side - part.shape[0]) // 2, (side - part.shape[1]) // 2
+            rgb[oy:oy + part.shape[0], ox:ox + part.shape[1]] = part
+            alpha[oy:oy + part.shape[0], ox:ox + part.shape[1]] = a
+            cell = Image.fromarray(np.dstack([rgb, alpha]).clip(0, 255).astype(np.uint8)).resize((FS, FS), Image.LANCZOS)
+            fsheet.paste(cell, (f * FS, r * FS), cell)
+    fsheet.save(f'{out}/{hid}_fx.png')
+
+print('split', split, 'hero rows', len(cells) if split > 0 else 0, 'fx rows', len(frows) if split < W - 10 else 0, 'fx frames', N if split < W - 10 else 0)
