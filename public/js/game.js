@@ -441,6 +441,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
       // Значки состояний: оглушение и ослабление
       const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '')
         + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '') + (m.mo ? '🤡' : '') + (m.st2 ? '⭐' : '') + (m.ds ? '🔯' : '') + (m.bd ? '⛓' : '') + (m.bl ? '🩸' : '') + (m.ch ? '💘' : '') + (m.cu ? '🕯️' : '') + (m.fs ? '❄️' + m.fs : '') + (m.sn ? '🗿' : m.pf ? '🪨' + m.pf : '');
+      // Печать тьмы Морвена — вращающийся знак под монстром
+      if (m.ds && !e.sealFx) e.sealFx = HeroFx.sealMark(this, e);
+      else if (!m.ds && e.sealFx) { e.sealFx.destroy(); e.sealFx = null; }
       if (m.sn) e.sprite.setTint(0x8a8a88); else if (e.stone) e.sprite.clearTint();
       e.stone = !!m.sn;
       if (status !== (e.status || '')) {
@@ -609,7 +612,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.burst(x, y, col, 6);
       };
       const attacker = f.pet ? this.pets.get(f.pet) : this.players.get(f.from);
-      if (attacker) this.tweens.add({ targets: attacker.sprite, scaleX: 1.2, scaleY: 0.9, duration: 70, yoyo: true });
+      // Герои с нарисованным скином: свой удар (рывок, взмах оружием) — public/js/herofx.js
+      const tx0 = e ? e.c.x : f.tx, ty0 = e ? e.c.y : f.ty;
+      const ownSwing = !f.pet && f.basic && !f.proj && attacker && HeroFx.attack(this, attacker, f, tx0, ty0);
+      if (attacker && !ownSwing) this.tweens.add({ targets: attacker.sprite, scaleX: 1.2, scaleY: 0.9, duration: 70, yoyo: true });
       if (f.pet && f.proj && f.pfx !== null) {
         // Выстрел турели
         const b = this.add.image(f.pfx, f.pfy - 6, 'proj_' + f.proj).setDepth(800);
@@ -623,6 +629,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
         p.rotation = Phaser.Math.Angle.Between(f.fx, f.fy, tx, ty);
         const dur = Phaser.Math.Distance.Between(f.fx, f.fy, tx, ty) * 1.4;
         this.tweens.add({ targets: p, x: tx, y: ty, duration: dur, onComplete: () => { p.destroy(); doHit(); } });
+      } else if (ownSwing) {
+        doHit();
       } else {
         // Взмах меча
         const slash = this.add.arc(f.tx, f.ty, 16, 200, 340, false).setStrokeStyle(3, 0xffffff).setDepth(800);
@@ -743,6 +751,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const sk = hero && hero.skills.find((k) => k.id === f.s);
     if (sk) this.floatText(caster.c.x, caster.c.y - 44, sk.icon + ' ' + sk.name, '#ffe08a', 12);
     if (f.from === this.myId && !f.quiet) this.ui.vibrate('medium');
+    if (HeroFx.skill(this, f)) return; // усиленные эффекты (public/js/herofx.js)
     switch (f.s) {
       case 'qiWave': {
         // Полоса энергии по направлению удара
