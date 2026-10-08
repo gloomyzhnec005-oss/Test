@@ -121,7 +121,7 @@ input, select, textarea { font-size: 16px !important; }
 /* Окно 7 */
 .start-btn {
   position: absolute; z-index: 4; left: 50%; transform: translateX(-50%);
-  top: 76%; width: min(38vw, 190px); padding: 11px; font-size: 18px; font-weight: bold; letter-spacing: 2px;
+  top: 76%; width: min(34vw, 190px); padding: 11px 6px; font-size: 18px; font-weight: bold; letter-spacing: 2px;
   color: #ffe9b0; border-color: #d4a63c;
   box-shadow: inset 0 1px 0 rgba(255,230,170,.35), 0 0 16px rgba(255,180,60,.35), 0 3px 8px rgba(0,0,0,.7);
 }
@@ -131,9 +131,9 @@ input, select, textarea { font-size: 16px !important; }
 /* Окно 8 */
 .lobby-menu {
   position: absolute; z-index: 4; right: 10px; bottom: calc(14px + env(safe-area-inset-bottom));
-  width: min(29vw, 160px); padding: 6px; display: flex; flex-direction: column; gap: 6px;
+  width: min(27vw, 150px); padding: 5px; display: flex; flex-direction: column; gap: 5px;
 }
-.lobby-menu .l2-btn { font-size: 12px; padding: 9px 4px; }
+.lobby-menu .l2-btn { font-size: 11px; padding: 7px 3px; line-height: 1.25; }
 
 /* Выдвижные списки */
 .sheet { position: absolute; inset: 0; z-index: 10; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; justify-content: center; }
@@ -260,7 +260,7 @@ input, select, textarea { font-size: 16px !important; }
 
 /* ---------- Гача ---------- */
 .lobby-menu #menuHeroes { color: #ffe9b0; border-color: #d4a63c; }
-.start-btn.summon { font-size: 13px; letter-spacing: .5px; width: min(46vw, 230px); animation: pulse 1.6s ease-in-out infinite; }
+.start-btn.summon { font-size: 13px; letter-spacing: .5px; width: min(34vw, 190px); white-space: nowrap; animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: inset 0 1px 0 rgba(255,230,170,.35), 0 0 26px rgba(255,190,70,.75), 0 3px 8px rgba(0,0,0,.7); } }
 .hero.mystery { filter: none; }
 .hero.mystery canvas { filter: brightness(0) drop-shadow(0 0 6px rgba(212,166,60,.7)); opacity: .75; }
@@ -571,7 +571,7 @@ canvas.skin { object-fit: contain; }
 .hero-arrow.next { left: calc(50% + min(30vw, 18vh)); }
 .hero-arrow:active { filter: brightness(1.4); }
 .roster {
-  position: absolute; z-index: 4; left: 10px; right: calc(min(29vw, 160px) + 22px); bottom: calc(14px + env(safe-area-inset-bottom));
+  position: absolute; z-index: 4; left: 10px; right: calc(min(27vw, 150px) + 22px); bottom: calc(14px + env(safe-area-inset-bottom));
   display: flex; gap: 5px; padding: 5px; overflow-x: auto; scrollbar-width: none; touch-action: pan-x;
   background: linear-gradient(180deg, rgba(28,24,20,.85), rgba(12,10,9,.85)); border: 1px solid #8a6d3b; border-radius: 6px;
 }

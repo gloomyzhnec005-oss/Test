@@ -136,7 +136,7 @@ window.Lobby = (() => {
     BACK_SLOTS.forEach((slot, i) => stage.appendChild(heroEl(order[i + 1] || null, slot)));
     renderPanel();
     const has = order.length > 0;
-    $('playBtn').textContent = has ? 'Начать' : 'Получить персонажа';
+    $('playBtn').textContent = has ? 'Начать' : '✨ Призвать героя';
     $('playBtn').classList.toggle('summon', !has);
     renderRoster();
   }
