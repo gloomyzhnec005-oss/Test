@@ -3,7 +3,13 @@
 // Лист: 8 рядов по направлениям (DIRS), в каждом ряду `frames` кадров ходьбы; кадр 0 — стойка.
 window.Skins = (() => {
   const LIST = {
-    bohai: { sheet: 'assets/heroes/bohai_sheet.png', portrait: 'assets/heroes/bohai_portrait.png', w: 36, h: 48, frames: 5 },
+    bohai: {
+      sheet: 'assets/heroes/bohai_sheet.png', portrait: 'assets/heroes/bohai_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 6 рядов по 5 кадров — вниз, вниз-вправо, вправо, вверх-вправо, вверх, поза умения
+      attack: { sheet: 'assets/heroes/bohai_attack.png', w: 72, h: 60, frames: 5 },
+      // Эффекты: ряды по 6 кадров, имя ряда — что он изображает
+      fx: { sheet: 'assets/heroes/bohai_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'qiWave', 'enlighten', 'harmony', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   const DIRS = ['down', 'down-right', 'right', 'up-right', 'up', 'up-left', 'left', 'down-left'];
@@ -34,5 +40,8 @@ window.Skins = (() => {
     }
     return c;
   }
-  return { LIST, DIRS, rowFor, canvas, get: (id) => LIST[id] };
+  // Ряд листа атаки по направлению ходьбы: влево — зеркало правых рядов
+  const ATTACK_ROW = [[0, false], [1, false], [2, false], [3, false], [4, false], [3, true], [2, true], [1, true]];
+  const attackRow = (walkRow) => ATTACK_ROW[walkRow] || ATTACK_ROW[0];
+  return { LIST, DIRS, rowFor, attackRow, canvas, get: (id) => LIST[id] };
 })();

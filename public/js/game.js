@@ -23,7 +23,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
   preload() {
     // Нарисованные скины героев: листы 8 направлений
     for (const [id, sk] of Object.entries(Skins.LIST)) {
-      if (this.heroes[id]) this.load.spritesheet('skin_' + id, sk.sheet, { frameWidth: sk.w, frameHeight: sk.h });
+      if (!this.heroes[id]) continue;
+      this.load.spritesheet('skin_' + id, sk.sheet, { frameWidth: sk.w, frameHeight: sk.h });
+      if (sk.attack) this.load.spritesheet('atk_' + id, sk.attack.sheet, { frameWidth: sk.attack.w, frameHeight: sk.attack.h });
+      if (sk.fx) this.load.spritesheet('fx_' + id, sk.fx.sheet, { frameWidth: sk.fx.size, frameHeight: sk.fx.size });
     }
   }
 
@@ -33,6 +36,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (!this.textures.exists('skin_' + id)) continue;
       for (let r = 0; r < 8; r++) {
         this.anims.create({ key: `skin_${id}_${r}`, frames: this.anims.generateFrameNumbers('skin_' + id, { start: r * sk.frames, end: r * sk.frames + sk.frames - 1 }), frameRate: 10, repeat: -1 });
+      }
+      // Кадры атаки и нарисованные эффекты (если есть)
+      if (sk.attack && this.textures.exists('atk_' + id)) {
+        for (let r = 0; r < 6; r++) this.anims.create({ key: `atk_${id}_${r}`, frames: this.anims.generateFrameNumbers('atk_' + id, { start: r * sk.attack.frames, end: r * sk.attack.frames + sk.attack.frames - 1 }), frameRate: 18, repeat: 0 });
+      }
+      if (sk.fx && this.textures.exists('fx_' + id)) {
+        sk.fx.rows.forEach((name, r) => this.anims.create({ key: `fx_${id}_${name}`, frames: this.anims.generateFrameNumbers('fx_' + id, { start: r * sk.fx.frames, end: r * sk.fx.frames + sk.fx.frames - 1 }), frameRate: 16, repeat: name === 'aura' ? -1 : 0 }));
       }
     }
 
@@ -284,7 +294,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
   // Направление и шаг скина: (vx, vy) — куда идём; moving — идём ли сейчас
   animSkin(e, vx, vy, moving) {
-    if (!e.skinOn) return;
+    if (!e.skinOn || e.attacking) return; // во время удара играет анимация атаки (HeroFx)
     if (vx || vy) e.row = Skins.rowFor(vx, vy);
     const key = `skin_${e.skin}_${e.row}`;
     if (moving) {
@@ -401,7 +411,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.c.addAt(e.guard, 0);
       } else if (!p.guard && e.guard) { e.guard.destroy(); e.guard = null; }
       // Свечение усиленной атаки (Дыхание гармонии)
-      if (p.emp && !e.emp) {
+      if (p.emp && !e.emp && e.skinOn && HeroFx.hasFx(this, e.skin, 'aura')) {
+        e.emp = HeroFx.auraSprite(this, e); // нарисованная аура усиления
+      } else if (p.emp && !e.emp) {
         e.emp = this.add.circle(0, 4, 15).setStrokeStyle(2, 0xffd36a, 0.9);
         e.c.addAt(e.emp, 0);
         this.tweens.add({ targets: e.emp, scale: 1.2, duration: 400, yoyo: true, repeat: -1 });

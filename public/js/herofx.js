@@ -10,7 +10,7 @@ window.HeroFx = (() => {
     const r = o.r || 36, w = o.w || 7, sweep = o.sweep || 2.6, dur = o.dur || 220;
     const dir = o.flip ? -1 : 1;
     const a0 = ang - (sweep / 2) * dir;
-    const g = sc.add.graphics({ x, y }).setDepth(o.depth || 860).setScale(1, o.flat ?? 0.62);
+    const g = sc.add.graphics({ x, y }).setDepth(o.depth || 9060).setScale(1, o.flat ?? 0.62);
     const draw = (t) => {
       g.clear();
       const head = a0 + sweep * dir * Math.min(1, t * 1.5);
@@ -33,12 +33,12 @@ window.HeroFx = (() => {
   }
   // Вспышка
   function flash(sc, x, y, r, col, dur = 260, a = 0.85) {
-    const c = sc.add.circle(x, y, r, col, a).setDepth(870).setScale(0.3).setBlendMode(Phaser.BlendModes.ADD);
+    const c = sc.add.circle(x, y, r, col, a).setDepth(9870).setScale(0.3).setBlendMode(Phaser.BlendModes.ADD);
     sc.tweens.add({ targets: c, scale: 1, alpha: 0, duration: dur, ease: 'Cubic.easeOut', onComplete: () => c.destroy() });
   }
   // Лучи из точки
   function rays(sc, x, y, n, len, col, o = {}) {
-    const g = sc.add.graphics({ x, y }).setDepth(865).setBlendMode(Phaser.BlendModes.ADD);
+    const g = sc.add.graphics({ x, y }).setDepth(9865).setBlendMode(Phaser.BlendModes.ADD);
     const off = Math.random() * TAU;
     sc.tweens.addCounter({ from: 0, to: 1, duration: o.dur || 380, ease: 'Cubic.easeOut', onUpdate: (tw) => {
       const t = tw.getValue();
@@ -55,7 +55,7 @@ window.HeroFx = (() => {
     const em = sc.add.particles(x, y, 'particle', {
       speed: { min: o.min || 60, max: o.max || 220 }, lifespan: o.life || 500, scale: { start: o.size || 1.4, end: 0 },
       tint: col, quantity: n, emitting: false, gravityY: o.gravity || 0, blendMode: 'ADD', angle: o.angle || { min: 0, max: 360 },
-    }).setDepth(880);
+    }).setDepth(9880);
     em.explode(n);
     sc.time.delayedCall((o.life || 500) + 150, () => em.destroy());
   }
@@ -86,6 +86,47 @@ window.HeroFx = (() => {
     const plane = sc.add.container(x, y, [g]).setDepth(depth).setScale(1, 0.5);
     return { g, plane };
   }
+  // ---------- Нарисованные кадры атаки и эффекты (Skins.LIST[id].attack / .fx) ----------
+  const hasFx = (sc, id, name) => sc.anims.exists(`fx_${id}_${name}`);
+  const hasAttack = (sc, id) => sc.anims.exists(`atk_${id}_0`);
+  // Проиграть кадры удара героя: по направлению к точке или позу умения (cast)
+  function heroAnim(sc, e, x, y, cast = false) {
+    if (!e || !e.skinOn || !hasAttack(sc, e.skin)) return false;
+    const sk = Skins.get(e.skin), A = sk.attack;
+    if (x !== undefined) e.row = Skins.rowFor(x - e.c.x, y - e.c.y);
+    const [row, flip] = cast ? [5, false] : Skins.attackRow(e.row || 0);
+    const s = e.sprite;
+    sc.tweens.killTweensOf(s); s.x = 0; s.y = 0;
+    e.attacking = true;
+    s.stop();
+    s.setTexture('atk_' + e.skin, row * A.frames).setOrigin(0.5, (A.h - 15) / A.h).setFlipX(flip);
+    s.play(`atk_${e.skin}_${row}`);
+    s.once('animationcomplete', () => {
+      e.attacking = false;
+      if (!e.skinOn) return;
+      s.setTexture('skin_' + e.skin, (e.row || 0) * sk.frames).setOrigin(0.5, (sk.h - 15) / sk.h).setFlipX(false);
+    });
+    return true;
+  }
+  // Нарисованный эффект в точке: проигрывается один раз и исчезает
+  function fxPlay(sc, id, name, x, y, o = {}) {
+    if (!hasFx(sc, id, name)) return null;
+    const sp = sc.add.sprite(x, y, 'fx_' + id).setDepth(o.depth || 9100).setScale(o.scale || 1).setRotation(o.rot || 0)
+      .setFlipY(!!o.flipY).setBlendMode(Phaser.BlendModes.ADD);
+    if (o.origin) sp.setOrigin(...o.origin);
+    sp.play(`fx_${id}_${name}`);
+    sp.once('animationcomplete', () => sp.destroy());
+    if (o.to) sc.tweens.add({ targets: sp, x: o.to.x, y: o.to.y, duration: o.dur || 380, ease: 'Cubic.easeOut' });
+    return sp;
+  }
+  // Аура усиления под героем (зацикленная)
+  function auraSprite(sc, e) {
+    const sp = sc.add.sprite(0, -4, 'fx_' + e.skin).setScale(0.75).setAlpha(0.9).setBlendMode(Phaser.BlendModes.ADD);
+    sp.play(`fx_${e.skin}_aura`);
+    e.c.addAt(sp, 0);
+    return sp;
+  }
+
   const shake = (sc, f, ms, k) => { if (f.from === sc.myId) sc.cameras.main.shake(ms, k); };
   const casterOf = (sc, f) => sc.players.get(f.from);
 
@@ -95,13 +136,24 @@ window.HeroFx = (() => {
     bohai(sc, a, x, y, f) {
       a.combo = ((a.combo || 0) + 1) % 3;
       const ang = Math.atan2(y - a.c.y, x - a.c.x), dist = Math.hypot(x - a.c.x, y - a.c.y);
+      // Нарисованный удар посохом: кадры атаки + серп удара + вспышка попадания
+      if (heroAnim(sc, a, x, y)) {
+        const k = Math.min(1, 26 / (dist || 1));
+        sc.time.delayedCall(90, () => fxPlay(sc, 'bohai', 'slash', a.c.x + (x - a.c.x) * (1 - k) * 0.6, a.c.y - 10 + (y - a.c.y) * (1 - k) * 0.6,
+          { rot: ang, scale: a.combo === 2 ? 1 : 0.8, flipY: a.combo === 1 }));
+        sc.time.delayedCall(140, () => {
+          fxPlay(sc, 'bohai', 'hit', x, y - 8, { scale: a.combo === 2 ? 1.1 : 0.75 });
+          if (a.combo === 2) { shock(sc, x, y + 4, 30, 0xffc850, { w: 3, dur: 380 }); shake(sc, f, 70, 0.003); }
+        });
+        return true;
+      }
       lunge(sc, a, x - a.c.x, y - a.c.y, a.combo === 2 ? 14 : 9);
       if (a.combo < 2) {
         slash(sc, a.c.x, a.c.y - 8, ang, { r: Math.max(32, Math.min(48, dist * 0.9)), w: 8, sweep: 2.7, col: 0xff9a2a, edge: 0xfff2c0, glow: 0xffc850, flip: a.combo === 1, dur: 200 });
         sparks(sc, x, y - 6, [0xffc850, 0xff8a1a], 8, { max: 160, life: 350 });
       } else {
         afterimage(sc, a, 0xffb040, 0.5, 260);
-        const g = sc.add.graphics().setDepth(862).setBlendMode(Phaser.BlendModes.ADD);
+        const g = sc.add.graphics().setDepth(9862).setBlendMode(Phaser.BlendModes.ADD);
         g.lineStyle(10, 0xffc850, 0.35).lineBetween(a.c.x, a.c.y - 8, x, y - 6);
         g.lineStyle(4, 0xfff2c0, 1).lineBetween(a.c.x, a.c.y - 8, x, y - 6);
         sc.tweens.add({ targets: g, alpha: 0, duration: 220, onComplete: () => g.destroy() });
@@ -135,7 +187,7 @@ window.HeroFx = (() => {
   // Серп-волна, летящая вперёд
   function wave(sc, x, y, dx, dy, len, o) {
     const ang = Math.atan2(dy, dx);
-    const g = sc.add.graphics({ x, y }).setDepth(862).setRotation(ang).setBlendMode(Phaser.BlendModes.ADD);
+    const g = sc.add.graphics({ x, y }).setDepth(9862).setRotation(ang).setBlendMode(Phaser.BlendModes.ADD);
     const R = o.r || 26;
     g.lineStyle(o.w * 2.4, o.glow, 0.25); g.beginPath(); g.arc(-R * 0.6, 0, R, -1.15, 1.15); g.strokePath();
     g.lineStyle(o.w, o.col, 0.95); g.beginPath(); g.arc(-R * 0.6, 0, R, -1.05, 1.05); g.strokePath();
@@ -159,6 +211,14 @@ window.HeroFx = (() => {
     // ---- Бохай ----
     qiWave(sc, f) {
       const c = casterOf(sc, f);
+      if (hasFx(sc, 'bohai', 'qiWave')) {
+        if (c) { heroAnim(sc, c, f.x + f.dx * 50, f.y + f.dy * 50); afterimage(sc, c, 0xffc850, 0.5, 300); }
+        const ang = Math.atan2(f.dy, f.dx);
+        fxPlay(sc, 'bohai', 'qiWave', f.x + f.dx * 24, f.y - 10 + f.dy * 24, { rot: ang, scale: 1.3, flipY: f.dx < 0, to: { x: f.x + f.dx * f.len, y: f.y - 10 + f.dy * f.len }, dur: 380 });
+        for (let i = 2; i <= 6; i += 2) sc.time.delayedCall(i * 55, () => shock(sc, f.x + f.dx * f.len * i / 6, f.y + 4 + f.dy * f.len * i / 6, 22, 0xffc850, { w: 2, dur: 320 }));
+        shake(sc, f, 120, 0.005);
+        return true;
+      }
       if (c) { face(c, f.x + f.dx * 50, f.y + f.dy * 50); lunge(sc, c, f.dx, f.dy, 14, 110); afterimage(sc, c, 0x46d6c8, 0.6, 320); }
       flash(sc, f.x + f.dx * 16, f.y - 8 + f.dy * 16, 26, 0x9ffcf0, 220);
       for (let i = 0; i < 3; i++) wave(sc, f.x + f.dx * 10, f.y - 8 + f.dy * 10, f.dx, f.dy, f.len, { col: i === 1 ? 0xffc850 : 0x46d6c8, glow: 0x46d6c8, w: 7 - i, r: 24 + i * 4, delay: i * 70, dur: 360, grow: 1.7 + i * 0.2 });
@@ -173,8 +233,18 @@ window.HeroFx = (() => {
     },
     enlighten(sc, f) {
       const c = casterOf(sc, f);
-      if (c) { face(c, f.x, f.y); lunge(sc, c, f.x - c.c.x, f.y - c.c.y, 16, 100); afterimage(sc, c, 0xffd36a, 0.6, 320); }
       const big = f.execute;
+      if (hasFx(sc, 'bohai', 'enlighten')) {
+        if (c) { heroAnim(sc, c, f.x, f.y); afterimage(sc, c, 0xffd36a, 0.6, 320); }
+        sc.time.delayedCall(80, () => {
+          fxPlay(sc, 'bohai', 'enlighten', f.x, f.y - 22, { scale: big ? 1.9 : 1.35 });
+          fxPlay(sc, 'bohai', 'hit', f.x, f.y - 8, { scale: big ? 1.6 : 1.1 });
+          shock(sc, f.x, f.y + 4, big ? 80 : 50, 0xffd36a, { w: big ? 6 : 4, dur: 480 });
+          if (big) { sc.floatText(f.x, f.y - 56, '☀️ Просветление!', '#fff2a0', 17); shake(sc, f, 260, 0.013); } else shake(sc, f, 140, 0.007);
+        });
+        return true;
+      }
+      if (c) { face(c, f.x, f.y); lunge(sc, c, f.x - c.c.x, f.y - c.c.y, 16, 100); afterimage(sc, c, 0xffd36a, 0.6, 320); }
       flash(sc, f.x, f.y - 8, big ? 60 : 40, 0xfff2c0, 300);
       rays(sc, f.x, f.y - 8, big ? 16 : 12, big ? 110 : 70, 0xffd36a, { w: big ? 4 : 3, dur: 420 });
       shock(sc, f.x, f.y + 4, big ? 90 : 55, 0xffd36a, { w: big ? 7 : 5, dur: 500 });
@@ -182,8 +252,8 @@ window.HeroFx = (() => {
       sparks(sc, f.x, f.y - 8, [0xfff2c0, 0xffd36a, 0xff9a2a], big ? 34 : 20, { max: big ? 320 : 240, life: 520 });
       if (big) {
         // Столп света с неба
-        const col = sc.add.rectangle(f.x, f.y - 160, 46, 320, 0xfff2c0, 0.75).setDepth(866).setBlendMode(Phaser.BlendModes.ADD).setScale(0.2, 1);
-        const core = sc.add.rectangle(f.x, f.y - 160, 14, 320, 0xffffff, 1).setDepth(867).setBlendMode(Phaser.BlendModes.ADD).setScale(0.2, 1);
+        const col = sc.add.rectangle(f.x, f.y - 160, 46, 320, 0xfff2c0, 0.75).setDepth(9866).setBlendMode(Phaser.BlendModes.ADD).setScale(0.2, 1);
+        const core = sc.add.rectangle(f.x, f.y - 160, 14, 320, 0xffffff, 1).setDepth(9867).setBlendMode(Phaser.BlendModes.ADD).setScale(0.2, 1);
         sc.tweens.add({ targets: [col, core], scaleX: 1, duration: 120, yoyo: true, hold: 160, onComplete: () => { col.destroy(); core.destroy(); } });
         sc.floatText(f.x, f.y - 46, '☀️ Просветление!', '#fff2a0', 17);
         shake(sc, f, 260, 0.013);
@@ -192,6 +262,13 @@ window.HeroFx = (() => {
     },
     harmony(sc, f) {
       const c = casterOf(sc, f);
+      if (hasFx(sc, 'bohai', 'harmony')) {
+        if (c) heroAnim(sc, c, undefined, undefined, true);
+        const sp = fxPlay(sc, 'bohai', 'harmony', f.x, f.y - 14, { scale: 1.3, depth: 9100 });
+        if (sp && c) sc.events.on('update', function follow() { if (!sp.active) return sc.events.off('update', follow); sp.setPosition(c.c.x, c.c.y - 14); });
+        if (c) afterimage(sc, c, 0x9cf0a0, 0.5, 500);
+        return true;
+      }
       // Вращающийся знак инь-ян под ногами
       const { g, plane } = groundSign(sc, f.x, f.y + 6, 829);
       g.setScale(0.1);
@@ -215,7 +292,7 @@ window.HeroFx = (() => {
       const em = sc.add.particles(0, 0, 'particle', {
         x: { min: -18, max: 18 }, y: { min: -4, max: 10 }, speedY: { min: -90, max: -40 }, speedX: { min: -12, max: 12 },
         lifespan: 700, scale: { start: 1.2, end: 0 }, tint: [0x9cf0a0, 0xffd36a, 0xfff6e0], frequency: 25, blendMode: 'ADD',
-      }).setDepth(880);
+      }).setDepth(9880);
       if (c) em.startFollow(c.c); else em.setPosition(f.x, f.y);
       sc.time.delayedCall(900, () => em.stop());
       sc.time.delayedCall(1700, () => em.destroy());
@@ -223,6 +300,12 @@ window.HeroFx = (() => {
       return true;
     },
     empHit(sc, f) {
+      if (fxPlay(sc, 'bohai', 'hit', f.x, f.y - 8, { scale: 1.7 })) {
+        shock(sc, f.x, f.y + 4, 52, 0xffd36a, { w: 6 });
+        sc.floatText(f.x, f.y - 40, 'Гармония!', '#ffe08a', 14);
+        shake(sc, f, 140, 0.008);
+        return true;
+      }
       flash(sc, f.x, f.y - 8, 42, 0xffd36a, 280);
       rays(sc, f.x, f.y - 8, 10, 70, 0xffc850, { w: 3 });
       shock(sc, f.x, f.y + 4, 52, 0xffd36a, { w: 6 });
@@ -241,7 +324,7 @@ window.HeroFx = (() => {
       sc.time.delayedCall(90, () => slash(sc, f.x, f.y - 8, Math.PI + 0.6, { r: 40, w: 10, sweep: 2.4, col: 0x1a0612, edge: 0xb04aff, glow: 0x5a1a8a, dur: 240, flat: 0.8, flip: true }));
       flash(sc, f.x, f.y - 8, 34, 0x9b4dff, 300, 0.6);
       // Щупальца тьмы
-      const g = sc.add.graphics({ x: f.x, y: f.y - 4 }).setDepth(858);
+      const g = sc.add.graphics({ x: f.x, y: f.y - 4 }).setDepth(9858);
       const arms = Array.from({ length: 9 }, (_, i) => ({ a: (i / 9) * TAU + Math.random() * 0.4, l: 50 + Math.random() * 40, k: Math.random() * 6 }));
       sc.tweens.addCounter({ from: 0, to: 1, duration: 600, onUpdate: (tw) => {
         const t = tw.getValue();
@@ -269,7 +352,7 @@ window.HeroFx = (() => {
       // Сбор тьмы к герою
       for (let i = 0; i < 14; i++) {
         const a = (i / 14) * TAU, d = R * 0.8;
-        const o = sc.add.circle(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.55, 5, i % 2 ? 0x9b4dff : 0x1a0a24, 0.9).setDepth(861);
+        const o = sc.add.circle(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.55, 5, i % 2 ? 0x9b4dff : 0x1a0a24, 0.9).setDepth(9861);
         sc.tweens.add({ targets: o, x: f.x, y: f.y - 6, scale: 0.3, duration: 200, ease: 'Quad.easeIn', onComplete: () => o.destroy() });
       }
       sc.time.delayedCall(200, () => {
@@ -280,7 +363,7 @@ window.HeroFx = (() => {
         shock(sc, f.x, f.y + 2, R * 0.7, 0xff3a4a, { w: 4, dur: 480, delay: 60 });
         shock(sc, f.x, f.y + 2, R * 1.15, 0x3a0a4a, { w: 3, dur: 700, delay: 120 });
         // Шипы тьмы и трещины земли
-        const g = sc.add.graphics({ x: f.x, y: f.y }).setDepth(857);
+        const g = sc.add.graphics({ x: f.x, y: f.y }).setDepth(9857);
         const n = 10 + Math.round(6 * k);
         const spikes = Array.from({ length: n }, (_, i) => ({ a: (i / n) * TAU + Math.random() * 0.2, l: R * (0.55 + Math.random() * 0.45) }));
         sc.tweens.addCounter({ from: 0, to: 1, duration: 750, onUpdate: (tw) => {
@@ -309,7 +392,7 @@ window.HeroFx = (() => {
       const c = casterOf(sc, f);
       if (c) {
         face(c, f.x, f.y);
-        const ln = sc.add.graphics().setDepth(862).setBlendMode(Phaser.BlendModes.ADD);
+        const ln = sc.add.graphics().setDepth(9862).setBlendMode(Phaser.BlendModes.ADD);
         ln.lineStyle(6, 0x9b4dff, 0.35).lineBetween(c.c.x, c.c.y - 14, f.x, f.y - 8);
         ln.lineStyle(2, 0xe0c0ff, 1).lineBetween(c.c.x, c.c.y - 14, f.x, f.y - 8);
         sc.tweens.add({ targets: ln, alpha: 0, duration: 300, onComplete: () => ln.destroy() });
@@ -323,7 +406,7 @@ window.HeroFx = (() => {
       const c = casterOf(sc, f);
       for (let i = 0; i < 8; i++) {
         const a = Math.random() * TAU, d = 60 + Math.random() * 30;
-        const o = sc.add.circle(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.6 - 10, 4, i % 2 ? 0x7dff8a : 0xb04aff, 0.95).setDepth(870).setBlendMode(Phaser.BlendModes.ADD);
+        const o = sc.add.circle(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * 0.6 - 10, 4, i % 2 ? 0x7dff8a : 0xb04aff, 0.95).setDepth(9870).setBlendMode(Phaser.BlendModes.ADD);
         sc.tweens.add({ targets: o, x: c ? c.c.x : f.x, y: (c ? c.c.y : f.y) - 12, scale: 0.4, duration: 380 + i * 40, ease: 'Quad.easeIn', onComplete: () => o.destroy() });
       }
       sc.time.delayedCall(400, () => { shock(sc, c ? c.c.x : f.x, (c ? c.c.y : f.y) + 4, 34, 0x7dff8a, { w: 3 }); flash(sc, c ? c.c.x : f.x, (c ? c.c.y : f.y) - 10, 20, 0x7dff8a, 240, 0.6); });
@@ -346,5 +429,5 @@ window.HeroFx = (() => {
     return plane;
   }
 
-  return { attack, skill, sealMark };
+  return { attack, skill, sealMark, hasFx, auraSprite };
 })();
