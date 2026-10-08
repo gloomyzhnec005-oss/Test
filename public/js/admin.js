@@ -52,7 +52,7 @@
     if (!me.ok) return;
     $('login').classList.add('hidden');
     $('app').classList.remove('hidden');
-    $('via').textContent = 'вход: ' + me.via;
+    $('via').textContent = `вход: ${me.via} · версия ${me.version}`;
     META = await api('meta');
     open(tab);
   }

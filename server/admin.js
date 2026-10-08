@@ -328,7 +328,7 @@ module.exports = function createAdmin(ctx) {
     }
   };
 
-  r.post('/me', (req, res) => res.json({ ok: true, via: req.admin }));
+  r.post('/me', (req, res) => res.json({ ok: true, via: req.admin, version: ctx.version() }));
   r.post('/overview', act(overview));
   r.post('/meta', act(() => ({
     heroes: Object.entries(C.HEROES).map(([id, h]) => ({ id, name: h.name, title: h.title, rarity: h.rarity })),

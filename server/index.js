@@ -60,12 +60,17 @@ function getChar(uid, heroId) {
 
 // ---------- HTTP ----------
 const app = express();
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// Версия сборки: коммит на Railway (или время запуска) — видна в админке и в /health
+const VERSION = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7) || 'локально ' + new Date().toISOString().slice(0, 16).replace('T', ' ');
+// HTML, скрипты и стили браузер всегда перепроверяет у сервера — после деплоя сразу видна новая версия
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  setHeaders: (res, file) => { if (/\.(html|js|css)$/.test(file)) res.setHeader('Cache-Control', 'no-cache'); },
+}));
 app.use('/vendor/phaser.min.js', (req, res) =>
   res.sendFile(path.join(__dirname, '..', 'node_modules', 'phaser', 'dist', 'phaser.min.js')));
 // Админ-панель (server/admin.js): свой разбор JSON с большим лимитом, поэтому подключается раньше общего
 const admin = createAdmin({
-  C, I, MOBX, verifyInitData, dataDir: path.dirname(DATA_FILE),
+  C, I, MOBX, verifyInitData, dataDir: path.dirname(DATA_FILE), version: () => VERSION,
   get players() { return players; }, get monsters() { return monsters; }, get world() { return world; },
   get D() { return D; }, get meta() { return meta; }, get io() { return io; }, profiles: null,
   getProfile: (uid) => getProfile(uid), getChar: (uid, h) => getChar(uid, h), saveProfiles: () => saveProfiles(),
@@ -183,7 +188,7 @@ function onPaid(payload) {
   saveProfiles();
   return true;
 }
-app.get('/health', (req, res) => res.json({ ok: true, players: players.size }));
+app.get('/health', (req, res) => res.json({ ok: true, version: VERSION, players: players.size }));
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });

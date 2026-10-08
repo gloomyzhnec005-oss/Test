@@ -449,7 +449,14 @@ window.Lobby = (() => {
       const { ok, data } = await api('/api/profile', {});
       if (ok) profile = data;
       else $('status').textContent = data.error || '';
-      $('menuAdmin').classList.toggle('hidden', !profile.isAdmin); // только для Telegram ID из ADMIN_TG_IDS
+      // Кнопка админки: Telegram ID из ADMIN_TG_IDS или в этом браузере уже был вход в админку по паролю
+      $('menuAdmin').classList.toggle('hidden', !profile.isAdmin);
+      let key = '';
+      try { key = localStorage.getItem('adminKey') || ''; } catch { /* приватный режим */ }
+      if (!profile.isAdmin && key) {
+        fetch('/admin/api/me', { method: 'POST', headers: { 'x-admin-key': key } })
+          .then((r) => { if (r.ok) $('menuAdmin').classList.remove('hidden'); }).catch(() => {});
+      }
     } catch { /* офлайн — остаются значения по умолчанию */ }
   }
 
