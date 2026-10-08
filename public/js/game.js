@@ -39,7 +39,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
       // Кадры атаки и нарисованные эффекты (если есть)
       if (sk.attack && this.textures.exists('atk_' + id)) {
-        for (let r = 0; r < 6; r++) this.anims.create({ key: `atk_${id}_${r}`, frames: this.anims.generateFrameNumbers('atk_' + id, { start: r * sk.attack.frames, end: r * sk.attack.frames + sk.attack.frames - 1 }), frameRate: 18, repeat: 0 });
+        for (let r = 0; r < (sk.attack.rows || 6); r++) this.anims.create({ key: `atk_${id}_${r}`, frames: this.anims.generateFrameNumbers('atk_' + id, { start: r * sk.attack.frames, end: r * sk.attack.frames + sk.attack.frames - 1 }), frameRate: 18, repeat: 0 });
       }
       if (sk.fx && this.textures.exists('fx_' + id)) {
         sk.fx.rows.forEach((name, r) => this.anims.create({ key: `fx_${id}_${name}`, frames: this.anims.generateFrameNumbers('fx_' + id, { start: r * sk.fx.frames, end: r * sk.fx.frames + sk.fx.frames - 1 }), frameRate: 16, repeat: name === 'aura' ? -1 : 0 }));
@@ -334,7 +334,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.setBar(e, p.hp, p.maxHp);
       e.c.setAlpha(p.dead ? 0.35 : 1);
       // Аура усиления (рёв ярости, кровавое безумие)
-      if (p.rage && !e.aura) {
+      if (p.rage && !e.aura && e.skinOn && HeroFx.hasFx(this, e.skin, 'aura')) {
+        e.aura = HeroFx.auraSprite(this, e); // нарисованная аура ярости
+      } else if (p.rage && !e.aura) {
         e.aura = this.add.circle(0, 4, 18, 0xff3020, 0.25).setStrokeStyle(2, 0xff6040, 0.8);
         e.c.addAt(e.aura, 0);
         this.tweens.add({ targets: e.aura, scale: 1.25, alpha: 0.5, duration: 300, yoyo: true, repeat: -1 });

@@ -6,9 +6,15 @@ window.Skins = (() => {
     bohai: {
       sheet: 'assets/heroes/bohai_sheet.png', portrait: 'assets/heroes/bohai_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов по 5 кадров — вниз, вниз-вправо, вправо, вверх-вправо, вверх, поза умения
-      attack: { sheet: 'assets/heroes/bohai_attack.png', w: 72, h: 60, frames: 5 },
+      attack: { sheet: 'assets/heroes/bohai_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
       // Эффекты: ряды по 6 кадров, имя ряда — что он изображает
       fx: { sheet: 'assets/heroes/bohai_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'qiWave', 'enlighten', 'harmony', 'aura'] },
+    },
+    vebrand: {
+      sheet: 'assets/heroes/vebrand_sheet.png', portrait: 'assets/heroes/vebrand_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй удар вниз, поза умения (последний ряд)
+      attack: { sheet: 'assets/heroes/vebrand_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      fx: { sheet: 'assets/heroes/vebrand_fx.png', size: 72, frames: 5, rows: ['slash', 'hit', 'bloodWhirl', 'furyRoar', 'stoneThrow', 'aura'] },
     },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };

@@ -94,7 +94,7 @@ window.HeroFx = (() => {
     if (!e || !e.skinOn || !hasAttack(sc, e.skin)) return false;
     const sk = Skins.get(e.skin), A = sk.attack;
     if (x !== undefined) e.row = Skins.rowFor(x - e.c.x, y - e.c.y);
-    const [row, flip] = cast ? [5, false] : Skins.attackRow(e.row || 0);
+    const [row, flip] = cast ? [A.cast ?? 5, false] : Skins.attackRow(e.row || 0);
     const s = e.sprite;
     sc.tweens.killTweensOf(s); s.x = 0; s.y = 0;
     e.attacking = true;
@@ -112,9 +112,10 @@ window.HeroFx = (() => {
   function fxPlay(sc, id, name, x, y, o = {}) {
     if (!hasFx(sc, id, name)) return null;
     const sp = sc.add.sprite(x, y, 'fx_' + id).setDepth(o.depth || 9100).setScale(o.scale || 1).setRotation(o.rot || 0)
-      .setFlipY(!!o.flipY).setBlendMode(Phaser.BlendModes.ADD);
+      .setFlipY(!!o.flipY).setBlendMode(o.solid ? Phaser.BlendModes.NORMAL : Phaser.BlendModes.ADD); // solid — камни и тёмные части видны
     if (o.origin) sp.setOrigin(...o.origin);
-    sp.play(`fx_${id}_${name}`);
+    sp.play({ key: `fx_${id}_${name}`, repeat: o.repeat || 0 });
+    if (o.follow) sc.events.on('update', function follow() { if (!sp.active || !o.follow.c.active) return sc.events.off('update', follow); sp.setPosition(o.follow.c.x, o.follow.c.y + (o.dy || 0)); });
     sp.once('animationcomplete', () => sp.destroy());
     if (o.to) sc.tweens.add({ targets: sp, x: o.to.x, y: o.to.y, duration: o.dur || 380, ease: 'Cubic.easeOut' });
     return sp;
@@ -176,8 +177,20 @@ window.HeroFx = (() => {
       return true;
     },
   };
+  // Удар по нарисованным листам для героев без собственной функции: кадры атаки + серп + вспышка
+  function sheetAttack(sc, a, x, y, f) {
+    if (!heroAnim(sc, a, x, y)) return false;
+    a.combo = ((a.combo || 0) + 1) % 2;
+    const ang = Math.atan2(y - a.c.y, x - a.c.x);
+    sc.time.delayedCall(90, () => fxPlay(sc, a.skin, 'slash', (a.c.x + x) / 2, (a.c.y + y) / 2 - 10, { rot: ang, scale: 0.9, flipY: a.combo === 1 }));
+    sc.time.delayedCall(140, () => {
+      fxPlay(sc, a.skin, 'hit', x, y - 8, { scale: f.crit ? 1.1 : 0.8 });
+      if (f.crit) { shock(sc, x, y + 4, 32, 0xffa040, { w: 3 }); shake(sc, f, 80, 0.004); }
+    });
+    return true;
+  }
   function attack(sc, a, f, x, y) {
-    const fn = a && a.skin && ATTACK[a.skin];
+    const fn = a && a.skin && (ATTACK[a.skin] || (hasAttack(sc, a.skin) && sheetAttack));
     if (!fn) return false;
     face(a, x, y);
     return fn(sc, a, x, y, f);
@@ -414,7 +427,40 @@ window.HeroFx = (() => {
       return true;
     },
   };
+  // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
+  const SHEET_SKILL = {
+    vebrand: {
+      bloodWhirl(sc, f, c) {
+        heroAnim(sc, c, c.c.x, c.c.y + 20);
+        fxPlay(sc, 'vebrand', 'bloodWhirl', c.c.x, c.c.y - 10, { scale: (f.r || 90) / 40, repeat: 2, follow: c, dy: -10 });
+        shake(sc, f, 160, 0.006);
+        return true;
+      },
+      furyRoar(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'vebrand', 'furyRoar', c.c.x, c.c.y - 22, { scale: 1.7, solid: true, follow: c, dy: -22 });
+        shock(sc, f.x, f.y + 4, f.r || 120, 0xe0533a, { w: 5, dur: 650 });
+        sc.floatText(f.x, f.y - 60, 'РРРААА!', '#ff7a5a', 17);
+        shake(sc, f, 260, 0.01);
+        return true;
+      },
+      stoneThrow(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const ang = Math.atan2(f.y - f.fy, f.x - f.fx);
+        const dur = Math.min(520, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.6);
+        sc.time.delayedCall(120, () => {
+          const sp = fxPlay(sc, 'vebrand', 'stoneThrow', f.fx, f.fy - 16, { rot: ang, scale: 1.1, solid: true, flipY: f.x < f.fx, to: { x: f.x, y: f.y - 8 }, dur });
+          if (sp) sp.anims.msPerFrame = dur / 4; // полёт длится, пока камень летит
+          sc.time.delayedCall(dur, () => { fxPlay(sc, 'vebrand', 'hit', f.x, f.y - 8, { scale: 1.2 }); shock(sc, f.x, f.y + 4, 34, 0xffc850, { w: 4 }); shake(sc, f, 120, 0.007); });
+        });
+        return true;
+      },
+    },
+  };
   function skill(sc, f) {
+    const c = casterOf(sc, f);
+    const own = c && c.skinOn && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
+    if (own && hasFx(sc, c.skin, f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }
