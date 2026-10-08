@@ -449,6 +449,7 @@ window.Lobby = (() => {
       const { ok, data } = await api('/api/profile', {});
       if (ok) profile = data;
       else $('status').textContent = data.error || '';
+      $('menuAdmin').classList.toggle('hidden', !profile.isAdmin); // только для Telegram ID из ADMIN_TG_IDS
     } catch { /* офлайн — остаются значения по умолчанию */ }
   }
 
@@ -480,6 +481,7 @@ window.Lobby = (() => {
 
     $('menuHeroes').onclick = openGacha;
     $('menuBg').onclick = () => openSheet('Фон лобби', bgSheet());
+    $('menuAdmin').onclick = () => { location.href = '/admin.html'; };
     $('sheetClose').onclick = closeSheet;
     $('sheet').onclick = (e) => { if (e.target === $('sheet')) closeSheet(); };
     $('playBtn').onclick = () => (order[0] ? opts.onStart(order[0], playerName()) : openGacha());

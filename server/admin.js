@@ -395,5 +395,7 @@ module.exports = function createAdmin(ctx) {
   r.post('/log', act(() => ({ log: journal.slice(-300).reverse() })));
   r.post('/save', act(() => ({ text: 'Данные записаны на диск' }), () => 'сохранение'));
 
-  return { router: r, settings, log, ctx };
+  // Администратор ли этот игрок (Telegram ID в ADMIN_TG_IDS) — для кнопки админки в лобби
+  const isAdminUid = (uid) => String(uid).startsWith('tg') && TG_IDS.includes(String(uid).slice(2));
+  return { router: r, settings, log, ctx, isAdminUid };
 };
