@@ -109,6 +109,7 @@ module.exports = function createDungeons(d) {
     fx({ t: 'mshot', fx: m.x, fy: m.y - 8, x: tx, y: ty, ms, proj: o.proj || def.proj || 'arrow' });
     setTimeout(() => {
       if (!monsters.has(m.id) || target.dead || target.zone && target.zone !== m.zone) return;
+      if (!world.lineOfSight(m.x, m.y, target.x, target.y)) { fx({ t: 'miss', x: target.x, y: target.y }); return; } // спрятался за стеной
       if (!(def.sure || o.sure) && Math.hypot(target.x - tx, target.y - ty) > 30) { fx({ t: 'miss', x: tx, y: ty }); return; }
       hit(m, target, mult, Date.now(), o);
     }, ms);
@@ -356,8 +357,9 @@ module.exports = function createDungeons(d) {
     passives(m, def, now, dt);
     if (!target) return false;
     const dd = dist(m, target);
-    // Умение
-    if (def.ab && def.ab.type !== 'form' && now >= m.abAt && dd < 420) {
+    const seen = world.lineOfSight(m.x, m.y, target.x, target.y);
+    // Умение — только если цель видна (не через стену)
+    if (def.ab && def.ab.type !== 'form' && now >= m.abAt && dd < 420 && seen) {
       if (useAbility(m, def, target, now)) { m.abAt = now + def.ab.cd * (m.phase === 'storm' ? 0.5 : 1); m.lastAttack = now; return true; }
       m.abAt = now + 1000;
     }
@@ -366,7 +368,8 @@ module.exports = function createDungeons(d) {
     // Дальний бой: держит дистанцию и стреляет
     if (m.range > 0) {
       const speed = curSpeed(m, now);
-      if (dd > m.range) { if (m.rootUntil <= now) step(m, target, speed * dt); return true; }
+      // Цель далеко или за стеной — подходит ближе, через стену не стреляет
+      if (dd > m.range || !seen) { if (m.rootUntil <= now) step(m, target, speed * dt); return true; }
       if (def.kite && dd < m.range * 0.45 && m.rootUntil <= now) step(m, target, -speed * 0.8 * dt);
       if (now - m.lastAttack > m.cd * (m.phase === 'storm' ? 0.5 : 1)) { m.lastAttack = now; if (target.owner) hit(m, target, 1, now); else shoot(m, target, 1, now); }
       return true;

@@ -789,6 +789,7 @@ io.on('connection', (socket) => {
     const m = monsters.get(d.targetId);
     if (!m || m.hp <= 0) return;
     if (Math.hypot(m.x - p.x, m.y - p.y) > formOf(p).range + 20) return;
+    if (!world.lineOfSight(p.x, p.y, m.x, m.y)) return socket.emit('skillFail', 'Цель за стеной');
     p.lastAttack = now;
     p.dir = m.x < p.x ? -1 : 1;
     p.stealthUntil = 0; // атака выводит из тени
@@ -825,13 +826,15 @@ io.on('connection', (socket) => {
     const hpCost = sk.hpCost ? p.hp * sk.hpCost : 0;
     if (hpCost && p.hp - hpCost < 1) return fail('Слишком мало здоровья');
     const range = skillRange(sk.id, p.hero);
+    // Цель умения — только в прямой видимости (не через стены)
+    const seen = (m) => world.lineOfSight(p.x, p.y, m.x, m.y);
     let target = monsters.get(d.targetId);
-    if (!target || Math.hypot(target.x - p.x, target.y - p.y) > range) {
+    if (!target || Math.hypot(target.x - p.x, target.y - p.y) > range || !seen(target)) {
       target = null;
       let best = range;
       for (const m of monsters.values()) {
         const dd = Math.hypot(m.x - p.x, m.y - p.y);
-        if (dd < best) { best = dd; target = m; }
+        if (dd < best && seen(m)) { best = dd; target = m; }
       }
     }
     if (NEEDS_TARGET.has(sk.id) && !target) return fail('Нет цели рядом');
@@ -1008,7 +1011,7 @@ setInterval(() => {
         if (m.ignoreUntil > now && m.ignoreId === p.id) continue; // потерял из виду (дымовая завеса)
         if (p.stealthUntil > now || p.flyUntil > now) continue; // невидимость (Кассиан), полёт (Талмира)
         const d = Math.hypot(p.x - m.x, p.y - m.y);
-        if (d < bestD) { best = p; bestD = d; }
+        if (d < bestD && world.lineOfSight(m.x, m.y, p.x, p.y)) { best = p; bestD = d; } // замечает только тех, кого видит
       }
       for (const pet of pets.values()) {
         if (pet.down) continue;

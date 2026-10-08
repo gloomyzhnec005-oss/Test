@@ -302,6 +302,20 @@ window.GameScene = class GameScene extends Phaser.Scene {
     return this.solid.has(this.tiles[ty * this.mapW + tx]);
   }
 
+  // Прямая видимость (как на сервере): стены, скалы и деревья закрывают цель
+  lineOfSight(ax, ay, bx, by) {
+    const dist = Math.hypot(bx - ax, by - ay), n = Math.ceil(dist / 8);
+    for (let i = 1; i < n; i++) {
+      const k = i / n;
+      if (k * dist < 12 || (1 - k) * dist < 12) continue;
+      const tx = Math.floor((ax + (bx - ax) * k - this.zone.ox) / this.T), ty = Math.floor((ay + (by - ay) * k - this.zone.oy) / this.T);
+      if (tx < 0 || ty < 0 || tx >= this.mapW || ty >= this.mapH) return false;
+      const t = this.tiles[ty * this.mapW + tx];
+      if (t === 2 || t === 6 || t === 7) return false;
+    }
+    return true;
+  }
+
   // ---------- Сущности ----------
   makeEntity(texture, name, nameColor, interactiveId) {
     const sprite = this.add.sprite(0, 0, texture);
@@ -1768,11 +1782,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const me = this.me;
     const range = this.prof().range;
     const cur = this.targetId && this.monsters.get(this.targetId);
-    if (cur && Phaser.Math.Distance.Between(me.x, me.y, cur.c.x, cur.c.y) <= range + 120) return cur;
+    const seen = (e) => this.lineOfSight(me.x, me.y, e.c.x, e.c.y); // за стеной цель не выбирается
+    if (cur && Phaser.Math.Distance.Between(me.x, me.y, cur.c.x, cur.c.y) <= range + 120 && seen(cur)) return cur;
     let best = null, bestD = range + 60;
     for (const [id, e] of this.monsters) {
       const d = Phaser.Math.Distance.Between(me.x, me.y, e.c.x, e.c.y);
-      if (d < bestD) { best = e; bestD = d; }
+      if (d < bestD && seen(e)) { best = e; bestD = d; }
     }
     this.targetId = best ? best.data.id : null;
     return best;

@@ -7,6 +7,7 @@ const { DUNGEONS, WORLD_BOSSES, MOBS } = require('./mobs');
 // Типы тайлов (вид зависит от темы мира, см. Gfx.tileset на клиенте)
 const T = { GRASS: 0, WATER: 1, TREE: 2, PATH: 3, FLOWERS: 4, DIRT: 5, ROCK: 6, WALL: 7, PLAZA: 8 };
 const SOLID = new Set([T.WATER, T.TREE, T.ROCK, T.WALL]);
+const BLOCKS_SIGHT = new Set([T.TREE, T.ROCK, T.WALL]); // через воду стрелять можно, через стены и деревья — нет
 const ZONE_STRIDE = 8192; // px между началами зон
 
 function mulberry32(seed) {
@@ -269,6 +270,19 @@ function buildWorld() {
     const tx = Math.floor((px - z.ox) / TILE), ty = Math.floor((py - z.oy) / TILE);
     return tx < 0 || ty < 0 || tx >= z.w || ty >= z.h || SOLID.has(z.tiles[ty * z.w + tx]);
   };
+  // Прямая видимость между точками: стены, скалы и деревья закрывают выстрелы и умения
+  const lineOfSight = (ax, ay, bx, by) => {
+    const z = zoneAtX(ax);
+    if (!z || z !== zoneAtX(bx)) return false;
+    const dist = Math.hypot(bx - ax, by - ay), n = Math.ceil(dist / 8);
+    for (let i = 1; i < n; i++) {
+      const k = i / n;
+      if (k * dist < 12 || (1 - k) * dist < 12) continue; // края: стоящий вплотную к стене не «прячется» в ней
+      const tx = Math.floor((ax + (bx - ax) * k - z.ox) / TILE), ty = Math.floor((ay + (by - ay) * k - z.oy) / TILE);
+      if (tx < 0 || ty < 0 || tx >= z.w || ty >= z.h || BLOCKS_SIGHT.has(z.tiles[ty * z.w + tx])) return false;
+    }
+    return true;
+  };
   // Случайная свободная точка в кольце вокруг центра зоны
   const freeSpot = (z, minR, maxR) => {
     const cx = z.w / 2, cy = z.h / 2;
@@ -283,7 +297,7 @@ function buildWorld() {
   const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
     town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, solid: [...SOLID], fog: z.kind === 'dungeon' });
 
-  return { zones, byId, zoneAtX, isSolidAt, freeSpot, payload, addSurvival, addDungeon, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level })) };
+  return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level })) };
 }
 
 module.exports = { buildWorld, T, SOLID: [...SOLID], ZONE_STRIDE, PLACES };
