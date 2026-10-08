@@ -23,6 +23,10 @@ window.Skins = (() => {
     },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
+  // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
+  const MOBS = {
+    goblinRaider: { sheet: 'assets/mobs/goblinRaider.png', w: 33, h: 38, walk: [0, 1, 2, 3], attack: [5, 4] },
+  };
   const DIRS = ['down', 'down-right', 'right', 'up-right', 'up', 'up-left', 'left', 'down-left'];
   // угол движения (0 = вправо, по часовой) → ряд листа
   const ROW_BY_OCTANT = [2, 1, 0, 7, 6, 5, 4, 3];
@@ -54,5 +58,5 @@ window.Skins = (() => {
   // Ряд листа атаки по направлению ходьбы: влево — зеркало правых рядов
   const ATTACK_ROW = [[0, false], [1, false], [2, false], [3, false], [4, false], [3, true], [2, true], [1, true]];
   const attackRow = (walkRow) => ATTACK_ROW[walkRow] || ATTACK_ROW[0];
-  return { LIST, DIRS, rowFor, attackRow, canvas, get: (id) => LIST[id] };
+  return { LIST, MOBS, DIRS, rowFor, attackRow, canvas, get: (id) => LIST[id] };
 })();

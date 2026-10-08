@@ -21,6 +21,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   preload() {
+    for (const [id, m] of Object.entries(Skins.MOBS)) this.load.spritesheet('mskin_' + id, m.sheet, { frameWidth: m.w, frameHeight: m.h });
     WorldArt.preload(this); // нарисованная графика миров (тайлы, здания, порталы)
     // Нарисованные скины героев: листы 8 направлений
     for (const [id, sk] of Object.entries(Skins.LIST)) {
@@ -41,6 +42,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
       return t;
     };
     const T = this.T;
+    // Анимации нарисованных монстров: ходьба (по кругу) и удар (один раз)
+    for (const [id, m] of Object.entries(Skins.MOBS)) {
+      if (!this.textures.exists('mskin_' + id)) continue;
+      this.anims.create({ key: `mwalk_${id}`, frames: m.walk.map((f) => ({ key: 'mskin_' + id, frame: f })), frameRate: 8, repeat: -1 });
+      this.anims.create({ key: `matk_${id}`, frames: m.attack.map((f) => ({ key: 'mskin_' + id, frame: f })), frameRate: 9, repeat: 0 });
+    }
     for (const [id, sk] of Object.entries(Skins.LIST)) {
       if (!this.textures.exists('skin_' + id)) continue;
       for (let r = 0; r < 8; r++) {
@@ -492,10 +499,18 @@ window.GameScene = class GameScene extends Phaser.Scene {
         // Цвет имени по рангу: синий — усиленный, жёлтый — редкий, оранжевый — полубосс, красный — босс, фиолетовый — мировой
         const RC = { normal: '#ffd9a0', summon: '#c8c0b0', magic: '#8ab8ff', rare: '#ffe066', mini: '#ffa040', boss: '#ff5a5a', world: '#d080ff' };
         const prefix = { magic: 'Усиленный ', mini: '★ ', boss: '👑 ', world: '👹 ' }[m.rk] || '';
-        e = this.makeEntity('mon_' + m.type, `${prefix}${m.nm || def.name} · ${m.lv}`, RC[m.rk] || '#ffd9a0', m.id);
+        const ms = this.textures.exists('mskin_' + m.type) && Skins.MOBS[m.type];
+        e = this.makeEntity(ms ? 'mskin_' + m.type : 'mon_' + m.type, `${prefix}${m.nm || def.name} · ${m.lv}`, RC[m.rk] || '#ffd9a0', m.id);
         e.c.setPosition(m.x, m.y);
         const sz = m.sz || 1;
         e.sprite.setScale(sz);
+        if (ms) {
+          // Нарисованный монстр: ноги на точке позиции, полоска здоровья и имя над головой
+          e.mskin = m.type;
+          e.sprite.setFrame(ms.walk[0]).setOrigin(0.5, (ms.h - 15) / ms.h);
+          const top = -(ms.h - 15) * sz - 3;
+          e.label.y = top - 4; e.bar.y = top; e.c.list[1].y = top;
+        }
         if (sz > 1.05) { const up = 16 * (sz - 1); e.label.y -= up; e.bar.y -= up; e.c.list[1].y -= up; e.bar.width = 28 * Math.min(2.2, sz); e.c.list[1].width = 28 * Math.min(2.2, sz); e.bar.x = -e.bar.width / 2; e.c.list[1].x = 0; e.bigBar = e.bar.width; }
         if (m.rk === 'world' || m.rk === 'boss') e.label.setFontSize(12);
         if (m.rk === 'rare' || m.rk === 'magic') { const glow = this.add.circle(0, 6, 16 * sz, m.rk === 'rare' ? 0xffe066 : 0x8ab8ff, 0.18); e.c.addAt(glow, 0); }
@@ -709,7 +724,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.floatText(e.c.x, e.c.y - 20, '-' + f.dmg, '#ff5a5a');
       e.sprite.setTint(0xff6060); this.time.delayedCall(120, () => e.sprite.clearTint());
       const m = this.monsters.get(f.from);
-      if (m) this.tweens.add({ targets: m.sprite, x: Math.sign(e.c.x - m.c.x) * 6, duration: 80, yoyo: true });
+      if (m && m.mskin) {
+        // Удар нарисованного монстра: поворот к цели и кадры атаки
+        m.sprite.setFlipX(e.c.x < m.c.x);
+        m.attacking = true;
+        m.sprite.play(`matk_${m.mskin}`);
+        m.sprite.once('animationcomplete', () => { m.attacking = false; m.sprite.setFrame(Skins.MOBS[m.mskin].walk[0]); });
+      } else if (m) this.tweens.add({ targets: m.sprite, x: Math.sign(e.c.x - m.c.x) * 6, duration: 80, yoyo: true });
       if (f.target === this.myId) { this.cameras.main.shake(100, 0.004); this.ui.vibrate('light'); }
     } else if (f.t === 'death') {
       this.burst(f.x, f.y, 0xffe08a, 16);
@@ -1827,7 +1848,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.animSkin(e, moving ? mx : 0, moving ? my : 0, moving);
       }
     }
-    for (const e of this.monsters.values()) { e.c.x += (e.tx - e.c.x) * k; e.c.y += (e.ty - e.c.y) * k; }
+    for (const e of this.monsters.values()) {
+      const mx = e.tx - e.c.x, my = e.ty - e.c.y;
+      e.c.x += mx * k; e.c.y += my * k;
+      // Нарисованный монстр: шагает, пока движется, стоит — первый кадр ходьбы
+      if (e.mskin && !e.attacking) {
+        const moving = Math.hypot(mx, my) > 0.8;
+        if (moving && !e.sprite.anims.isPlaying) e.sprite.play(`mwalk_${e.mskin}`);
+        else if (!moving && e.sprite.anims.isPlaying) { e.sprite.stop(); e.sprite.setFrame(Skins.MOBS[e.mskin].walk[0]); }
+      }
+    }
     for (const e of this.pets.values()) {
       e.c.x += (e.tx - e.c.x) * k; e.c.y += (e.ty - e.c.y) * k;
       e.c.setDepth(10 + e.c.y);
