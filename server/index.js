@@ -70,7 +70,7 @@ const admin = createAdmin({
   get D() { return D; }, get meta() { return meta; }, get io() { return io; }, profiles: null,
   getProfile: (uid) => getProfile(uid), getChar: (uid, h) => getChar(uid, h), saveProfiles: () => saveProfiles(),
   refreshUid: (uid) => refreshUid(uid), markDirty: (p) => markDirty(p), moveToZone: (...a) => moveToZone(...a),
-  hurtPlayer: (...a) => hurtPlayer(...a), grantXp: (...a) => grantXp(...a), syncCooldowns: (...a) => syncCooldowns(...a),
+  hurtPlayer: (...a) => hurtPlayer(...a), grantXp: (...a) => grantXp(...a), unlockedSkills: (...a) => unlockedSkills(...a), xpForLevel: (l) => xpForLevel(l), syncCooldowns: (...a) => syncCooldowns(...a),
 });
 Object.defineProperty(admin.ctx, 'profiles', { get: () => profiles });
 const S = admin.settings;
@@ -263,10 +263,12 @@ const statsFor = (heroId, lvl, pr = null) => {
     resMax: Math.round(b.resource.max * (1 + 0.05 * (lvl - 1))),
   };
 };
-// Сколько умений героя открыто: по уровню или по дубликатам (C.SKILL_UNLOCK)
-function unlockedSkills(pr, heroId) {
+// Сколько умений героя открыто: по уровню или по дубликатам (C.SKILL_UNLOCK), либо выдано из админки (pr.skillGrant)
+function unlockedSkills(pr, heroId, byProgressOnly = false) {
   const lvl = (pr.chars[heroId] || { level: 1 }).level, dup = (pr.heroDupes || {})[heroId] || 0;
-  return Math.min(C.HEROES[heroId].skills.length, C.SKILL_UNLOCK.filter((u) => lvl >= u.lvl || dup >= u.dup).length);
+  const n = C.SKILL_UNLOCK.filter((u) => lvl >= u.lvl || dup >= u.dup).length;
+  const granted = byProgressOnly ? 0 : (pr.skillGrant || {})[heroId] || 0;
+  return Math.min(C.HEROES[heroId].skills.length, Math.max(n, granted));
 }
 // Пересчёт статов игрока после смены экипировки, уровня или дубликатов
 function refreshPlayer(p) {

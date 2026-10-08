@@ -145,6 +145,36 @@
     if (r.player) { cur = r.player; drawPlayer(); }
   };
 
+  let openHero = null;
+  // Блок героя в карточке игрока: уровень, опыт, дубликаты и умения
+  function heroBlock(h) {
+    const M = META;
+    const skills = h.skills.map((k, i) => {
+      const open = i < h.unlocked, byProg = i < h.byProgress, granted = open && !byProg;
+      const btn = !h.owned ? '' : !open ? `<button class="btn small ok" data-h="skills" data-hero="${h.id}" data-val="${i + 1}">Выдать</button>`
+        : granted ? `<button class="btn small" data-h="skills" data-hero="${h.id}" data-val="${i <= h.byProgress ? 0 : i}">Забрать</button>` : '';
+      return `<div class="skill-row ${open ? 'open' : ''}"><span>${k.icon}</span><div class="grow"><b>${esc(k.name)}</b>
+        <small>${open ? (byProg ? '✅ открыто по прогрессу' : '✅ выдано админом') : '🔒 закрыто'}</small></div>${btn}</div>`;
+    }).join('');
+    return `<details class="hero-block ${h.owned ? '' : 'not-owned'}" data-hero-block="${h.id}" ${openHero === h.id ? 'open' : ''}>
+      <summary><input type="checkbox" data-own="${h.id}" ${h.owned ? 'checked' : ''} title="Есть у игрока">
+        <span class="grow"><b>${esc(h.name)}</b> <small class="muted">${esc(h.title)}</small></span>
+        ${h.owned ? `<span class="tag gold">${h.level} ур.</span><span class="tag">✨ ${h.unlocked}/${h.skills.length}</span>${h.dupes ? `<span class="tag">★${h.dupes}</span>` : ''}` : '<span class="tag">нет</span>'}</summary>
+      ${h.owned ? `<div class="hero-body">
+        <div class="row"><label>Уровень</label><button class="btn small" data-h="level+" data-hero="${h.id}" data-val="-1">−1</button>
+          <input type="number" data-lvl="${h.id}" min="1" max="${M.maxLevel}" value="${h.level}">
+          <button class="btn small" data-h="level+" data-hero="${h.id}" data-val="1">+1</button><button class="btn small" data-h="level+" data-hero="${h.id}" data-val="5">+5</button>
+          <button class="btn small" data-h="level+" data-hero="${h.id}" data-val="100">Макс</button></div>
+        <div class="row"><label>Опыт</label><input type="number" data-xp="${h.id}" min="0" value="${h.xp}"><span class="muted">из ${fmtNum(h.xpNext)} до след. уровня</span></div>
+        <div class="row"><label>Дубликаты</label><input type="number" data-dup="${h.id}" min="0" max="${M.dupeMax}" value="${h.dupes}"><span class="muted">+${h.dupes * 5}% к силе · убийств ${fmtNum(h.kills)}</span></div>
+        <div class="ic-sec">Умения</div>${skills}
+        ${h.passive ? `<div class="skill-row open"><span>⭐</span><div class="grow"><b>${esc(h.passive)}</b><small>пассивный навык, всегда открыт</small></div></div>` : ''}
+        <div class="row" style="margin-top:6px"><button class="btn small ok" data-h="skills" data-hero="${h.id}" data-val="${h.skills.length}">Выдать все умения</button>
+          ${h.granted ? `<button class="btn small" data-h="skills" data-hero="${h.id}" data-val="0">Только по прогрессу</button>` : ''}</div>
+      </div>` : ''}
+    </details>`;
+  }
+
   function drawPlayer() {
     const p = cur, M = META;
     const s = p.sessions[0];
@@ -181,11 +211,9 @@
         <div class="row"><button class="btn" data-a="allHeroes">Выдать всех</button>
           <label>Всем: ур.</label><input id="allLvl" type="number" min="1" max="${M.maxLevel}" value="${M.maxLevel}"><button class="btn" data-a="allLevel">OK</button>
           <label>дубл.</label><input id="allDup" type="number" min="0" max="${M.dupeMax}" value="${M.dupeMax}"><button class="btn" data-a="allDupes">OK</button></div>
-        <div class="heroes-wrap"><table><tr><th>Герой</th><th>Есть</th><th>Ур.</th><th>Дубл.</th></tr>
-          ${p.heroes.map((h) => `<tr><td>${esc(h.name)}<br><small class="muted">${esc(h.title)}</small></td>
-            <td><input type="checkbox" data-own="${h.id}" ${h.owned ? 'checked' : ''}></td>
-            <td><input type="number" data-lvl="${h.id}" min="1" max="${M.maxLevel}" value="${h.level || 1}" ${h.owned ? '' : 'disabled'}></td>
-            <td><input type="number" data-dup="${h.id}" min="0" max="${M.dupeMax}" value="${h.dupes}" ${h.owned ? '' : 'disabled'}></td></tr>`).join('')}</table></div>
+        <div class="row"><button class="btn" data-a="allSkills">✨ Открыть все умения всем героям</button><button class="btn" data-a="noSkills">Сбросить выданные умения</button></div>
+        <p class="muted">Нажмите на героя, чтобы прокачать его и выдать умения.</p>
+        <div class="heroes-list">${p.heroes.map(heroBlock).join('')}</div>
       </div>
 
       <div class="card"><h3>🎒 Предметы (${p.items})</h3>
@@ -222,9 +250,17 @@
       else if (t.dataset.own) edit(t.checked ? 'giveHero' : 'removeHero', { hero: t.dataset.own });
       else if (t.dataset.lvl) edit('level', { hero: t.dataset.lvl, value: t.value });
       else if (t.dataset.dup) edit('dupes', { hero: t.dataset.dup, value: t.value });
+      else if (t.dataset.xp) edit('heroXp', { hero: t.dataset.xp, value: t.value });
       else if (t.dataset.pass !== undefined) edit('passPremium', { value: t.checked });
     };
+    body.addEventListener('toggle', (e) => {
+      const d = e.target.closest && e.target.closest('[data-hero-block]');
+      if (d) openHero = d.open ? d.dataset.heroBlock : openHero === d.dataset.heroBlock ? null : openHero;
+    }, true);
     body.onclick = async (e) => {
+      if (e.target.matches('summary input')) e.stopPropagation(); // галочка «есть у игрока» не раскрывает блок
+      const hb = e.target.closest('[data-h]');
+      if (hb) { openHero = hb.dataset.hero; return edit(hb.dataset.h, { hero: hb.dataset.hero, value: Number(hb.dataset.val) }); }
       const b = e.target.closest('[data-a]');
       if (!b) return;
       const a = b.dataset.a;
@@ -234,6 +270,7 @@
         goldAdd: () => edit('gold', { value: v('goldVal') }), goldSet: () => edit('gold', { value: v('goldVal'), set: true }),
         spins: () => edit('spins', { value: v('spinsVal') }), freeSpin: () => edit('freeSpin'), itemSpins: () => edit('itemSpins', { value: v('iSpinsVal') }),
         allHeroes: () => edit('allHeroes'), allLevel: () => edit('level', { value: v('allLvl') }), allDupes: () => edit('dupes', { value: v('allDup') }),
+        allSkills: () => edit('skills', { value: 3 }), noSkills: () => edit('skills', { value: 0 }),
         giveItem: () => edit('giveItem', { cat: v('itCat'), rar: v('itRar'), tier: v('itTier'), count: v('itCount') }),
         clearItems: () => confirm('Удалить все предметы игрока?') && edit('clearItems'),
         sub: () => edit('sub', { value: v('subDays') }), subOff: () => edit('sub', { value: 0 }), passXp: () => edit('passXp', { value: v('passXp') }),

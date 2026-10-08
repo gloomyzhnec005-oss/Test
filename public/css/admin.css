@@ -72,3 +72,17 @@ td input[type=number] { width: 64px; padding: 4px 6px; }
 
 .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 30; background: var(--panel2); border: 1px solid var(--gold); padding: 10px 16px; border-radius: 10px; max-width: 90vw; }
 .toast.bad { border-color: var(--red); }
+
+.heroes-list { display: flex; flex-direction: column; gap: 6px; max-height: 70vh; overflow: auto; }
+.hero-block { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; }
+.hero-block.not-owned { opacity: .6; }
+.hero-block summary { display: flex; align-items: center; gap: 8px; padding: 10px; cursor: pointer; list-style: none; }
+.hero-block summary::-webkit-details-marker { display: none; }
+.hero-block summary input { width: 20px; height: 20px; accent-color: var(--gold); flex: none; }
+.hero-block[open] summary { border-bottom: 1px solid var(--line); }
+.hero-body { padding: 10px; }
+.ic-sec { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; margin: 10px 0 6px; }
+.skill-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); opacity: .6; }
+.skill-row.open { opacity: 1; }
+.skill-row > span { font-size: 20px; width: 28px; text-align: center; }
+.skill-row small { display: block; color: var(--muted); }

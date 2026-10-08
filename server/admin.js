@@ -83,10 +83,15 @@ module.exports = function createAdmin(ctx) {
   }
   function playerView(uid) {
     const pr = ctx.getProfile(uid);
-    const heroes = Object.entries(C.HEROES).map(([id, h]) => ({
-      id, name: h.name, title: h.title, rarity: h.rarity, owned: pr.heroes.includes(id),
-      level: (pr.chars[id] || {}).level || 0, dupes: pr.heroDupes[id] || 0,
-    }));
+    const heroes = Object.entries(C.HEROES).map(([id, h]) => {
+      const ch = pr.chars[id] || {};
+      return {
+        id, name: h.name, title: h.title, rarity: h.rarity, owned: pr.heroes.includes(id),
+        level: ch.level || 0, xp: Math.floor(ch.xp || 0), xpNext: ctx.xpForLevel(ch.level || 1), kills: ch.kills || 0, dupes: pr.heroDupes[id] || 0,
+        skills: h.skills.map((k) => ({ icon: k.icon, name: k.name })), passive: h.passive ? `${h.passive.icon} ${h.passive.name}` : null,
+        unlocked: ctx.unlockedSkills(pr, id), byProgress: ctx.unlockedSkills(pr, id, true), granted: (pr.skillGrant || {})[id] || 0,
+      };
+    });
     const byRar = {};
     for (const it of pr.items) byRar[it.rar] = (byRar[it.rar] || 0) + 1;
     const pass = ctx.meta.passOf(pr);
@@ -139,6 +144,33 @@ module.exports = function createAdmin(ctx) {
         for (const id of ids) pr.heroDupes[id] = n;
         refresh();
         return { text: `Дубликаты ${n}: ${hero ? C.HEROES[hero].name : 'все герои'}` };
+      }
+      case 'level+': {
+        if (!hero) return { error: 'Нет такого героя' };
+        const ch = ctx.getChar(uid, hero);
+        ch.level = Math.round(num(ch.level + num(d.value, -100, 100), 1, MOBX.MAX_LEVEL, 1)); ch.xp = 0;
+        refresh();
+        return { text: `${C.HEROES[hero].name}: ${ch.level} уровень` };
+      }
+      case 'heroXp': {
+        if (!hero) return { error: 'Нет такого героя' };
+        const ch = ctx.getChar(uid, hero);
+        ch.xp = Math.round(num(d.value, 0, ctx.xpForLevel(ch.level) - 1));
+        refresh();
+        return { text: `${C.HEROES[hero].name}: опыт ${ch.xp} / ${ctx.xpForLevel(ch.level)}` };
+      }
+      // Умения открываются по порядку: value — сколько первых умений открыть принудительно (0 — только по прогрессу)
+      case 'skills': {
+        const ids = hero ? [hero] : pr.heroes;
+        pr.skillGrant ??= {};
+        for (const id of ids) {
+          const n = Math.round(num(d.value, 0, C.HEROES[id].skills.length));
+          if (n > 0) pr.skillGrant[id] = n; else delete pr.skillGrant[id];
+        }
+        refresh();
+        for (const p of live) if (ids.includes(p.heroId)) p.socket.emit('chat', { sys: true, text: `⚙️ Администратор изменил умения: открыто ${p.unlocked} из ${p.hero.skills.length}` });
+        const n = Math.round(num(d.value, 0, 3));
+        return { text: hero ? `${C.HEROES[hero].name}: ${n ? 'выдано умений — ' + n : 'умения только по прогрессу'}` : n ? 'Все умения выданы всем героям' : 'Выданные умения сброшены' };
       }
       case 'giveItem': {
         const cat = I.CATEGORIES[d.cat] ? d.cat : null;
@@ -205,6 +237,7 @@ module.exports = function createAdmin(ctx) {
           pr.heroDupes[id] = C.GACHA.heroDupeMax;
         }
         pr.gold += 1e6; pr.paidSpins += 100; pr.itemSpins = (pr.itemSpins || 0) + 100;
+        pr.skillGrant = Object.fromEntries(Object.keys(C.HEROES).map((id) => [id, C.HEROES[id].skills.length]));
         refresh();
         return { text: 'Тестовый набор: все герои 50 ур., все дубликаты, 1 000 000 золота, по 100 круток' };
       case 'reset':
