@@ -371,16 +371,20 @@
         onRespawn: () => $('deathScreen').classList.add('hidden'),
         vibrate,
       };
+      // Рисуем в физических пикселях экрана (до ×2), иначе на телефоне картинка и текст растягиваются и мылятся
+      const DPR = window.GAME_DPR = Math.min(2, window.devicePixelRatio || 1);
       game = new Phaser.Game({
         type: Phaser.AUTO,
         parent: 'game',
         backgroundColor: '#11151c',
         pixelArt: true,
-        scale: { mode: Phaser.Scale.RESIZE, width: window.innerWidth, height: window.innerHeight },
+        scale: { mode: Phaser.Scale.NONE, width: Math.round(window.innerWidth * DPR), height: Math.round(window.innerHeight * DPR), zoom: 1 / DPR },
         input: { activePointers: 3 },
         scene: [],
       });
       game.scene.add('Game', window.GameScene, true, { socket, welcome: w, ui, input });
+      let rt = 0;
+      window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { game.scale.resize(Math.round(window.innerWidth * DPR), Math.round(window.innerHeight * DPR)); game.scale.setZoom(1 / DPR); }, 100); });
     });
   }
 

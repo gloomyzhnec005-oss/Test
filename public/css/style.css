@@ -509,3 +509,36 @@ canvas.skin { object-fit: contain; }
 .hero canvas.portrait { position: absolute; left: -10%; bottom: 0; width: 120%; height: 140%; object-fit: contain; object-position: center bottom; image-rendering: auto; }
 .hero:has(canvas.portrait) .hero-name { bottom: 140%; }
 .reveal-art canvas.portrait { width: auto; height: 240px; image-rendering: auto; }
+
+/* ---------- Компактный HUD (телефон) ---------- */
+.stats { width: 148px; font-size: 11px; padding: 4px 6px; }
+.stats .row { gap: 6px; margin-bottom: 2px; }
+.stats .row.small { font-size: 10px; margin-top: 2px; }
+.lvl { padding: 0 4px; font-size: 10px; }
+.stats #heroName { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats .bar { margin-top: 2px; }
+.bar.hp { height: 11px; } .bar.hp span { font-size: 9px; line-height: 11px; }
+.bar.res { height: 8px; } .bar.res span { font-size: 7px; line-height: 8px; }
+.bar.xp { height: 6px; } .bar.xp span { font-size: 6px; line-height: 6px; }
+.passive { font-size: 9px; margin-top: 2px; max-height: 24px; overflow: hidden; }
+#minimap { width: 72px; height: 72px; border-radius: 8px; }
+/* Кнопки чата, выхода, сумки и группы — столбиком справа под миникартой */
+.small-btn { width: 34px; height: 34px; font-size: 17px; right: 8px !important; }
+#chatBtn { top: calc(88px + env(safe-area-inset-top)); }
+#exitBtn { top: calc(128px + env(safe-area-inset-top)); }
+#bagBtn { top: calc(168px + env(safe-area-inset-top)); }
+#partyBtn { top: calc(208px + env(safe-area-inset-top)); }
+/* Цель и данж — узкой строкой сверху по центру, между панелями */
+.target { top: calc(8px + env(safe-area-inset-top)); width: calc(100% - 248px); max-width: 220px; font-size: 10px; padding: 3px 6px; }
+.target .bar { height: 6px; margin-top: 2px; }
+.wave-badge { top: calc(40px + env(safe-area-inset-top)); width: calc(100% - 248px); max-width: 220px; font-size: 9px !important; padding: 2px 6px; border-radius: 8px; line-height: 1.25; }
+/* Кнопки города слева — меньше */
+.town-bar { top: calc(118px + env(safe-area-inset-top)); gap: 6px; }
+.town-btn { width: 42px; height: 42px; border-radius: 10px; }
+.town-btn span { font-size: 17px; }
+.town-btn em { font-size: 7px; margin-top: 2px; }
+.party-frame { top: calc(112px + env(safe-area-inset-top)); }
+/* Джойстик дальше от края экрана */
+.joystick { left: 52px; bottom: calc(44px + env(safe-area-inset-bottom)); }
+.target, .wave-badge { left: 162px; right: 88px; width: auto; max-width: none; transform: none; }
+#targetName { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

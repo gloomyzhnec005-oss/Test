@@ -32,6 +32,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Чёткий текст: высокое разрешение под зум камеры и сглаживание (а не «пиксельное» растяжение)
+    const addText = this.add.text.bind(this.add);
+    this.add.text = (...a) => {
+      const t = addText(...a);
+      t.setResolution(Math.min(5, Math.ceil(this.cameras.main.zoom) + 1));
+      t.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
+      return t;
+    };
     const T = this.T;
     for (const [id, sk] of Object.entries(Skins.LIST)) {
       if (!this.textures.exists('skin_' + id)) continue;
@@ -116,7 +124,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const w = this.scale.width, h = this.scale.height;
     // На телефоне показываем примерно 11-13 тайлов по короткой стороне
     const town = this.zone && this.zone.kind === 'town';
-    const zoom = Phaser.Math.Clamp(Math.min(w, h) / ((town ? 15 : 12) * this.T), town ? 0.8 : 1, 3); // в городе обзор шире
+    const dpr = window.GAME_DPR || 1; // холст в физических пикселях — зум умножается на плотность экрана
+    const zoom = Phaser.Math.Clamp(Math.min(w, h) / ((town ? 15 : 12) * this.T), (town ? 0.8 : 1) * dpr, 3 * dpr); // в городе обзор шире
     this.cameras.main.setZoom(zoom);
   }
 
