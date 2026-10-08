@@ -315,21 +315,24 @@ window.LobbyBg = (() => {
 
   // Нарисованный фон-картинка (фон города): «img:путь». Пока картинка грузится — тёмная заливка, затем onReady.
   const imgs = {};
-  function paintImage(ctx, src, w, h, onReady) {
+  // Нарисованные фоны (заменяют процедурные с тем же id) и их частицы
+  const IMAGES = { throne: 'assets/lobby/throne.jpg', forest: 'assets/lobby/forest.jpg', dragon: 'assets/lobby/dragon.jpg', ice: 'assets/lobby/ice.jpg' };
+  const PARTICLES = { throne: 'embers', forest: 'fireflies', dragon: 'embers', ice: 'snow' };
+  function paintImage(ctx, src, w, h, onReady, particles) {
     let im = imgs[src];
     if (!im) { im = imgs[src] = new Image(); im.src = src; }
     if (!im.complete || !im.naturalWidth) {
       ctx.fillStyle = '#0c0a10'; ctx.fillRect(0, 0, w, h);
       if (onReady) im.addEventListener('load', onReady, { once: true });
-      return { lights: [], particles: 'embers' };
+      return { lights: [], particles: particles || 'embers' };
     }
     const k = Math.max(w / im.naturalWidth, h / im.naturalHeight); // как object-fit: cover
     const dw = im.naturalWidth * k, dh = im.naturalHeight * k;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(im, (w - dw) / 2, (h - dh) / 2, dw, dh);
-    vignette(ctx, w, h, 0.55);
+    vignette(ctx, w, h, 0.45);
     const dark = /abyss/.test(src);
-    return { lights: [], particles: dark ? 'embers' : 'fireflies' };
+    return { lights: [], particles: particles || (dark ? 'embers' : 'fireflies') };
   }
   function paint(canvas, id, w, h, dpr = 1, onReady) {
     canvas.width = Math.round(w * dpr);
@@ -337,6 +340,7 @@ window.LobbyBg = (() => {
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (String(id).startsWith('img:')) return paintImage(ctx, id.slice(4), w, h, onReady);
+    if (IMAGES[id]) return paintImage(ctx, IMAGES[id], w, h, onReady, PARTICLES[id]);
     return (painters[id] || throne)(ctx, w, h);
   }
 

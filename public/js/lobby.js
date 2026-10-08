@@ -434,7 +434,8 @@ window.Lobby = (() => {
       const card = document.createElement('button');
       card.className = 'bg-card' + (bgId === bg.id ? ' active' : '') + (owned ? '' : ' paid');
       const thumb = document.createElement('canvas');
-      LobbyBg.paint(thumb, bg.id, tw, th, 1);
+      const paintThumb = () => LobbyBg.paint(thumb, bg.id, tw, th, 1, paintThumb);
+      paintThumb();
       card.appendChild(thumb);
       const label = document.createElement('div');
       label.className = 'bg-label';
