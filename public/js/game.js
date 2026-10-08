@@ -21,6 +21,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   preload() {
+    WorldArt.preload(this); // нарисованная графика миров (тайлы, здания, порталы)
     // Нарисованные скины героев: листы 8 направлений
     for (const [id, sk] of Object.entries(Skins.LIST)) {
       if (!this.heroes[id]) continue;
@@ -128,7 +129,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.zoneObjs = [];
     this.zone = z;
     const data2d = [];
-    for (let y = 0; y < z.h; y++) data2d.push(z.tiles.slice(y * z.w, (y + 1) * z.w));
+    const art = WorldArt.has(z.theme), dungeon = z.kind !== 'town' && z.kind !== 'worldboss';
+    for (let y = 0; y < z.h; y++) {
+      const row = z.tiles.slice(y * z.w, (y + 1) * z.w);
+      data2d.push(art ? row.map((t, x) => WorldArt.remap(t, x, y, dungeon)) : row);
+    }
     this.tilemap = this.make.tilemap({ data: data2d, tileWidth: T, tileHeight: T });
     const ts = this.tilemap.addTilesetImage('tiles_' + z.theme, 'tiles_' + z.theme, T, T, 0, 0);
     this.layer = this.tilemap.createLayer(0, ts, z.ox, z.oy).setDepth(0);
@@ -143,6 +148,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
       for (const i of this.explored.get(z.id)) this.fogLayer.removeTileAt(i % z.w, Math.floor(i / z.w));
     }
     this.cameras.main.setBounds(z.ox, z.oy, z.w * T, z.h * T);
+    // Нарисованные деревья на клетках леса (клетка остаётся непроходимой)
+    if (art) {
+      for (let y = 0; y < z.h; y++) for (let x = 0; x < z.w; x++) {
+        if (z.tiles[y * z.w + x] !== 2) continue;
+        const px = z.ox + x * T + T / 2, py = z.oy + y * T + T - 2;
+        this.zoneObjs.push(this.add.image(px, py, `obj_${z.theme}_${WorldArt.treeAt(x, y)}`).setOrigin(0.5, 1).setDepth(10 + py));
+      }
+    }
     this.cameras.main.setBackgroundColor({ green: '#2f6a28', abyss: '#07040c', sky: '#bfe0ff' }[z.theme]);
     const keep = (o) => { this.zoneObjs.push(o); return o; };
     const labelStyle = { fontSize: '11px', fontFamily: 'Arial', color: '#fff6d8', stroke: '#000', strokeThickness: 3, resolution: 2 };
@@ -151,13 +164,19 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (o.kind === 'place' && o.place !== 'teleport') {
         const key = `bld_${z.theme}_${o.place}`;
         if (!this.textures.exists(key)) this.textures.addCanvas(key, Gfx.building(o.place, z.theme));
-        const img = keep(this.add.image(o.bx + o.bw / 2, o.by + o.bh, key).setOrigin(0.5, 1).setDepth(10 + o.by + o.bh - 8));
+        const img = keep(this.add.image(o.bx + o.bw / 2, o.by + o.bh + (art ? 6 : 0), key).setOrigin(0.5, 1).setDepth(10 + o.by + o.bh - 8));
         img.setInteractive().on('pointerdown', () => this.goTo(o));
-        keep(this.add.text(o.bx + o.bw / 2, o.by + o.bh - 116, `${o.icon} ${o.name}`, labelStyle).setOrigin(0.5, 1).setDepth(3000));
+        keep(this.add.text(o.bx + o.bw / 2, img.y - img.displayHeight + (art ? 6 : 0), `${o.icon} ${o.name}`, labelStyle).setOrigin(0.5, 1).setDepth(3000));
       } else if (o.place === 'teleport') {
         const col = { green: 0x5fd1c8, abyss: 0xb04aff, sky: 0xffd84a }[z.theme];
-        keep(this.add.ellipse(o.x, o.y, 92, 46, 0x000000, 0.25).setDepth(1));
-        keep(this.add.ellipse(o.x, o.y, 84, 40, 0x8a8f99).setStrokeStyle(3, 0x5a5f68).setDepth(1));
+        if (art) {
+          // Нарисованная платформа телепорта и фонари вокруг площади
+          keep(this.add.image(o.x, o.y + 4, `ptl_${z.theme}_teleport`).setOrigin(0.5, 0.62).setDepth(1));
+          for (const [dx, dy] of [[-120, -80], [120, -80], [-120, 90], [120, 90]]) keep(this.add.image(o.x + dx, o.y + dy, `obj_${z.theme}_lantern`).setOrigin(0.5, 1).setDepth(10 + o.y + dy));
+        } else {
+          keep(this.add.ellipse(o.x, o.y, 92, 46, 0x000000, 0.25).setDepth(1));
+          keep(this.add.ellipse(o.x, o.y, 84, 40, 0x8a8f99).setStrokeStyle(3, 0x5a5f68).setDepth(1));
+        }
         const ring = keep(this.add.ellipse(o.x, o.y, 64, 30).setStrokeStyle(3, col, 0.9).setDepth(2));
         const glow = keep(this.add.ellipse(o.x, o.y, 50, 22, col, 0.35).setDepth(2));
         glow.setInteractive().on('pointerdown', () => this.goTo(o));
@@ -169,17 +188,26 @@ window.GameScene = class GameScene extends Phaser.Scene {
       } else if (o.kind === 'portal') {
         const col = o.world ? 0xff3a3a : o.id === 'exit' ? 0x7dff8a : !o.num ? 0xffd36a : PORTAL_COL[(o.num - 1) % 6];
         keep(this.add.ellipse(o.x, o.y + 22, 50, 14, 0x000000, 0.3).setDepth(1));
-        // Каменная арка и вращающаяся воронка
-        keep(this.add.rectangle(o.x - 24, o.y, 8, 50, 0x6a6560).setDepth(10 + o.y + 20));
-        keep(this.add.rectangle(o.x + 24, o.y, 8, 50, 0x6a6560).setDepth(10 + o.y + 20));
-        keep(this.add.rectangle(o.x, o.y - 26, 58, 8, 0x5a5550).setDepth(10 + o.y + 20));
+        let top = o.y - 32;
+        if (art) {
+          // Нарисованная арка: обычная, выход из данжа или драконьи врата мирового босса
+          const kind = o.world ? 'boss' : o.id === 'exit' ? 'exit' : 'arch';
+          const arch = keep(this.add.image(o.x, o.y + 26, `ptl_${z.theme}_${kind}`).setOrigin(0.5, 1).setDepth(10 + o.y + 20));
+          top = arch.y - arch.displayHeight + 2;
+          if (o.world) for (const dx of [-62, 62]) keep(this.add.image(o.x + dx, o.y + 26, `obj_${z.theme}_dragonStatue`).setOrigin(0.5, 1).setDepth(10 + o.y + 26));
+        } else {
+          // Каменная арка и вращающаяся воронка
+          keep(this.add.rectangle(o.x - 24, o.y, 8, 50, 0x6a6560).setDepth(10 + o.y + 20));
+          keep(this.add.rectangle(o.x + 24, o.y, 8, 50, 0x6a6560).setDepth(10 + o.y + 20));
+          keep(this.add.rectangle(o.x, o.y - 26, 58, 8, 0x5a5550).setDepth(10 + o.y + 20));
+        }
         const swirl = keep(this.add.ellipse(o.x, o.y + 2, 38, 46, col, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setDepth(10 + o.y));
         swirl.setInteractive().on('pointerdown', () => this.goTo(o));
         const core = keep(this.add.ellipse(o.x, o.y + 2, 18, 26, 0xffffff, 0.5).setDepth(10 + o.y + 1));
         this.tweens.add({ targets: swirl, scaleX: 0.8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         this.tweens.add({ targets: core, alpha: 0.15, scale: 1.4, duration: 900, yoyo: true, repeat: -1 });
         const title = !o.num ? `${o.icon} ${o.name}${o.world ? ` · ур. ${o.lv[0]}` : ''}` : `${['I', 'II', 'III', 'IV', 'V', 'VI'][o.num - 1]} · ${o.name} · ур. ${o.lv[0]}–${o.lv[1]}`;
-        keep(this.add.text(o.x, o.y - 32, title, { ...labelStyle, fontSize: '10px' }).setOrigin(0.5, 1).setDepth(3000));
+        keep(this.add.text(o.x, top, title, { ...labelStyle, fontSize: '10px' }).setOrigin(0.5, 1).setDepth(3000));
       }
     }
     this.nearObj = undefined;
