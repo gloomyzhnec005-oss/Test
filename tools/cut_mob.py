@@ -1,7 +1,7 @@
 # Нарезка кадров монстра из картинки ИИ-генератора (зелёный фон, кадры в ряд, монстр смотрит вправо).
 # Кадры берутся слева направо (затем сверху вниз), выравниваются по ногам и масштабируются до роста H.
 # Выход: public/assets/mobs/<id>.png — лист кадров в один ряд, ячейки W×H.
-# Запуск: python3 tools/cut_mob.py картинка.png <id монстра> [рост в пикселях игры, по умолчанию 42]
+# Запуск: python3 tools/cut_mob.py картинка.png <id монстра> [рост в пикселях игры, по умолчанию 42] [склейка, по умолчанию 3]
 # Затем впишите монстра в MOB_SKINS (public/js/skins.js): какие кадры — ходьба, какие — удар.
 import sys, os, numpy as np
 from PIL import Image
@@ -9,6 +9,7 @@ from scipy import ndimage
 
 src, mid = sys.argv[1], sys.argv[2]
 H = int(sys.argv[3]) if len(sys.argv) > 3 else 42
+GAP = int(sys.argv[4]) if len(sys.argv) > 4 else 3      # склейка мелких деталей; меньше — если кадры слиплись
 out = os.path.join(os.path.dirname(__file__), '..', 'public', 'assets', 'mobs')
 os.makedirs(out, exist_ok=True)
 im = np.array(Image.open(src).convert('RGB')).astype(int)
@@ -19,7 +20,7 @@ dist = np.sqrt(((im - key) ** 2).sum(2))
 bg = dist < 38
 bg |= ndimage.binary_dilation(bg, iterations=1) & (dist < 50)      # мягкая кайма (кожа орков ≈60 от фона)
 
-lab, _ = ndimage.label(ndimage.binary_dilation(~bg, iterations=3))
+lab, _ = ndimage.label(ndimage.binary_dilation(~bg, iterations=GAP))
 objs = [(s, i + 1) for i, s in enumerate(ndimage.find_objects(lab)) if s and (s[0].stop - s[0].start) > 40]
 # ряды кадров, в ряду — слева направо
 objs.sort(key=lambda o: o[0][0].stop)
