@@ -5,9 +5,10 @@ const { TILE } = require('./config');
 const { DUNGEONS, WORLD_BOSSES, MOBS } = require('./mobs');
 
 // Типы тайлов (вид зависит от темы мира, см. Gfx.tileset на клиенте)
-const T = { GRASS: 0, WATER: 1, TREE: 2, PATH: 3, FLOWERS: 4, DIRT: 5, ROCK: 6, WALL: 7, PLAZA: 8 };
-const SOLID = new Set([T.WATER, T.TREE, T.ROCK, T.WALL]);
-const BLOCKS_SIGHT = new Set([T.TREE, T.ROCK, T.WALL]); // через воду стрелять можно, через стены и деревья — нет
+// DECO — клетка под нарисованным украшением (статуя, фонтан, сундук): непроходима, закрывает обзор; земля под ним рисуется как трава/пол
+const T = { GRASS: 0, WATER: 1, TREE: 2, PATH: 3, FLOWERS: 4, DIRT: 5, ROCK: 6, WALL: 7, PLAZA: 8, DECO: 16 };
+const SOLID = new Set([T.WATER, T.TREE, T.ROCK, T.WALL, T.DECO]);
+const BLOCKS_SIGHT = new Set([T.TREE, T.ROCK, T.WALL, T.DECO]); // через воду стрелять можно, через стены и деревья — нет
 const ZONE_STRIDE = 8192; // px между началами зон
 
 function mulberry32(seed) {
@@ -18,6 +19,32 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+// Украшения миров (картинки — public/assets/world/<тема>/deco/<имя>.png).
+// plaza — по углам центральной площади, big — крупные (2×2 клетки), small — мелкие (1×1), dungeon — препятствия в комнатах данжей
+const DECO = {
+  green: {
+    plaza: ['fountain', 'deerStatue', 'dragonStatue2', 'hoodStatue'],
+    big: ['chapel', 'vineArch', 'pond', 'dragonNest', 'amberCrystal', 'pillar', 'stall', 'forest_spiritTree', 'forest_crystalGrove', 'forest_crystalFountain'],
+    small: ['chest', 'banner', 'signpost', 'cart', 'forest_runeStone', 'forest_crystalCluster', 'forest_banner'],
+    dungeon: ['forest_crystalCluster', 'forest_runeStone', 'forest_orbTree', 'forest_reaperStatue', 'forest_crystalFountain', 'forest_crystalGrove', 'forest_chest', 'forest_banner', 'forest_spiritTree'],
+    boss: ['forest_crystalArch', 'forest_runeCircle'],
+  },
+  abyss: {
+    plaza: ['firePit', 'gargoyle', 'dragonDark', 'reaperStatue'],
+    big: ['bloodSpire', 'bloodPortal', 'soulWell', 'cageArena', 'ritualCircle', 'stall', 'bloodPillar'],
+    small: ['chest', 'banner', 'signpost'],
+    dungeon: ['bloodPillar', 'firePit', 'gargoyle', 'reaperStatue', 'soulWell', 'chest', 'banner'],
+    boss: ['bloodPortal', 'ritualCircle'],
+  },
+  sky: {
+    plaza: ['fountain2', 'angelStatue', 'dragonGold', 'doveFountain'],
+    big: ['chapel', 'shrine', 'ruins', 'crystalSpire', 'obelisk', 'stall', 'nest2'],
+    small: ['chest', 'banner', 'signpost', 'bench', 'cart'],
+    dungeon: ['crystalSpire', 'obelisk', 'angelStatue', 'chest', 'banner', 'nest2'],
+    boss: ['shrine', 'ruins'],
+  },
+};
 
 // Простой value-noise
 function makeNoise(rand, cell, W, H) {
@@ -76,10 +103,15 @@ function mazeMap(seed, theme, minis) {
   };
   const done = new Set();
   for (const a of cells) for (const b of a.links) { const k = [a, b].sort((p, q) => cells.indexOf(p) - cells.indexOf(q)).map((x) => cells.indexOf(x)).join(); if (!done.has(k)) { done.add(k); corridor(a, b); } }
-  // Препятствия в комнатах (колонны, деревья)
+  // Препятствия в комнатах: нарисованные украшения мира (кристаллы, статуи, столбы), без набора — деревья
+  const D = DECO[theme], deco = [];
   for (const cl of cells) if (cl !== start) for (let i = 0; i < 2; i++) {
     const x = cl.x0 + 1 + Math.floor(rand() * (cl.x1 - cl.x0 - 1)), y = cl.y0 + 1 + Math.floor(rand() * (cl.y1 - cl.y0 - 1));
-    if (Math.abs(x - cl.cx) > 1 || Math.abs(y - cl.cy) > 1) set(x, y, T.TREE);
+    if (Math.abs(x - cl.cx) > 1 || Math.abs(y - cl.cy) > 1) {
+      if (!D) { set(x, y, T.TREE); continue; }
+      set(x, y, T.DECO);
+      deco.push({ k: D.dungeon[Math.floor(rand() * D.dungeon.length)], tx: x, ty: y, s: 1 });
+    }
   }
   // Глубина комнат и путь к боссу
   const depth = new Map([[start, 0]]), prev = new Map();
@@ -88,11 +120,17 @@ function mazeMap(seed, theme, minis) {
   const boss = [...depth.entries()].sort((a, b) => b[1] - a[1])[0][0];
   const path = [];
   for (let c = boss; c; c = prev.get(c)) path.unshift(c);
+  // Комната босса: два крупных украшения по углам
+  if (D) [[boss.x0 + 1, boss.y0 + 1], [boss.x1 - 1, boss.y0 + 1]].forEach(([x, y], i) => {
+    if (tiles[y * W + x] === T.DECO) return;
+    set(x, y, T.DECO);
+    deco.push({ k: D.boss[i % D.boss.length], tx: x, ty: y, s: 1 });
+  });
   const rooms = cells.map((c) => ({ x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1, cx: c.cx, cy: c.cy, depth: depth.get(c), role: c === start ? 'start' : c === boss ? 'boss' : 'normal' }));
   const maxD = depth.get(boss);
   const miniAt = minis === 1 ? [0.6] : [0.45, 0.75];
   miniAt.forEach((k) => { const c = path[Math.max(1, Math.min(path.length - 2, Math.round(k * (path.length - 1))))]; rooms[cells.indexOf(c)].role = 'mini'; });
-  return { tiles, w: W, h: H, rooms, maxD, spawn: { tx: start.cx, ty: start.cy } };
+  return { tiles, w: W, h: H, rooms, maxD, deco, spawn: { tx: start.cx, ty: start.cy } };
 }
 
 // ---------- Город ----------
@@ -173,7 +211,41 @@ function townMap(seed, theme) {
   // Граница
   for (let x = 0; x < W; x++) { set(x, 0, T.ROCK); set(x, H - 1, T.ROCK); }
   for (let y = 0; y < H; y++) { set(0, y, T.ROCK); set(W - 1, y, T.ROCK); }
-  return { tiles, spawn: { tx: cx, ty: cy + 3 } };
+  return { tiles, deco: townDeco(tiles, reserved, W, H, cx, cy, rand, theme), spawn: { tx: cx, ty: cy + 3 } };
+}
+
+// Украшения города: четыре по углам площади и россыпь на свободной земле.
+// Крупные занимают 2×2 клетки, мелкие — одну; вокруг каждого остаётся проход, дороги и двери не трогаются.
+function townDeco(tiles, reserved, W, H, cx, cy, rand, theme) {
+  const D = DECO[theme];
+  if (!D) return [];
+  const out = [];
+  D.plaza.forEach((k, i) => {
+    const tx = cx + (i % 2 ? 5 : -5), ty = cy + (i < 2 ? -4 : 4);
+    tiles[ty * W + tx] = T.DECO;
+    out.push({ k, tx, ty, s: 1 });
+  });
+  const ground = (x, y) => x > 1 && y > 1 && x < W - 2 && y < H - 2 && !reserved[y * W + x] && [T.GRASS, T.FLOWERS, T.DIRT].includes(tiles[y * W + x]);
+  const far = (x, y) => out.every((o) => Math.max(Math.abs(o.tx - x), Math.abs(o.ty - y)) >= 3);
+  const place = (list, n, s) => {
+    let k = 0;
+    for (let tries = 0; tries < 3000 && k < n; tries++) {
+      const x = 2 + Math.floor(rand() * (W - 4)), y = 2 + Math.floor(rand() * (H - 4));
+      let ok = far(x, y);
+      // сами клетки — свободная земля, кольцо вокруг — любая проходимая клетка (можно дорогу)
+      for (let dy = -1; ok && dy <= s; dy++) for (let dx = -1; ok && dx <= s; dx++) {
+        const inside = dx >= 0 && dy >= 0 && dx < s && dy < s;
+        ok = inside ? ground(x + dx, y + dy) : !SOLID.has(tiles[(y + dy) * W + x + dx]);
+      }
+      if (!ok) continue;
+      for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) tiles[(y + dy) * W + x + dx] = T.DECO;
+      out.push({ k: list[k % list.length], tx: x, ty: y, s });
+      k++;
+    }
+  };
+  place(D.big, D.big.length, 2);
+  place(D.small, D.small.length + 3, 1);
+  return out;
 }
 
 // ---------- Описание миров ----------
@@ -197,6 +269,9 @@ function buildWorld() {
     const abs = (tx, ty) => ({ x: z.ox + (tx + 0.5) * TILE, y: z.oy + (ty + 0.5) * TILE });
     z.abs = abs;
     z.spawn = abs(z.spawnTile.tx, z.spawnTile.ty);
+    // Украшения: точка — низ картинки посередине занятых клеток
+    z.deco = (z.decoTiles || []).map((d) => ({ k: d.k, x: z.ox + (d.tx + d.s / 2) * TILE, y: z.oy + (d.ty + d.s) * TILE - 3 }));
+    delete z.decoTiles;
     zones[idx] = z; byId.set(z.id, z);
     return z;
   };
@@ -204,7 +279,7 @@ function buildWorld() {
   WORLDS.forEach((w, wi) => {
     const m = townMap(101 + wi * 17, w.theme);
     const town = add({ id: w.id, kind: 'town', name: w.name, sub: w.sub, theme: w.theme, tier: w.tier, level: w.level,
-      w: TOWN_W, h: TOWN_H, tiles: m.tiles, spawnTile: m.spawn, town: w.id, objs: [] });
+      w: TOWN_W, h: TOWN_H, tiles: m.tiles, spawnTile: m.spawn, town: w.id, objs: [], decoTiles: m.deco });
     const objs = town.objs;
     for (const [place, bx, by] of BUILDINGS) {
       const door = town.abs(bx + 1.5, by + 3.3);
@@ -244,7 +319,7 @@ function buildWorld() {
     const town = byId.get(townId), dg = DUNGEONS[townId][i];
     const m = mazeMap(9000 + dunSeq * 13 + i * 101, town.theme, dg.minis.length);
     const z = add({ id: `dun${dunSeq++}`, kind: 'dungeon', name: dg.name, sub: `${town.name} · портал ${i + 1} · ур. ${dg.lv[0]}–${dg.lv[1]}`, theme: town.theme, tier: town.tier,
-      w: m.w, h: m.h, tiles: m.tiles, spawnTile: m.spawn, town: townId, objs: [], rooms: m.rooms, maxD: m.maxD, dg, dgIndex: i });
+      w: m.w, h: m.h, tiles: m.tiles, spawnTile: m.spawn, town: townId, objs: [], rooms: m.rooms, maxD: m.maxD, dg, dgIndex: i, decoTiles: m.deco });
     const back = z.abs(m.spawn.tx, m.spawn.ty - 2);
     z.objs.push({ id: 'back', kind: 'portal', to: townId, name: `В город ${town.name}`, icon: '🏰', x: back.x, y: back.y });
     return z;
@@ -295,9 +370,9 @@ function buildWorld() {
   };
   // Данные зоны для клиента
   const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
-    town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, solid: [...SOLID], fog: z.kind === 'dungeon' });
+    town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon' });
 
   return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level })) };
 }
 
-module.exports = { buildWorld, T, SOLID: [...SOLID], ZONE_STRIDE, PLACES };
+module.exports = { buildWorld, T, SOLID: [...SOLID], ZONE_STRIDE, PLACES, DECO };

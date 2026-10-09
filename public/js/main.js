@@ -155,7 +155,8 @@
     c.width = map.w; c.height = map.h;
     const ctx = c.getContext('2d');
     for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
-      ctx.fillStyle = colors[map.tiles[y * map.w + x]] || '#000';
+      const t = map.tiles[y * map.w + x];
+      ctx.fillStyle = t === 16 ? '#a08a60' : colors[t] || '#000'; // 16 — украшение
       ctx.fillRect(x, y, 1, 1);
     }
     minimapBase = c;

@@ -10,6 +10,13 @@ window.WorldArt = (() => {
     sky: ['tree', 'goldTree', 'bush', 'crystal', 'boulder', 'dragonStatue', 'nest', 'lantern', 'fountain', 'column', 'harp', 'floatStone'],
   };
   const PORTALS = ['teleport', 'arch', 'boss', 'exit', 'sign', 'chest'];
+  // Украшения (assets/world/<тема>/deco/): какие где стоят — решает сервер (server/world.js, DECO)
+  const DECO = {
+    green: ['fountain', 'deerStatue', 'dragonStatue2', 'hoodStatue', 'chapel', 'vineArch', 'pond', 'dragonNest', 'amberCrystal', 'pillar', 'stall', 'chest', 'banner', 'signpost', 'cart',
+      ...['spiritTree', 'orbTree', 'crystalFountain', 'crystalCluster', 'chest', 'banner', 'stall', 'signpost', 'crystalArch', 'reaperStatue', 'runeCircle', 'crystalGrove', 'runeStone'].map((k) => 'forest_' + k)],
+    abyss: ['bloodSpire', 'gargoyle', 'firePit', 'dragonDark', 'chest', 'banner', 'stall', 'signpost', 'bloodPortal', 'reaperStatue', 'ritualCircle', 'soulWell', 'cageArena', 'bloodPillar'],
+    sky: ['chapel', 'angelStatue', 'fountain2', 'dragonGold', 'chest', 'banner', 'stall', 'signpost', 'shrine', 'doveFountain', 'ruins', 'crystalSpire', 'nest2', 'bench', 'obelisk', 'cart'],
+  };
   const THEMES = { green: true, abyss: true, sky: true };
   const base = (th) => `assets/world/${th}`;
   // Загрузка в Phaser (вызывается из preload сцены)
@@ -19,6 +26,7 @@ window.WorldArt = (() => {
       for (const p of PLACES) scene.load.image(`bld_${th}_${p}`, `${base(th)}/buildings/${p}.png`);
       for (const o of OBJECTS[th]) scene.load.image(`obj_${th}_${o}`, `${base(th)}/objects/${o}.png`);
       for (const o of PORTALS) scene.load.image(`ptl_${th}_${o}`, `${base(th)}/portals/${o}.png`);
+      for (const o of DECO[th] || []) scene.load.image(`deco_${th}_${o}`, `${base(th)}/deco/${o}.png`);
     }
   }
   const has = (th) => !!THEMES[th];
@@ -26,7 +34,8 @@ window.WorldArt = (() => {
   // Тайл для отрисовки: разнообразие травы в городе, свои пол и стены в данжах (столкновения не меняются)
   function remap(t, x, y, dungeon) {
     const h = hash(x, y);
-    if (dungeon) return t === 0 || t === 5 || t === 2 ? 13 : t === 6 ? 14 : t === 4 ? 11 : t;
+    if (dungeon) return t === 0 || t === 5 || t === 2 || t === 16 ? 13 : t === 6 ? 14 : t === 4 ? 11 : t;
+    if (t === 16) return 0; // под украшением — обычная земля
     if (t === 0) return h < 18 ? 10 : h < 26 ? 11 : 0;
     return t;
   }

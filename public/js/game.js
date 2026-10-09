@@ -149,7 +149,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const art = WorldArt.has(z.theme), dungeon = z.kind !== 'town' && z.kind !== 'worldboss';
     for (let y = 0; y < z.h; y++) {
       const row = z.tiles.slice(y * z.w, (y + 1) * z.w);
-      data2d.push(art ? row.map((t, x) => WorldArt.remap(t, x, y, dungeon)) : row);
+      data2d.push(art ? row.map((t, x) => WorldArt.remap(t === 16 ? this.groundUnder(z, x, y) : t, x, y, dungeon)) : row);
     }
     this.tilemap = this.make.tilemap({ data: data2d, tileWidth: T, tileHeight: T });
     const ts = this.tilemap.addTilesetImage('tiles_' + z.theme, 'tiles_' + z.theme, T, T, 0, 0);
@@ -172,6 +172,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const px = z.ox + x * T + T / 2, py = z.oy + y * T + T - 2;
         this.zoneObjs.push(this.add.image(px, py, `obj_${z.theme}_${WorldArt.treeAt(x, y)}`).setOrigin(0.5, 1).setDepth(10 + py));
       }
+    }
+    // Нарисованные украшения (статуи, фонтаны, сундуки): сервер ставит их на непроходимые клетки DECO
+    for (const d of z.deco || []) {
+      const key = `deco_${z.theme}_${d.k}`;
+      if (this.textures.exists(key)) this.zoneObjs.push(this.add.image(d.x, d.y, key).setOrigin(0.5, 1).setDepth(10 + d.y));
     }
     this.cameras.main.setBackgroundColor({ green: '#2f6a28', abyss: '#07040c', sky: '#bfe0ff' }[z.theme]);
     const keep = (o) => { this.zoneObjs.push(o); return o; };
@@ -230,6 +235,17 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.nearObj = undefined;
     if (this.layer && this.scale) this.resize();
     this.ui.onZone(z);
+  }
+
+  // Земля под украшением (клетка 16): самый частый соседний проходимый тайл — площадь, трава или пепел
+  groundUnder(z, x, y) {
+    const cnt = {};
+    for (let r = 1; r <= 2; r++) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const t = z.tiles[(y + dy * r) * z.w + x + dx * r];
+      if (t === 0 || t === 3 || t === 4 || t === 5 || t === 8) cnt[t] = (cnt[t] || 0) + 1;
+    }
+    const best = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+    return best ? +best[0] : 0;
   }
 
   // Раскрыть туман вокруг героя (радиус 7 тайлов)
@@ -318,7 +334,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const tx = Math.floor((ax + (bx - ax) * k - this.zone.ox) / this.T), ty = Math.floor((ay + (by - ay) * k - this.zone.oy) / this.T);
       if (tx < 0 || ty < 0 || tx >= this.mapW || ty >= this.mapH) return false;
       const t = this.tiles[ty * this.mapW + tx];
-      if (t === 2 || t === 6 || t === 7) return false;
+      if (t === 2 || t === 6 || t === 7 || t === 16) return false;
     }
     return true;
   }
