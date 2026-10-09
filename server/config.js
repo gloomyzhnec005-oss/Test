@@ -981,6 +981,8 @@ module.exports = {
     { id: 'forest', name: 'Лесной алтарь', price: 0 },
     { id: 'dragon', name: 'Логово дракона', price: 50 },
     { id: 'ice', name: 'Ледяная цитадель', price: 75 },
+    { id: 'runes', name: 'Рунный круг', price: 0 },
+    { id: 'treetown', name: 'Деревня в кронах', price: 50 },
   ],
 
   // Монстры. zone — минимальное расстояние от центра (в тайлах), где они появляются

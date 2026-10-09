@@ -316,8 +316,8 @@ window.LobbyBg = (() => {
   // Нарисованный фон-картинка (фон города): «img:путь». Пока картинка грузится — тёмная заливка, затем onReady.
   const imgs = {};
   // Нарисованные фоны (заменяют процедурные с тем же id) и их частицы
-  const IMAGES = { throne: 'assets/lobby/throne.jpg', forest: 'assets/lobby/forest.jpg', dragon: 'assets/lobby/dragon.jpg', ice: 'assets/lobby/ice.jpg' };
-  const PARTICLES = { throne: 'embers', forest: 'fireflies', dragon: 'embers', ice: 'snow' };
+  const IMAGES = { throne: 'assets/lobby/throne.jpg', forest: 'assets/lobby/forest.jpg', dragon: 'assets/lobby/dragon.jpg', ice: 'assets/lobby/ice.jpg', runes: 'assets/lobby/green_1.jpg', treetown: 'assets/lobby/green_2.jpg' };
+  const PARTICLES = { throne: 'embers', forest: 'fireflies', dragon: 'embers', ice: 'snow', runes: 'fireflies', treetown: 'fireflies' };
   function paintImage(ctx, src, w, h, onReady, particles) {
     let im = imgs[src];
     if (!im) { im = imgs[src] = new Image(); im.src = src; }

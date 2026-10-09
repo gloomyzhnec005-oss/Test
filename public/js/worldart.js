@@ -35,7 +35,7 @@ window.WorldArt = (() => {
   // Фоны лобби по городу, из которого игрок вышел (public/assets/lobby/<тема>_1..4.jpg)
   // Только чёткие полноразмерные картинки; мелкие с общих листов убраны (были мыльными)
   const LOBBY = {
-    green: ['assets/lobby/forest.jpg'], // своих фонов Эльдмира пока нет — лесной алтарь
+    green: ['assets/lobby/forest.jpg', 'assets/lobby/green_1.jpg', 'assets/lobby/green_2.jpg'],
     abyss: [1, 2, 3].map((i) => `assets/lobby/abyss_${i}.jpg`),
     sky: ['assets/lobby/sky_1.jpg'],
   };
