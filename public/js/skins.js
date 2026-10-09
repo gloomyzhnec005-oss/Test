@@ -28,6 +28,11 @@ window.Skins = (() => {
       // bolt — летящий череп-дух (обычная атака издалека)
       fx: { sheet: 'assets/heroes/alamariel_fx.png', size: 72, frames: 7, rows: ['bolt', 'hit', 'spiritWrath', 'chainLightning', 'healTotem', 'aura'] },
     },
+    ursus: {
+      sheet: 'assets/heroes/ursus_sheet.png', portrait: 'assets/heroes/ursus_portrait.png', w: 36, h: 48, frames: 5,
+      // Кадров атаки нет (на присланном листе вместе с героем нарисованы звери) — только эффекты; bolt — летящее копьё
+      fx: { sheet: 'assets/heroes/ursus_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'sic', 'packCall', 'spiritLink', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

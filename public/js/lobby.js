@@ -114,8 +114,8 @@ window.Lobby = (() => {
       el.onclick = () => openGacha();
     }
     el.appendChild(heroCanvas(id, true));
-    // Звери-спутники стоят у ног хозяина
-    if (id && heroes[id].pets) {
+    // Звери-спутники стоят у ног хозяина (на нарисованном портрете они уже есть)
+    if (id && heroes[id].pets && !(window.Skins && Skins.get(id) && Skins.get(id).portrait)) {
       ['wolf', 'bear', 'hawk'].forEach((k) => {
         const pc = document.createElement('canvas');
         pc.width = 32; pc.height = 32;

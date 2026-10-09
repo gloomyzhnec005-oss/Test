@@ -446,6 +446,28 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    ursus: {
+      // Натравливание: стая с золотым вихрем у цели, от каждого зверя — рывок
+      sic(sc, f, c) {
+        for (const id of f.pets || []) { const e = sc.pets.get(id); if (e) afterimage(sc, e, 0xffb050, 0.6, 300); }
+        fxPlay(sc, 'ursus', 'sic', f.x, f.y - 14, { scale: 1.3 });
+        sc.time.delayedCall(250, () => { fxPlay(sc, 'ursus', 'hit', f.x, f.y - 10, { scale: 1.2 }); shake(sc, f, 140, 0.006); });
+        sc.floatText(f.x, f.y - 46, '❗', '#ff9040', 18);
+        return true;
+      },
+      packCall(sc, f, c) {
+        fxPlay(sc, 'ursus', 'packCall', f.x, f.y - 10, { scale: (f.r || 90) / 36, follow: c, dy: -10 });
+        shock(sc, f.x, f.y + 4, f.r || 90, 0xc8a46a, { w: 4, dur: 600 });
+        shake(sc, f, 180, 0.007);
+        return true;
+      },
+      spiritLink(sc, f, c) {
+        const pet = sc.pets.get(f.pet);
+        fxPlay(sc, 'ursus', 'spiritLink', f.fx, f.fy - 12, { scale: 1.2, follow: pet, dy: -12 });
+        fxPlay(sc, 'ursus', 'aura', c.c.x, c.c.y - 4, { scale: 1, follow: c, dy: -4 });
+        return true;
+      },
+    },
     alamariel: {
       spiritWrath(sc, f, c) {
         heroAnim(sc, c, undefined, undefined, true);
