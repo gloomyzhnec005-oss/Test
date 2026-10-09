@@ -21,7 +21,7 @@ window.WorldArt = (() => {
   // Свои бесшовные текстуры земли (assets/world/<тема>/ground/<имя>.png, любой размер) заменяют тайл 32×32 —
   // повтор квадратов исчезает. Номер тайла → имя файла; в GROUND — какие файлы у мира уже есть
   const GROUND_NAMES = { 2: 'tree', 0: 'grass', 15: 'grass', 10: 'grass2', 11: 'moss', 1: 'water', 3: 'path', 4: 'flowers', 5: 'dirt', 6: 'rock', 7: 'wall', 8: 'plaza', 12: 'ruins', 13: 'floor', 14: 'dwall' };
-  const GROUND = { green: ['grass', 'path', 'plaza', 'water', 'floor', 'dwall'], abyss: ['grass', 'path', 'plaza', 'water', 'floor', 'dwall'], sky: [] };
+  const GROUND = { green: ['grass', 'path', 'plaza', 'water', 'floor', 'dwall'], abyss: ['grass', 'path', 'plaza', 'water', 'floor', 'dwall'], sky: ['grass', 'path', 'plaza', 'water', 'floor', 'dwall', 'flowers'] };
   // Нет своего файла — берём близкий: варианты травы, цветы и клетки под деревьями — трава, земля — дорога, скалы — стена данжа
   const GROUND_ALIAS = { grass2: 'grass', moss: 'grass', flowers: 'grass', tree: 'grass', dirt: 'path', rock: 'dwall', ruins: 'dwall', wall: 'dwall' };
   const base = (th) => `assets/world/${th}`;
