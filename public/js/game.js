@@ -704,6 +704,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: b, x: f.tx, y: f.ty, duration: 160, onComplete: () => { b.destroy(); doHit(); } });
       } else if (!f.basic) {
         doHit();
+      } else if (f.proj && !f.pet && attacker && HeroFx.shoot(this, attacker, f, e ? e.c.x : f.tx, e ? e.c.y : f.ty, doHit)) {
+        // нарисованный снаряд героя (public/js/herofx.js)
       } else if (f.proj) {
         const p = this.add.image(f.fx, f.fy, 'proj_' + f.proj).setDepth(800);
         const tx = e ? e.c.x : f.tx, ty = e ? e.c.y : f.ty;

@@ -21,6 +21,13 @@ window.Skins = (() => {
       attack: { sheet: 'assets/heroes/vayald_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
       fx: { sheet: 'assets/heroes/vayald_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'twinSlash', 'bloodFrenzy', 'blindRage', 'aura'] },
     },
+    alamariel: {
+      sheet: 'assets/heroes/alamariel_sheet.png', portrait: 'assets/heroes/alamariel_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй выпад посохом, поза умения
+      attack: { sheet: 'assets/heroes/alamariel_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      // bolt — летящий череп-дух (обычная атака издалека)
+      fx: { sheet: 'assets/heroes/alamariel_fx.png', size: 72, frames: 7, rows: ['bolt', 'hit', 'spiritWrath', 'chainLightning', 'healTotem', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

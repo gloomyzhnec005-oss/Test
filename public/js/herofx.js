@@ -192,6 +192,20 @@ window.HeroFx = (() => {
     });
     return true;
   }
+  // Выстрел героя дальнего боя нарисованным снарядом (ряд bolt): кадры атаки, полёт, вспышка. onHit — урон по прилёту
+  function shoot(sc, a, f, x, y, onHit) {
+    if (!a || !a.skinOn || !hasFx(sc, a.skin, 'bolt')) return false;
+    face(a, x, y);
+    heroAnim(sc, a, x, y);
+    const fx = a.c.x, fy = a.c.y - 14, ang = Math.atan2(y - 8 - fy, x - fx);
+    const dur = Math.max(160, Math.hypot(x - fx, y - fy) * 1.4);
+    sc.time.delayedCall(110, () => {
+      const sp = fxPlay(sc, a.skin, 'bolt', fx, fy, { rot: ang, scale: 0.7, to: { x, y: y - 8 }, dur, flipY: x < fx });
+      if (sp) sp.anims.msPerFrame = dur / 6;
+      sc.time.delayedCall(dur, () => { fxPlay(sc, a.skin, 'hit', x, y - 8, { scale: f.crit ? 1.1 : 0.75 }); if (f.crit) shake(sc, f, 80, 0.004); onHit(); });
+    });
+    return true;
+  }
   function attack(sc, a, f, x, y) {
     const fn = a && a.skin && (ATTACK[a.skin] || ((hasAttack(sc, a.skin) || hasFx(sc, a.skin, 'slash')) && sheetAttack));
     if (!fn) return false;
@@ -432,6 +446,42 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    alamariel: {
+      spiritWrath(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        // Три волны духов предков над целью — в такт ударам сервера
+        for (let i = 0; i < 3; i++) sc.time.delayedCall(150 + i * 300, () => {
+          fxPlay(sc, 'alamariel', 'spiritWrath', f.x + (Math.random() - 0.5) * f.r * 0.6, f.y - 18 + (Math.random() - 0.5) * f.r * 0.3, { scale: (f.r || 100) / 50 });
+          shock(sc, f.x, f.y + 4, f.r || 100, 0x9ff0ff, { w: 3, dur: 400 });
+          if (i === 2) shake(sc, f, 140, 0.005);
+        });
+        return true;
+      },
+      chainLightning(sc, f, c) {
+        const pts = [[c.c.x, c.c.y - 16], ...f.pts.map(([x, y]) => [x, y - 10])];
+        heroAnim(sc, c, f.pts[0][0], f.pts[0][1]);
+        // Молния-эффект растягивается и поворачивается между соседними целями
+        pts.slice(1).forEach(([x2, y2], i) => sc.time.delayedCall(i * 70, () => {
+          const [x1, y1] = pts[i], d = Math.hypot(x2 - x1, y2 - y1);
+          const sp = fxPlay(sc, 'alamariel', 'chainLightning', (x1 + x2) / 2, (y1 + y2) / 2, { rot: Math.atan2(y2 - y1, x2 - x1) - Math.PI / 4, scale: Math.max(0.8, d / 60) });
+          if (sp) sp.anims.msPerFrame = 45;
+          fxPlay(sc, 'alamariel', 'hit', x2, y2, { scale: 0.8 });
+        }));
+        shake(sc, f, 120, 0.005);
+        return true;
+      },
+      healTotem(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'alamariel', 'healTotem', f.x, f.y - 20, { scale: 1.4 });
+        shock(sc, f.x, f.y + 4, f.r || 140, 0x7dff8a, { w: 3, dur: 600 });
+        return true;
+      },
+      favorReady(sc, f, c) {
+        fxPlay(sc, 'alamariel', 'aura', c.c.x, c.c.y - 4, { scale: 1.2, follow: c, dy: -4 });
+        sc.floatText(f.x, f.y - 50, '🌀 Духи благосклонны!', '#9ff0ff', 13);
+        return true;
+      },
+    },
     vayald: {
       twinSlash(sc, f, c) {
         heroAnim(sc, c, f.x, f.y) || lunge(sc, c, f.x - c.c.x, f.y - c.c.y, 14, 90);
@@ -488,7 +538,8 @@ window.HeroFx = (() => {
   function skill(sc, f) {
     const c = casterOf(sc, f);
     const own = c && c.skinOn && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
-    if (own && hasFx(sc, c.skin, f.s)) return own(sc, f, c);
+    // Ряд эффекта обычно назван как умение; событие «духи благосклонны» играет ауру
+    if (own && hasFx(sc, c.skin, { favorReady: 'aura' }[f.s] || f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }
@@ -503,5 +554,5 @@ window.HeroFx = (() => {
     return plane;
   }
 
-  return { attack, skill, sealMark, hasFx, auraSprite };
+  return { attack, shoot, skill, sealMark, hasFx, auraSprite };
 })();
