@@ -20,8 +20,10 @@ window.WorldArt = (() => {
   const THEMES = { green: true, abyss: true, sky: true };
   // Свои бесшовные текстуры земли (assets/world/<тема>/ground/<имя>.png, любой размер) заменяют тайл 32×32 —
   // повтор квадратов исчезает. Номер тайла → имя файла; в GROUND — какие файлы у мира уже есть
-  const GROUND_NAMES = { 0: 'grass', 15: 'grass', 10: 'grass2', 11: 'moss', 1: 'water', 3: 'path', 4: 'flowers', 5: 'dirt', 6: 'rock', 7: 'wall', 8: 'plaza', 12: 'ruins', 13: 'floor', 14: 'dwall' };
-  const GROUND = { green: [], abyss: [], sky: [] };
+  const GROUND_NAMES = { 2: 'tree', 0: 'grass', 15: 'grass', 10: 'grass2', 11: 'moss', 1: 'water', 3: 'path', 4: 'flowers', 5: 'dirt', 6: 'rock', 7: 'wall', 8: 'plaza', 12: 'ruins', 13: 'floor', 14: 'dwall' };
+  const GROUND = { green: ['grass', 'path', 'plaza', 'water', 'floor', 'dwall'], abyss: [], sky: [] };
+  // Нет своего файла — берём близкий: варианты травы, цветы и клетки под деревьями — трава, земля — дорога, скалы — стена данжа
+  const GROUND_ALIAS = { grass2: 'grass', moss: 'grass', flowers: 'grass', tree: 'grass', dirt: 'path', rock: 'dwall', ruins: 'dwall', wall: 'dwall' };
   const base = (th) => `assets/world/${th}`;
   // Загрузка в Phaser (вызывается из preload сцены)
   function preload(scene) {
@@ -39,7 +41,7 @@ window.WorldArt = (() => {
   // Тайл для отрисовки: разнообразие травы в городе, свои пол и стены в данжах (столкновения не меняются)
   function remap(t, x, y, dungeon) {
     const h = hash(x, y);
-    if (dungeon) return t === 0 || t === 5 || t === 2 || t === 16 ? 13 : t === 6 ? 14 : t === 4 ? 11 : t;
+    if (dungeon) return t === 0 || t === 3 || t === 5 || t === 2 || t === 16 ? 13 : t === 6 ? 14 : t === 4 ? 11 : t;
     if (t === 16) return 0; // под украшением — обычная земля
     if (t === 0) return h < 18 ? 10 : h < 26 ? 11 : 0;
     return t;
@@ -62,8 +64,11 @@ window.WorldArt = (() => {
   const ORDER = [0, 15, 10, 11, 2, 4, 5, 3, 8, 13, 1, 6, 12, 7, 14]; // снизу вверх
   const FLIP = new Set([0, 1, 2, 4, 5, 10, 11, 13, 15]); // природные тайлы можно отражать — меньше заметен повтор
   function pattern(ctx, src, id, rnd, scene, th) {
-    const name = GROUND_NAMES[id], key = `gnd_${th}_${name}`;
-    if (scene && (GROUND[th] || []).includes(name) && scene.textures.exists(key)) return ctx.createPattern(scene.textures.get(key).getSourceImage(), 'repeat');
+    const have = GROUND[th] || [];
+    let name = GROUND_NAMES[id];
+    if (!have.includes(name)) name = GROUND_ALIAS[name];
+    const key = `gnd_${th}_${name}`;
+    if (scene && have.includes(name) && scene.textures.exists(key)) return ctx.createPattern(scene.textures.get(key).getSourceImage(), 'repeat');
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const g = c.getContext('2d');
     for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
@@ -142,6 +147,8 @@ window.WorldArt = (() => {
       l.globalCompositeOperation = 'destination-in'; l.drawImage(m, 0, 0, out.width, out.height);
       o.drawImage(layer, 3, 10); o.restore();
       for (const t of high) paintLayer(pattern(o, src, t, rnd, scene, z.theme), makeMask((v) => v === t));
+      // Стены темнее пола — сразу видно, где можно пройти
+      paintLayer('#000', makeMask((v) => HIGH.has(v), 0.1, -0.08), 0.42);
     }
     return out;
   }
