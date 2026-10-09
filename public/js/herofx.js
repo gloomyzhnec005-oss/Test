@@ -446,6 +446,30 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    malakor: {
+      punishSeal(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'malakor', 'punishSeal', f.x, f.y - 16, { scale: 1.2 });
+        sc.floatText(f.x, f.y - 46, '⛓️ Приговор', '#c890ff', 12);
+        return true;
+      },
+      darkBlade(sc, f, c) {
+        for (let i = 0; i < 4; i++) sc.time.delayedCall(i * 40, () => afterimage(sc, c, 0x9b4dff, 0.5, 260));
+        fxPlay(sc, 'malakor', 'darkBlade', (f.fx + f.x) / 2, (f.fy + f.y) / 2 - 12, { scale: Math.max(1.1, Math.hypot(f.x - f.fx, f.y - f.fy) / 60), flipX: f.x < f.fx });
+        sc.time.delayedCall(180, () => { fxPlay(sc, 'malakor', 'hit', f.tx, f.ty - 10, { scale: f.sealed ? 1.6 : 1.1 }); shake(sc, f, f.sealed ? 200 : 120, f.sealed ? 0.009 : 0.005); });
+        if (f.sealed) sc.floatText(f.tx, f.ty - 46, 'Кара!', '#c890ff', 15);
+        if (f.from === sc.myId && sc.me) { sc.me.x = f.x; sc.me.y = f.y; }
+        return true;
+      },
+      shadowJudgment(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'malakor', 'shadowJudgment', f.x, f.y - 20, { scale: (f.r || 120) / 40 });
+        sc.time.delayedCall(120, () => fxPlay(sc, 'malakor', 'aura', f.x, f.y, { scale: (f.r || 120) / 34 }));
+        shock(sc, f.x, f.y + 4, f.r || 120, 0x9b4dff, { w: 5, dur: 650 });
+        shake(sc, f, 220, 0.009);
+        return true;
+      },
+    },
     nairi: {
       markPrey(sc, f, c) {
         heroAnim(sc, c, f.x, f.y);

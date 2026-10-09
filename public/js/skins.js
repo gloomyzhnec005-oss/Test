@@ -42,6 +42,13 @@ window.Skins = (() => {
       // bolt — летящий кинжал
       fx: { sheet: 'assets/heroes/nairi_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'markPrey', 'shadowDash', 'smokeScreen', 'aura'] },
     },
+    malakor: {
+      sheet: 'assets/heroes/malakor_sheet.png', portrait: 'assets/heroes/malakor_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений и два доп. ряда; позы умения нет — для умений ряд «вниз»
+      attack: { sheet: 'assets/heroes/malakor_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 0 },
+      // bolt — теневой клинок (обычная атака издалека)
+      fx: { sheet: 'assets/heroes/malakor_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'punishSeal', 'darkBlade', 'shadowJudgment', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
