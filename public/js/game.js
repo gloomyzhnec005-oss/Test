@@ -154,6 +154,15 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.tilemap = this.make.tilemap({ data: data2d, tileWidth: T, tileHeight: T });
     const ts = this.tilemap.addTilesetImage('tiles_' + z.theme, 'tiles_' + z.theme, T, T, 0, 0);
     this.layer = this.tilemap.createLayer(0, ts, z.ox, z.oy).setDepth(0);
+    // Нарисованные миры: земля одной картинкой с плавными переходами (WorldArt.terrain), сетка тайлов скрыта
+    if (this.terrainImg) { this.terrainImg.destroy(); this.textures.remove('terrain'); this.terrainImg = null; }
+    if (art) {
+      try {
+        this.textures.addCanvas('terrain', WorldArt.terrain(this, z, data2d));
+        this.terrainImg = this.add.image(z.ox, z.oy, 'terrain').setOrigin(0, 0).setDepth(0);
+        this.layer.setVisible(false);
+      } catch (e) { console.warn('terrain', e); }
+    }
     this.solid = new Set(z.solid);
     this.mapW = z.w; this.mapH = z.h; this.tiles = z.tiles;
     // Туман войны: в данже карта открывается по мере прохождения
