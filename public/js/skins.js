@@ -30,7 +30,9 @@ window.Skins = (() => {
     },
     ursus: {
       sheet: 'assets/heroes/ursus_sheet.png', portrait: 'assets/heroes/ursus_portrait.png', w: 36, h: 48, frames: 5,
-      // Кадров атаки нет (на присланном листе вместе с героем нарисованы звери) — только эффекты; bolt — летящее копьё
+      // Атака: 7 рядов — 5 направлений и два доп. ряда (влево); отдельной позы умения нет — для умений ряд «вниз»
+      attack: { sheet: 'assets/heroes/ursus_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 0 },
+      // bolt — летящее копьё
       fx: { sheet: 'assets/heroes/ursus_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'sic', 'packCall', 'spiritLink', 'aura'] },
     },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
