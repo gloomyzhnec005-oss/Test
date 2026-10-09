@@ -30,22 +30,22 @@ window.Skins = (() => {
     },
     ursus: {
       sheet: 'assets/heroes/ursus_sheet.png', portrait: 'assets/heroes/ursus_portrait.png', w: 36, h: 48, frames: 5,
-      // Атака: 7 рядов — 5 направлений и два доп. ряда (влево); отдельной позы умения нет — для умений ряд «вниз»
-      attack: { sheet: 'assets/heroes/ursus_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 0 },
+      // Атака: 8 рядов — 5 направлений, два доп. ряда и поза умения (последний)
+      attack: { sheet: 'assets/heroes/ursus_attack.png', w: 72, h: 60, frames: 5, rows: 8, cast: 7 },
       // bolt — летящее копьё
       fx: { sheet: 'assets/heroes/ursus_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'sic', 'packCall', 'spiritLink', 'aura'] },
     },
     nairi: {
       sheet: 'assets/heroes/nairi_sheet.png', portrait: 'assets/heroes/nairi_portrait.png', w: 36, h: 48, frames: 5,
-      // Атака: 7 рядов — 5 направлений и два доп. ряда; позы умения нет — для умений ряд «вниз»
-      attack: { sheet: 'assets/heroes/nairi_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 0 },
+      // Атака: 8 рядов — 5 направлений, два доп. ряда и поза умения (последний)
+      attack: { sheet: 'assets/heroes/nairi_attack.png', w: 72, h: 60, frames: 5, rows: 8, cast: 7 },
       // bolt — летящий кинжал
       fx: { sheet: 'assets/heroes/nairi_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'markPrey', 'shadowDash', 'smokeScreen', 'aura'] },
     },
     malakor: {
       sheet: 'assets/heroes/malakor_sheet.png', portrait: 'assets/heroes/malakor_portrait.png', w: 36, h: 48, frames: 5,
-      // Атака: 7 рядов — 5 направлений и два доп. ряда; позы умения нет — для умений ряд «вниз»
-      attack: { sheet: 'assets/heroes/malakor_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 0 },
+      // Атака: 8 рядов — 5 направлений, два доп. ряда и поза умения (последний)
+      attack: { sheet: 'assets/heroes/malakor_attack.png', w: 72, h: 60, frames: 5, rows: 8, cast: 7 },
       // bolt — теневой клинок (обычная атака издалека)
       fx: { sheet: 'assets/heroes/malakor_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'punishSeal', 'darkBlade', 'shadowJudgment', 'aura'] },
     },
