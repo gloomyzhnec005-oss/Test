@@ -35,6 +35,13 @@ window.Skins = (() => {
       // bolt — летящее копьё
       fx: { sheet: 'assets/heroes/ursus_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'sic', 'packCall', 'spiritLink', 'aura'] },
     },
+    nairi: {
+      sheet: 'assets/heroes/nairi_sheet.png', portrait: 'assets/heroes/nairi_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений и два доп. ряда; позы умения нет — для умений ряд «вниз»
+      attack: { sheet: 'assets/heroes/nairi_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 0 },
+      // bolt — летящий кинжал
+      fx: { sheet: 'assets/heroes/nairi_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'markPrey', 'shadowDash', 'smokeScreen', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

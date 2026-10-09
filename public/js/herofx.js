@@ -112,7 +112,7 @@ window.HeroFx = (() => {
   function fxPlay(sc, id, name, x, y, o = {}) {
     if (!hasFx(sc, id, name)) return null;
     const sp = sc.add.sprite(x, y, 'fx_' + id).setDepth(o.depth || 9100).setScale(o.scale || 1).setRotation(o.rot || 0)
-      .setFlipY(!!o.flipY).setBlendMode(o.solid ? Phaser.BlendModes.NORMAL : Phaser.BlendModes.ADD); // solid — камни и тёмные части видны
+      .setFlipY(!!o.flipY).setFlipX(!!o.flipX).setBlendMode(o.solid ? Phaser.BlendModes.NORMAL : Phaser.BlendModes.ADD); // solid — камни и тёмные части видны
     if (o.origin) sp.setOrigin(...o.origin);
     sp.play({ key: `fx_${id}_${name}`, repeat: o.repeat || 0 });
     if (o.follow) sc.events.on('update', function follow() { if (!sp.active || !o.follow.c.active) return sc.events.off('update', follow); sp.setPosition(o.follow.c.x, o.follow.c.y + (o.dy || 0)); });
@@ -446,6 +446,30 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    nairi: {
+      markPrey(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'nairi', 'markPrey', f.x, f.y - 16, { scale: 1.1 });
+        sc.floatText(f.x, f.y - 46, '🎯 Контракт', '#ff6a6a', 12);
+        return true;
+      },
+      shadowDash(sc, f, c) {
+        // Тень Найри проносится от старта к цели, у цели — удар в спину
+        for (let i = 0; i < 4; i++) sc.time.delayedCall(i * 40, () => afterimage(sc, c, 0x4a5a9a, 0.5, 260));
+        const ang = Math.atan2(f.y - f.fy, f.x - f.fx);
+        fxPlay(sc, 'nairi', 'shadowDash', (f.fx + f.x) / 2, (f.fy + f.y) / 2 - 12, { scale: Math.max(1.1, Math.hypot(f.x - f.fx, f.y - f.fy) / 60), flipX: f.x < f.fx, solid: true });
+        sc.time.delayedCall(180, () => { fxPlay(sc, 'nairi', 'hit', f.tx, f.ty - 10, { scale: 1.2 }); shake(sc, f, 140, 0.006); });
+        sc.floatText(f.tx, f.ty - 44, 'Удар в спину!', '#d8e0ea', 13);
+        if (f.from === sc.myId && sc.me) { sc.me.x = f.x; sc.me.y = f.y; }
+        return true;
+      },
+      smokeScreen(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'nairi', 'smokeScreen', f.x, f.y - 14, { scale: 1.8, solid: true });
+        sc.time.delayedCall(250, () => fxPlay(sc, 'nairi', 'aura', f.x, f.y - 4, { scale: 1.1 }));
+        return true;
+      },
+    },
     ursus: {
       // Натравливание: стая с золотым вихрем у цели, от каждого зверя — рывок
       sic(sc, f, c) {
