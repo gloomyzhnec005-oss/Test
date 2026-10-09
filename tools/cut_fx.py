@@ -72,13 +72,13 @@ if split > 0:  # split = 0 — на картинке только эффекты
             cs[i:i + 1] = [(a, m), (m, b)]
         cells.append([(y0, y1, x0, x1) for (x0, x1) in cs[:5]])
 
-    # Масштаб: рост в позе умения (ряд 6) = рост в листе ходьбы
+    # Масштаб: рост в атаке вниз (ряд 1) = рост в листе ходьбы; поза умения бывает выше из-за ауры вокруг героя
     try:
         walk = np.array(Image.open(f'{out}/{hid}_sheet.png'))[..., 3] > 0
         wh = np.median([np.ptp(np.nonzero(walk[r * 48:(r + 1) * 48, 0:36].any(1))[0]) + 1 for r in range(8)])
     except FileNotFoundError:
         wh = 45
-    ch = np.median([y1 - y0 for (y0, y1, _, _) in cells[-1]])
+    ch = np.median([y1 - y0 for (y0, y1, _, _) in cells[0]])
     S = wh / ch
     CW, CH = 72, 60
     sheet = Image.new('RGBA', (CW * 5, CH * len(cells)), (0, 0, 0, 0))

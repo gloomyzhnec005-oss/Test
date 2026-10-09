@@ -446,6 +446,30 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    kelto: {
+      // Похищение жизни: поток душ от цели к рыцарю
+      lifeSteal(sc, f, c) {
+        heroAnim(sc, c, f.fx, f.fy);
+        const ang = Math.atan2(f.y - f.fy, f.x - f.fx), d = Math.hypot(f.x - f.fx, f.y - f.fy);
+        fxPlay(sc, 'kelto', 'hit', f.fx, f.fy - 10, { scale: 1.1 });
+        fxPlay(sc, 'kelto', 'lifeSteal', (f.fx + f.x) / 2, (f.fy + f.y) / 2 - 12, { rot: ang + Math.PI, scale: Math.max(1, d / 60), flipY: f.x > f.fx });
+        sc.time.delayedCall(350, () => fxPlay(sc, 'kelto', 'aura', c.c.x, c.c.y - 4, { scale: 0.9, follow: c, dy: -4 }));
+        return true;
+      },
+      desecrate(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'kelto', 'desecrate', f.x, f.y - 14, { scale: (f.r || 100) / 38 });
+        shock(sc, f.x, f.y + 4, f.r || 100, 0x3fbf7a, { w: 4, dur: 600 });
+        shake(sc, f, 160, 0.006);
+        return true;
+      },
+      raiseDead(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'kelto', 'raiseDead', f.x, f.y - 16, { scale: 1.2 });
+        sc.floatText(f.x, f.y - 46, '💀 Восстань!', '#5fffb0', 13);
+        return true;
+      },
+    },
     malakor: {
       punishSeal(sc, f, c) {
         heroAnim(sc, c, f.x, f.y);

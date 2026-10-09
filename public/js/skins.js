@@ -49,6 +49,12 @@ window.Skins = (() => {
       // bolt — теневой клинок (обычная атака издалека)
       fx: { sheet: 'assets/heroes/malakor_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'punishSeal', 'darkBlade', 'shadowJudgment', 'aura'] },
     },
+    kelto: {
+      sheet: 'assets/heroes/kelto_sheet.png', portrait: 'assets/heroes/kelto_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 6 рядов — 5 направлений и поза умения
+      attack: { sheet: 'assets/heroes/kelto_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      fx: { sheet: 'assets/heroes/kelto_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'lifeSteal', 'desecrate', 'raiseDead', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
