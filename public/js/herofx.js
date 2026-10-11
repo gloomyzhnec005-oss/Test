@@ -457,7 +457,7 @@ window.HeroFx = (() => {
       smokeScreen(sc, f, c) {
         heroAnim(sc, c, undefined, undefined, true);
         fxPlay(sc, 'kira', 'smokeScreen', f.x, f.y - 14, { scale: (f.r || 80) / 34, solid: true });
-        sc.time.delayedCall(300, () => fxPlay(sc, 'kira', 'vanish', f.x, f.y - 2, { scale: 1.1 }));
+        sc.time.delayedCall(300, () => fxPlay(sc, 'kira', 'vanish', f.x, f.y - 6, { scale: 1.2 }));
         return true;
       },
       poisonBlade(sc, f, c) {
