@@ -194,15 +194,18 @@ window.HeroFx = (() => {
   }
   // Выстрел героя дальнего боя нарисованным снарядом (ряд bolt): кадры атаки, полёт, вспышка. onHit — урон по прилёту
   function shoot(sc, a, f, x, y, onHit) {
-    if (!a || !a.skinOn || !hasFx(sc, a.skin, 'bolt')) return false;
+    // У мага стихий снаряд и вспышка — своей стихии (bolt_fire, hit_fire …)
+    const el = a && a.elem && a.skinOn && hasFx(sc, a.skin, 'bolt_' + a.elem) ? a.elem : null;
+    const bolt = el ? 'bolt_' + el : 'bolt', hitN = el ? 'hit_' + el : 'hit';
+    if (!a || !a.skinOn || !hasFx(sc, a.skin, bolt)) return false;
     face(a, x, y);
     heroAnim(sc, a, x, y);
     const fx = a.c.x, fy = a.c.y - 14, ang = Math.atan2(y - 8 - fy, x - fx);
     const dur = Math.max(160, Math.hypot(x - fx, y - fy) * 1.4);
     sc.time.delayedCall(110, () => {
-      const sp = fxPlay(sc, a.skin, 'bolt', fx, fy, { rot: ang, scale: 0.7, to: { x, y: y - 8 }, dur, flipY: x < fx });
+      const sp = fxPlay(sc, a.skin, bolt, fx, fy, { rot: ang, scale: 0.7, to: { x, y: y - 8 }, dur, flipY: x < fx });
       if (sp) sp.anims.msPerFrame = dur / 6;
-      sc.time.delayedCall(dur, () => { fxPlay(sc, a.skin, 'hit', x, y - 8, { scale: f.crit ? 1.1 : 0.75 }); if (f.crit) shake(sc, f, 80, 0.004); onHit(); });
+      sc.time.delayedCall(dur, () => { fxPlay(sc, a.skin, hitN, x, y - 8, { scale: f.crit ? 1.1 : 0.75 }); if (f.crit) shake(sc, f, 80, 0.004); onHit(); });
     });
     return true;
   }
@@ -446,6 +449,33 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    aurelius: {
+      elementSwap(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'aurelius', 'aura_' + (f.el || 'fire'), f.x, f.y - 4, { scale: 1.2, follow: c, dy: -4 });
+        return false; // подпись стихии и бафф рисует общий обработчик
+      },
+      elementBolt(sc, f, c) {
+        const el = f.el || 'fire';
+        heroAnim(sc, c, f.x, f.y);
+        const dur = f.flight || Math.min(500, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.3);
+        const sp = fxPlay(sc, 'aurelius', 'bolt_' + el, f.fx, f.fy - 14, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), scale: 1.3, to: { x: f.x, y: f.y - 8 }, dur, flipY: f.x < f.fx });
+        if (sp) sp.anims.msPerFrame = dur / 6;
+        sc.time.delayedCall(dur, () => {
+          (f.pts && f.pts.length ? f.pts : [[f.x, f.y]]).forEach(([x, y], i) => sc.time.delayedCall(i * 90, () => fxPlay(sc, 'aurelius', 'hit_' + el, x, y - 12, { scale: 1.1 })));
+          shake(sc, f, 120, 0.005);
+        });
+        return true;
+      },
+      elementStorm(sc, f, c) {
+        const el = f.el || 'fire';
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'aurelius', 'storm_' + el, f.x, f.y - 18, { scale: (f.r || 110) / 34 });
+        shock(sc, f.x, f.y + 4, f.r || 110, { fire: 0xff7a2a, ice: 0x8ad3ff, lightning: 0xb07aff, earth: 0xc0a060 }[el], { w: 5, dur: 650 });
+        shake(sc, f, 220, 0.009);
+        return true;
+      },
+    },
     taliesin: {
       // Перевоплощение: дух друида оборачивается волком (или обратно)
       shapeshift(sc, f, c) {
@@ -776,7 +806,7 @@ window.HeroFx = (() => {
     const c = casterOf(sc, f);
     const own = c && (c.skinOn || c.beast) && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
     // Ряд эффекта обычно назван как умение; событие «духи благосклонны» играет ауру
-    if (own && hasFx(sc, c.skin, { favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura' }[f.s] || f.s)) return own(sc, f, c);
+    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire') })[f.s] || f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }

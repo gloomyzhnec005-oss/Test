@@ -96,6 +96,14 @@ window.Skins = (() => {
       // Облик зверя: лист в ряд — шаг к нам, вбок (смотрит вправо, влево — зеркало), от нас; удар — прыжок с когтями
       beast: { sheet: 'assets/heroes/taliesin_beast.png', w: 60, h: 50, down: [0, 1, 2, 3, 4], side: [5, 6, 7, 8, 9], up: [10, 11, 12, 13, 14], attack: [15, 16, 17, 18, 19] },
     },
+    aurelius: {
+      sheet: 'assets/heroes/aurelius_sheet.png', portrait: 'assets/heroes/aurelius_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй каст и поза умения (последний)
+      attack: { sheet: 'assets/heroes/aurelius_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      // По стихиям (fire/ice/lightning/earth): снаряд, шторм, вспышка попадания и кольцо ауры
+      fx: { sheet: 'assets/heroes/aurelius_fx.png', size: 72, frames: 6, rows: ['bolt_lightning', 'bolt_fire', 'bolt_ice', 'bolt_earth',
+        'storm_fire', 'hit_fire', 'aura_fire', 'storm_ice', 'hit_ice', 'aura_ice', 'storm_lightning', 'hit_lightning', 'aura_lightning', 'storm_earth', 'hit_earth', 'aura_earth'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

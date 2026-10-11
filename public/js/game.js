@@ -450,6 +450,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const ELEM = { fire: 0xff6a1a, ice: 0x8ad3ff, lightning: 0xffe94a, earth: 0xa07a4a };
       const VOW = { protection: 0x8ad3ff, retribution: 0xffb030, mercy: 0xffd0e0 };
       const SONG = { inspire: 0xffb030, lullaby: 0x8a9aff, mock: 0xff6a9a };
+      e.elem = p.elem || null; // текущая стихия Аурелиуса — для нарисованных снарядов
       const auraCol = p.pact ? { fury: 0xff3020, stone: 0x9aa3ad, wind: 0x8ad3ff }[p.pact] : p.tree ? 0x5fd17a : p.elem ? ELEM[p.elem]
         : p.bless ? 0xfff0a0 : p.vow ? VOW[p.vow] : p.song ? SONG[p.song]
         : p.asp ? { fire: 0xff6a1a, ice: 0x8ad3ff, poison: 0x7ad84a, lightning: 0xffe94a }[p.asp]
