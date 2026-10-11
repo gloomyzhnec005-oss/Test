@@ -81,6 +81,13 @@ window.Skins = (() => {
       // bolt — сгусток тёмного огня; pact_* — духи «Пакта» (демон ярости, дух камня, дух ветра)
       fx: { sheet: 'assets/heroes/zukra_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'darkFlame', 'bloodCurse', 'aura', 'pact_fury', 'pact_stone', 'pact_wind'] },
     },
+    nimue: {
+      sheet: 'assets/heroes/nimue_sheet.png', portrait: 'assets/heroes/nimue_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй каст и поза умения (последний)
+      attack: { sheet: 'assets/heroes/nimue_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      // bolt — летящий лист-кристалл; forestWrath — лесной олень-дух
+      fx: { sheet: 'assets/heroes/nimue_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'naturesThorns', 'forestBlessing', 'forestWrath', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

@@ -446,6 +446,28 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    nimue: {
+      naturesThorns(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'nimue', 'naturesThorns', f.x, f.y - 16, { scale: (f.r || 70) / 30, solid: true });
+        shake(sc, f, 130, 0.005);
+        return true;
+      },
+      forestBlessing(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'nimue', 'forestBlessing', f.x, f.y - 12, { scale: (f.r || 120) / 40 });
+        fxPlay(sc, 'nimue', 'aura', f.x, f.y - 4, { scale: 1, follow: c, dy: -4 });
+        return true;
+      },
+      forestWrath(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'nimue', 'forestWrath', f.x, f.y - 24, { scale: 1.8, solid: true });
+        sc.time.delayedCall(200, () => fxPlay(sc, 'nimue', 'aura', f.x, f.y - 4, { scale: 1.3 }));
+        sc.floatText(f.x, f.y - 66, '🧚 Гнев леса!', '#9fff7a', 14);
+        shake(sc, f, 200, 0.007);
+        return true;
+      },
+    },
     zukra: {
       darkFlame(sc, f, c) {
         heroAnim(sc, c, f.x, f.y);

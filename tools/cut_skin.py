@@ -18,9 +18,11 @@ corner = im[:8, :8].reshape(-1, 3).mean(0)
 if corner[1] > 150 and corner[1] - max(corner[0], corner[2]) > 80:
   # хромакей: сплошной зелёный фон
   spill = g_ - np.maximum(r_, b_)
-  bg = (g_ > 120) & (spill > 60)
+  # фон — по расстоянию до его цвета: зелёные герои (феи, орки) не вырезаются вместе с фоном
+  dist = np.sqrt(((im - corner) ** 2).sum(2))
+  bg = dist < 60
   edge = ndimage.binary_dilation(bg, iterations=2) & ~bg
-  bg |= edge & (spill > 25)                        # зелёная кайма по краю
+  bg |= edge & (dist < 110) & (spill > 60)         # зелёная кайма по краю
   # остаток зелени на краях приглушаем до уровня красного/синего
   fix = ndimage.binary_dilation(bg, iterations=3) & ~bg & (spill > 0)
   im[..., 1] = np.where(fix, np.maximum(r_, b_), g_)

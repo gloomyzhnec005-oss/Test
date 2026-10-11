@@ -48,8 +48,9 @@ if split > 0:  # split = 0 — на картинке только эффекты
     # ---------- Герой ----------
     if green:
         spill = im[..., 1] - np.maximum(im[..., 0], im[..., 2])
-        bg = (im[..., 1] > 120) & (spill > 60)
-        bg |= ndimage.binary_dilation(bg, iterations=2) & (spill > 20)       # зелёная кайма
+        dist = np.sqrt(((im - corner) ** 2).sum(2))        # по расстоянию до цвета фона: зелёные герои целы
+        bg = dist < 60
+        bg |= ndimage.binary_dilation(bg, iterations=2) & (dist < 110) & (spill > 60)  # зелёная кайма
         fix = ndimage.binary_dilation(bg, iterations=3) & ~bg & (spill > 0)
         im[..., 1] = np.where(fix, np.maximum(im[..., 0], im[..., 2]), im[..., 1])
     else:
