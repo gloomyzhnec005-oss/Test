@@ -446,6 +446,38 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    taliesin: {
+      // Перевоплощение: дух друида оборачивается волком (или обратно)
+      shapeshift(sc, f, c) {
+        fxPlay(sc, 'taliesin', 'shapeshift', f.x, f.y - 16, { scale: 1.3, flipX: f.form !== 'beast' });
+        sc.floatText(f.x, f.y - 50, f.form === 'beast' ? '🐺 Облик зверя!' : '🧙 Облик друида', f.form === 'beast' ? '#ffb070' : '#9aff9a', 14);
+        shake(sc, f, 120, 0.004);
+        return true;
+      },
+      feralCharge(sc, f, c) {
+        const ang = Math.atan2(f.y - f.fy, f.x - f.fx);
+        fxPlay(sc, 'taliesin', 'feralCharge', (f.fx + f.x) / 2, (f.fy + f.y) / 2 - 12, { scale: Math.max(1.2, Math.hypot(f.x - f.fx, f.y - f.fy) / 55), flipX: f.x < f.fx, solid: true });
+        sc.time.delayedCall(180, () => { fxPlay(sc, 'taliesin', 'hit', f.x, f.y - 10, { scale: 1.3 }); shock(sc, f.x, f.y + 4, f.r || 100, 0xc08040, { w: 4 }); shake(sc, f, 180, 0.008); });
+        sc.floatText(f.x, f.y - 50, 'РРРАУ!', '#ffb070', 15);
+        if (f.from === sc.myId && sc.me) { sc.me.x = f.x; sc.me.y = f.y; }
+        return true;
+      },
+      forestBlessing(sc, f, c) {
+        fxPlay(sc, 'taliesin', 'forestBlessing', f.x, f.y - 18, { scale: 1.5 });
+        fxPlay(sc, 'taliesin', 'aura', f.x, f.y - 4, { scale: (f.r || 120) / 50 });
+        return true;
+      },
+      naturesThorns(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'taliesin', 'naturesThorns', f.x, f.y - 14, { scale: (f.r || 70) / 30 });
+        return true;
+      },
+      feralThirst(sc, f, c) {
+        fxPlay(sc, 'taliesin', 'aura', f.x, f.y - 4, { scale: 1.1, follow: c, dy: -4 });
+        sc.floatText(f.x, f.y - 50, '🩸 Жажда зверя', '#ff7a5a', 13);
+        return true;
+      },
+    },
     nimue: {
       naturesThorns(sc, f, c) {
         heroAnim(sc, c, f.x, f.y);
@@ -742,9 +774,9 @@ window.HeroFx = (() => {
   };
   function skill(sc, f) {
     const c = casterOf(sc, f);
-    const own = c && c.skinOn && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
+    const own = c && (c.skinOn || c.beast) && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
     // Ряд эффекта обычно назван как умение; событие «духи благосклонны» играет ауру
-    if (own && hasFx(sc, c.skin, { favorReady: 'aura', spiritPact: 'aura' }[f.s] || f.s)) return own(sc, f, c);
+    if (own && hasFx(sc, c.skin, { favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura' }[f.s] || f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }
@@ -759,5 +791,5 @@ window.HeroFx = (() => {
     return plane;
   }
 
-  return { attack, shoot, skill, sealMark, hasFx, auraSprite };
+  return { attack, shoot, skill, sealMark, hasFx, auraSprite, fxPlay };
 })();

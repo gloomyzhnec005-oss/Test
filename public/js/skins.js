@@ -88,6 +88,14 @@ window.Skins = (() => {
       // bolt — летящий лист-кристалл; forestWrath — лесной олень-дух
       fx: { sheet: 'assets/heroes/nimue_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'naturesThorns', 'forestBlessing', 'forestWrath', 'aura'] },
     },
+    taliesin: {
+      sheet: 'assets/heroes/taliesin_sheet.png', portrait: 'assets/heroes/taliesin_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака друида: 5 направлений; позы умения нет — для умений ряд «вниз»
+      attack: { sheet: 'assets/heroes/taliesin_attack.png', w: 72, h: 60, frames: 5, rows: 5, cast: 0 },
+      fx: { sheet: 'assets/heroes/taliesin_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'shapeshift', 'feralCharge', 'forestBlessing', 'naturesThorns', 'aura'] },
+      // Облик зверя: лист в ряд, как у монстров (смотрит вправо): ходьба и удары лапами
+      beast: { sheet: 'assets/heroes/taliesin_beast.png', w: 53, h: 50, walk: [0, 1, 2, 3, 4], attack: [5, 6, 7, 8, 9, 10, 11, 12, 13] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
