@@ -61,6 +61,13 @@ window.Skins = (() => {
       attack: { sheet: 'assets/heroes/brendan_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
       fx: { sheet: 'assets/heroes/brendan_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'shieldWall', 'taunt', 'vow', 'aura'] },
     },
+    kira: {
+      sheet: 'assets/heroes/kira_sheet.png', portrait: 'assets/heroes/kira_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений и два доп. ряда; позы умения нет — для умений ряд «вниз»
+      attack: { sheet: 'assets/heroes/kira_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 0 },
+      // vanish — золотое кольцо (выход из дыма)
+      fx: { sheet: 'assets/heroes/kira_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'exposeStrike', 'smokeScreen', 'poisonBlade', 'aura', 'vanish'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

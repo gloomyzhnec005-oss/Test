@@ -49,11 +49,11 @@ for o in objs:
   else: rows.append([o])
 rows = [sorted(r, key=lambda o: o[0][1].start) for r in rows]
 print('rows', [len(r) for r in rows])
-assert len(rows) == 7 and all(len(r) == 5 for r in rows)
+assert len(rows) in (6, 7) and all(len(r) == 5 for r in rows)
 S = 0.32; CW, CH = 36, 48
 # порядок в исходнике: вниз, вниз-вправо, вправо, вверх-вправо, вверх, вниз-влево, влево
 # порядок в игре: down, down-right, right, up-right, up, up-left, left, down-left
-order = [0, 1, 2, 3, 4, 'm3', 6, 5]
+order = [0, 1, 2, 3, 4, 'm3', 6, 5] if len(rows) == 7 else [0, 1, 2, 3, 4, 'm3', 'm2', 5]  # 6 рядов: «влево» — зеркало «вправо»
 sheet = Image.new('RGBA', (CW * 5, CH * 8), (0, 0, 0, 0))
 for oy, k in enumerate(order):
   mirror = isinstance(k, str); r = rows[int(k[1:]) if mirror else k]

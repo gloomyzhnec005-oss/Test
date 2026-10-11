@@ -446,6 +446,27 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    kira: {
+      exposeStrike(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'kira', 'exposeStrike', f.x, f.y - 14, { scale: 1.1 });
+        sc.time.delayedCall(160, () => { fxPlay(sc, 'kira', 'hit', f.x, f.y - 10, { scale: 1.2 }); shake(sc, f, 110, 0.005); });
+        return true;
+      },
+      // Дымовая шашка (событие — smokeScreen, как у Найри)
+      smokeScreen(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'kira', 'smokeScreen', f.x, f.y - 14, { scale: (f.r || 80) / 34, solid: true });
+        sc.time.delayedCall(300, () => fxPlay(sc, 'kira', 'vanish', f.x, f.y - 2, { scale: 1.1 }));
+        return true;
+      },
+      poisonBlade(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'kira', 'poisonBlade', f.x, f.y - 12, { scale: 1.2, flipX: f.x < c.c.x });
+        fxPlay(sc, 'kira', 'aura', c.c.x, c.c.y - 4, { scale: 0.9, follow: c, dy: -4 });
+        return true;
+      },
+    },
     brendan: {
       shieldWall(sc, f, c) {
         heroAnim(sc, c, undefined, undefined, true);
