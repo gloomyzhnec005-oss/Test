@@ -446,6 +446,29 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    zukra: {
+      darkFlame(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const dur = f.flight || Math.min(500, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.4);
+        const sp = fxPlay(sc, 'zukra', 'bolt', f.fx, f.fy - 14, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), scale: 1.1, to: { x: f.x, y: f.y - 8 }, dur, flipY: f.x < f.fx });
+        if (sp) sp.anims.msPerFrame = dur / 6;
+        sc.time.delayedCall(dur, () => { fxPlay(sc, 'zukra', 'darkFlame', f.x, f.y - 16, { scale: (f.r || 70) / 30 }); shake(sc, f, 150, 0.006); });
+        return true;
+      },
+      spiritPact(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'zukra', 'pact_' + (f.pact || 'fury'), c.c.x, c.c.y - 22, { scale: 1.5, solid: true, follow: c, dy: -22, depth: 9000 });
+        fxPlay(sc, 'zukra', 'aura', f.x, f.y - 4, { scale: 1.1, follow: c, dy: -4 });
+        sc.floatText(f.x, f.y - 60, { fury: '😈 Демон ярости', stone: '🗿 Дух камня', wind: '🌪 Дух ветра' }[f.pact] || '📜 Пакт', '#d8a0ff', 13);
+        return true;
+      },
+      bloodCurse(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        for (const id of f.ids || []) { const m = sc.monsters.get(id); if (m) fxPlay(sc, 'zukra', 'bloodCurse', m.c.x, m.c.y - 14, { scale: 0.9 }); }
+        shock(sc, f.x, f.y + 4, f.r || 140, 0xc0204a, { w: 4, dur: 650 });
+        return true;
+      },
+    },
     kassian: {
       // Удар из тени: тень проносится к цели, по раненой — смертельный
       shadowStrike(sc, f, c) {
@@ -699,7 +722,7 @@ window.HeroFx = (() => {
     const c = casterOf(sc, f);
     const own = c && c.skinOn && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
     // Ряд эффекта обычно назван как умение; событие «духи благосклонны» играет ауру
-    if (own && hasFx(sc, c.skin, { favorReady: 'aura' }[f.s] || f.s)) return own(sc, f, c);
+    if (own && hasFx(sc, c.skin, { favorReady: 'aura', spiritPact: 'aura' }[f.s] || f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }
