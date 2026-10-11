@@ -48,7 +48,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     for (const [id, sk] of Object.entries(Skins.LIST)) {
       if (!sk.beast || !this.textures.exists('bskin_' + id)) continue;
       for (const d of ['down', 'side', 'up']) this.anims.create({ key: `bwalk_${id}_${d}`, frames: sk.beast[d].map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 9, repeat: -1 });
-      this.anims.create({ key: `batk_${id}`, frames: sk.beast.attack.map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 22, repeat: 0 });
+      this.anims.create({ key: `batk_${id}`, frames: sk.beast.attack.map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 16, repeat: 0 });
     }
     for (const [id, m] of Object.entries(Skins.MOBS)) {
       if (!this.textures.exists('mskin_' + id)) continue;
