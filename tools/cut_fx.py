@@ -65,6 +65,11 @@ if split > 0:  # split = 0 — на картинке только эффекты
     cells = []
     for (y0, y1) in rows:
         cs = bands((hero[y0:y1] & (mx[y0:y1] > 30)).sum(0), th=1, min_len=15)
+        # оторванный клинок (узкая полоса) приклеиваем к ближайшему кадру
+        while len(cs) > 5:
+            i = min(range(len(cs)), key=lambda k: cs[k][1] - cs[k][0])
+            j = i - 1 if i == len(cs) - 1 or (i > 0 and cs[i][0] - cs[i - 1][1] < cs[i + 1][0] - cs[i][1]) else i + 1
+            a, b = sorted((i, j)); cs[a:b + 1] = [(cs[a][0], cs[b][1])]
         # слипшиеся соседние кадры делим поровну
         while len(cs) < 5:
             i = max(range(len(cs)), key=lambda k: cs[k][1] - cs[k][0])

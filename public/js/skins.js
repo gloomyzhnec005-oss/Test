@@ -68,6 +68,12 @@ window.Skins = (() => {
       // aura — золотое кольцо, vanish — фиолетовое (выход из дыма)
       fx: { sheet: 'assets/heroes/kira_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'exposeStrike', 'smokeScreen', 'poisonBlade', 'aura', 'vanish'] },
     },
+    kassian: {
+      sheet: 'assets/heroes/kassian_sheet.png', portrait: 'assets/heroes/kassian_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй удар и поза умения (последний)
+      attack: { sheet: 'assets/heroes/kassian_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      fx: { sheet: 'assets/heroes/kassian_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'shadowStrike', 'shadowCloak', 'execution', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

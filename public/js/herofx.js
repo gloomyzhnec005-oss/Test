@@ -446,6 +446,29 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    kassian: {
+      // Удар из тени: тень проносится к цели, по раненой — смертельный
+      shadowStrike(sc, f, c) {
+        for (let i = 0; i < 3; i++) sc.time.delayedCall(i * 40, () => afterimage(sc, c, 0x5a3a7a, 0.5, 260));
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'kassian', 'shadowStrike', f.x, f.y - 12, { scale: 1.3, flipX: f.x < c.c.x });
+        sc.time.delayedCall(180, () => { fxPlay(sc, 'kassian', 'hit', f.x, f.y - 10, { scale: f.lethal ? 1.6 : 1.1 }); shake(sc, f, f.lethal ? 200 : 110, f.lethal ? 0.009 : 0.005); });
+        if (f.lethal) sc.floatText(f.x, f.y - 46, 'Смерть из тени!', '#ff4a5a', 14);
+        return true;
+      },
+      shadowCloak(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'kassian', 'shadowCloak', f.x, f.y - 14, { scale: 1.6, solid: true });
+        sc.time.delayedCall(250, () => fxPlay(sc, 'kassian', 'aura', f.x, f.y - 4, { scale: 1 }));
+        return true;
+      },
+      execution(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'kassian', 'execution', f.x, f.y - 14, { scale: f.ok ? 1.5 : 1.1, flipX: f.x < c.c.x });
+        if (f.ok) { sc.time.delayedCall(200, () => fxPlay(sc, 'kassian', 'hit', f.x, f.y - 10, { scale: 1.6 })); shake(sc, f, 240, 0.01); sc.floatText(f.x, f.y - 50, '⚰️ Казнь!', '#ff3a4a', 16); }
+        return true;
+      },
+    },
     kira: {
       exposeStrike(sc, f, c) {
         heroAnim(sc, c, f.x, f.y);
