@@ -47,7 +47,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Звериный облик героя (Талиесин): ходьба и удары
     for (const [id, sk] of Object.entries(Skins.LIST)) {
       if (!sk.beast || !this.textures.exists('bskin_' + id)) continue;
-      this.anims.create({ key: `bwalk_${id}`, frames: sk.beast.walk.map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 9, repeat: -1 });
+      for (const d of ['down', 'side', 'up']) this.anims.create({ key: `bwalk_${id}_${d}`, frames: sk.beast[d].map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 9, repeat: -1 });
       this.anims.create({ key: `batk_${id}`, frames: sk.beast.attack.map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 22, repeat: 0 });
     }
     for (const [id, m] of Object.entries(Skins.MOBS)) {
@@ -384,12 +384,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   // Нарисованный звериный облик: шаг и поворот по направлению движения
-  animBeast(e, vx, moving) {
+  animBeast(e, vx, vy, moving) {
     if (!e.beast || e.attacking) return;
-    if (Math.abs(vx) > 0.3) e.sprite.setFlipX(vx < 0);
-    const key = `bwalk_${e.beast}`;
-    if (moving) { if (!e.sprite.anims.isPlaying) e.sprite.play(key, true); }
-    else if (e.sprite.anims.isPlaying) { e.sprite.stop(); e.sprite.setFrame(Skins.get(e.beast).beast.walk[0]); }
+    const bs = Skins.get(e.beast).beast;
+    if (moving && (Math.abs(vx) > 0.3 || Math.abs(vy) > 0.3)) {
+      e.bdir = Math.abs(vy) > Math.abs(vx) * 1.2 ? (vy > 0 ? 'down' : 'up') : 'side';
+      e.sprite.setFlipX(e.bdir === 'side' && vx < 0);
+    }
+    const key = `bwalk_${e.beast}_${e.bdir || 'down'}`;
+    if (moving) { if (!e.sprite.anims.isPlaying || e.sprite.anims.currentAnim.key !== key) e.sprite.play(key, true); }
+    else { if (e.sprite.anims.isPlaying) e.sprite.stop(); e.sprite.setFrame(bs[e.bdir || 'down'][0]); }
   }
 
   // Направление и шаг скина: (vx, vy) — куда идём; moving — идём ли сейчас
@@ -529,7 +533,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         if (p.form === 'beast') {
           e.sprite.stop(); e.skinOn = false;
           const bs = this.textures.exists('bskin_' + p.hero) && Skins.get(p.hero).beast;
-          if (bs) { e.beast = p.hero; e.sprite.setTexture('bskin_' + p.hero, bs.walk[0]).setOrigin(0.5, (bs.h - 15) / bs.h); } // нарисованный зверь
+          if (bs) { e.beast = p.hero; e.bdir = 'down'; e.sprite.setTexture('bskin_' + p.hero, bs.down[0]).setOrigin(0.5, (bs.h - 15) / bs.h); } // нарисованный зверь
           else e.sprite.setTexture('hero_' + p.hero + '_beast').setOrigin(0.5);
         } else this.applySkin(e, p.hero);
       }
@@ -746,9 +750,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (!ownSwing && !f.pet && f.basic && attacker && attacker.beast) {
         // Удар лапами нарисованного зверя
         const bs = Skins.get(attacker.beast).beast;
-        attacker.sprite.setFlipX(tx0 < attacker.c.x); attacker.attacking = true;
+        attacker.sprite.setFlipX(tx0 < attacker.c.x); attacker.attacking = true; attacker.bdir = 'side';
         attacker.sprite.play(`batk_${attacker.beast}`);
-        attacker.sprite.once('animationcomplete', () => { attacker.attacking = false; if (attacker.beast) attacker.sprite.setFrame(bs.walk[0]); });
+        // бросок к цели и обратно
+        const dx = Math.sign(tx0 - attacker.c.x) * 10;
+        this.tweens.add({ targets: attacker.sprite, x: dx, duration: 90, yoyo: true, onComplete: () => { attacker.sprite.x = 0; } });
+        attacker.sprite.once('animationcomplete', () => { attacker.attacking = false; if (attacker.beast) attacker.sprite.setFrame(bs.side[0]); });
         HeroFx.fxPlay && HeroFx.fxPlay(this, attacker.beast, 'hit', tx0, ty0 - 8, { scale: f.crit ? 1 : 0.7 });
         ownSwing = true;
       }
@@ -1904,7 +1911,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (e.skinOn) {
         const moving = Math.hypot(mx, my) > 1.5;
         this.animSkin(e, moving ? mx : 0, moving ? my : 0, moving);
-      } else if (e.beast) this.animBeast(e, mx, Math.hypot(mx, my) > 1.5);
+      } else if (e.beast) this.animBeast(e, mx, my, Math.hypot(mx, my) > 1.5);
     }
     for (const e of this.monsters.values()) {
       const mx = e.tx - e.c.x, my = e.ty - e.c.y;
@@ -1962,7 +1969,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.revealFog();
     const walking = len > 0 && !me.data.dead && !this.myStats.rooted && !held;
     if (me.e.skinOn) this.animSkin(me.e, walking ? vx : 0, walking ? vy : 0, walking);
-    else if (me.e.beast) this.animBeast(me.e, walking ? vx : 0, walking);
+    else if (me.e.beast) this.animBeast(me.e, walking ? vx : 0, walking ? vy : 0, walking);
     else {
       me.e.sprite.setFlipX(me.dir === -1);
       // Лёгкая «походка»

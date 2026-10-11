@@ -90,11 +90,11 @@ window.Skins = (() => {
     },
     taliesin: {
       sheet: 'assets/heroes/taliesin_sheet.png', portrait: 'assets/heroes/taliesin_portrait.png', w: 36, h: 48, frames: 5,
-      // Атака друида: 5 направлений; позы умения нет — для умений ряд «вниз»
-      attack: { sheet: 'assets/heroes/taliesin_attack.png', w: 72, h: 60, frames: 5, rows: 5, cast: 0 },
+      // Атака друида: 5 направлений и поза умения (последний ряд)
+      attack: { sheet: 'assets/heroes/taliesin_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
       fx: { sheet: 'assets/heroes/taliesin_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'shapeshift', 'feralCharge', 'forestBlessing', 'naturesThorns', 'aura'] },
-      // Облик зверя: лист в ряд, как у монстров (смотрит вправо): ходьба и удары лапами
-      beast: { sheet: 'assets/heroes/taliesin_beast.png', w: 53, h: 50, walk: [0, 1, 2, 3, 4], attack: [5, 6, 7, 8, 9, 10, 11, 12, 13] },
+      // Облик зверя: лист в ряд — шаг к нам, вбок (смотрит вправо, влево — зеркало), от нас; удар — рывок боковыми кадрами
+      beast: { sheet: 'assets/heroes/taliesin_beast.png', w: 55, h: 50, down: [0, 1, 2, 3, 4], side: [5, 6, 7, 8, 9], up: [10, 11, 12, 13, 14], attack: [5, 7, 9, 7] },
     },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
