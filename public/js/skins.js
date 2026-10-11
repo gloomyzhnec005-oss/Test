@@ -55,6 +55,12 @@ window.Skins = (() => {
       attack: { sheet: 'assets/heroes/kelto_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
       fx: { sheet: 'assets/heroes/kelto_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'lifeSteal', 'desecrate', 'raiseDead', 'aura'] },
     },
+    brendan: {
+      sheet: 'assets/heroes/brendan_sheet.png', portrait: 'assets/heroes/brendan_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй удар и поза умения (щит вперёд)
+      attack: { sheet: 'assets/heroes/brendan_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      fx: { sheet: 'assets/heroes/brendan_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'shieldWall', 'taunt', 'vow', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

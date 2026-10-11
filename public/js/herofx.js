@@ -446,6 +446,28 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    brendan: {
+      shieldWall(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'brendan', 'shieldWall', f.x, f.y - 18, { scale: (f.r || 90) / 36, follow: c, dy: -18 });
+        shock(sc, f.x, f.y + 4, f.r || 90, 0x4d8dff, { w: 4, dur: 600 });
+        return true;
+      },
+      taunt(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'brendan', 'taunt', f.x, f.y - 14, { scale: (f.r || 160) / 40 });
+        for (const id of f.ids || []) { const m = sc.monsters.get(id); if (m) sc.floatText(m.c.x, m.c.y - 30, '❗', '#ffcc4d', 14); }
+        shake(sc, f, 140, 0.005);
+        return true;
+      },
+      vow(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        const ally = sc.players.get(f.ally);
+        fxPlay(sc, 'brendan', 'vow', f.ax, f.ay - 16, { scale: 1.2, follow: ally, dy: -16 });
+        fxPlay(sc, 'brendan', 'aura', f.x, f.y - 4, { scale: 1, follow: c, dy: -4 });
+        return true;
+      },
+    },
     kelto: {
       // Похищение жизни: поток душ от цели к рыцарю
       lifeSteal(sc, f, c) {
