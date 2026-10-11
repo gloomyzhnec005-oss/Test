@@ -63,8 +63,8 @@ window.Skins = (() => {
     },
     kira: {
       sheet: 'assets/heroes/kira_sheet.png', portrait: 'assets/heroes/kira_portrait.png', w: 36, h: 48, frames: 5,
-      // Атака: 7 рядов — 5 направлений и два доп. ряда; позы умения нет — для умений ряд «вниз»
-      attack: { sheet: 'assets/heroes/kira_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 0 },
+      // Атака: 8 рядов — 5 направлений, два доп. ряда и поза умения (последний)
+      attack: { sheet: 'assets/heroes/kira_attack.png', w: 72, h: 60, frames: 5, rows: 8, cast: 7 },
       // aura — золотое кольцо, vanish — фиолетовое (выход из дыма)
       fx: { sheet: 'assets/heroes/kira_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'exposeStrike', 'smokeScreen', 'poisonBlade', 'aura', 'vanish'] },
     },
