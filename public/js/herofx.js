@@ -449,6 +449,35 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    ingrid: {
+      buildTurret(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'ingrid', 'buildTurret', f.x, f.y - 16, { scale: 1.1 });
+        return true;
+      },
+      bomb(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const dur = f.flight || Math.min(600, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.6);
+        // летящая бомба — первый кадр ряда, по дуге
+        const b = sc.add.sprite(f.fx, f.fy - 16, 'fx_ingrid', 3 * 6).setDepth(9100).setScale(0.6);
+        sc.tweens.add({ targets: b, x: f.x, duration: dur });
+        sc.tweens.add({ targets: b, y: { from: f.fy - 16, to: f.y - 8 }, duration: dur, ease: (t) => t - Math.sin(t * Math.PI) * 0.9, onComplete: () => b.destroy() });
+        sc.tweens.add({ targets: b, rotation: 6, duration: dur });
+        sc.time.delayedCall(dur, () => {
+          const sp = fxPlay(sc, 'ingrid', 'bomb', f.x, f.y - 16, { scale: (f.r || 80) / 30, solid: true });
+          if (sp) sp.setFrame(3 * 6 + 1);
+          fxPlay(sc, 'ingrid', 'hit', f.x, f.y - 12, { scale: 1.4 });
+          shock(sc, f.x, f.y + 4, f.r || 80, 0xff8a2a, { w: 5 }); shake(sc, f, 220, 0.01);
+        });
+        return true;
+      },
+      overclock(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'ingrid', 'aura', f.x, f.y - 14, { scale: 1.3, follow: c, dy: -14 });
+        for (const id of f.ids || []) { const t = sc.pets.get(id); if (t) fxPlay(sc, 'ingrid', 'buildTurret', t.c.x, t.c.y - 14, { scale: 0.9 }); }
+        return true;
+      },
+    },
     tibor: {
       elixir(sc, f, c) {
         heroAnim(sc, c, undefined, undefined, true);

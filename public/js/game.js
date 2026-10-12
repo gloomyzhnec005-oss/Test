@@ -22,6 +22,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
   preload() {
     for (const [id, m] of Object.entries(Skins.MOBS)) this.load.spritesheet('mskin_' + id, m.sheet, { frameWidth: m.w, frameHeight: m.h });
+    for (const [id, sk] of Object.entries(Skins.LIST)) if (sk.turret) this.load.image('turret_' + id, sk.turret);
     for (const [id, sk] of Object.entries(Skins.LIST)) if (sk.beast) this.load.spritesheet('bskin_' + id, sk.beast.sheet, { frameWidth: sk.beast.w, frameHeight: sk.beast.h });
     WorldArt.preload(this); // нарисованная графика миров (тайлы, здания, порталы)
     // Нарисованные скины героев: листы 8 направлений
@@ -608,7 +609,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (!e) {
         const names = { wolf: 'Клык', bear: 'Бурый', hawk: 'Сокол', skeleton: 'Слуга', sprite: 'Дух леса', clone: 'Двойник', turret: 'Турель', wisp: 'Дух', seaSpirit: 'Морской дух' };
         // Двойник рисуется спрайтом героя (розовый, полупрозрачный), поднятый монстр — своим спрайтом (зелёный)
-        e = this.makeEntity(pt.skin || 'pet_' + pt.kind, pt.label || names[pt.kind], pt.owner === this.myId ? '#c8f0a0' : '#d8d0c0');
+        const ownerSkin = pt.kind === 'turret' && this.players.get(pt.owner) && this.players.get(pt.owner).skin;
+        const turretArt = ownerSkin && this.textures.exists('turret_' + ownerSkin) ? 'turret_' + ownerSkin : null; // нарисованная турель (Ингрид)
+        e = this.makeEntity(pt.skin || turretArt || 'pet_' + pt.kind, pt.label || names[pt.kind], pt.owner === this.myId ? '#c8f0a0' : '#d8d0c0');
         e.skinTint = pt.kind === 'clone' ? 0xffb0e8 : pt.drowned ? 0x5a7aff : pt.kind === 'minion' ? 0x8affc0 : null;
         if (e.skinTint) e.sprite.setTint(e.skinTint);
         if (pt.kind === 'clone') e.sprite.setAlpha(0.65);
@@ -761,7 +764,15 @@ window.GameScene = class GameScene extends Phaser.Scene {
         ownSwing = true;
       }
       if (attacker && !ownSwing) this.tweens.add({ targets: attacker.sprite, scaleX: 1.2, scaleY: 0.9, duration: 70, yoyo: true });
-      if (f.pet && f.proj && f.pfx !== null) {
+      const petE = f.pet && this.pets.get(f.pet);
+      if (petE && petE.sprite.texture.key.startsWith('turret_') && f.proj && f.pfx !== null) {
+        // Нарисованная турель: вспышка ствола и ракета
+        const sk = petE.sprite.texture.key.slice(7);
+        petE.sprite.setFlipX(f.tx < f.pfx);
+        HeroFx.fxPlay(this, sk, 'hit', f.pfx + Math.sign(f.tx - f.pfx) * 14, f.pfy - 14, { scale: 0.4 });
+        const r = HeroFx.fxPlay(this, sk, 'bolt', f.pfx, f.pfy - 12, { rot: Math.atan2(f.ty - f.pfy, f.tx - f.pfx), scale: 0.6, to: { x: f.tx, y: f.ty - 6 }, dur: 160, flipY: f.tx < f.pfx });
+        this.time.delayedCall(160, () => { if (r) r.destroy(); HeroFx.fxPlay(this, sk, 'hit', f.tx, f.ty - 8, { scale: 0.6 }); doHit(); });
+      } else if (f.pet && f.proj && f.pfx !== null) {
         // Выстрел турели
         const b = this.add.image(f.pfx, f.pfy - 6, 'proj_' + f.proj).setDepth(800);
         b.rotation = Phaser.Math.Angle.Between(f.pfx, f.pfy, f.tx, f.ty);

@@ -153,6 +153,14 @@ window.Skins = (() => {
       fx: { sheet: 'assets/heroes/tibor_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'elixir_thunder', 'elixir_blizzard', 'elixir_swallow', 'elixir_oriole', 'elixir_poison',
         'sign_igni', 'sign_aard', 'sign_quen', 'bloodWhirl', 'aura'] },
     },
+    ingrid: {
+      sheet: 'assets/heroes/ingrid_sheet.png', portrait: 'assets/heroes/ingrid_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй бросок и поза умения (последний)
+      attack: { sheet: 'assets/heroes/ingrid_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      // bolt — ракета; turretFire — стреляющая турель; bomb — бомба и взрыв; buildTurret — сборка; aura — Ингрид в кольце энергии
+      fx: { sheet: 'assets/heroes/ingrid_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'turretFire', 'bomb', 'buildTurret', 'aura'] },
+      turret: 'assets/heroes/ingrid_turret.png', // нарисованная турель вместо процедурной
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
