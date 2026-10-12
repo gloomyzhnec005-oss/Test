@@ -449,6 +449,30 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    tibor: {
+      elixir(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'tibor', 'elixir_' + (f.poisoned ? 'poison' : f.potion || 'thunder'), c.c.x, c.c.y - 34, { scale: 0.9, follow: c, dy: -34 });
+        if (!f.poisoned) sc.time.delayedCall(250, () => fxPlay(sc, 'tibor', 'aura', c.c.x, c.c.y - 4, { scale: 0.9, follow: c, dy: -4 }));
+        return false; // подпись эликсира — общий обработчик
+      },
+      witcherSign(sc, f, c) {
+        const sign = f.sign || 'igni';
+        if (sign === 'quen') { heroAnim(sc, c, undefined, undefined, true); fxPlay(sc, 'tibor', 'sign_quen', f.x, f.y - 14, { scale: 1.3, follow: c, dy: -14 }); return true; }
+        const dx = f.dx || 1, dy = f.dy || 0;
+        heroAnim(sc, c, f.x + dx * 40, f.y + dy * 40);
+        fxPlay(sc, 'tibor', 'sign_' + sign, f.x + dx * 50, f.y + dy * 50 - 12, { scale: 1.5, rot: sign === 'igni' ? Math.atan2(dy, dx) : 0 });
+        shock(sc, f.x + dx * 40, f.y + dy * 40 + 4, 60, sign === 'igni' ? 0xff7a2a : 0x8ad3ff, { w: 4 });
+        shake(sc, f, 140, 0.006);
+        return true;
+      },
+      bloodWhirl(sc, f, c) {
+        heroAnim(sc, c, c.c.x, c.c.y + 20);
+        fxPlay(sc, 'tibor', 'bloodWhirl', c.c.x, c.c.y - 10, { scale: (f.r || 90) / 40, repeat: 1, follow: c, dy: -10 });
+        shake(sc, f, 160, 0.006);
+        return true;
+      },
+    },
     ilyria: {
       // Каждый снаряд «Залпа арканы» — нарисованный сгусток
       arcaneMissile(sc, f, c) {
@@ -943,7 +967,7 @@ window.HeroFx = (() => {
     const c = casterOf(sc, f);
     const own = c && (c.skinOn || c.beast) && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
     // Ряд эффекта обычно назван как умение; событие «духи благосклонны» играет ауру
-    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', starShot: 'bolt', arcaneMissile: 'bolt', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire') })[f.s] || f.s)) return own(sc, f, c);
+    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', starShot: 'bolt', elixir: 'aura', witcherSign: 'sign_' + (f.sign || 'igni'), arcaneMissile: 'bolt', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire') })[f.s] || f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }

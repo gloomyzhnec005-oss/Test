@@ -145,6 +145,14 @@ window.Skins = (() => {
       // bolt — сгусток арканы; volley — веер снарядов при начале залпа
       fx: { sheet: 'assets/heroes/ilyria_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'volley', 'iceGrip', 'magicBarrier', 'aura'] },
     },
+    tibor: {
+      sheet: 'assets/heroes/tibor_sheet.png', portrait: 'assets/heroes/tibor_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй удар и поза умения (последний — выпивает эликсир)
+      attack: { sheet: 'assets/heroes/tibor_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      // elixir_* — флакон каждого эликсира (poison — отравление токсинами), sign_* — знаки
+      fx: { sheet: 'assets/heroes/tibor_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'elixir_thunder', 'elixir_blizzard', 'elixir_swallow', 'elixir_oriole', 'elixir_poison',
+        'sign_igni', 'sign_aard', 'sign_quen', 'bloodWhirl', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
