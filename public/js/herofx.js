@@ -449,6 +449,32 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    sanguine: {
+      bloodSpike(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const dur = f.flight || Math.min(450, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.2);
+        const sp = fxPlay(sc, 'sanguine', 'bolt', f.fx, f.fy - 14, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), scale: 1.1, to: { x: f.x, y: f.y - 8 }, dur, flipY: f.x < f.fx });
+        if (sp) sp.anims.msPerFrame = dur / 6;
+        sc.time.delayedCall(dur, () => { fxPlay(sc, 'sanguine', 'bloodSpike', f.x, f.y - 16, { scale: 1.3 }); shake(sc, f, 140, 0.006); });
+        return true;
+      },
+      bloodRitual(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'sanguine', 'bloodRitual', f.x, f.y - 16, { scale: (f.r || 120) / 36 });
+        sc.time.delayedCall(300, () => fxPlay(sc, 'sanguine', 'aura', f.x, f.y, { scale: (f.r || 120) / 34 }));
+        shake(sc, f, 180, 0.007);
+        return true;
+      },
+      bloodBond(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        for (const [x, y] of f.pts || []) {
+          const ang = Math.atan2(y - f.y, x - f.x), d = Math.hypot(x - f.x, y - f.y);
+          fxPlay(sc, 'sanguine', 'bloodBond', (f.x + x) / 2, (f.y + y) / 2 - 12, { rot: ang, scale: Math.max(0.8, d / 60) });
+          fxPlay(sc, 'sanguine', 'hit', x, y - 10, { scale: 0.8 });
+        }
+        return true;
+      },
+    },
     talmira: {
       // Небесное копьё: летит к цели и бьёт столбом света
       heavenSpear(sc, f, c) {

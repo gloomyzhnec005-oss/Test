@@ -167,6 +167,13 @@ window.Skins = (() => {
       attack: { sheet: 'assets/heroes/talmira_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
       fx: { sheet: 'assets/heroes/talmira_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'heavenSpear', 'takeFlight', 'valkyrieCry', 'aura'] },
     },
+    sanguine: {
+      sheet: 'assets/heroes/sanguine_sheet.png', portrait: 'assets/heroes/sanguine_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 6 рядов — вниз, вниз-вправо, вправо (выпад посохом), вверх-вправо, вверх и поза умения
+      attack: { sheet: 'assets/heroes/sanguine_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — кровавая сфера; bloodBond — кровавые цепи
+      fx: { sheet: 'assets/heroes/sanguine_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'bloodSpike', 'bloodRitual', 'bloodBond', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
