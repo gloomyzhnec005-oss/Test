@@ -449,6 +449,32 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    justina: {
+      healingPrayer(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'justina', 'healingPrayer', f.x, f.y - 18, { scale: (f.r || 130) / 40 });
+        sc.time.delayedCall(250, () => fxPlay(sc, 'justina', 'aura', f.x, f.y, { scale: (f.r || 130) / 36 }));
+        return true;
+      },
+      banishDarkness(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'justina', 'banishDarkness', f.x, f.y - 16, { scale: (f.r || 90) / 32 });
+        shock(sc, f.x, f.y + 4, f.r || 90, 0xffe08a, { w: 5, dur: 600 });
+        shake(sc, f, 180, 0.007);
+        return true;
+      },
+      blessing(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'justina', 'blessing', f.x, f.y - 18, { scale: (f.r || 140) / 40 });
+        for (const id of f.ids || []) { const e = sc.players.get(id); if (e && e !== c) fxPlay(sc, 'justina', 'faith', e.c.x, e.c.y - 16, { scale: 0.9, follow: e, dy: -16 }); }
+        return true;
+      },
+      faithPower(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'justina', 'faith', f.x, f.y - 18, { scale: 1.4, follow: c, dy: -18 });
+        return true;
+      },
+    },
     valerian: {
       holyVow(sc, f, c) {
         heroAnim(sc, c, undefined, undefined, true);
@@ -826,7 +852,7 @@ window.HeroFx = (() => {
     const c = casterOf(sc, f);
     const own = c && (c.skinOn || c.beast) && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
     // Ряд эффекта обычно назван как умение; событие «духи благосклонны» играет ауру
-    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire') })[f.s] || f.s)) return own(sc, f, c);
+    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire') })[f.s] || f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }

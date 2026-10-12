@@ -110,6 +110,13 @@ window.Skins = (() => {
       attack: { sheet: 'assets/heroes/valerian_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
       fx: { sheet: 'assets/heroes/valerian_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'holyVow', 'heavenStrike', 'holyAuraCast', 'aura'] },
     },
+    justina: {
+      sheet: 'assets/heroes/justina_sheet.png', portrait: 'assets/heroes/justina_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй каст и поза умения (последний)
+      attack: { sheet: 'assets/heroes/justina_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      // bolt — луч святого света; faith — столб с поднятыми душами (усиление веры)
+      fx: { sheet: 'assets/heroes/justina_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'healingPrayer', 'banishDarkness', 'blessing', 'faith', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
