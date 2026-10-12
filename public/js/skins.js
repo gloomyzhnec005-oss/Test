@@ -117,6 +117,13 @@ window.Skins = (() => {
       // bolt — луч святого света; faith — столб с поднятыми душами (усиление веры)
       fx: { sheet: 'assets/heroes/justina_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'healingPrayer', 'banishDarkness', 'blessing', 'faith', 'aura'] },
     },
+    giacomo: {
+      sheet: 'assets/heroes/giacomo_sheet.png', portrait: 'assets/heroes/giacomo_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй аккорд и поза умения (последний)
+      attack: { sheet: 'assets/heroes/giacomo_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      // bolt — летящая мелодия; songSwap — купол песни (цвет меняется по ходу ряда)
+      fx: { sheet: 'assets/heroes/giacomo_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'songSwap', 'resonantChord', 'ovation', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

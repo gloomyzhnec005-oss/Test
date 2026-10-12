@@ -449,6 +449,27 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    giacomo: {
+      songSwap(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'giacomo', 'songSwap', f.x, f.y - 14, { scale: 1.3, follow: c, dy: -14 });
+        return false; // название песни — общий обработчик
+      },
+      resonantChord(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'giacomo', 'resonantChord', f.x, f.y - 12, { scale: (f.r || 120) / 36 });
+        shock(sc, f.x, f.y + 4, f.r || 120, 0xffc860, { w: 4, dur: 600 });
+        shake(sc, f, 150, 0.006);
+        return true;
+      },
+      ovation(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'giacomo', 'ovation', f.x, f.y - 16, { scale: 1.6 });
+        for (const id of f.ids || []) { const e = sc.players.get(id); if (e && e !== c) fxPlay(sc, 'giacomo', 'aura', e.c.x, e.c.y - 4, { scale: 0.9, follow: e, dy: -4 }); }
+        sc.floatText(f.x, f.y - 56, '👏 Овация!', '#ffd36a', 14);
+        return true;
+      },
+    },
     justina: {
       healingPrayer(sc, f, c) {
         heroAnim(sc, c, undefined, undefined, true);
