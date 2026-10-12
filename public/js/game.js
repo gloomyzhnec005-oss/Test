@@ -22,6 +22,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
   preload() {
     for (const [id, m] of Object.entries(Skins.MOBS)) this.load.spritesheet('mskin_' + id, m.sheet, { frameWidth: m.w, frameHeight: m.h });
+    // Нарисованные эффекты монстров (tools/gen_mobs.py): снаряды, вспышка попадания, рунный круг
+    this.MOB_PROJ = ['arrow', 'bolt', 'axe', 'feather', 'leaf', 'nature', 'fireball', 'frost', 'spark', 'holy', 'arcane', 'dark', 'necro', 'spirit', 'venom', 'illusion'];
+    for (const k of this.MOB_PROJ) this.load.spritesheet('mproj_' + k, `assets/mobfx/proj_${k}.png`, { frameWidth: 28, frameHeight: 14 });
+    this.load.spritesheet('mfx_burst', 'assets/mobfx/burst.png', { frameWidth: 40, frameHeight: 40 });
+    this.load.image('mfx_rune', 'assets/mobfx/rune.png');
     for (const [id, sk] of Object.entries(Skins.LIST)) if (sk.turret) this.load.image('turret_' + id, sk.turret);
     for (const [id, sk] of Object.entries(Skins.LIST)) if (sk.beast) this.load.spritesheet('bskin_' + id, sk.beast.sheet, { frameWidth: sk.beast.w, frameHeight: sk.beast.h });
     WorldArt.preload(this); // нарисованная графика миров (тайлы, здания, порталы)
@@ -51,6 +56,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
       for (const d of ['down', 'side', 'up']) this.anims.create({ key: `bwalk_${id}_${d}`, frames: sk.beast[d].map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 9, repeat: -1 });
       this.anims.create({ key: `batk_${id}`, frames: sk.beast.attack.map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 16, repeat: 0 });
     }
+    for (const k of this.MOB_PROJ || []) if (this.textures.exists('mproj_' + k)) this.anims.create({ key: 'mproj_' + k, frames: this.anims.generateFrameNumbers('mproj_' + k, { start: 0, end: 3 }), frameRate: 14, repeat: -1 });
+    if (this.textures.exists('mfx_burst')) this.anims.create({ key: 'mfx_burst', frames: this.anims.generateFrameNumbers('mfx_burst', { start: 0, end: 5 }), frameRate: 22, repeat: 0 });
     for (const [id, m] of Object.entries(Skins.MOBS)) {
       if (!this.textures.exists('mskin_' + id)) continue;
       this.anims.create({ key: `mwalk_${id}`, frames: m.walk.map((f) => ({ key: 'mskin_' + id, frame: f })), frameRate: 8, repeat: -1 });
@@ -555,7 +562,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const ms = this.textures.exists('mskin_' + m.type) && Skins.MOBS[m.type];
         e = this.makeEntity(ms ? 'mskin_' + m.type : 'mon_' + m.type, `${prefix}${m.nm || def.name} · ${m.lv}`, RC[m.rk] || '#ffd9a0', m.id);
         e.c.setPosition(m.x, m.y);
-        const sz = m.sz || 1;
+        const sz = (m.sz || 1) * (ms ? ms.scale || 1 : 1);   // нарисованные листы крупнее процедурных — свой масштаб
         e.sprite.setScale(sz);
         if (ms) {
           // Нарисованный монстр: ноги на точке позиции, полоска здоровья и имя над головой
@@ -734,6 +741,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.time.delayedCall(600, () => em.destroy());
   }
 
+  // Нарисованная вспышка удара монстра (белая, красится в цвет атаки)
+  mobBurst(x, y, color, scale = 1) {
+    if (!this.textures.exists('mfx_burst')) return;
+    const b = this.add.sprite(x, y, 'mfx_burst').setTint(color).setScale(scale).setDepth(870).setBlendMode(Phaser.BlendModes.ADD);
+    b.play('mfx_burst'); b.once('animationcomplete', () => b.destroy());
+  }
+
   playFx(f) {
     if (f.t === 'hit' && f.kind === 'm') {
       const e = this.monsters.get(f.target);
@@ -807,6 +821,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         m.attacking = true;
         m.sprite.play(`matk_${m.mskin}`);
         m.sprite.once('animationcomplete', () => { m.attacking = false; m.sprite.setFrame(Skins.MOBS[m.mskin].walk[0]); });
+        this.time.delayedCall(180, () => this.mobBurst(e.c.x, e.c.y - 12, 0xff6a5a, 0.55));
       } else if (m) this.tweens.add({ targets: m.sprite, x: Math.sign(e.c.x - m.c.x) * 6, duration: 80, yoyo: true });
       if (f.target === this.myId) { this.cameras.main.shake(100, 0.004); this.ui.vibrate('light'); }
     } else if (f.t === 'death') {
@@ -846,21 +861,36 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (f.to === this.myId) this.ui.vibrate('success');
     } else if (f.t === 'tele') {
       // Предупреждение об ударе по площади: круг наполняется, пока не ударит
-      const ring = this.add.circle(f.x, f.y, f.r).setStrokeStyle(2, f.color, 0.9).setDepth(5).setScale(1, 0.55);
+      const ring = this.textures.exists('mfx_rune')
+        ? this.add.image(f.x, f.y, 'mfx_rune').setTint(f.color).setAlpha(0.55).setDepth(5).setDisplaySize(f.r * 2, f.r * 1.1)
+        : this.add.circle(f.x, f.y, f.r).setStrokeStyle(2, f.color, 0.9).setDepth(5).setScale(1, 0.55);
+      if (ring.type === 'Image') this.tweens.add({ targets: ring, angle: 25, duration: f.ms });
       const fill = this.add.circle(f.x, f.y, f.r, f.color, 0.28).setDepth(5).setScale(0.05, 0.03);
       this.tweens.add({ targets: fill, scaleX: 1, scaleY: 0.55, duration: f.ms, onComplete: () => { ring.destroy(); fill.destroy(); } });
       if (f.label) this.floatText(f.x, f.y - f.r * 0.55 - 10, f.label, '#ffd0a0', 12);
     } else if (f.t === 'teleHit') {
       const fl = this.add.circle(f.x, f.y, f.r, f.color, 0.5).setDepth(830).setScale(1, 0.55);
       this.tweens.add({ targets: fl, alpha: 0, duration: 350, onComplete: () => fl.destroy() });
+      this.mobBurst(f.x, f.y - 6, f.color, Math.max(1, f.r / 22));
       this.burst(f.x, f.y, f.color, 14);
       if (this.me && Math.hypot(this.me.x - f.x, this.me.y - f.y) < f.r) this.cameras.main.shake(140, 0.006);
     } else if (f.t === 'mshot') {
-      const key = this.textures.exists('proj_' + f.proj) ? 'proj_' + f.proj : 'proj_arrow';
-      const pr = this.add.image(f.fx, f.fy, key).setDepth(860).setScale(1.2);
+      const shooter = this.monsters.get(f.from);
+      if (shooter && shooter.mskin && !shooter.attacking) {
+        // Нарисованный монстр: кадры удара (выстрел / заклинание)
+        shooter.sprite.setFlipX(f.x < shooter.c.x); shooter.attacking = true;
+        shooter.sprite.play(`matk_${shooter.mskin}`);
+        shooter.sprite.once('animationcomplete', () => { shooter.attacking = false; shooter.sprite.setFrame(Skins.MOBS[shooter.mskin].walk[0]); });
+      }
+      const art = this.textures.exists('mproj_' + f.proj) ? 'mproj_' + f.proj : null;
+      const key = art || (this.textures.exists('proj_' + f.proj) ? 'proj_' + f.proj : 'proj_arrow');
+      const pr = art ? this.add.sprite(f.fx, f.fy, art).play(art) : this.add.image(f.fx, f.fy, key);
+      pr.setDepth(860).setScale(art ? 1 : 1.2);
       pr.rotation = Phaser.Math.Angle.Between(f.fx, f.fy, f.x, f.y);
-      if (key === 'proj_arrow' || key === 'proj_bolt') pr.setTint(0xffa0a0);
-      this.tweens.add({ targets: pr, x: f.x, y: f.y, duration: f.ms, onComplete: () => pr.destroy() });
+      if (art === 'mproj_axe') pr.rotation = 0;
+      if (!art && (key === 'proj_arrow' || key === 'proj_bolt')) pr.setTint(0xffa0a0);
+      const PC = { fireball: 0xff8a1a, frost: 0x8ad3ff, dark: 0x9a4aff, arcane: 0xc8a0ff, necro: 0x5fffb0, holy: 0xffe8a0, venom: 0x8ad84a, spark: 0xffe94a, spirit: 0x9ff0ff, nature: 0x5fd17a, leaf: 0x7fd36b, illusion: 0xff7ad0 };
+      this.tweens.add({ targets: pr, x: f.x, y: f.y, duration: f.ms, onComplete: () => { pr.destroy(); if (art) this.mobBurst(f.x, f.y - 4, PC[f.proj] || 0xffe0c0, 0.7); } });
       // Точка попадания — от снаряда можно увернуться
       const mark = this.add.circle(f.x, f.y + 4, 9).setStrokeStyle(1, 0xff6a5a, 0.6).setDepth(4).setScale(1, 0.5);
       this.tweens.add({ targets: mark, alpha: 0, duration: f.ms, onComplete: () => mark.destroy() });

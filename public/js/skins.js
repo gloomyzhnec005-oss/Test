@@ -177,11 +177,9 @@ window.Skins = (() => {
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
-  const MOBS = {
-    goblinRaider: { sheet: 'assets/mobs/goblinRaider.png', w: 33, h: 38, walk: [0, 1, 2, 3], attack: [5, 4] },
-    orcWarrior: { sheet: 'assets/mobs/orcWarrior.png', w: 44, h: 61, body: 48, walk: [0, 1, 2, 3], attack: [4, 5] },
-    zombieBerserk: { sheet: 'assets/mobs/zombieBerserk.png', w: 53, h: 56, body: 48, walk: [0, 1, 2, 0], attack: [3, 4, 5] },
-  };
+  const MOBS = {};
+  // Все монстры нарисованы генератором tools/gen_mobs.py (размеры — public/js/mobart.js): 4 кадра ходьбы, 3 кадра удара
+  for (const [id, m] of Object.entries(window.MOB_ART || {})) MOBS[id] = { sheet: `assets/mobs/${id}.png`, w: m.w, h: m.h, body: m.body, scale: m.scale || 1, walk: [0, 1, 2, 3], attack: [4, 5, 6] };
   const DIRS = ['down', 'down-right', 'right', 'up-right', 'up', 'up-left', 'left', 'down-left'];
   // угол движения (0 = вправо, по часовой) → ряд листа
   const ROW_BY_OCTANT = [2, 1, 0, 7, 6, 5, 4, 3];

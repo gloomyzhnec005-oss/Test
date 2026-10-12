@@ -106,7 +106,7 @@ module.exports = function createDungeons(d) {
     const def = MOBS[m.type];
     const tx = target.x, ty = target.y;
     const ms = Math.max(120, Math.hypot(tx - m.x, ty - m.y) / 0.42);
-    fx({ t: 'mshot', fx: m.x, fy: m.y - 8, x: tx, y: ty, ms, proj: o.proj || def.proj || 'arrow' });
+    fx({ t: 'mshot', from: m.id, fx: m.x, fy: m.y - 8, x: tx, y: ty, ms, proj: o.proj || def.proj || 'arrow' });
     setTimeout(() => {
       if (!monsters.has(m.id) || target.dead || target.zone && target.zone !== m.zone) return;
       if (!world.lineOfSight(m.x, m.y, target.x, target.y)) { fx({ t: 'miss', x: target.x, y: target.y }); return; } // спрятался за стеной
