@@ -138,6 +138,13 @@ window.Skins = (() => {
       // bolt — светящаяся стрела; starShot — звёздная стрела-прицел
       fx: { sheet: 'assets/heroes/faelin_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'starShot', 'lightHail', 'windLight', 'aura'] },
     },
+    ilyria: {
+      sheet: 'assets/heroes/ilyria_sheet.png', portrait: 'assets/heroes/ilyria_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй каст и поза умения (последний)
+      attack: { sheet: 'assets/heroes/ilyria_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      // bolt — сгусток арканы; volley — веер снарядов при начале залпа
+      fx: { sheet: 'assets/heroes/ilyria_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'volley', 'iceGrip', 'magicBarrier', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

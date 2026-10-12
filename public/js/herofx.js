@@ -449,6 +449,28 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    ilyria: {
+      // Каждый снаряд «Залпа арканы» — нарисованный сгусток
+      arcaneMissile(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const dur = Math.min(420, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.2);
+        const sp = fxPlay(sc, 'ilyria', 'bolt', f.fx, f.fy - 14, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), scale: 0.9, to: { x: f.x, y: f.y - 8 }, dur, flipY: f.x < f.fx });
+        if (sp) sp.anims.msPerFrame = dur / 6;
+        sc.time.delayedCall(dur, () => fxPlay(sc, 'ilyria', 'hit', f.x, f.y - 10, { scale: 0.8 }));
+        return true;
+      },
+      iceGrip(sc, f, c) {
+        fxPlay(sc, 'ilyria', 'iceGrip', f.x, f.y - 16, { scale: (f.r || 90) / 32 });
+        shake(sc, f, 150, 0.006);
+        return true;
+      },
+      magicBarrier(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'ilyria', 'magicBarrier', f.x, f.y - 14, { scale: 1.3, follow: c, dy: -14 });
+        sc.time.delayedCall(300, () => fxPlay(sc, 'ilyria', 'aura', f.x, f.y - 4, { scale: 1, follow: c, dy: -4 }));
+        return true;
+      },
+    },
     faelin: {
       starShot(sc, f, c) {
         heroAnim(sc, c, f.x, f.y);
@@ -921,7 +943,7 @@ window.HeroFx = (() => {
     const c = casterOf(sc, f);
     const own = c && (c.skinOn || c.beast) && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
     // Ряд эффекта обычно назван как умение; событие «духи благосклонны» играет ауру
-    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', starShot: 'bolt', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire') })[f.s] || f.s)) return own(sc, f, c);
+    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', starShot: 'bolt', arcaneMissile: 'bolt', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire') })[f.s] || f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }
