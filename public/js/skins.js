@@ -131,6 +131,13 @@ window.Skins = (() => {
       // bolt — летящий череп; darkArrow — фиолетовая стрела тьмы; ritual — круг призыва с душами
       fx: { sheet: 'assets/heroes/orion_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'raiseCorpse', 'darkArrow', 'soulDevour', 'ritual', 'aura'] },
     },
+    faelin: {
+      sheet: 'assets/heroes/faelin_sheet.png', portrait: 'assets/heroes/faelin_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй выстрел и поза умения (последний)
+      attack: { sheet: 'assets/heroes/faelin_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      // bolt — светящаяся стрела; starShot — звёздная стрела-прицел
+      fx: { sheet: 'assets/heroes/faelin_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'starShot', 'lightHail', 'windLight', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

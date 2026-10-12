@@ -449,6 +449,30 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    faelin: {
+      starShot(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const dur = f.flight || Math.min(500, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.2);
+        const sp = fxPlay(sc, 'faelin', 'bolt', f.fx, f.fy - 14, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), scale: 1.3, to: { x: f.x, y: f.y - 8 }, dur, flipY: f.x < f.fx });
+        if (sp) sp.anims.msPerFrame = dur / 6;
+        sc.time.delayedCall(dur, () => { fxPlay(sc, 'faelin', 'starShot', f.x, f.y - 10, { scale: 1.3 }); shake(sc, f, 130, 0.006); });
+        return true;
+      },
+      lightHail(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'faelin', 'lightHail', f.x, f.y - 16, { scale: (f.r || 100) / 34 });
+        for (let i = 0; i < 5; i++) sc.time.delayedCall(120 + i * 110, () => fxPlay(sc, 'faelin', 'hit', f.x + (Math.random() - 0.5) * (f.r || 100), f.y + (Math.random() - 0.5) * (f.r || 100) * 0.6 - 8, { scale: 0.7 }));
+        shake(sc, f, 160, 0.006);
+        return true;
+      },
+      windLight(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'faelin', 'windLight', f.x, f.y - 18, { scale: 1.5 });
+        for (const id of f.ids || []) { const e = sc.players.get(id); if (e && e !== c) fxPlay(sc, 'faelin', 'aura', e.c.x, e.c.y - 4, { scale: 0.9, follow: e, dy: -4 }); }
+        sc.time.delayedCall(250, () => fxPlay(sc, 'faelin', 'aura', f.x, f.y - 4, { scale: 1.1, follow: c, dy: -4 }));
+        return true;
+      },
+    },
     orion: {
       raiseCorpse(sc, f, c) {
         if (!f.auto) heroAnim(sc, c, f.x, f.y);
@@ -897,7 +921,7 @@ window.HeroFx = (() => {
     const c = casterOf(sc, f);
     const own = c && (c.skinOn || c.beast) && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
     // Ряд эффекта обычно назван как умение; событие «духи благосклонны» играет ауру
-    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire') })[f.s] || f.s)) return own(sc, f, c);
+    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', starShot: 'bolt', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire') })[f.s] || f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }
