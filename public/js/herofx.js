@@ -449,6 +449,31 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    talmira: {
+      // Небесное копьё: летит к цели и бьёт столбом света
+      heavenSpear(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const dur = f.flight || Math.min(450, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.2);
+        const sp = sc.add.sprite(f.fx, f.fy - 16, 'fx_talmira', 2 * 6).setDepth(9100).setBlendMode(Phaser.BlendModes.ADD).setScale(0.9).setRotation(Math.atan2(f.y - f.fy, f.x - f.fx) + Math.PI / 2);
+        sc.tweens.add({ targets: sp, x: f.x, y: f.y - 10, duration: dur, ease: 'Quad.easeIn', onComplete: () => sp.destroy() });
+        sc.time.delayedCall(dur, () => { fxPlay(sc, 'talmira', 'heavenSpear', f.x, f.y - 20, { scale: 1.3 }); fxPlay(sc, 'talmira', 'hit', f.x, f.y - 10, { scale: 1.1 }); shake(sc, f, 150, 0.007); });
+        return true;
+      },
+      takeFlight(sc, f, c) {
+        if (f.quiet) { fxPlay(sc, 'talmira', 'aura', f.x, f.y, { scale: 1 }); return true; }
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'talmira', 'takeFlight', f.x, f.y - 22, { scale: 1.5, follow: c, dy: -22 });
+        return true;
+      },
+      valkyrieCry(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'talmira', 'valkyrieCry', f.x, f.y - 16, { scale: 1.8 });
+        sc.time.delayedCall(300, () => fxPlay(sc, 'talmira', 'aura', f.x, f.y, { scale: (f.r || 200) / 50 }));
+        shock(sc, f.x, f.y + 4, f.r || 200, 0xffd36a, { w: 5, dur: 700 });
+        shake(sc, f, 220, 0.009);
+        return true;
+      },
+    },
     ingrid: {
       buildTurret(sc, f, c) {
         heroAnim(sc, c, f.x, f.y);

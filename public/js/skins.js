@@ -161,6 +161,12 @@ window.Skins = (() => {
       fx: { sheet: 'assets/heroes/ingrid_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'turretFire', 'bomb', 'buildTurret', 'aura'] },
       turret: 'assets/heroes/ingrid_turret.png', // нарисованная турель вместо процедурной
     },
+    talmira: {
+      sheet: 'assets/heroes/talmira_sheet.png', portrait: 'assets/heroes/talmira_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 7 рядов — 5 направлений, второй выпад и поза умения (раскрытые крылья)
+      attack: { sheet: 'assets/heroes/talmira_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
+      fx: { sheet: 'assets/heroes/talmira_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'heavenSpear', 'takeFlight', 'valkyrieCry', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
