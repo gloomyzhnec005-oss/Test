@@ -78,25 +78,25 @@
     <div id="chatLog" class="chat-log"></div>
     <form id="chatForm" class="chat-form hidden"><input id="chatInput" maxlength="120" placeholder="Сообщение..." /></form>
     <button id="chatBtn" class="round small-btn">💬</button>
-    <button id="exitBtn" class="round small-btn">🏠</button>
-    <button id="bagBtn" class="round small-btn">🎒</button>
-    <button id="partyBtn" class="round small-btn">👥</button>
     <button id="potBtn" class="round small-btn" title="Выпить зелье здоровья">🧪</button>
     <div id="partyFrame" class="party-frame hidden"></div>
     <div id="waveBadge" class="wave-badge hidden"></div>
-    <!-- Только в городе: события, призыв, пропуск, магазин -->
-    <div id="townBar" class="town-bar hidden">
-      <button id="evBtn" class="town-btn"><span>📜</span><em>События</em></button>
-      <button id="gachaBtn" class="town-btn"><span>🎰</span><em>Призыв</em></button>
-      <button id="passBtn" class="town-btn"><span>🎟️</span><em>Пропуск</em></button>
-      <button id="storeBtn" class="town-btn"><span>💎</span><em>Магазин</em></button>
-    </div>
     <div id="zoneBanner" class="zone-banner hidden"><b></b><small></small></div>
     <button id="actBtn" class="act-btn hidden"></button>
     <div id="joystick" class="joystick"><div id="stick"></div></div>
     <button id="attackBtn" class="round attack">⚔️</button>
     <div id="skills" class="skills"></div>
     <div id="hudToast" class="hud-toast hidden"></div>
+    <!-- Нижнее меню: персонаж, сумка, квесты, игра, призыв, магазин, ещё -->
+    <nav id="navBar" class="nav-bar">
+      <button data-nav="hero"><span>🧙</span><em>Герой</em></button>
+      <button data-nav="bag"><span>🎒</span><em>Сумка</em></button>
+      <button data-nav="quests"><span>📜</span><em>Квесты</em></button>
+      <button data-nav="play" class="main"><span>⚔️</span><em>Игра</em></button>
+      <button data-nav="gacha"><span>🎰</span><em>Призыв</em></button>
+      <button data-nav="store"><span>💎</span><em>Магазин</em></button>
+      <button data-nav="more"><span>☰</span><em>Ещё</em></button>
+    </nav>
   </div>
 
   <!-- Окна поверх лобби и игры: призыв, городские места -->

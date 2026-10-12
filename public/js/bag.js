@@ -29,14 +29,17 @@ window.Bag = (() => {
     box.className = 'it-grid';
     const RO = inv ? inv.rarOrder : [];
     const sorted = opts.keepOrder ? items : [...items].sort((a, b) => RO.indexOf(b.rar) - RO.indexOf(a.rar) || a.cat.localeCompare(b.cat));
-    box.innerHTML = sorted.map((it) => cell(it, `${opts.selected && opts.selected.has(it.id) ? 'sel' : ''} ${isEquipped(it) ? 'eq' : ''}`)).join('')
-      || `<div class="tw-soon" style="grid-column:1/-1">${opts.empty || 'Пусто'}</div>`;
+    const pad = opts.fill ? Math.max(0, opts.fill - sorted.length) : 0;
+    box.innerHTML = (sorted.map((it) => cell(it, `${opts.selected && opts.selected.has(it.id) ? 'sel' : ''} ${isEquipped(it) ? 'eq' : ''}`)).join('')
+      || (opts.fill ? '' : `<div class="tw-soon" style="grid-column:1/-1">${opts.empty || 'Пусто'}</div>`)) + '<i class="it-none"></i>'.repeat(pad);
+    if (opts.fill) box.classList.add('filled');
     box.onclick = (e) => { const b = e.target.closest('.it'); if (b) onTap(items.find((i) => i.id === b.dataset.id), b); };
     return box;
   }
   const isEquipped = (it) => inv && Object.values(inv.equip || {}).includes(it.id);
   const slotOf = (it) => inv && Object.keys(inv.equip || {}).find((s) => inv.equip[s] === it.id);
 
+  const diff = (d) => (d ? `<u class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'} ${Math.abs(Math.round(d * 10) / 10)}</u>` : '<u>=</u>');
   // Карточка предмета: статы, атрибуты, руны и кнопки действий
   const heroName = (id) => (Town.heroes()[id] || {}).name || id;
   // Блок комплекта в карточке: класс, герои, бонусы (активные подсвечены)
@@ -67,7 +70,7 @@ window.Bag = (() => {
       btns.append(b);
     }
   }
-  function card(it, actions) {
+  function card(it, actions, cmp) {
     if (it.cat === 'mat') return matCard(it, actions || []);
     actions = actions || [];
     const wrap = $('itemCard');
@@ -80,7 +83,8 @@ window.Bag = (() => {
         <small>${it.rarName} · ${inv.cats[it.cat]} · мир ${ROMAN[it.tier]}${it.dupes ? ` · дубликаты +${it.dupes * 5}%` : ''}</small></div></div>
       ${setBlock(it)}
       <div class="ic-sec">Итоговые статы</div>
-      ${Object.entries(it.stats).map(([k, v]) => `<div class="ic-stat">${statLine(k, v)}</div>`).join('')}
+      ${Object.entries(it.stats).map(([k, v]) => `<div class="ic-stat">${statLine(k, v)}${cmp ? diff(v - ((cmp.stats || {})[k] || 0)) : ''}</div>`).join('')}
+      ${cmp ? `<div class="ic-attr">Сравнение с надетым: ${cmp.name}</div>` : ''}
       <div class="ic-sec">Случайные атрибуты (${it.attrs.length})</div>
       ${it.attrs.map((a) => `<div class="ic-attr">◆ ${statLine(a.k, a.v)}</div>`).join('') || '<div class="ic-attr">—</div>'}
       ${runes}
@@ -131,44 +135,115 @@ window.Bag = (() => {
     setTimeout(() => Town.open('🎁 Ларец комплекта', box), 50);
   }
 
-  // ---------- Вкладки сумки ----------
-  function equipTab() {
+  // ---------- Персонаж: кукла героя с ячейками по бокам и гардероб ----------
+  const SIDE = { left: ['helm', 'armor', 'gloves', 'boots'], right: ['weapon', 'amulet', 'ring'] };
+  let heroSel = null;
+  const worn = (s) => inv.items.find((i) => i.id === inv.equip[s]);
+  const fits = (s) => inv.items.filter((i) => i.cat === s && i.loc !== 'wh' && !isEquipped(i));
+  function slotBtn(s) {
+    const it = worn(s), n = fits(s).length;
+    return `<button class="pd-slot ${it ? 'full' : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
+      ${it ? `<span>${it.icon}</span><i>${ROMAN[it.tier] || ''}</i>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost">${SLOT_ICONS[s]}</span>`}
+      ${n ? `<b>${n}</b>` : ''}<em>${it ? it.name : inv.slotNames[s]}</em></button>`;
+  }
+  function heroTab() {
     const box = document.createElement('div');
-    const h = inv.hero, H = Town.heroes()[h.id];
-    const next = (Town.skillUnlock() || [])[h.unlocked];
-    box.innerHTML = `<div class="bag-hero"><b>${H.name}</b> · ур. ${h.level} · ${'★'.repeat(Math.min(h.dupes, 10)) || '☆'} дубликаты ${h.dupes}
-      <small>Умения: ${H.skills.map((s, i) => `<span class="${i < h.unlocked ? '' : 'lock'}">${i < h.unlocked ? s.icon : '🔒'} ${s.name}</span>`).join(' · ')}</small>
-      ${next ? `<small class="hint">Следующее умение: ${next.lvl} уровень или ${next.dup} дубл.</small>` : ''}</div>
-      <div class="bag-slots"></div><div class="bag-sets"></div><div class="ic-sec">Бонусы экипировки</div><div class="bag-gear"></div>`;
-    const slots = box.querySelector('.bag-slots');
-    for (const s of inv.slots) {
-      const it = inv.items.find((i) => i.id === inv.equip[s]);
-      const el = document.createElement('div');
-      el.className = 'bag-slot';
-      el.innerHTML = it ? `${cell(it)}<small style="color:${it.color}">${it.name}</small>` : `<button class="it empty"><span>${SLOT_ICONS[s]}</span></button><small>${inv.slotNames[s]}</small>`;
-      el.querySelector('.it').onclick = () => (it ? card(it, itemActions(it, { after: rerender })) : openBag('bag'));
-      slots.append(el);
-    }
-    // Комплекты: сколько надето и какие бонусы работают у текущего героя
-    const sets = Object.entries(inv.sets.counts);
-    box.querySelector('.bag-sets').innerHTML = `<div class="ic-sec">◆ Комплекты · ваш класс: ${inv.sets.clsName || '—'}</div>` + (sets.length ? sets.map(([sid, n]) => {
-      const it = inv.items.find((i) => i.set && i.set.id === sid);
-      const act = inv.sets.active.filter((a) => a.set === sid);
-      return `<div class="ic-rune ${act.length ? 'on' : ''}">${it ? it.set.name : sid} · ${n}/7 ${act.length ? '· ' + act.map((a) => `${a.need}: ${Object.entries(a.stats).map(([k, v]) => statLine(k, v)).join(', ')}`).join(' · ') : it && it.set.cls !== inv.sets.cls ? '· не ваш класс' : '· бонус с 2 вещей'}</div>`;
-    }).join('') : '<div class="ic-attr">Соберите 2, 4 или все 7 вещей комплекта своего класса — бонусы растут</div>');
-    const g = Object.entries(inv.gear);
-    box.querySelector('.bag-gear').innerHTML = g.length ? g.map(([k, v]) => `<span>${statLine(k, v)}</span>`).join('') : '<span>Наденьте предметы</span>';
+    const h = inv.hero, H = Town.heroes()[h.id], P = inv.power || {};
+    if (!heroSel) heroSel = inv.slots.find((s) => !worn(s) && fits(s).length) || 'weapon';
+    box.innerHTML = `<div class="pd">
+        <div class="pd-col">${SIDE.left.map(slotBtn).join('')}</div>
+        <div class="pd-stage"><i class="pd-glow"></i><div class="pd-art"></div><i class="pd-ped"></i>
+          <div class="pd-name"><b>${H.name}</b><small>ур. ${h.level} · ${'★'.repeat(Math.min(h.dupes, 5)) || '☆'}${h.dupes > 5 ? '+' + (h.dupes - 5) : ''}</small></div></div>
+        <div class="pd-col">${SIDE.right.map(slotBtn).join('')}<button class="pd-slot pd-bag" data-go="bag"><span>🎒</span><em>Сумка</em></button></div>
+      </div>
+      <div class="pd-power"><span class="pw">⚜️ Сила <b>${P.power || '—'}</b></span><span>❤️ ${P.hp || '—'}</span><span>🗡️ ${P.dmg || '—'}</span><span>🎯 ${P.crit || 0}%</span></div>
+      <div class="pd-ward"></div>`;
+    const art = window.Lobby && Lobby.heroCanvas(h.id, true);
+    if (art) box.querySelector('.pd-art').append(art);
+    box.querySelector('.pd').onclick = (e) => {
+      const b = e.target.closest('.pd-slot');
+      if (!b) return;
+      if (b.dataset.go) return openBag('bag');
+      heroSel = b.dataset.s;
+      box.querySelectorAll('.pd-slot').forEach((x) => x.classList.toggle('on', x.dataset.s === heroSel));
+      drawWard();
+    };
+    const ward = box.querySelector('.pd-ward');
+    const drawWard = () => {
+      const s = heroSel, cur = worn(s), list = fits(s);
+      ward.innerHTML = `<div class="ward-head"><b>👘 Гардероб · ${inv.slotNames[s]}</b><small>${list.length ? `в сумке ${list.length}` : 'в сумке нет'}</small></div>
+        ${cur ? `<div class="ward-cur" style="--rc:${cur.color}">${cell(cur, 'eq')}<div><b style="color:${cur.color}">${cur.name}</b>
+          <small>${Object.entries(cur.stats).map(([k, v]) => statLine(k, v)).join(' · ')}</small></div><button class="l2-btn" data-a="info">ⓘ</button><button class="l2-btn" data-a="off">Снять</button></div>`
+        : '<div class="ward-cur none">Ячейка пуста — выберите вещь ниже</div>'}`;
+      ward.append(grid(list, (it) => card(it, itemActions(it, { town: Town.inTown(), after: rerender }), cur), {
+        fill: Math.max(6, Math.ceil(list.length / 6) * 6), empty: '' }));
+      if (!list.length) ward.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Вещи этого типа падают с монстров и продаются в лавке оружия и доспехов</p>');
+      const ab = (a) => ward.querySelector(`[data-a="${a}"]`);
+      if (cur) {
+        ab('info').onclick = () => card(cur, itemActions(cur, { after: rerender }));
+        ab('off').onclick = async () => { const r = await act('unequip', { slot: s }); toast(r.error || r.toast || 'Снято'); await refresh(); rerender(); };
+        ward.querySelector('.ward-cur .it').onclick = () => ab('info').onclick();
+      }
+    };
+    drawWard();
     return box;
   }
+  function statsTab() {
+    const box = document.createElement('div');
+    const h = inv.hero, H = Town.heroes()[h.id], P = inv.power || {};
+    const next = (Town.skillUnlock() || [])[h.unlocked];
+    const g = Object.entries(inv.gear);
+    const sets = Object.entries(inv.sets.counts);
+    box.innerHTML = `<div class="st-grid">
+        <div><small>Сила героя</small><b>${P.power || '—'}</b></div><div><small>Здоровье</small><b>${P.hp || '—'}</b></div>
+        <div><small>Атака</small><b>${P.dmg || '—'}</b></div><div><small>Крит</small><b>${P.crit || 0}%</b></div>
+        <div><small>Уровень</small><b>${h.level}</b></div><div><small>Дубликаты</small><b>${h.dupes}</b></div></div>
+      <div class="ic-sec">Умения</div>
+      <div class="st-skills">${H.skills.map((sk, i) => `<div class="${i < h.unlocked ? '' : 'lock'}"><span>${i < h.unlocked ? sk.icon : '🔒'}</span><b>${sk.name}</b></div>`).join('')}</div>
+      ${next ? `<p class="sheet-hint">Следующее умение: ${next.lvl} уровень или ${next.dup} дубл.</p>` : ''}
+      <div class="ic-sec">Бонусы экипировки</div>
+      <div class="bag-gear">${g.length ? g.map(([k, v]) => `<span>${statLine(k, v)}</span>`).join('') : '<span>Наденьте предметы</span>'}</div>
+      <div class="ic-sec">◆ Комплекты · ваш класс: ${inv.sets.clsName || '—'}</div>
+      ${sets.length ? sets.map(([sid, n]) => {
+        const it = inv.items.find((i) => i.set && i.set.id === sid);
+        const on = inv.sets.active.filter((a) => a.set === sid);
+        return `<div class="ic-rune ${on.length ? 'on' : ''}">${it ? it.set.name : sid} · ${n}/7 ${on.length ? '· ' + on.map((a) => `${a.need}: ${Object.entries(a.stats).map(([k, v]) => statLine(k, v)).join(', ')}`).join(' · ') : it && it.set.cls !== inv.sets.cls ? '· не ваш класс' : '· бонус с 2 вещей'}</div>`;
+      }).join('') : '<div class="ic-attr">Соберите 2, 4 или все 7 вещей комплекта своего класса — бонусы растут</div>'}`;
+    return box;
+  }
+
+  // ---------- Инвентарь: сетка ячеек, вкладки по типам, золото и вместимость внизу ----------
+  const INV_TABS = [
+    ['all', 'Все', () => true], ['wpn', '⚔️ Оружие', (c) => c === 'weapon'], ['arm', '🛡️ Броня', (c) => ['helm', 'armor', 'gloves', 'boots'].includes(c)],
+    ['acc', '💍 Бижутерия', (c) => c === 'ring' || c === 'amulet'], ['rune', '🔮 Руны', (c) => c === 'rune'], ['mat', '🧪 Ресурсы', null],
+  ];
+  const SORTS = [['rar', 'по редкости'], ['type', 'по типу'], ['new', 'новые']];
+  let invCat = 'all', invSort = 0;
   function bagTab() {
     const box = document.createElement('div');
-    let cat = 'all';
     const draw = () => {
-      const items = cat === 'mat' ? inv.mats : inv.items.filter((i) => i.loc !== 'wh' && (cat === 'all' || i.cat === cat));
-      box.innerHTML = `<div class="chips">${[['all', 'Все'], ['mat', '🧪 Ресурсы'], ...Object.entries(inv.cats)].map(([k, n]) => `<button data-c="${k}" class="${k === cat ? 'on' : ''}">${n}</button>`).join('')}</div>
-        <p class="sheet-hint">Сумка ${inv.items.filter((i) => i.loc !== 'wh').length} / ${inv.bagSize} · 💰 ${inv.gold} · тап — подробнее</p>`;
-      box.querySelector('.chips').onclick = (e) => { const b = e.target.closest('button'); if (b) { cat = b.dataset.c; draw(); } };
-      box.append(grid(items, (it) => card(it, it.cat === 'mat' ? matActions(it) : itemActions(it, { town: Town.inTown(), after: rerender })), { empty: cat === 'mat' ? 'Материалы, свитки и зелья падают с монстров и продаются в лавках' : 'Предметов нет — побеждайте монстров за порталами', keepOrder: cat === 'mat' }));
+      const T = INV_TABS.find((t) => t[0] === invCat);
+      const inBag = inv.items.filter((i) => i.loc !== 'wh');
+      let items = invCat === 'mat' ? inv.mats : inBag.filter((i) => T[2](i.cat));
+      const RO = inv.rarOrder, so = SORTS[invSort][0];
+      if (invCat !== 'mat') items = so === 'new' ? [...items].reverse() : [...items].sort((a, b) => so === 'type'
+        ? inv.slots.indexOf(a.cat) - inv.slots.indexOf(b.cat) || RO.indexOf(b.rar) - RO.indexOf(a.rar)
+        : RO.indexOf(b.rar) - RO.indexOf(a.rar) || inv.slots.indexOf(a.cat) - inv.slots.indexOf(b.cat));
+      const used = inBag.length, cap = inv.bagSize;
+      const fill = invCat === 'all' ? Math.max(cap, Math.ceil(items.length / 6) * 6) : Math.max(18, Math.ceil(items.length / 6) * 6);
+      box.innerHTML = `<div class="inv-tabs">${INV_TABS.map(([k, n]) => `<button data-c="${k}" class="${k === invCat ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+      box.append(grid(items, (it) => {
+        if (it.cat === 'mat') return card(it, matActions(it));
+        const cur = it.cat !== 'rune' && !isEquipped(it) ? worn(it.cat) : null;
+        card(it, itemActions(it, { town: Town.inTown(), after: rerender }), cur);
+      }, { keepOrder: true, fill }));
+      if (!items.length) box.insertAdjacentHTML('beforeend', `<p class="sheet-hint">${invCat === 'mat' ? 'Материалы, свитки и зелья падают с монстров и продаются в лавках' : 'Пусто — побеждайте монстров за порталами'}</p>`);
+      box.insertAdjacentHTML('beforeend', `<div class="inv-foot">
+        <span class="gold">💰 ${inv.gold.toLocaleString('ru-RU')}</span>
+        <span class="cap"><i style="width:${Math.min(100, (100 * used) / cap)}%" class="${used >= cap ? 'full' : ''}"></i><em>${used} / ${cap}</em></span>
+        <button class="l2-btn" data-sort>⇅ ${SORTS[invSort][1]}</button></div>`);
+      box.querySelector('.inv-tabs').onclick = (e) => { const b = e.target.closest('button'); if (b) { invCat = b.dataset.c; draw(); } };
+      box.querySelector('[data-sort]').onclick = () => { invSort = (invSort + 1) % SORTS.length; draw(); };
     };
     draw();
     return box;
@@ -203,12 +278,13 @@ window.Bag = (() => {
   }
 
   let rerender = () => {};
-  async function openBag(tab = 'equip') {
+  async function openBag(tab = 'hero') {
     await refresh();
     if (!inv) return;
-    const tabsList = [['Экипировка', equipTab], ['Сумка', bagTab], ['Соединение', mergeTab]];
-    const show = (i) => { Town.open('🎒 Сумка', Town.tabs(tabsList, i)); rerender = () => show(Town.lastTab()); };
-    show({ equip: 0, bag: 1, merge: 2 }[tab] || 0);
+    const hero = tab === 'hero' || tab === 'equip';
+    const tabsList = hero ? [['Снаряжение', heroTab], ['Характеристики', statsTab]] : [['Предметы', bagTab], ['Соединение 5 → 1', mergeTab]];
+    const show = (i) => { Town.open(hero ? '🧙 Персонаж' : '🎒 Инвентарь', Town.tabs(tabsList, i), 'tall dark'); rerender = () => show(Town.lastTab()); };
+    show(tab === 'merge' ? 1 : 0);
   }
 
   // Выбор предмета из сумки (для рынка, аукциона, рун)

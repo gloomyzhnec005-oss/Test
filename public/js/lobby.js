@@ -723,5 +723,6 @@ window.Lobby = (() => {
     hide: () => { running = false; $('lobby').classList.add('hidden'); },
     openGacha: () => openGacha(),
     api: (url, body) => api(url, body),
+    heroCanvas: (id, big) => heroCanvas(id, big),
   };
 })();

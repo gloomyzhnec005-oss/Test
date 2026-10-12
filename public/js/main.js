@@ -275,9 +275,6 @@
       buildMinimap(zone);
       Town.setContext({ socket, towns: w.towns, hero, heroes: w.heroes, skillUnlock: w.skillUnlock, onGacha: () => Lobby.openGacha(), api: Lobby.api, tg });
       Bag.init({ socket });
-      $('bagBtn').onclick = () => Bag.open();
-      $('passBtn').onclick = () => Town.openPlace('pass');
-      $('storeBtn').onclick = () => Town.openPlace('store');
       // ---------- Группа ----------
       let party = null, inviteId = null;
       const renderParty = () => {
@@ -301,7 +298,7 @@
         if (r.error === 'Нет такого предмета') r = await Bag.act('useMat', { mat: 'potHp' });
         Town.toast(r.error === 'Нет такого предмета' ? 'Нет зелий — купите в лавке эликсиров' : r.error || r.toast);
       };
-      $('partyBtn').onclick = () => {
+      const openParty = () => {
         const box = document.createElement('div');
         const me = socket.id;
         box.innerHTML = `<p class="sheet-hint">Группа до 4 игроков: общий опыт (70% каждому рядом), добыча с боссов — каждому, данж выживания — вместе.</p>
@@ -342,8 +339,34 @@
         if (near.kind === 'portal') socket.emit('travel', { via: near.id });
         else Town.openPlace(near.place);
       };
-      $('evBtn').onclick = () => Town.openPlace('events');
-      $('gachaBtn').onclick = () => Town.openPlace('gacha');
+      // ---------- Нижнее меню ----------
+      const menuRow = (icon, name, desc, fn) => {
+        const r = document.createElement('button');
+        r.className = 'nav-row';
+        r.innerHTML = `<span>${icon}</span><div><b>${name}</b><small>${desc}</small></div><i>›</i>`;
+        r.onclick = fn;
+        return r;
+      };
+      const menuSheet = (title, rows) => { const box = document.createElement('div'); box.className = 'nav-menu'; rows.forEach((r) => box.append(menuRow(...r))); Town.open(title, box); };
+      const NAV = {
+        hero: () => Bag.open('hero'),
+        bag: () => Bag.open('bag'),
+        quests: () => Town.openPlace('events'),
+        gacha: () => Town.openPlace('gacha'),
+        store: () => Town.openPlace('store'),
+        play: () => menuSheet('⚔️ Игра', [
+          ['🏟️', 'Арена', 'PvP со снимками героев других игроков · рейтинг и награды', () => Town.openPlace('arena')],
+          ['🎟️', 'Боевой пропуск', 'Задания сезона и награды за уровни', () => Town.openPlace('pass')],
+          ['👥', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
+          ['🌀', 'Данжи и порталы', zone.kind === 'town' ? 'Порталы данжей, выживание и телепорт стоят в городе — подойдите к ним' : 'Вы за порталом: победите босса или вернитесь в город', () => Town.close()],
+        ]),
+        more: () => menuSheet('☰ Ещё', [
+          ['💬', 'Чат', 'Написать игрокам в этой зоне', () => { Town.close(); $('chatBtn').click(); }],
+          ['🔨', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
+          ['🏠', 'В лобби', 'Сменить героя или фон', () => location.reload()],
+        ]),
+      };
+      $('navBar').onclick = (e) => { const b = e.target.closest('button[data-nav]'); if (b) { vibrate('light'); NAV[b.dataset.nav](); } };
       const ui = {
         onWorld: (s, myId) => drawMinimap(s, myId, w.tile, zone),
         onZone: (z) => {
@@ -351,7 +374,6 @@
           buildMinimap(z);
           Town.setContext({ zone: z });
           Town.close();
-          $('townBar').classList.toggle('hidden', z.kind !== 'town'); // события, призыв, пропуск, магазин — только в городе
           if (z.kind !== 'survival' && z.kind !== 'dungeon') $('waveBadge').classList.add('hidden');
           const b = $('zoneBanner');
           b.querySelector('b').textContent = z.name;
@@ -397,5 +419,4 @@
 
   Lobby.init({ tg, tgUser, store, guestId, onStart: startGame });
 
-  $('exitBtn').onclick = () => location.reload();
 })();

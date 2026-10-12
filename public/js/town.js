@@ -7,8 +7,9 @@ window.Town = (() => {
   const TIER_LABEL = { 1: 'Ассортимент мира I', 2: 'Ассортимент мира II (продвинутый)', 3: 'Ассортимент мира III (небесный)' };
   const ROMAN = ['', 'I', 'II', 'III'];
 
-  function open(title, body) {
+  function open(title, body, cls = '') {
     $('sheetTitle').textContent = title;
+    $('sheet').querySelector('.sheet-card').className = 'sheet-card l2-panel ' + cls;
     const sb = $('sheetBody');
     sb.innerHTML = '';
     sb.append(body);
