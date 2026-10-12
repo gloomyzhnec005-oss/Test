@@ -106,7 +106,8 @@ window.Skins = (() => {
     },
     valerian: {
       sheet: 'assets/heroes/valerian_sheet.png', portrait: 'assets/heroes/valerian_portrait.png', w: 36, h: 48, frames: 5,
-      // Кадров атаки нет (присланный лист атаки нарисован другим рыцарем) — удар рывком и серпом
+      // Атака: 6 рядов — 5 направлений и поза умения (меч в золотом сиянии)
+      attack: { sheet: 'assets/heroes/valerian_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
       fx: { sheet: 'assets/heroes/valerian_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'holyVow', 'heavenStrike', 'holyAuraCast', 'aura'] },
     },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
