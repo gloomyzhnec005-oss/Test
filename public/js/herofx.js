@@ -449,6 +449,30 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    orion: {
+      raiseCorpse(sc, f, c) {
+        if (!f.auto) heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'orion', 'raiseCorpse', f.x, f.y - 20, { scale: 1.3, solid: true });
+        if (!f.auto) fxPlay(sc, 'orion', 'ritual', c.c.x, c.c.y - 14, { scale: 1, follow: c, dy: -14 });
+        return true;
+      },
+      darkArrow(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const dur = f.flight || Math.min(500, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.3);
+        const sp = fxPlay(sc, 'orion', 'darkArrow', f.fx, f.fy - 14, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), scale: 1.2, to: { x: f.x, y: f.y - 8 }, dur, flipY: f.x < f.fx });
+        if (sp) sp.anims.msPerFrame = dur / 6;
+        sc.time.delayedCall(dur, () => { fxPlay(sc, 'orion', 'hit', f.x, f.y - 10, { scale: 1.2 }); shake(sc, f, 120, 0.005); });
+        return true;
+      },
+      soulDevour(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'orion', 'soulDevour', f.x, f.y - 14, { scale: (f.r || 150) / 40 });
+        for (const id of f.ids || []) { const m = sc.monsters.get(id); if (m) fxPlay(sc, 'orion', 'hit', m.c.x, m.c.y - 10, { scale: 0.8 }); }
+        sc.time.delayedCall(350, () => fxPlay(sc, 'orion', 'aura', f.x, f.y, { scale: 1.2 }));
+        shake(sc, f, 180, 0.007);
+        return true;
+      },
+    },
     giacomo: {
       songSwap(sc, f, c) {
         heroAnim(sc, c, undefined, undefined, true);
