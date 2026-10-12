@@ -104,6 +104,11 @@ window.Skins = (() => {
       fx: { sheet: 'assets/heroes/aurelius_fx.png', size: 72, frames: 6, rows: ['bolt_lightning', 'bolt_fire', 'bolt_ice', 'bolt_earth',
         'storm_fire', 'hit_fire', 'aura_fire', 'storm_ice', 'hit_ice', 'aura_ice', 'storm_lightning', 'hit_lightning', 'aura_lightning', 'storm_earth', 'hit_earth', 'aura_earth'] },
     },
+    valerian: {
+      sheet: 'assets/heroes/valerian_sheet.png', portrait: 'assets/heroes/valerian_portrait.png', w: 36, h: 48, frames: 5,
+      // Кадров атаки нет (присланный лист атаки нарисован другим рыцарем) — удар рывком и серпом
+      fx: { sheet: 'assets/heroes/valerian_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'holyVow', 'heavenStrike', 'holyAuraCast', 'aura'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

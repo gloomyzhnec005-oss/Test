@@ -449,6 +449,24 @@ window.HeroFx = (() => {
   };
   // Умения по нарисованным эффектам героя (ключ — id героя, затем id умения)
   const SHEET_SKILL = {
+    valerian: {
+      holyVow(sc, f, c) {
+        fxPlay(sc, 'valerian', 'holyVow', f.x, f.y - 10, { scale: 1.2, follow: c, dy: -10 });
+        return false; // подпись обета — общий обработчик
+      },
+      heavenStrike(sc, f, c) {
+        lunge(sc, c, f.x - c.c.x, f.y - c.c.y, 12, 90);
+        fxPlay(sc, 'valerian', 'heavenStrike', f.x, f.y - 22, { scale: f.vow === 'retribution' ? 1.6 : 1.3 });
+        sc.time.delayedCall(150, () => { fxPlay(sc, 'valerian', 'hit', f.x, f.y - 10, { scale: 1.2 }); shake(sc, f, 150, 0.006); });
+        return true;
+      },
+      holyAuraCast(sc, f, c) {
+        fxPlay(sc, 'valerian', 'holyAuraCast', f.x, f.y - 18, { scale: (f.r || 120) / 38 });
+        sc.time.delayedCall(300, () => fxPlay(sc, 'valerian', 'aura', f.x, f.y, { scale: (f.r || 120) / 34 }));
+        shake(sc, f, 160, 0.006);
+        return true;
+      },
+    },
     aurelius: {
       elementSwap(sc, f, c) {
         heroAnim(sc, c, undefined, undefined, true);
