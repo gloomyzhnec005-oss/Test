@@ -12,6 +12,7 @@ window.Bag = (() => {
     return ART.has(k) ? `<img class="it-art" src="assets/items/${k}.webp" alt="" draggable="false">` : it.icon;
   };
   const mini = (it) => (ART.has(it.cat + '_' + it.tpl) ? `<img class="it-mini" src="assets/items/${it.cat}_${it.tpl}.webp" alt="">` : it.icon);
+  const crest = (cls) => (ART.has('crest_' + cls) ? `<img class="it-mini" src="assets/items/crest_${cls}.webp" alt="">` : '◆');
   const SOCKET = '<img class="it-mini" src="assets/items/ui_socket.webp" alt="">';
   const BASE_NAMES = { atk: ['Атака', ''], hp: ['Здоровье', ''] };
 
@@ -55,7 +56,7 @@ window.Bag = (() => {
     const s = it.set;
     if (!s) return '';
     const worn = (inv && inv.sets.counts[s.id]) || 0, mine = inv && inv.sets.cls === s.cls;
-    return `<div class="ic-sec">◆ ${s.name} · ${s.clsName} · надето ${worn} / 7</div>
+    return `<div class="ic-sec">${crest(s.cls)} ${s.name} · ${s.clsName} · надето ${worn} / 7</div>
       <div class="ic-attr">Для героев: ${s.heroes.map(heroName).join(', ')}</div>
       ${mine ? '' : `<div class="ic-attr warn">Бонусы комплекта работают только у героев класса «${s.clsName}»</div>`}
       ${s.bonus.map(([n, st]) => `<div class="ic-rune ${mine && worn >= n ? 'on' : ''}">${n} предм.: ${Object.entries(st).map(([k, v]) => statLine(k, v)).join(', ')}</div>`).join('')}`;
@@ -216,7 +217,7 @@ window.Bag = (() => {
       ${sets.length ? sets.map(([sid, n]) => {
         const it = inv.items.find((i) => i.set && i.set.id === sid);
         const on = inv.sets.active.filter((a) => a.set === sid);
-        return `<div class="ic-rune ${on.length ? 'on' : ''}">${it ? it.set.name : sid} · ${n}/7 ${on.length ? '· ' + on.map((a) => `${a.need}: ${Object.entries(a.stats).map(([k, v]) => statLine(k, v)).join(', ')}`).join(' · ') : it && it.set.cls !== inv.sets.cls ? '· не ваш класс' : '· бонус с 2 вещей'}</div>`;
+        return `<div class="ic-rune ${on.length ? 'on' : ''}">${it ? crest(it.set.cls) + ' ' + it.set.name : sid} · ${n}/7 ${on.length ? '· ' + on.map((a) => `${a.need}: ${Object.entries(a.stats).map(([k, v]) => statLine(k, v)).join(', ')}`).join(' · ') : it && it.set.cls !== inv.sets.cls ? '· не ваш класс' : '· бонус с 2 вещей'}</div>`;
       }).join('') : '<div class="ic-attr">Соберите 2, 4 или все 7 вещей комплекта своего класса — бонусы растут</div>'}`;
     return box;
   }
