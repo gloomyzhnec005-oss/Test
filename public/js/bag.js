@@ -5,6 +5,12 @@ window.Bag = (() => {
   let socket = null, inv = null, onChange = () => {};
   const ROMAN = ['', 'I', 'II', 'III'];
   const SLOT_ICONS = { weapon: '🗡️', helm: '⛑️', armor: '🛡️', gloves: '🧤', boots: '🥾', ring: '💍', amulet: '📿' };
+  const ART = new Set(window.ITEM_ART || []);
+  // Картинка предмета или эмодзи, если её ещё не нарисовали
+  const art = (it) => {
+    const k = it.cat === 'mat' ? 'mat_' + it.mat : it.cat + '_' + it.tpl;
+    return ART.has(k) ? `<img class="it-art" src="assets/items/${k}.webp" alt="" draggable="false">` : it.icon;
+  };
   const BASE_NAMES = { atk: ['Атака', ''], hp: ['Здоровье', ''] };
 
   const act = (op, data = {}) => new Promise((res) => {
@@ -23,7 +29,7 @@ window.Bag = (() => {
   const statUnit = (k) => { const u = (BASE_NAMES[k] || (inv && inv.attrs[k]) || ['', ''])[1]; return u === '−%' ? '%' : u; };
   const statLine = (k, v) => `${statName(k)} ${(inv && inv.attrs[k] && inv.attrs[k][1] === '−%') ? '−' : '+'}${v}${statUnit(k)}`;
   const cell = (it, extra = '') => `<button class="it ${extra} ${it.set ? 'set' : ''}" data-id="${it.id}" style="--rc:${it.color}">
-      <span>${it.icon}</span>${it.dupes ? `<em>+${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}<i>${ROMAN[it.tier] || ''}</i>${it.runes && it.runes.length ? `<b>${it.runes.map((r) => r.icon).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}</button>`;
+      <span>${art(it)}</span>${it.dupes ? `<em>+${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}<i>${ROMAN[it.tier] || ''}</i>${it.runes && it.runes.length ? `<b>${it.runes.map((r) => r.icon).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}</button>`;
   function grid(items, onTap, opts = {}) {
     const box = document.createElement('div');
     box.className = 'it-grid';
@@ -55,7 +61,7 @@ window.Bag = (() => {
   function matCard(m, actions) {
     const wrap = $('itemCard'), c = wrap.querySelector('.item-card');
     c.style.setProperty('--rc', m.color);
-    c.innerHTML = `<div class="ic-head"><span class="ic-icon">${m.icon}</span><div><b>${m.name}</b><small>${m.rarName} · в наличии ${m.n}</small></div></div>
+    c.innerHTML = `<div class="ic-head"><span class="ic-icon">${art(m)}</span><div><b>${m.name}</b><small>${m.rarName} · в наличии ${m.n}</small></div></div>
       <div class="ic-attr">${m.desc}</div><div class="ic-btns"></div>`;
     addBtns(c, wrap, actions);
     wrap.classList.remove('hidden');
@@ -79,7 +85,7 @@ window.Bag = (() => {
       ${it.runes.map((r) => `<div class="ic-rune" style="color:${r.color}">${r.icon} ${r.name} · ${Object.entries(r.stats).map(([k, v]) => statLine(k, v)).join(', ')}</div>`).join('')}
       ${'<div class="ic-rune empty">◇ пустое гнездо</div>'.repeat(Math.max(0, it.sockets - it.runes.length))}` : '';
     c.style.setProperty('--rc', it.color);
-    c.innerHTML = `<div class="ic-head"><span class="ic-icon">${it.icon}</span><div><b>${it.name}</b>
+    c.innerHTML = `<div class="ic-head"><span class="ic-icon">${art(it)}</span><div><b>${it.name}</b>
         <small>${it.rarName} · ${inv.cats[it.cat]} · мир ${ROMAN[it.tier]}${it.dupes ? ` · дубликаты +${it.dupes * 5}%` : ''}</small></div></div>
       ${setBlock(it)}
       <div class="ic-sec">Итоговые статы</div>
@@ -143,7 +149,7 @@ window.Bag = (() => {
   function slotBtn(s) {
     const it = worn(s), n = fits(s).length;
     return `<button class="pd-slot ${it ? 'full' : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
-      ${it ? `<span>${it.icon}</span><i>${ROMAN[it.tier] || ''}</i>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost">${SLOT_ICONS[s]}</span>`}
+      ${it ? `<span>${art(it)}</span><i>${ROMAN[it.tier] || ''}</i>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost">${SLOT_ICONS[s]}</span>`}
       ${n ? `<b>${n}</b>` : ''}<em>${it ? it.name : inv.slotNames[s]}</em></button>`;
   }
   function heroTab() {
@@ -299,7 +305,7 @@ window.Bag = (() => {
 
   return {
     init: (o) => { socket = o.socket; onChange = o.onChange || onChange; },
-    act, refresh, open: openBag, grid, cell, card, pick, itemActions, matActions, mergeTab, statLine, isEquipped,
+    act, refresh, art, open: openBag, grid, cell, card, pick, itemActions, matActions, mergeTab, statLine, isEquipped,
     inv: () => inv,
   };
 })();
