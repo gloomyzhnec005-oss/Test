@@ -8,7 +8,7 @@ window.Bag = (() => {
   const ART = new Set(window.ITEM_ART || []);
   // Картинка предмета или эмодзи, если её ещё не нарисовали
   const art = (it) => {
-    const k = it.cat === 'mat' ? 'mat_' + it.mat : it.cat + '_' + it.tpl;
+    const k = it.cat === 'mat' ? 'mat_' + (String(it.mat).startsWith('bp_') ? 'bp' : it.mat) : it.cat + '_' + it.tpl; // все чертежи — одна картинка
     return ART.has(k) ? `<img class="it-art" src="assets/items/${k}.webp" alt="" draggable="false">` : it.icon;
   };
   const mini = (it) => (ART.has(it.cat + '_' + it.tpl) ? `<img class="it-mini" src="assets/items/${it.cat}_${it.tpl}.webp" alt="">` : it.icon);

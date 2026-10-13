@@ -7,6 +7,7 @@ window.ITEM_ART = [
   'armor_leather', 'armor_chain', 'armor_plate', 'armor_robe', 'armor_cloak', 'armor_scale', 'boots_boots', 'boots_greaves', 'boots_sandals',
   'rune_fury', 'rune_life', 'rune_edge', 'rune_haste', 'rune_blood', 'rune_wisdom', 'rune_time', 'rune_stone', 'rune_wind', 'rune_fortune',
   'mat_ore1', 'mat_ore2', 'mat_ore3', 'mat_ess1', 'mat_ess2', 'mat_ess3', 'mat_core1', 'mat_core2', 'mat_core3',
+  'mat_scrollR', 'mat_scrollE', 'mat_scrollL', 'mat_scrollM', 'mat_bp', 'mat_tpScroll', 'mat_kitSmith', 'mat_chestSet', 'mat_chestLegend',
 ];
 // Комплекты классов: 7 вещей <слот>_set_<класс> и герб crest_<класс>
 const SET_ART = ['warrior', 'knight', 'rogue', 'hunter', 'elemental', 'dark', 'nature', 'holy'];
