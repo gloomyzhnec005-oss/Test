@@ -797,3 +797,8 @@ canvas.skin { object-fit: contain; }
 .it b .it-mini { width: 11px; height: 11px; }
 #potBtn.art { padding: 3px; display: flex; align-items: center; justify-content: center; border: 1px solid #a8864a; }
 #potBtn.art .it-art { width: 100%; height: 100%; }
+/* Пустые ячейки — бронзовые силуэты */
+.pd-slot span.ghost { filter: none; }
+.slot-ghost { opacity: .42; filter: drop-shadow(0 1px 1px #000) !important; }
+.pd-slot:active .slot-ghost, .pd-slot.on .slot-ghost { opacity: .7; }
+.ward-cur.none .it-mini { width: 26px; height: 26px; }

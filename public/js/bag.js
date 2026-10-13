@@ -152,7 +152,7 @@ window.Bag = (() => {
   function slotBtn(s) {
     const it = worn(s), n = fits(s).length;
     return `<button class="pd-slot ${it ? 'full' : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
-      ${it ? `<span>${art(it)}</span><i>${ROMAN[it.tier] || ''}</i>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost">${SLOT_ICONS[s]}</span>`}
+      ${it ? `<span>${art(it)}</span><i>${ROMAN[it.tier] || ''}</i>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost"><img class="it-art slot-ghost" src="assets/items/slot_${s}.webp" alt="${SLOT_ICONS[s]}"></span>`}
       ${n ? `<b>${n}</b>` : ''}<em>${it ? it.name : inv.slotNames[s]}</em></button>`;
   }
   function heroTab() {
@@ -163,7 +163,7 @@ window.Bag = (() => {
         <div class="pd-col">${SIDE.left.map(slotBtn).join('')}</div>
         <div class="pd-stage"><i class="pd-glow"></i><div class="pd-art"></div><i class="pd-ped"></i>
           <div class="pd-name"><b>${H.name}</b><small>ур. ${h.level} · ${'★'.repeat(Math.min(h.dupes, 5)) || '☆'}${h.dupes > 5 ? '+' + (h.dupes - 5) : ''}</small></div></div>
-        <div class="pd-col">${SIDE.right.map(slotBtn).join('')}<button class="pd-slot pd-bag" data-go="bag"><span>🎒</span><em>Сумка</em></button></div>
+        <div class="pd-col">${SIDE.right.map(slotBtn).join('')}<button class="pd-slot pd-bag" data-go="bag"><span><img class="it-art" src="assets/items/slot_bag.webp" alt="🎒"></span><em>Сумка</em></button></div>
       </div>
       <div class="pd-power"><span class="pw">⚜️ Сила <b>${P.power || '—'}</b></span><span>❤️ ${P.hp || '—'}</span><span>🗡️ ${P.dmg || '—'}</span><span>🎯 ${P.crit || 0}%</span></div>
       <div class="pd-ward"></div>`;
@@ -183,7 +183,7 @@ window.Bag = (() => {
       ward.innerHTML = `<div class="ward-head"><b>👘 Гардероб · ${inv.slotNames[s]}</b><small>${list.length ? `в сумке ${list.length}` : 'в сумке нет'}</small></div>
         ${cur ? `<div class="ward-cur" style="--rc:${cur.color}">${cell(cur, 'eq')}<div><b style="color:${cur.color}">${cur.name}</b>
           <small>${Object.entries(cur.stats).map(([k, v]) => statLine(k, v)).join(' · ')}</small></div><button class="l2-btn" data-a="info">ⓘ</button><button class="l2-btn" data-a="off">Снять</button></div>`
-        : '<div class="ward-cur none">Ячейка пуста — выберите вещь ниже</div>'}`;
+        : `<div class="ward-cur none"><img class="it-mini slot-ghost" src="assets/items/slot_${s}.webp" alt=""> Ячейка пуста — выберите вещь ниже</div>`}`;
       ward.append(grid(list, (it) => card(it, itemActions(it, { town: Town.inTown(), after: rerender }), cur), {
         fill: Math.max(6, Math.ceil(list.length / 6) * 6), empty: '' }));
       if (!list.length) ward.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Вещи этого типа падают с монстров и продаются в лавке оружия и доспехов</p>');
