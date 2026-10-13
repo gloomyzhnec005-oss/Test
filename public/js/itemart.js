@@ -2,4 +2,5 @@
 // Чего нет в списке — показывается эмодзи.
 window.ITEM_ART = [
   'weapon_sword', 'weapon_axe', 'weapon_staff', 'weapon_bow', 'weapon_daggers', 'weapon_hammer', 'weapon_spear', 'weapon_wand',
+  'helm_cap', 'helm_helmet', 'helm_circlet', 'helm_hood', 'gloves_bracers', 'gloves_grips', 'gloves_gauntlet', 'gloves_silk',
 ];
