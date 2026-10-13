@@ -81,7 +81,7 @@ if split > 0:  # split = 0 — на картинке только эффекты
     rows = bands((hero & (mx > 30)).sum(1))
     import os
     if os.environ.get('ROWS'): rows = even_rows((hero & (mx > 30)).sum(1), int(os.environ['ROWS']))
-    assert len(rows) >= 6, f'ожидалось не меньше 6 рядов героя, найдено {len(rows)}'
+    assert len(rows) >= int(os.environ.get('MIN_ROWS', 6)), f'ожидалось не меньше 6 рядов героя, найдено {len(rows)}'
     cells = []
     for (y0, y1) in rows:
         cs = bands((hero[y0:y1] & (mx[y0:y1] > 30)).sum(0), th=1, min_len=15)

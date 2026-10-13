@@ -188,6 +188,13 @@ window.Skins = (() => {
       // slash — каменная дуга удара; stoneFist — шипы из земли; golemQuake — трещины кольцом; stoneArmor — каменная сфера
       fx: { sheet: 'assets/heroes/emet_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'stoneFist', 'golemQuake', 'stoneArmor', 'aura'] },
     },
+    selena: {
+      sheet: 'assets/heroes/selena_sheet.png', portrait: 'assets/heroes/selena_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо, вверх-вправо (= вверх), вверх и поза умения (посох поднят)
+      attack: { sheet: 'assets/heroes/selena_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — летящая луна; moonBeam — луч; phaseShift — фазы луны; moonVeil — купол; aura — лунное кольцо
+      fx: { sheet: 'assets/heroes/selena_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'moonBeam', 'phaseShift', 'moonVeil', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет

@@ -477,6 +477,32 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    selena: {
+      // Лунный луч: от посоха к цели, растянут на всё расстояние
+      moonBeam(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const fx0 = f.fx, fy0 = f.fy - 18, d = Math.hypot(f.x - fx0, f.y - 10 - fy0);
+        sc.time.delayedCall(120, () => {
+          const sp = fxPlay(sc, 'selena', 'moonBeam', fx0, fy0, { rot: Math.atan2(f.y - 10 - fy0, f.x - fx0), origin: [0, 0.5], flipY: f.x < fx0 });
+          if (sp) sp.setScale(Math.max(1, d / 66), 1.1);
+          sc.time.delayedCall(150, () => fxPlay(sc, 'selena', 'hit', f.x, f.y - 10, { scale: f.ph === 'full' ? 1.3 : 1 }));
+        });
+        return true;
+      },
+      phaseShift(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'selena', 'phaseShift', f.x, f.y - 52, { scale: 0.9, follow: c, dy: -52 });
+        return true;
+      },
+      // Лунный покров: купол над героиней и кольца под союзниками
+      moonVeil(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'selena', 'moonVeil', f.x, f.y - 20, { scale: 1.8 });
+        for (const id of f.ids || []) { const o = sc.players.get(id); if (o && o !== c) fxPlay(sc, 'selena', 'aura', o.c.x, o.c.y, { scale: 0.9, follow: o }); }
+        sc.time.delayedCall(300, () => fxPlay(sc, 'selena', 'aura', f.x, f.y, { scale: 1.3, follow: c }));
+        return true;
+      },
+    },
     emet: {
       // Каменный кулак: удар по цели и шипы из земли
       stoneFist(sc, f, c) {
@@ -504,7 +530,7 @@ window.HeroFx = (() => {
         heroAnim(sc, c, f.x + f.dx * 60, f.y + f.dy * 60);
         const ang = Math.atan2(f.dy, f.dx), row = 'breath_' + (f.asp || 'fire');
         sc.time.delayedCall(90, () => {
-          const sp = fxPlay(sc, 'zefira', row, f.x + f.dx * 10, f.y - 14 + f.dy * 10, { rot: ang, scale: 2.4, origin: [0, 0.5], flipY: f.dx < 0 });
+          const sp = fxPlay(sc, 'zefira', row, f.x + f.dx * 10, f.y - 14 + f.dy * 10, { rot: ang, scale: 1.9, origin: [0, 0.5], flipY: f.dx < 0 });
           if (sp) sp.anims.msPerFrame = 75;
           (f.pts || []).forEach(([x, y], i) => sc.time.delayedCall(120 + i * 40, () => fxPlay(sc, 'zefira', 'hit', x, y - 10, { scale: 0.7 })));
         });
