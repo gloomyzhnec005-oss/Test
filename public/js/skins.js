@@ -195,6 +195,13 @@ window.Skins = (() => {
       // bolt — летящая луна; moonBeam — луч; phaseShift — фазы луны; moonVeil — купол; aura — лунное кольцо
       fx: { sheet: 'assets/heroes/selena_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'moonBeam', 'phaseShift', 'moonVeil', 'aura'] },
     },
+    sirocco: {
+      sheet: 'assets/heroes/sirocco_sheet.png', portrait: 'assets/heroes/sirocco_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо, вверх-вправо (= вверх), вверх и поза умения (посох вперёд)
+      attack: { sheet: 'assets/heroes/sirocco_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — песчаный полумесяц; sandVortex — смерч; duneWave — волна бархана; desertBreath — песчаные шипы; aura — кольцо
+      fx: { sheet: 'assets/heroes/sirocco_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'sandVortex', 'duneWave', 'desertBreath', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет

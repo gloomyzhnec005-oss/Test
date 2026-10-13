@@ -477,6 +477,30 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    sirocco: {
+      // Песчаный вихрь: смерч у цели и песчаное кольцо зоны
+      sandVortex(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'sirocco', 'sandVortex', f.x, f.y - 30, { scale: 1.4, solid: true });
+        fxPlay(sc, 'sirocco', 'aura', f.x, f.y, { scale: (f.r || 80) / 30 });
+        return true;
+      },
+      // Волна бархана: стена песка катится вперёд
+      duneWave(sc, f, c) {
+        heroAnim(sc, c, f.x + f.dx * 60, f.y + f.dy * 60);
+        const len = f.len || 190;
+        const sp = fxPlay(sc, 'sirocco', 'duneWave', f.x + f.dx * 20, f.y - 14, { scale: 1.3, flipX: f.dx < 0, solid: true, to: { x: f.x + f.dx * len, y: f.y + f.dy * len - 14 }, dur: 420 });
+        if (sp) sp.anims.msPerFrame = 70;
+        shake(sc, f, 160, 0.006);
+        return true;
+      },
+      // Дыхание пустыни: песчаные шипы в каждой своей зоне
+      desertBreath(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        (f.zones || []).forEach(([x, y], i) => sc.time.delayedCall(i * 90, () => fxPlay(sc, 'sirocco', 'desertBreath', x, y - 22, { scale: 1.5, solid: true })));
+        return true;
+      },
+    },
     selena: {
       // Лунный луч: от посоха к цели, растянут на всё расстояние
       moonBeam(sc, f, c) {
