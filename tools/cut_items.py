@@ -1,7 +1,7 @@
 """Нарезка листа предметов/кнопок: объекты на ровном фоне (зелёный #00FF00 или пурпурный #FF00FF), сетка cols × rows.
 python3 tools/cut_items.py sheet.png cols rows name1,name2,... [out_dir] [size]
 Каждый кусок (после слияния близких частей) относится к ячейке сетки по своему центру — так парные кинжалы,
-искры и ореолы попадают к своему предмету. Имя '-' — пропустить ячейку; имя с '!' на конце — убрать цвет фона со всего предмета (сияние, окрашенное фоном)."""
+искры и ореолы попадают к своему предмету. Имя '-' — пропустить ячейку; имя с '!' на конце — убрать цвет фона со всего предмета (сияние, окрашенное фоном); с '#' — залить дыры внутри контура исходным цветом (зелёное внутри круглого медальона)."""
 import sys, numpy as np
 from PIL import Image
 from scipy import ndimage
@@ -84,7 +84,7 @@ def main():
     for c in range(cols * rows):
         name = names[c] if c < len(names) else '-'
         if name == '-': continue
-        full = name.endswith('!'); name = name.rstrip('!')
+        full = name.endswith('!'); fill = name.endswith('#'); name = name.rstrip('!#')
         if c not in cells: print('пусто:', name); continue
         m = owner == c
         # одиночные искры далеко от предмета (чужие, прилетели из соседней ячейки) — убираем
@@ -100,6 +100,11 @@ def main():
         y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
         a = (alpha * m)[y0:y1, x0:x1]
         part = rgb[y0:y1, x0:x1].copy()
+        if fill:  # круглый медальон: всё внутри контура — непрозрачное, с исходным цветом (зелёное пламя/фон внутри)
+            inside = ndimage.binary_fill_holes(ndimage.binary_closing(a > 0.5, iterations=4))
+            hole = inside & (a < 0.98)
+            part[hole] = im[y0:y1, x0:x1][hole] * 0.8
+            a = np.where(inside, 1.0, a)
         if full and bg[1] > max(bg[0], bg[2]): part[..., 1] = np.minimum(part[..., 1], np.maximum(part[..., 0], part[..., 2]))
         elif full: ex = np.clip(np.minimum(part[..., 0], part[..., 2]) - part[..., 1], 0, None); part[..., 0] -= ex; part[..., 2] -= ex
         tile = np.dstack([part, a * 255]).clip(0, 255).astype(np.uint8)

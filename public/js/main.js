@@ -268,6 +268,9 @@
       resName = hero.resource.name;
       $('resFill').style.background = hero.resource.color;
       buildSkills({ ...hero, id: selected });
+      const atkArt = SkillArt.attack(selected);
+      $('attackBtn').classList.toggle('art', !!atkArt);
+      $('attackBtn').innerHTML = atkArt ? `<img src="${atkArt}" alt="⚔️" draggable="false">` : '⚔️';
       passiveDef = hero.passive || null;
       $('passive').classList.toggle('hidden', !passiveDef);
       setStats(w.stats);

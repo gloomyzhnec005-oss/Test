@@ -817,3 +817,7 @@ canvas.skin { object-fit: contain; }
 .stats .row.small .ui-ic { width: 13px; height: 13px; vertical-align: -2px; margin-right: 2px; }
 .st-grid small .ui-ic { width: 14px; height: 14px; vertical-align: -3px; }
 .skill.locked::after { content: ''; width: 20px; height: 20px; background: url(../assets/ui/ic_lock.webp) center / contain no-repeat; }
+/* Нарисованная кнопка атаки по классу героя */
+.attack.art { padding: 0; background: none; box-shadow: none; filter: drop-shadow(0 4px 8px rgba(0,0,0,.7)); }
+.attack.art img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; -webkit-user-drag: none; }
+.attack.art.pressed, .attack.art:active { filter: drop-shadow(0 0 12px rgba(255,210,120,.8)) brightness(1.15); }
