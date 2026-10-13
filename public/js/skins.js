@@ -181,7 +181,11 @@ window.Skins = (() => {
       // bolt — огненный шар; дыхание четырёх аспектов; dragonDive — удар с неба; takeFlight — крылья; beastMight — кольцо силы
       fx: { sheet: 'assets/heroes/zefira_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'breath_fire', 'breath_ice', 'breath_poison', 'breath_lightning', 'dragonDive', 'takeFlight', 'beastMight'] },
     },
-    morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
+    morvenKnight: {
+      sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет
+      attack: { sheet: 'assets/heroes/morvenKnight_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+    },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
   const MOBS = {};

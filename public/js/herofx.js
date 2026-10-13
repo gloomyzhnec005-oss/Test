@@ -169,7 +169,7 @@ window.HeroFx = (() => {
     morvenKnight(sc, a, x, y, f) {
       a.combo = ((a.combo || 0) + 1) % 2;
       const ang = Math.atan2(y - a.c.y, x - a.c.x), dist = Math.hypot(x - a.c.x, y - a.c.y);
-      lunge(sc, a, x - a.c.x, y - a.c.y, 11, 90);
+      if (!heroAnim(sc, a, x, y)) lunge(sc, a, x - a.c.x, y - a.c.y, 11, 90); // нарисованные кадры взмаха, иначе рывок
       slash(sc, a.c.x, a.c.y - 10, ang, { r: Math.max(32, Math.min(50, dist * 0.9)), w: 9, sweep: 2.9, col: 0x2a0a1a, edge: 0xff3a4a, glow: 0x9b1a3a, flip: a.combo === 1, dur: 260 });
       sparks(sc, x, y - 6, [0xff3a4a, 0x9b4dff, 0x3a0a2a], 10, { max: 180, life: 420, gravity: -120 });
       flash(sc, x, y - 6, 16, 0xff3a4a, 200, 0.5);
@@ -351,7 +351,7 @@ window.HeroFx = (() => {
     // ---- Морвен ----
     gloomStrike(sc, f) {
       const c = casterOf(sc, f);
-      if (c) { face(c, f.x, f.y); lunge(sc, c, f.x - c.c.x, f.y - c.c.y, 16, 110); afterimage(sc, c, 0x9b1a3a, 0.6, 320); }
+      if (c) { face(c, f.x, f.y); if (!heroAnim(sc, c, f.x, f.y)) lunge(sc, c, f.x - c.c.x, f.y - c.c.y, 16, 110); afterimage(sc, c, 0x9b1a3a, 0.6, 320); }
       // Крест из двух тёмных серпов прямо по цели
       slash(sc, f.x, f.y - 8, -0.6, { r: 40, w: 10, sweep: 2.4, col: 0x1a0612, edge: 0xff3a4a, glow: 0x7a1a4a, dur: 240, flat: 0.8 });
       sc.time.delayedCall(90, () => slash(sc, f.x, f.y - 8, Math.PI + 0.6, { r: 40, w: 10, sweep: 2.4, col: 0x1a0612, edge: 0xb04aff, glow: 0x5a1a8a, dur: 240, flat: 0.8, flip: true }));
@@ -380,6 +380,7 @@ window.HeroFx = (() => {
     },
     darkBurst(sc, f) {
       const c = casterOf(sc, f);
+      heroAnim(sc, c, undefined, undefined, true); // поза умения, если нарисована
       const R = f.r || 130, k = Math.min(1, ((f.power || 1) - 1) / 4); // 0 — пусто, 1 — полный мрак
       if (c) afterimage(sc, c, 0x9b4dff, 0.7, 400);
       // Сбор тьмы к герою
@@ -416,6 +417,7 @@ window.HeroFx = (() => {
       return true;
     },
     darkSeal(sc, f) {
+      heroAnim(sc, casterOf(sc, f), f.x, f.y);
       const { g, plane } = groundSign(sc, f.x, f.y + 4, 831);
       drawSeal(g, 30, 0xb04aff);
       g.setScale(2.4); plane.setAlpha(0);

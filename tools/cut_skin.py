@@ -44,12 +44,22 @@ rgba = np.dstack([im.astype(np.uint8), alpha])
 fg = ~bg; fgL = fg.copy(); fgL[:, split:] = False
 lab2, n = ndimage.label(ndimage.binary_dilation(fgL, iterations=3))
 objs = [(s, i + 1) for i, s in enumerate(ndimage.find_objects(lab2)) if (s[0].stop - s[0].start) * (s[1].stop - s[1].start) > 1500]
-objs.sort(key=lambda o: o[0][0].start)
+# ряды — по низу кадра (ноги стоят на одной линии; верх бывает выше из-за рогов и клинков)
+objs.sort(key=lambda o: o[0][0].stop)
 rows = []
 for o in objs:
-  if rows and abs(rows[-1][0][0][0].start - o[0][0].start) < 40: rows[-1].append(o)
+  if rows and abs(rows[-1][0][0][0].stop - o[0][0].stop) < 40: rows[-1].append(o)
   else: rows.append([o])
 rows = [sorted(r, key=lambda o: o[0][1].start) for r in rows]
+# лишний кусок в ряду (оторвавшийся клинок) — к соседнему кадру, с которым он ближе всего по x
+for r in rows:
+  while len(r) > 5:
+    sm = min(r, key=lambda o: (o[0][0].stop - o[0][0].start) * (o[0][1].stop - o[0][1].start))
+    r.remove(sm)
+    cx = (sm[0][1].start + sm[0][1].stop) / 2
+    j = min(range(len(r)), key=lambda k: min(abs(r[k][0][1].start - cx), abs(r[k][0][1].stop - cx)))
+    h = r[j]; lab2[lab2 == sm[1]] = h[1]
+    r[j] = ((slice(min(sm[0][0].start, h[0][0].start), max(sm[0][0].stop, h[0][0].stop)), slice(min(sm[0][1].start, h[0][1].start), max(sm[0][1].stop, h[0][1].stop))), h[1])
 print('rows', [len(r) for r in rows])
 assert len(rows) in (6, 7) and all(len(r) == 5 for r in rows)
 S = 0.32; CW, CH = 36, 48
