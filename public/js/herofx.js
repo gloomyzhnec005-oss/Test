@@ -477,6 +477,30 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    voldan: {
+      deepWave(sc, f, c) {
+        heroAnim(sc, c, f.x + f.dx * 60, f.y + f.dy * 60);
+        const len = f.len || 200;
+        const sp = fxPlay(sc, 'voldan', 'deepWave', f.x + f.dx * 20, f.y - 14, { scale: 1.4, flipX: f.dx < 0, to: { x: f.x + f.dx * len, y: f.y + f.dy * len - 14 }, dur: 450 });
+        if (sp) sp.anims.msPerFrame = 75;
+        shake(sc, f, 150, 0.006);
+        return true;
+      },
+      // Создать глубину: фонтан и водоворот там, где разлилась вода
+      createDeep(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'voldan', 'createDeep', f.x, f.y - 18, { scale: (f.r || 100) / 64 });
+        sc.time.delayedCall(250, () => fxPlay(sc, 'voldan', 'aura', f.x, f.y, { scale: (f.r || 100) / 44 }));
+        return true;
+      },
+      // Зов морских духов: водяные кони поднимаются там, где появились духи
+      seaSpirits(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        const pts = f.pts && f.pts.length ? f.pts : [[f.x, f.y]];
+        pts.forEach(([x, y], i) => sc.time.delayedCall(i * 120, () => fxPlay(sc, 'voldan', 'seaSpirits', x, y - 22, { scale: 1.2 })));
+        return true;
+      },
+    },
     elnaeris: {
       // Сбор душ: души слетаются к проводнице с мест гибели
       gatherSouls(sc, f, c) {
