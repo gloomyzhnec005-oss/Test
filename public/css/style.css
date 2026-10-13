@@ -808,3 +808,7 @@ canvas.skin { object-fit: contain; }
 .nav-bar .main span { background: radial-gradient(circle at 40% 30%, #4a3020, #1a100a 75%); padding: 0; }
 #chatBtn.art { padding: 3px; display: flex; align-items: center; justify-content: center; border: 1px solid #a8864a; }
 #chatBtn.art .it-art { width: 100%; height: 100%; }
+/* Нарисованные значки мест */
+.place-ic { width: 30px; height: 30px; object-fit: contain; vertical-align: middle; margin: -6px 6px -4px 0; filter: drop-shadow(0 1px 2px #000); }
+.place-ic.big { width: 40px; height: 40px; margin: 0; }
+.act-btn .place-ic { width: 26px; height: 26px; margin: -6px 4px -4px -4px; }

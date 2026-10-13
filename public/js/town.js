@@ -7,8 +7,16 @@ window.Town = (() => {
   const TIER_LABEL = { 1: 'Ассортимент мира I', 2: 'Ассортимент мира II (продвинутый)', 3: 'Ассортимент мира III (небесный)' };
   const ROMAN = ['', 'I', 'II', 'III'];
 
+  // Нарисованные значки мест в заголовке окна (по эмодзи в начале названия)
+  const TITLE_ART = { '📦': 'warehouse', '⚔️': 'equip', '🧪': 'alchemy', '🔨': 'smith', '💠': 'runes', '📖': 'trainer', '🏛️': 'auction', '🏪': 'market',
+    '📜': 'events', '🎰': 'gacha', '🌀': 'teleport', '🏟️': 'arena', '💀': 'survival', '🎟️': 'pass', '💎': 'store', '👥': 'party' };
+  const placeImg = (id) => `<img class="place-ic" src="assets/ui/place_${id}.webp" alt="">`;
+  const NAV_TITLE = { '⚔️ Игра': 'play', '☰ Ещё': 'more', '🧙 Персонаж': 'hero', '🎒 Инвентарь': 'bag' };
   function open(title, body, cls = '') {
-    $('sheetTitle').textContent = title;
+    const em = Object.keys(TITLE_ART).find((e) => title.startsWith(e + ' '));
+    if (NAV_TITLE[title]) $('sheetTitle').innerHTML = `<img class="place-ic" src="assets/ui/nav_${NAV_TITLE[title]}.webp" alt="">` + title.slice(title.indexOf(' ') + 1);
+    else if (em) $('sheetTitle').innerHTML = placeImg(TITLE_ART[em]) + title.slice(em.length + 1).replace(/[<&]/g, '');
+    else $('sheetTitle').textContent = title;
     $('sheet').querySelector('.sheet-card').className = 'sheet-card l2-panel ' + cls;
     const sb = $('sheetBody');
     sb.innerHTML = '';
@@ -509,6 +517,7 @@ window.Town = (() => {
 
   return {
     setContext: (c) => { ctx = { ...ctx, ...c }; },
+    placeImg,
     openPlace: (id, arg) => PANELS[id] && PANELS[id](arg),
     open, close, tabs, toast,
     lastTab: () => lastTabIdx,

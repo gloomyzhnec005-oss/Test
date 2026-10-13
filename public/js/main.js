@@ -343,7 +343,7 @@
       const menuRow = (icon, name, desc, fn) => {
         const r = document.createElement('button');
         r.className = 'nav-row';
-        r.innerHTML = `<span>${icon}</span><div><b>${name}</b><small>${desc}</small></div><i>›</i>`;
+        r.innerHTML = `<span>${/^[a-z]+$/.test(icon) ? `<img class="place-ic big" src="assets/ui/${icon === "chat" ? "nav_chat" : "place_" + icon}.webp" alt="">` : icon}</span><div><b>${name}</b><small>${desc}</small></div><i>›</i>`;
         r.onclick = fn;
         return r;
       };
@@ -355,14 +355,14 @@
         gacha: () => Town.openPlace('gacha'),
         store: () => Town.openPlace('store'),
         play: () => menuSheet('⚔️ Игра', [
-          ['🏟️', 'Арена', 'PvP со снимками героев других игроков · рейтинг и награды', () => Town.openPlace('arena')],
-          ['🎟️', 'Боевой пропуск', 'Задания сезона и награды за уровни', () => Town.openPlace('pass')],
-          ['👥', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
-          ['🌀', 'Данжи и порталы', zone.kind === 'town' ? 'Порталы данжей, выживание и телепорт стоят в городе — подойдите к ним' : 'Вы за порталом: победите босса или вернитесь в город', () => Town.close()],
+          ['arena', 'Арена', 'PvP со снимками героев других игроков · рейтинг и награды', () => Town.openPlace('arena')],
+          ['pass', 'Боевой пропуск', 'Задания сезона и награды за уровни', () => Town.openPlace('pass')],
+          ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
+          ['survival', 'Данжи и порталы', zone.kind === 'town' ? 'Порталы данжей, выживание и телепорт стоят в городе — подойдите к ним' : 'Вы за порталом: победите босса или вернитесь в город', () => Town.close()],
         ]),
         more: () => menuSheet('☰ Ещё', [
-          ['💬', 'Чат', 'Написать игрокам в этой зоне', () => { Town.close(); $('chatBtn').click(); }],
-          ['🔨', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
+          ['chat', 'Чат', 'Написать игрокам в этой зоне', () => { Town.close(); $('chatBtn').click(); }],
+          ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
           ['🏠', 'В лобби', 'Сменить героя или фон', () => location.reload()],
         ]),
       };
@@ -388,6 +388,7 @@
           btn.classList.toggle('hidden', !o);
           if (!o) return;
           btn.textContent = o.kind === 'portal' ? (o.id === 'back' ? `🏰 ${o.name}` : `🌀 Войти: ${o.name}`) : `${o.icon} ${o.name}`;
+          if (o.place) btn.innerHTML = Town.placeImg(o.place) + btn.textContent.slice(o.icon.length + 1).replace(/[<&]/g, '');
           vibrate('light');
         },
         onTarget: (name, hp, maxHp) => {
