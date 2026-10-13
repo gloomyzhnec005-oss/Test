@@ -87,6 +87,15 @@ def main():
         full = name.endswith('!'); name = name.rstrip('!')
         if c not in cells: print('пусто:', name); continue
         m = owner == c
+        # одиночные искры далеко от предмета (чужие, прилетели из соседней ячейки) — убираем
+        pl, pn = ndimage.label(m & fg)
+        if pn > 1:
+            sz = ndimage.sum(np.ones_like(pl), pl, range(1, pn + 1))
+            main = (pl == (np.argmax(sz) + 1))
+            near = ndimage.binary_dilation(main, iterations=25)
+            for j, z in enumerate(sz, 1):
+                pj = pl == j
+                if z < 0.01 * sz.max() and not (pj & near).any(): m &= ~ndimage.binary_dilation(pj, iterations=6)
         ys, xs = np.nonzero(m & (alpha > 0.05))
         y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
         a = (alpha * m)[y0:y1, x0:x1]
