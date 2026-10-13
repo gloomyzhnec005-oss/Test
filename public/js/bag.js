@@ -11,6 +11,8 @@ window.Bag = (() => {
     const k = it.cat === 'mat' ? 'mat_' + it.mat : it.cat + '_' + it.tpl;
     return ART.has(k) ? `<img class="it-art" src="assets/items/${k}.webp" alt="" draggable="false">` : it.icon;
   };
+  const mini = (it) => (ART.has(it.cat + '_' + it.tpl) ? `<img class="it-mini" src="assets/items/${it.cat}_${it.tpl}.webp" alt="">` : it.icon);
+  const SOCKET = '<img class="it-mini" src="assets/items/ui_socket.webp" alt="">';
   const BASE_NAMES = { atk: ['Атака', ''], hp: ['Здоровье', ''] };
 
   const act = (op, data = {}) => new Promise((res) => {
@@ -29,7 +31,7 @@ window.Bag = (() => {
   const statUnit = (k) => { const u = (BASE_NAMES[k] || (inv && inv.attrs[k]) || ['', ''])[1]; return u === '−%' ? '%' : u; };
   const statLine = (k, v) => `${statName(k)} ${(inv && inv.attrs[k] && inv.attrs[k][1] === '−%') ? '−' : '+'}${v}${statUnit(k)}`;
   const cell = (it, extra = '') => `<button class="it ${extra} ${it.set ? 'set' : ''}" data-id="${it.id}" style="--rc:${it.color}">
-      <span>${art(it)}</span>${it.dupes ? `<em>+${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}<i>${ROMAN[it.tier] || ''}</i>${it.runes && it.runes.length ? `<b>${it.runes.map((r) => r.icon).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}</button>`;
+      <span>${art(it)}</span>${it.dupes ? `<em>+${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}<i>${ROMAN[it.tier] || ''}</i>${it.runes && it.runes.length ? `<b>${it.runes.map(mini).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}</button>`;
   function grid(items, onTap, opts = {}) {
     const box = document.createElement('div');
     box.className = 'it-grid';
@@ -82,8 +84,8 @@ window.Bag = (() => {
     const wrap = $('itemCard');
     const c = wrap.querySelector('.item-card');
     const runes = it.cat === 'weapon' ? `<div class="ic-sec">Гнёзда для рун: ${it.runes.length} / ${it.sockets}</div>
-      ${it.runes.map((r) => `<div class="ic-rune" style="color:${r.color}">${r.icon} ${r.name} · ${Object.entries(r.stats).map(([k, v]) => statLine(k, v)).join(', ')}</div>`).join('')}
-      ${'<div class="ic-rune empty">◇ пустое гнездо</div>'.repeat(Math.max(0, it.sockets - it.runes.length))}` : '';
+      ${it.runes.map((r) => `<div class="ic-rune" style="color:${r.color}">${mini(r)} ${r.name} · ${Object.entries(r.stats).map(([k, v]) => statLine(k, v)).join(', ')}</div>`).join('')}
+      ${`<div class="ic-rune empty">${SOCKET} пустое гнездо</div>`.repeat(Math.max(0, it.sockets - it.runes.length))}` : '';
     c.style.setProperty('--rc', it.color);
     c.innerHTML = `<div class="ic-head"><span class="ic-icon">${art(it)}</span><div><b>${it.name}</b>
         <small>${it.rarName} · ${inv.cats[it.cat]} · мир ${ROMAN[it.tier]}${it.dupes ? ` · дубликаты +${it.dupes * 5}%` : ''}</small></div></div>

@@ -5,4 +5,5 @@ window.ITEM_ART = [
   'helm_cap', 'helm_helmet', 'helm_circlet', 'helm_hood', 'gloves_bracers', 'gloves_grips', 'gloves_gauntlet', 'gloves_silk',
   'ring_ringPow', 'ring_ringAgi', 'ring_ringWind', 'ring_bracer', 'amulet_amuLife', 'amulet_amuMind', 'amulet_amuBlood',
   'armor_leather', 'armor_chain', 'armor_plate', 'armor_robe', 'armor_cloak', 'armor_scale', 'boots_boots', 'boots_greaves', 'boots_sandals',
+  'rune_fury', 'rune_life', 'rune_edge', 'rune_haste', 'rune_blood', 'rune_wisdom', 'rune_time', 'rune_stone', 'rune_wind', 'rune_fortune',
 ];
