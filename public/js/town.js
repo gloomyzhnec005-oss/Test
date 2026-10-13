@@ -430,9 +430,9 @@ window.Town = (() => {
     const inv = await Bag.refresh();
     const h = ctx.heroes[inv.hero.id], U = ctx.skillUnlock;
     const skills = () => el(`<p class="sheet-hint">Умения открываются по уровню героя ИЛИ по числу дубликатов (призыв на алтаре). Сейчас: ур. ${inv.hero.level}, дубликатов ${inv.hero.dupes}</p>`
-      + h.skills.map((sk, i) => `<div class="tw-ev"><span class="tw-ev-i">${i < inv.hero.unlocked ? sk.icon : '🔒'}</span>
+      + h.skills.map((sk, i) => `<div class="tw-ev"><span class="tw-ev-i ${i < inv.hero.unlocked ? '' : 'lock'}">${SkillArt.icon(inv.hero.id, i, i < inv.hero.unlocked ? sk.icon : '🔒')}</span>
       <div><b>${sk.name}</b><small>${i < inv.hero.unlocked ? 'Открыто' : `Откроется: ${U[i].lvl} уровень или ${U[i].dup} дубл.`}</small><small>${sk.desc}</small></div></div>`).join('')
-      + `<div class="tw-ev"><span class="tw-ev-i">${h.passive.icon}</span><div><b>${h.passive.name} · пассивный</b><small>Всегда активен</small></div></div>`);
+      + `<div class="tw-ev"><span class="tw-ev-i">${SkillArt.icon(inv.hero.id, 'p', h.passive.icon)}</span><div><b>${h.passive.name} · пассивный</b><small>Всегда активен</small></div></div>`);
     const tree = () => el(`<p class="sheet-hint">Очки характеристик: 0 · даются за уровни героя</p><div class="tw-tree">${
       [['💪', 'Сила'], ['🏹', 'Ловкость'], ['🔮', 'Интеллект'], ['❤️', 'Выносливость'], ['🍀', 'Удача'], ['🛡️', 'Защита']]
         .map(([i, n]) => `<div class="tw-node"><span>${i}</span><b>${n}</b><em>0</em><button disabled>+</button></div>`).join('')}</div>

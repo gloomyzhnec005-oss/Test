@@ -112,7 +112,7 @@
       const state = btn.sk.formKey ? (s.formKeys || {})[btn.sk.formKey] : s.form;
       const v = btn.sk.forms[state || 'human'];
       if (!v) continue;
-      btn.el.querySelector('.sk-icon').textContent = v.icon;
+      if (!btn.el.classList.contains('art')) btn.el.querySelector('.sk-icon').textContent = v.icon;
       btn.el.querySelector('em').textContent = v.name;
     }
   }
@@ -205,8 +205,8 @@
     box.className = `skills n${hero.skills.length}`;
     hero.skills.forEach((sk, i) => {
       const b = document.createElement('button');
-      b.className = `round skill s${i}`;
-      b.innerHTML = `<span class="sk-icon">${sk.icon}</span><i class="sk-cd"></i><em>${sk.name}</em>`;
+      b.className = `round skill s${i}${SkillArt.has(hero.id) ? ' art' : ''}`;
+      b.innerHTML = `<span class="sk-icon">${SkillArt.icon(hero.id, i, sk.icon)}</span><i class="sk-cd"></i><em>${sk.name}</em>`;
       b.addEventListener('pointerdown', (e) => { input.skill = sk.id; b.classList.add('pressed'); e.preventDefault(); });
       const up = () => b.classList.remove('pressed');
       b.addEventListener('pointerup', up);
@@ -267,7 +267,7 @@
       $('heroName').textContent = `${name} · ${hero.name}`;
       resName = hero.resource.name;
       $('resFill').style.background = hero.resource.color;
-      buildSkills(hero);
+      buildSkills({ ...hero, id: selected });
       passiveDef = hero.passive || null;
       $('passive').classList.toggle('hidden', !passiveDef);
       setStats(w.stats);

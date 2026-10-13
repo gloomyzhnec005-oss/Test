@@ -775,3 +775,15 @@ canvas.skin { object-fit: contain; }
 .inv-foot .cap em { position: absolute; inset: 0; font-size: 10px; font-style: normal; line-height: 14px; text-align: center; color: #fff3d0; text-shadow: 0 0 2px #000; }
 .inv-foot .l2-btn { padding: 4px 8px; font-size: 11px; white-space: nowrap; }
 .inv-foot { position: sticky; bottom: 0; z-index: 1; box-shadow: 0 -6px 12px rgba(0,0,0,.7); }
+/* Нарисованные иконки умений */
+.sk-art { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none; -webkit-user-drag: none; }
+.skill.art { padding: 0; overflow: visible; background: #0a0807; border: 2px solid #c9a24a; box-shadow: 0 0 0 1px #000, 0 0 10px rgba(212,166,60,.45), 0 4px 12px rgba(0,0,0,.6); }
+.skill.art .sk-icon { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; display: block; }
+.skill.art .sk-cd { z-index: 1; background: rgba(0,0,0,.45); }
+.skill.art .sk-cd:empty { background: none; }
+.skill.art em { z-index: 2; }
+.reveal-skill > span:has(.sk-art), .tw-ev-i:has(.sk-art), .st-skills span:has(.sk-art) {
+  flex: none; width: 44px; height: 44px; border-radius: 7px; overflow: hidden; border: 1px solid #c9a24a; box-shadow: 0 0 6px rgba(212,166,60,.35); }
+.st-skills span:has(.sk-art) { width: 34px; height: 34px; border-radius: 5px; }
+.st-skills div.lock span:has(.sk-art), .tw-ev-i.lock:has(.sk-art) { filter: grayscale(1) brightness(.5); }
+.st-skills .pas { grid-column: 1 / -1; border-style: dashed; border-color: #46d6c8; }

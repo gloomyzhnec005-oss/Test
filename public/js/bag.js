@@ -199,7 +199,8 @@ window.Bag = (() => {
         <div><small>Атака</small><b>${P.dmg || '—'}</b></div><div><small>Крит</small><b>${P.crit || 0}%</b></div>
         <div><small>Уровень</small><b>${h.level}</b></div><div><small>Дубликаты</small><b>${h.dupes}</b></div></div>
       <div class="ic-sec">Умения</div>
-      <div class="st-skills">${H.skills.map((sk, i) => `<div class="${i < h.unlocked ? '' : 'lock'}"><span>${i < h.unlocked ? sk.icon : '🔒'}</span><b>${sk.name}</b></div>`).join('')}</div>
+      <div class="st-skills">${H.skills.map((sk, i) => `<div class="${i < h.unlocked ? '' : 'lock'}"><span>${SkillArt.icon(h.id, i, i < h.unlocked ? sk.icon : '🔒')}</span><b>${sk.name}</b></div>`).join('')}</div>
+      ${H.passive ? `<div class="st-skills"><div class="pas"><span>${SkillArt.icon(h.id, 'p', H.passive.icon)}</span><b>${H.passive.name} · пассивный</b></div></div>` : ''}
       ${next ? `<p class="sheet-hint">Следующее умение: ${next.lvl} уровень или ${next.dup} дубл.</p>` : ''}
       <div class="ic-sec">Бонусы экипировки</div>
       <div class="bag-gear">${g.length ? g.map(([k, v]) => `<span>${statLine(k, v)}</span>`).join('') : '<span>Наденьте предметы</span>'}</div>

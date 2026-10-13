@@ -560,10 +560,10 @@ window.Lobby = (() => {
       ${h.tagline ? `<div class="reveal-tagline">— ${h.tagline} —</div>` : ''}
       <p class="reveal-desc">${h.desc}</p>
       ${h.style ? `<p class="reveal-style"><b>Стиль боя:</b> ${h.style}</p>` : ''}
-      ${h.skills.map((sk) => `<div class="reveal-skill"><span>${sk.icon}</span><div><b>${sk.name}</b>
+      ${h.skills.map((sk, i) => `<div class="reveal-skill"><span>${SkillArt.icon(id, i, sk.icon)}</span><div><b>${sk.name}</b>
         <small>${sk.costLabel || (sk.hpCost ? `${Math.round(sk.hpCost * 100)}% здоровья` : `${sk.cost} ${h.resource.name.toLowerCase()}`)} · перезарядка ${sk.cooldown / 1000} с</small>
         <p>${sk.desc}</p></div></div>`).join('')}
-      ${h.passive ? `<div class="reveal-skill passive-skill"><span>${h.passive.icon}</span><div><b>${h.passive.name}</b>
+      ${h.passive ? `<div class="reveal-skill passive-skill"><span>${SkillArt.icon(id, 'p', h.passive.icon)}</span><div><b>${h.passive.name}</b>
         <small>Пассивный навык</small><p>${h.passive.desc}</p></div></div>` : ''}
       ${stat('❤️', 'HP', h.hp, 200)}${stat('🗡', 'Урон', h.dmg, 35)}${stat('🎯', 'Дальность', h.range, 300)}${stat('👟', 'Скорость', h.speed, 200)}
       <button class="l2-btn reveal-ok">${isNew ? 'Забрать' : 'Закрыть'}</button>`;
