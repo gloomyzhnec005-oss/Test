@@ -4,8 +4,9 @@
 # Выход: public/assets/heroes/<id>_sheet.png (8 направлений, 36×48, вверх-влево — зеркало вверх-вправо) и <id>_portrait.png.
 # Запуск: pip install pillow numpy scipy
 #         python3 tools/cut_skin.py картинка.png <id героя> public/assets/heroes [x границы сетки и портрета, по умолчанию 720]
+# Если кадры слиплись (пламя, крылья) — GRID=7 режет сеткой рядов × 5 кадров. SCALE=0.28 — для широких героев.
 # Затем добавить героя в public/js/skins.js.
-import sys, numpy as np
+import os, sys, numpy as np
 from PIL import Image
 from scipy import ndimage
 src, hid, out = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -26,6 +27,8 @@ if corner[1] > 150 and corner[1] - max(corner[0], corner[2]) > 80:
   # остаток зелени на краях приглушаем до уровня красного/синего
   fix = ndimage.binary_dilation(bg, iterations=3) & ~bg & (spill > 0)
   im[..., 1] = np.where(fix, np.maximum(r_, b_), g_)
+  if os.environ.get('DESPILL'):  # огненные/жёлтые герои: салатовый ореол по всему краю — зелёный не выше красного/синего
+    im[..., 1] = np.minimum(im[..., 1], np.maximum(im[..., 0], im[..., 2]))
 else:
   # нарисованная «шахматка» прозрачности
   bgc = (mn > 215) & (mx - mn < 14)
@@ -60,6 +63,31 @@ for r in rows:
     j = min(range(len(r)), key=lambda k: min(abs(r[k][0][1].start - cx), abs(r[k][0][1].stop - cx)))
     h = r[j]; lab2[lab2 == sm[1]] = h[1]
     r[j] = ((slice(min(sm[0][0].start, h[0][0].start), max(sm[0][0].stop, h[0][0].stop)), slice(min(sm[0][1].start, h[0][1].start), max(sm[0][1].stop, h[0][1].stop))), h[1])
+import os
+if os.environ.get('GRID') and not (len(rows) in (6, 7) and all(len(r) == 5 for r in rows)):
+  # кадры слиплись (огонь, крылья): режем сеткой GRID рядов × 5 по самым пустым линиям
+  nR = int(os.environ['GRID'])
+  def cuts(prof, n):
+    prof = np.convolve(prof.astype(float), np.ones(9) / 9, mode='same')
+    nz = np.nonzero(prof > 0.5)[0]; a0, a1 = nz.min(), nz.max() + 1; st = (a1 - a0) / n
+    c = [a0] + [int(a0 + st * k - st * 0.3) + int(np.argmin(prof[int(a0 + st * k - st * 0.3):int(a0 + st * k + st * 0.3)])) for k in range(1, n)] + [a1]
+    return list(zip(c[:-1], c[1:]))
+  lab2 = np.zeros(fgL.shape, int); rows = []; li = 0
+  for (y0, y1) in cuts(fgL.sum(1), nR):
+    row = []
+    for (x0, x1) in cuts(fgL[y0:y1].sum(0), 5):
+      li += 1
+      cell = fgL[y0:y1, x0:x1]
+      # в ячейке оставляем самый крупный кусок и всё, что рядом с ним (искры пламени)
+      cl, cn = ndimage.label(ndimage.binary_dilation(cell, iterations=2))
+      if cn:
+        big = np.argmax(ndimage.sum(cell, cl, range(1, cn + 1))) + 1
+        keep = ndimage.binary_dilation(cl == big, iterations=6) & cell
+      else: keep = cell
+      lab2[y0:y1, x0:x1][keep] = li
+      ys, xs = np.nonzero(keep)
+      row.append(((slice(y0 + ys.min(), y0 + ys.max() + 1), slice(x0 + xs.min(), x0 + xs.max() + 1)), li))
+    rows.append(row)
 print('rows', [len(r) for r in rows])
 assert len(rows) in (6, 7) and all(len(r) == 5 for r in rows)
 import os

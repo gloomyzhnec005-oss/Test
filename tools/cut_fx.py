@@ -56,7 +56,7 @@ def is_bg(px):
     if green:
         return (px[..., 1] > 120) & (px[..., 1] - np.maximum(px[..., 0], px[..., 2]) > 60)
     return px.max(2) <= 24
-divider = (~is_bg(im)).mean(0) > 0.85
+divider = (~is_bg(im)).mean(0) > 0.97  # только сплошная линия-разделитель, не плотный столбец кадров
 im[:, divider] = [0, 255, 0] if green else [0, 0, 0]
 mx = im.max(2)
 

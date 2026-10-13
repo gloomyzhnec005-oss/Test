@@ -477,6 +477,34 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    blaze: {
+      // Огненный шар: летит к цели, на месте — вспышка и кольцо огня
+      blazeBall(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const dur = f.flight || Math.min(500, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.3);
+        const sp = fxPlay(sc, 'blaze', 'blazeBall', f.fx, f.fy - 16, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), scale: 1.1, to: { x: f.x, y: f.y - 10 }, dur, flipY: f.x < f.fx });
+        if (sp) sp.anims.msPerFrame = dur / 6;
+        sc.time.delayedCall(dur, () => { fxPlay(sc, 'blaze', 'hit', f.x, f.y - 10, { scale: 1.3 }); fxPlay(sc, 'blaze', 'aura', f.x, f.y, { scale: 0.9 }); shake(sc, f, 120, 0.005); });
+        return true;
+      },
+      // Волна пламени: катится вперёд
+      flameWave(sc, f, c) {
+        heroAnim(sc, c, f.x + f.dx * 60, f.y + f.dy * 60);
+        const sp = fxPlay(sc, 'blaze', 'flameWave', f.x + f.dx * 20, f.y - 14, { scale: 1.3, flipX: f.dx < 0, to: { x: f.x + f.dx * 150, y: f.y + f.dy * 150 - 14 }, dur: 400 });
+        if (sp) sp.anims.msPerFrame = 70;
+        shake(sc, f, 140, 0.006);
+        return true;
+      },
+      // Вспышка: взрыв жара вокруг, сила — по накопленному жару
+      flashover(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        const k = Math.min(1.6, 1 + ((f.power || 1) - 1) / 6);
+        fxPlay(sc, 'blaze', 'flashover', f.x, f.y - 24, { scale: ((f.r || 120) / 64) * k });
+        sc.time.delayedCall(150, () => fxPlay(sc, 'blaze', 'aura', f.x, f.y, { scale: ((f.r || 120) / 44) * k }));
+        shake(sc, f, 220, 0.01);
+        return true;
+      },
+    },
     sirocco: {
       // Песчаный вихрь: смерч у цели и песчаное кольцо зоны
       sandVortex(sc, f, c) {
