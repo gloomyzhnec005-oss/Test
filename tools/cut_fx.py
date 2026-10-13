@@ -5,6 +5,7 @@
 # Выход: public/assets/heroes/<id>_attack.png (R × 5 кадров) и <id>_fx.png (N × K кадров) с прозрачностью.
 # Число рядов и кадров печатается в конце — их нужно вписать в public/js/skins.js.
 # Масштаб героя подгоняется под его лист ходьбы <id>_sheet.png, чтобы рост совпадал.
+# Если ряды слиплись — задать их число: ROWS=7 (герой) / FX_ROWS=9 (эффекты).
 # Запуск: python3 tools/cut_fx.py картинка.png <id героя> public/assets/heroes [x границы героя и эффектов, 0 — только эффекты, ширина картинки — только герой] [кадров в ряду эффектов]
 import sys, numpy as np
 from PIL import Image
@@ -16,6 +17,21 @@ H, W, _ = im.shape
 mx = im.max(2)
 corner = im[:8, :8].reshape(-1, 3).mean(0)
 green = corner[1] > 150 and corner[1] - max(corner[0], corner[2]) > 80
+
+
+def even_rows(p, n):
+    # Ряды слиплись (сияние, хвосты): режем на n рядов по n−1 самым глубоким провалам профиля,
+    # провалы не ближе 60% от среднего шага ряда
+    p = np.convolve(np.asarray(p, float), np.ones(5) / 5, mode='same')
+    nz = np.nonzero(p > 0.5)[0]; y0, y1 = nz.min(), nz.max() + 1
+    step = (y1 - y0) / n
+    order = sorted(range(y0 + int(step * 0.4), y1 - int(step * 0.4)), key=lambda y: p[y])
+    cuts = []
+    for y in order:
+        if all(abs(y - c) > step * 0.6 for c in cuts): cuts.append(y)
+        if len(cuts) == n - 1: break
+    cuts = [y0] + sorted(cuts) + [y1]
+    return [(cuts[k], cuts[k + 1]) for k in range(n)]
 
 
 def bands(p, th=2, min_len=20):
@@ -62,6 +78,8 @@ if split > 0:  # split = 0 — на картинке только эффекты
     hero = ~bg
     hero[:, split:] = False
     rows = bands((hero & (mx > 30)).sum(1))
+    import os
+    if os.environ.get('ROWS'): rows = even_rows((hero & (mx > 30)).sum(1), int(os.environ['ROWS']))
     assert len(rows) >= 6, f'ожидалось не меньше 6 рядов героя, найдено {len(rows)}'
     cells = []
     for (y0, y1) in rows:
@@ -108,6 +126,8 @@ if split < W - 10:  # split = ширина картинки — на карти�
     # ---------- Эффекты ----------
     fx = np.where(is_bg(im), 0, mx); fx[:, :split] = 0
     frows = bands((fx > 30).sum(1))
+    import os
+    if os.environ.get('FX_ROWS'): frows = even_rows((fx > 30).sum(1), int(os.environ['FX_ROWS']))
     FS = 72
     # число кадров в ряду эффектов — по первому ряду (след удара: отдельные пятна)
     r0 = bands((fx > 30).sum(1))[0]

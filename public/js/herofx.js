@@ -475,6 +475,39 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    zefira: {
+      // Дыхание дракона: поток активного аспекта конусом вперёд (кадры растут слева направо)
+      dragonBreath(sc, f, c) {
+        heroAnim(sc, c, f.x + f.dx * 60, f.y + f.dy * 60);
+        const ang = Math.atan2(f.dy, f.dx), row = 'breath_' + (f.asp || 'fire');
+        sc.time.delayedCall(90, () => {
+          const sp = fxPlay(sc, 'zefira', row, f.x + f.dx * 10, f.y - 14 + f.dy * 10, { rot: ang, scale: 2.4, origin: [0, 0.5], flipY: f.dx < 0 });
+          if (sp) sp.anims.msPerFrame = 75;
+          (f.pts || []).forEach(([x, y], i) => sc.time.delayedCall(120 + i * 40, () => fxPlay(sc, 'zefira', 'hit', x, y - 10, { scale: 0.7 })));
+        });
+        shake(sc, f, 140, 0.005);
+        return true;
+      },
+      // Взлёт: раскрытые огненные крылья за спиной
+      takeFlight(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'zefira', 'takeFlight', f.x, f.y - 26, { scale: 1.7, follow: c, dy: -26 });
+        return true;
+      },
+      // Падение на цель: огненный столб и волна
+      dragonDive(sc, f, c) {
+        fxPlay(sc, 'zefira', 'dragonDive', f.x, f.y - 30, { scale: (f.r || 95) / 30 });
+        fxPlay(sc, 'zefira', 'hit', f.x, f.y - 8, { scale: 1.4 });
+        shake(sc, f, 200, 0.01);
+        if (f.from === sc.myId && sc.me) { sc.me.x = f.x; sc.me.y = f.y + 4; }
+        return true;
+      },
+      beastMight(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'zefira', 'beastMight', f.x, f.y - 6, { scale: 1.5, follow: c, dy: -6 });
+        return true;
+      },
+    },
     talmira: {
       // Небесное копьё: летит к цели и бьёт столбом света
       heavenSpear(sc, f, c) {
@@ -1047,7 +1080,7 @@ window.HeroFx = (() => {
     const c = casterOf(sc, f);
     const own = c && (c.skinOn || c.beast) && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
     // Ряд эффекта обычно назван как умение; событие «духи благосклонны» играет ауру
-    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', starShot: 'bolt', elixir: 'aura', witcherSign: 'sign_' + (f.sign || 'igni'), arcaneMissile: 'bolt', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire') })[f.s] || f.s)) return own(sc, f, c);
+    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', starShot: 'bolt', elixir: 'aura', witcherSign: 'sign_' + (f.sign || 'igni'), arcaneMissile: 'bolt', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire'), dragonBreath: 'breath_' + (f.asp || 'fire') })[f.s] || f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }

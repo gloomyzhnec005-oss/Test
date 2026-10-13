@@ -174,6 +174,13 @@ window.Skins = (() => {
       // bolt — кровавая сфера; bloodBond — кровавые цепи
       fx: { sheet: 'assets/heroes/sanguine_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'bloodSpike', 'bloodRitual', 'bloodBond', 'aura'] },
     },
+    zefira: {
+      sheet: 'assets/heroes/zefira_sheet.png', portrait: 'assets/heroes/zefira_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: 6 рядов — вниз, вниз-вправо, вправо (выпад клинком), вверх-вправо, вверх и поза умения (раскинутые руки)
+      attack: { sheet: 'assets/heroes/zefira_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — огненный шар; дыхание четырёх аспектов; dragonDive — удар с неба; takeFlight — крылья; beastMight — кольцо силы
+      fx: { sheet: 'assets/heroes/zefira_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'breath_fire', 'breath_ice', 'breath_poison', 'breath_lightning', 'dragonDive', 'takeFlight', 'beastMight'] },
+    },
     morvenKnight: { sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5 },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
