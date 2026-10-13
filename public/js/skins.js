@@ -209,6 +209,13 @@ window.Skins = (() => {
       // bolt — огненный снаряд; blazeBall — огненный шар; flameWave — волна пламени; flashover — взрыв жара; aura — огненное кольцо
       fx: { sheet: 'assets/heroes/blaze_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'blazeBall', 'flameWave', 'flashover', 'aura'] },
     },
+    elnaeris: {
+      sheet: 'assets/heroes/elnaeris_sheet.png', portrait: 'assets/heroes/elnaeris_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо, вверх-вправо, вверх и поза умения (руки разведены)
+      attack: { sheet: 'assets/heroes/elnaeris_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — летящий череп; gatherSouls — души слетаются; soulWave — волна душ; guideCall — жнец-проводник; aura — кольцо
+      fx: { sheet: 'assets/heroes/elnaeris_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'gatherSouls', 'soulWave', 'guideCall', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет

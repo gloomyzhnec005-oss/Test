@@ -477,6 +477,31 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    elnaeris: {
+      // Сбор душ: души слетаются к проводнице с мест гибели
+      gatherSouls(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'elnaeris', 'gatherSouls', f.x, f.y - 22, { scale: 1.3, follow: c, dy: -22 });
+        (f.pts || []).forEach(([x, y], i) => sc.time.delayedCall(i * 60, () => fxPlay(sc, 'elnaeris', 'bolt', x, y - 14, { scale: 0.6, rot: Math.atan2(f.y - y, f.x - x), flipY: f.x < x, to: { x: f.x, y: f.y - 18 }, dur: 380 })));
+        return true;
+      },
+      // Волна душ: поток призраков вперёд
+      soulWave(sc, f, c) {
+        heroAnim(sc, c, f.x + f.dx * 60, f.y + f.dy * 60);
+        const len = f.len || 200, k = Math.min(1.5, 1 + (f.spend || 3) / 20);
+        const sp = fxPlay(sc, 'elnaeris', 'soulWave', f.x + f.dx * 20, f.y - 14, { scale: 1.3 * k, flipX: f.dx < 0, to: { x: f.x + f.dx * len, y: f.y + f.dy * len - 14 }, dur: 450 });
+        if (sp) sp.anims.msPerFrame = 75;
+        shake(sc, f, 150, 0.006);
+        return true;
+      },
+      // Зов проводницы: жнец появляется там, где встал дух-помощник
+      guideCall(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'elnaeris', 'guideCall', f.x, f.y - 26, { scale: 1.4 });
+        fxPlay(sc, 'elnaeris', 'aura', f.x, f.y, { scale: 1.2 });
+        return true;
+      },
+    },
     blaze: {
       // Огненный шар: летит к цели, на месте — вспышка и кольцо огня
       blazeBall(sc, f, c) {
