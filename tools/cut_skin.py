@@ -62,7 +62,8 @@ for r in rows:
     r[j] = ((slice(min(sm[0][0].start, h[0][0].start), max(sm[0][0].stop, h[0][0].stop)), slice(min(sm[0][1].start, h[0][1].start), max(sm[0][1].stop, h[0][1].stop))), h[1])
 print('rows', [len(r) for r in rows])
 assert len(rows) in (6, 7) and all(len(r) == 5 for r in rows)
-S = 0.32; CW, CH = 36, 48
+import os
+S = float(os.environ.get("SCALE", 0.32)); CW, CH = 36, 48  # SCALE — для широких героев (големы), чтобы кадр влез в 36 px
 # порядок в исходнике: вниз, вниз-вправо, вправо, вверх-вправо, вверх, вниз-влево, влево
 # порядок в игре: down, down-right, right, up-right, up, up-left, left, down-left
 order = [0, 1, 2, 3, 4, 'm3', 6, 5] if len(rows) == 7 else [0, 1, 2, 3, 4, 'm3', 'm2', 5]  # 6 рядов: «влево» — зеркало «вправо»

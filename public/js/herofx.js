@@ -477,6 +477,27 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    emet: {
+      // Каменный кулак: удар по цели и шипы из земли
+      stoneFist(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        sc.time.delayedCall(140, () => { fxPlay(sc, 'emet', 'stoneFist', f.x, f.y - 22, { scale: 1.3, solid: true }); fxPlay(sc, 'emet', 'hit', f.x, f.y - 10, { scale: 1.1 }); shake(sc, f, 160, 0.008); });
+        return true;
+      },
+      // Землетрясение: трещины кольцом вокруг голема
+      golemQuake(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        sc.time.delayedCall(180, () => { fxPlay(sc, 'emet', 'golemQuake', f.x, f.y, { scale: (f.r || 120) / 30, solid: true }); shake(sc, f, 260, 0.012); });
+        return true;
+      },
+      // Каменная броня: камни смыкаются в сферу, затем остаётся мерцающее кольцо
+      stoneArmor(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'emet', 'stoneArmor', f.x, f.y - 18, { scale: 1.2, follow: c, dy: -18, solid: true });
+        sc.time.delayedCall(400, () => fxPlay(sc, 'emet', 'aura', f.x, f.y - 4, { scale: 1.3, follow: c, dy: -4 }));
+        return true;
+      },
+    },
     zefira: {
       // Дыхание дракона: поток активного аспекта конусом вперёд (кадры растут слева направо)
       dragonBreath(sc, f, c) {

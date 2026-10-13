@@ -60,6 +60,7 @@ divider = (~is_bg(im)).mean(0) > 0.85
 im[:, divider] = [0, 255, 0] if green else [0, 0, 0]
 mx = im.max(2)
 
+import os
 if split > 0:  # split = 0 — на картинке только эффекты
     # ---------- Герой ----------
     if green:
@@ -84,16 +85,18 @@ if split > 0:  # split = 0 — на картинке только эффекты
     cells = []
     for (y0, y1) in rows:
         cs = bands((hero[y0:y1] & (mx[y0:y1] > 30)).sum(0), th=1, min_len=15)
+        NF = int(os.environ.get('HERO_FRAMES', 5))  # на картинке 6 кадров в ряду — режем 6, оставляем 5
         # оторванный клинок (узкая полоса) приклеиваем к ближайшему кадру
-        while len(cs) > 5:
+        while len(cs) > NF:
             i = min(range(len(cs)), key=lambda k: cs[k][1] - cs[k][0])
             j = i - 1 if i == len(cs) - 1 or (i > 0 and cs[i][0] - cs[i - 1][1] < cs[i + 1][0] - cs[i][1]) else i + 1
             a, b = sorted((i, j)); cs[a:b + 1] = [(cs[a][0], cs[b][1])]
         # слипшиеся соседние кадры делим поровну
-        while len(cs) < 5:
+        while len(cs) < NF:
             i = max(range(len(cs)), key=lambda k: cs[k][1] - cs[k][0])
             a, b = cs[i]; m = (a + b) // 2
             cs[i:i + 1] = [(a, m), (m, b)]
+        if NF == 6: cs = [cs[k] for k in (0, 1, 2, 3, 5)]
         cells.append([(y0, y1, x0, x1) for (x0, x1) in cs[:5]])
 
     # Масштаб: рост в атаке вниз (ряд 1) = рост в листе ходьбы; поза умения бывает выше из-за ауры вокруг героя
