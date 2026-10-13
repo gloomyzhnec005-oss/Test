@@ -23,28 +23,53 @@ def main():
     # Каждому пикселю предмета — номер ячейки. Близкие куски (искры, парные клинки) идут к ячейке своего общего центра;
     # если в слипшемся куске части лежат в разных ячейках (предметы стоят вплотную) — делим по частям без расширения.
     owner = np.full(lab.shape, -1, np.int32)
-    for i, sl in enumerate(ndimage.find_objects(lab), 1):
-        part = (lab[sl] == i) & fg[sl]
-        if part.sum() < 30: continue
-        ys, xs = np.nonzero(part)
-        c0 = cell_of(ys.mean() + sl[0].start, xs.mean() + sl[1].start)
-        sub = raw[sl] * part
-        ids = [k for k in np.unique(sub) if k]
-        cent = {k: cell_of(*(np.argwhere(sub == k).mean(axis=0) + (sl[0].start, sl[1].start))) for k in ids}
-        if len(set(cent.values())) <= 1:
-            owner[sl][lab[sl] == i] = c0
+    gy = np.minimum(rows - 1, (np.arange(H) / H * rows).astype(int))
+    gx = np.minimum(cols - 1, (np.arange(W) / W * cols).astype(int))
+    grid_cell = gy[:, None] * cols + gx[None, :]
+    def spread(m):  # доля пикселей в самой заполненной ячейке
+        v = np.bincount(grid_cell[m], minlength=cols * rows)
+        return v.max() / max(1, v.sum())
+    for i in range(1, n + 1):
+        comp = (lab == i) & fg
+        if comp.sum() < 30: continue
+        ys, xs = np.nonzero(comp)
+        c0 = cell_of(ys.mean(), xs.mean())
+        sub = raw * comp
+        ids = [k for k in np.unique(sub[ys, xs]) if k]
+        cents = {k: cell_of(*np.argwhere(sub == k).mean(axis=0)) for k in ids}
+        whole = lab == i
+        if len(set(cents.values())) <= 1 and spread(comp) > 0.85:
+            owner[whole] = c0
             continue
-        big = [k for k in ids if (sub == k).sum() > 2000]
         for k in ids:
             m = sub == k
-            if (sub == k).sum() > 2000 and len({cent[k]}) == 1:
+            if m.sum() > 2000 and spread(m) < 0.85:
+                # предметы стоят вплотную и слиплись: ядра — части далеко от линий сетки,
+                # остальное растёт от ядер по самому предмету (геодезически), так выступы уходят к своему хозяину
                 ys, xs = np.nonzero(m)
-                # огромная часть, накрывающая несколько ячеек — режем по пикселям
-                cells = np.array([cell_of(y + sl[0].start, x + sl[1].start) for y, x in zip(ys[::1], xs[::1])])
-                vals, cnt = np.unique(cells, return_counts=True)
-                if (cnt > 0.15 * cnt.sum()).sum() > 1:
-                    o = owner[sl]; o[ys, xs] = cells; owner[sl] = o; continue
-            o = owner[sl]; o[m] = cent[k]; owner[sl] = o
+                y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+                mm = m[y0:y1, x0:x1]; gc = grid_cell[y0:y1, x0:x1]
+                line = np.zeros_like(mm)
+                for gyv in range(1, rows): r = int(gyv * H / rows) - y0; line[max(0, r):max(0, r + 1)] = True if 0 <= r < line.shape[0] else line[0:0]
+                for gxv in range(1, cols): q = int(gxv * W / cols) - x0; line[:, max(0, q):max(0, q + 1)] = True if 0 <= q < line.shape[1] else line[:, 0:0]
+                far = mm & (ndimage.distance_transform_edt(~line) > 40)
+                lb = np.where(far, gc, -1)
+                st = ndimage.generate_binary_structure(2, 2)
+                for _ in range(800):
+                    todo = mm & (lb < 0)
+                    if not todo.any(): break
+                    grown = ndimage.grey_dilation(np.where(lb >= 0, lb + 1, 0), footprint=st) - 1
+                    new = todo & (grown >= 0)
+                    if not new.any(): lb[todo] = gc[todo]; break
+                    lb[new] = grown[new]
+                o = owner[y0:y1, x0:x1]; o[mm] = lb[mm]; owner[y0:y1, x0:x1] = o
+            else:
+                owner[m] = cents[k]
+        # расширенная кромка (полупрозрачное сияние) — к ближайшему уже размеченному пикселю
+        rest = whole & (owner < 0)
+        if rest.any():
+            idx = ndimage.distance_transform_edt(owner < 0, return_distances=False, return_indices=True)
+            owner[rest] = owner[idx[0][rest], idx[1][rest]]
     cells = {c: True for c in np.unique(owner) if c >= 0}
     # Убираем ореол цвета фона только у края (внутри предмета свои зелёные/розовые камни не трогаем)
     a3 = np.maximum(alpha, 0.05)[..., None]
