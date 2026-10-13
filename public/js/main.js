@@ -280,7 +280,7 @@
       const renderParty = () => {
         const f = $('partyFrame');
         f.classList.toggle('hidden', !party);
-        if (party) f.innerHTML = party.members.map((m) => `<div>${m.id === party.leader ? '👑 ' : ''}${m.name} <small>${m.hero} · ${m.lvl} · ${m.zone}</small></div>`).join('');
+        if (party) f.innerHTML = party.members.map((m) => `<div>${m.id === party.leader ? '<img class="ui-ic" src="assets/ui/ic_crown.webp" alt="👑">' : ''}${m.name} <small>${m.hero} · ${m.lvl} · ${m.zone}</small></div>`).join('');
       };
       socket.on('party', (p) => { party = p; renderParty(); });
       socket.on('partyInvite', (d) => {
@@ -302,7 +302,7 @@
         const box = document.createElement('div');
         const me = socket.id;
         box.innerHTML = `<p class="sheet-hint">Группа до 4 игроков: общий опыт (70% каждому рядом), добыча с боссов — каждому, данж выживания — вместе.</p>
-          ${party ? `<div class="ic-sec">Ваша группа</div>${party.members.map((m) => `<div class="tw-ev"><div><b>${m.id === party.leader ? '👑 ' : ''}${m.name}</b><small>${m.hero} · ур. ${m.lvl} · ${m.zone}</small></div></div>`).join('')}
+          ${party ? `<div class="ic-sec">Ваша группа</div>${party.members.map((m) => `<div class="tw-ev"><div><b>${m.id === party.leader ? '<img class="ui-ic" src="assets/ui/ic_crown.webp" alt="👑">' : ''}${m.name}</b><small>${m.hero} · ур. ${m.lvl} · ${m.zone}</small></div></div>`).join('')}
             <button class="l2-btn wide" id="pLeave">Покинуть группу</button>` : ''}
           <div class="ic-sec">Игроки рядом</div>`;
         const near = window.gameScene ? [...window.gameScene.players.values()].map((e) => e.data).filter((d) => d && d.id !== me) : [];

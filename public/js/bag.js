@@ -13,6 +13,7 @@ window.Bag = (() => {
   };
   const mini = (it) => (ART.has(it.cat + '_' + it.tpl) ? `<img class="it-mini" src="assets/items/${it.cat}_${it.tpl}.webp" alt="">` : it.icon);
   const crest = (cls) => (ART.has('crest_' + cls) ? `<img class="it-mini" src="assets/items/crest_${cls}.webp" alt="">` : '◆');
+  const ic = (k) => `<img class="ui-ic" src="assets/ui/ic_${k}.webp" alt="">`;
   const SOCKET = '<img class="it-mini" src="assets/items/ui_socket.webp" alt="">';
   const BASE_NAMES = { atk: ['Атака', ''], hp: ['Здоровье', ''] };
 
@@ -165,7 +166,7 @@ window.Bag = (() => {
           <div class="pd-name"><b>${H.name}</b><small>ур. ${h.level} · ${'★'.repeat(Math.min(h.dupes, 5)) || '☆'}${h.dupes > 5 ? '+' + (h.dupes - 5) : ''}</small></div></div>
         <div class="pd-col">${SIDE.right.map(slotBtn).join('')}<button class="pd-slot pd-bag" data-go="bag"><span><img class="it-art" src="assets/items/slot_bag.webp" alt="🎒"></span><em>Сумка</em></button></div>
       </div>
-      <div class="pd-power"><span class="pw">⚜️ Сила <b>${P.power || '—'}</b></span><span>❤️ ${P.hp || '—'}</span><span>🗡️ ${P.dmg || '—'}</span><span>🎯 ${P.crit || 0}%</span></div>
+      <div class="pd-power"><span class="pw">${ic('crown')}Сила <b>${P.power || '—'}</b></span><span>${ic('hp')}${P.hp || '—'}</span><span>${ic('atk')}${P.dmg || '—'}</span><span>${ic('crit')}${P.crit || 0}%</span></div>
       <div class="pd-ward"></div>`;
     const art = window.Lobby && Lobby.heroCanvas(h.id, true);
     if (art) box.querySelector('.pd-art').append(art);
@@ -204,9 +205,9 @@ window.Bag = (() => {
     const g = Object.entries(inv.gear);
     const sets = Object.entries(inv.sets.counts);
     box.innerHTML = `<div class="st-grid">
-        <div><small>Сила героя</small><b>${P.power || '—'}</b></div><div><small>Здоровье</small><b>${P.hp || '—'}</b></div>
-        <div><small>Атака</small><b>${P.dmg || '—'}</b></div><div><small>Крит</small><b>${P.crit || 0}%</b></div>
-        <div><small>Уровень</small><b>${h.level}</b></div><div><small>Дубликаты</small><b>${h.dupes}</b></div></div>
+        <div><small>${ic('crown')}Сила героя</small><b>${P.power || '—'}</b></div><div><small>${ic('hp')}Здоровье</small><b>${P.hp || '—'}</b></div>
+        <div><small>${ic('atk')}Атака</small><b>${P.dmg || '—'}</b></div><div><small>${ic('crit')}Крит</small><b>${P.crit || 0}%</b></div>
+        <div><small>${ic('xp')}Уровень</small><b>${h.level}</b></div><div><small>${ic('star')}Дубликаты</small><b>${h.dupes}</b></div></div>
       <div class="ic-sec">Умения</div>
       <div class="st-skills">${H.skills.map((sk, i) => `<div class="${i < h.unlocked ? '' : 'lock'}"><span>${SkillArt.icon(h.id, i, i < h.unlocked ? sk.icon : '🔒')}</span><b>${sk.name}</b></div>`).join('')}</div>
       ${H.passive ? `<div class="st-skills"><div class="pas"><span>${SkillArt.icon(h.id, 'p', H.passive.icon)}</span><b>${H.passive.name} · пассивный</b></div></div>` : ''}
@@ -249,7 +250,7 @@ window.Bag = (() => {
       }, { keepOrder: true, fill }));
       if (!items.length) box.insertAdjacentHTML('beforeend', `<p class="sheet-hint">${invCat === 'mat' ? 'Материалы, свитки и зелья падают с монстров и продаются в лавках' : 'Пусто — побеждайте монстров за порталами'}</p>`);
       box.insertAdjacentHTML('beforeend', `<div class="inv-foot">
-        <span class="gold">💰 ${inv.gold.toLocaleString('ru-RU')}</span>
+        <span class="gold">${ic('coins')}${inv.gold.toLocaleString('ru-RU')}</span>
         <span class="cap"><i style="width:${Math.min(100, (100 * used) / cap)}%" class="${used >= cap ? 'full' : ''}"></i><em>${used} / ${cap}</em></span>
         <button class="l2-btn" data-sort>⇅ ${SORTS[invSort][1]}</button></div>`);
       box.querySelector('.inv-tabs').onclick = (e) => { const b = e.target.closest('button'); if (b) { invCat = b.dataset.c; draw(); } };

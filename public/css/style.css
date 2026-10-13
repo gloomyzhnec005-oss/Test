@@ -812,3 +812,8 @@ canvas.skin { object-fit: contain; }
 .place-ic { width: 30px; height: 30px; object-fit: contain; vertical-align: middle; margin: -6px 6px -4px 0; filter: drop-shadow(0 1px 2px #000); }
 .place-ic.big { width: 40px; height: 40px; margin: 0; }
 .act-btn .place-ic { width: 26px; height: 26px; margin: -6px 4px -4px -4px; }
+/* Значки валют и характеристик */
+.ui-ic { width: 1.3em; height: 1.3em; object-fit: contain; vertical-align: -0.3em; margin-right: 3px; filter: drop-shadow(0 1px 1px #000); }
+.stats .row.small .ui-ic { width: 13px; height: 13px; vertical-align: -2px; margin-right: 2px; }
+.st-grid small .ui-ic { width: 14px; height: 14px; vertical-align: -3px; }
+.skill.locked::after { content: ''; width: 20px; height: 20px; background: url(../assets/ui/ic_lock.webp) center / contain no-repeat; }
