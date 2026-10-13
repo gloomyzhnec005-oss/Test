@@ -3,4 +3,5 @@
 window.ITEM_ART = [
   'weapon_sword', 'weapon_axe', 'weapon_staff', 'weapon_bow', 'weapon_daggers', 'weapon_hammer', 'weapon_spear', 'weapon_wand',
   'helm_cap', 'helm_helmet', 'helm_circlet', 'helm_hood', 'gloves_bracers', 'gloves_grips', 'gloves_gauntlet', 'gloves_silk',
+  'ring_ringPow', 'ring_ringAgi', 'ring_ringWind', 'ring_bracer', 'amulet_amuLife', 'amulet_amuMind', 'amulet_amuBlood',
 ];
