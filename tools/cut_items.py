@@ -18,14 +18,34 @@ def main():
     alpha = np.clip((dist - 60) / 90, 0, 1)            # мягкий край
     fg = alpha > 0.5
     lab, n = ndimage.label(ndimage.binary_dilation(fg, iterations=6))
-    cells = {}
+    raw, _ = ndimage.label(fg)
+    cell_of = lambda cy, cx: min(rows - 1, int(cy / H * rows)) * cols + min(cols - 1, int(cx / W * cols))
+    # Каждому пикселю предмета — номер ячейки. Близкие куски (искры, парные клинки) идут к ячейке своего общего центра;
+    # если в слипшемся куске части лежат в разных ячейках (предметы стоят вплотную) — делим по частям без расширения.
+    owner = np.full(lab.shape, -1, np.int32)
     for i, sl in enumerate(ndimage.find_objects(lab), 1):
         part = (lab[sl] == i) & fg[sl]
         if part.sum() < 30: continue
         ys, xs = np.nonzero(part)
-        cy, cx = ys.mean() + sl[0].start, xs.mean() + sl[1].start
-        c = min(rows - 1, int(cy / H * rows)) * cols + min(cols - 1, int(cx / W * cols))
-        cells.setdefault(c, []).append(i)
+        c0 = cell_of(ys.mean() + sl[0].start, xs.mean() + sl[1].start)
+        sub = raw[sl] * part
+        ids = [k for k in np.unique(sub) if k]
+        cent = {k: cell_of(*(np.argwhere(sub == k).mean(axis=0) + (sl[0].start, sl[1].start))) for k in ids}
+        if len(set(cent.values())) <= 1:
+            owner[sl][lab[sl] == i] = c0
+            continue
+        big = [k for k in ids if (sub == k).sum() > 2000]
+        for k in ids:
+            m = sub == k
+            if (sub == k).sum() > 2000 and len({cent[k]}) == 1:
+                ys, xs = np.nonzero(m)
+                # огромная часть, накрывающая несколько ячеек — режем по пикселям
+                cells = np.array([cell_of(y + sl[0].start, x + sl[1].start) for y, x in zip(ys[::1], xs[::1])])
+                vals, cnt = np.unique(cells, return_counts=True)
+                if (cnt > 0.15 * cnt.sum()).sum() > 1:
+                    o = owner[sl]; o[ys, xs] = cells; owner[sl] = o; continue
+            o = owner[sl]; o[m] = cent[k]; owner[sl] = o
+    cells = {c: True for c in np.unique(owner) if c >= 0}
     # Убираем ореол цвета фона только у края (внутри предмета свои зелёные/розовые камни не трогаем)
     a3 = np.maximum(alpha, 0.05)[..., None]
     rgb = np.clip((im - (1 - a3) * bg) / a3, 0, 255)  # снимаем подмес фона с полупрозрачных пикселей (сияние, искры)
@@ -41,7 +61,7 @@ def main():
         if name == '-': continue
         full = name.endswith('!'); name = name.rstrip('!')
         if c not in cells: print('пусто:', name); continue
-        m = np.isin(lab, cells[c])
+        m = owner == c
         ys, xs = np.nonzero(m & (alpha > 0.05))
         y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
         a = (alpha * m)[y0:y1, x0:x1]
@@ -52,6 +72,6 @@ def main():
         h, w = a.shape; s = int(max(h, w) * 1.08)
         sq = Image.new('RGBA', (s, s), (0, 0, 0, 0)); sq.paste(Image.fromarray(tile, 'RGBA'), ((s - w) // 2, (s - h) // 2))
         sq.resize((size, size), Image.LANCZOS).save(f'{out}/{name}.webp', quality=90, method=6)
-        print(name, (x0, y0, x1, y1), len(cells[c]), 'кусков')
+        print(name, (int(x0), int(y0), int(x1), int(y1)))
 
 main()
