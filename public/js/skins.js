@@ -244,6 +244,13 @@ window.Skins = (() => {
       // bolt — огненный шар; flameShift — огненный вихрь смены формы; flameBurst — огненное копьё (лавина); incinerate — испепеление; aura — кольцо
       fx: { sheet: 'assets/heroes/flare_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'flameShift', 'flameBurst', 'incinerate', 'aura'] },
     },
+    caldero: {
+      sheet: 'assets/heroes/caldero_sheet.png', portrait: 'assets/heroes/caldero_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо (лавовый кулак), вверх-вправо (зеркало бокового ряда), вверх и поза умения (кулаки вверх)
+      attack: { sheet: 'assets/heroes/caldero_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // slash — огненная дуга удара; lavaStrike — лавовый выплеск; eruption — извержение; ashArmor — каменная корка; aura — кольцо
+      fx: { sheet: 'assets/heroes/caldero_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'lavaStrike', 'eruption', 'ashArmor', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет

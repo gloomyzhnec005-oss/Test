@@ -477,6 +477,24 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    caldero: {
+      lavaStrike(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        sc.time.delayedCall(140, () => { fxPlay(sc, 'caldero', 'lavaStrike', f.x, f.y - 18, { scale: 1.2 }); fxPlay(sc, 'caldero', 'hit', f.x, f.y - 10, { scale: 1.1 }); shake(sc, f, 160, 0.008); });
+        return true;
+      },
+      eruption(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        sc.time.delayedCall(160, () => { fxPlay(sc, 'caldero', 'eruption', f.x, f.y - 18, { scale: (f.r || 120) / 60 }); fxPlay(sc, 'caldero', 'aura', f.x, f.y, { scale: (f.r || 120) / 60 }); shake(sc, f, 260, 0.012); });
+        return true;
+      },
+      // Пепельная броня: каменная корка смыкается вокруг голема
+      ashArmor(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'caldero', 'ashArmor', f.x, f.y - 18, { scale: 1.1, follow: c, dy: -18, solid: true });
+        return true;
+      },
+    },
     flare: {
       // Смена формы: огненный вихрь вокруг; лавина — крупнее
       flameShift(sc, f, c) {
