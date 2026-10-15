@@ -258,6 +258,13 @@ window.Skins = (() => {
       // bolt — каменный кристалл; stoneSpike — шипы из земли; rift — разлом; earthGrip — корни и камни; aura — каменное кольцо
       fx: { sheet: 'assets/heroes/torden_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'stoneSpike', 'rift', 'earthGrip', 'aura'] },
     },
+    medea: {
+      sheet: 'assets/heroes/medea_sheet.png', portrait: 'assets/heroes/medea_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо (выстрел из лука), вверх-вправо (зеркало бокового ряда), вверх и поза умения
+      attack: { sheet: 'assets/heroes/medea_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — змея-стрела; gorgonGaze — конус окаменения; snakeSwarm — змеиный рой; stoneBurst — каменные шипы; aura — кольцо
+      fx: { sheet: 'assets/heroes/medea_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'gorgonGaze', 'snakeSwarm', 'stoneBurst', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет

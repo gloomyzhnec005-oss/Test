@@ -477,6 +477,34 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    medea: {
+      // Взгляд горгоны: конус окаменения вперёд (остриё у героини)
+      gorgonGaze(sc, f, c) {
+        heroAnim(sc, c, f.x + f.dx * 60, f.y + f.dy * 60);
+        const sp = fxPlay(sc, 'medea', 'gorgonGaze', f.x + f.dx * 12, f.y - 16, { rot: Math.atan2(f.dy, f.dx) + Math.PI, origin: [1, 0.5], flipY: f.dx < 0 });
+        if (sp) sp.setScale(200 / 70, 1.6);
+        shake(sc, f, 140, 0.005);
+        return true;
+      },
+      // Змеиный рой: змеи летят к каждой цели
+      snakeSwarm(sc, f, c) {
+        const pts = f.pts || [];
+        if (pts[0]) heroAnim(sc, c, pts[0][0], pts[0][1]);
+        pts.forEach(([x, y], i) => sc.time.delayedCall(i * 80, () => {
+          const sp = fxPlay(sc, 'medea', 'snakeSwarm', f.fx, f.fy - 14, { rot: Math.atan2(y - f.fy, x - f.fx), flipY: x < f.fx, scale: 0.9, to: { x, y: y - 10 }, dur: 360 });
+          sc.time.delayedCall(360, () => fxPlay(sc, 'medea', 'hit', x, y - 10, { scale: 0.8 }));
+        }));
+        return true;
+      },
+      // Каменный взрыв: окаменевшие монстры разлетаются шипами
+      stoneBurst(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'medea', 'aura', f.x, f.y, { scale: 2 });
+        (f.pts || []).forEach(([x, y], i) => sc.time.delayedCall(100 + i * 70, () => fxPlay(sc, 'medea', 'stoneBurst', x, y - 18, { scale: 1.2 })));
+        shake(sc, f, 200, 0.009);
+        return true;
+      },
+    },
     torden: {
       stoneSpike(sc, f, c) {
         heroAnim(sc, c, f.x, f.y);
