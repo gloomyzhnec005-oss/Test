@@ -477,6 +477,32 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    itilior: {
+      // Ледяная стрела: копьё льда летит к цели
+      iceArrow(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const dur = f.flight || Math.min(450, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.2);
+        const sp = fxPlay(sc, 'itilior', 'iceArrow', f.fx, f.fy - 16, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), scale: 1.1, to: { x: f.x, y: f.y - 10 }, dur, flipY: f.x < f.fx });
+        if (sp) sp.anims.msPerFrame = dur / 6;
+        sc.time.delayedCall(dur, () => { fxPlay(sc, 'itilior', 'hit', f.x, f.y - 10, { scale: 1.1 }); shake(sc, f, 100, 0.004); });
+        return true;
+      },
+      // Ледяная стена: три глыбы вдоль стены
+      iceWall(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        // стена встаёт поперёк направления от героя к точке
+        const ang = c ? Math.atan2(f.y - c.c.y, f.x - c.c.x) + Math.PI / 2 : Math.PI / 2;
+        for (let k = -1; k <= 1; k++) fxPlay(sc, 'itilior', 'iceWall', f.x + Math.cos(ang) * 52 * k, f.y + Math.sin(ang) * 52 * k - 22, { scale: 1.2, solid: true });
+        return true;
+      },
+      frostBlast(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'itilior', 'frostBlast', f.x, f.y - 20, { scale: (f.r || 130) / 80 });
+        sc.time.delayedCall(150, () => fxPlay(sc, 'itilior', 'aura', f.x, f.y, { scale: (f.r || 130) / 95 }));
+        shake(sc, f, 200, 0.009);
+        return true;
+      },
+    },
     galatea: {
       // Песнь сирены: ноты над героиней и кольцо ракушек; очарованные монстры получают вспышку
       sirenSong(sc, f, c) {
