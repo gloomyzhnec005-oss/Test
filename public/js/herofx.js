@@ -477,6 +477,28 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    brilda: {
+      cutCrystal(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'brilda', 'cutCrystal', f.x, f.y - 20, { scale: 1.1, follow: c, dy: -20 });
+        return true;
+      },
+      // Кристальный залп: поток осколков от героини к цели
+      crystalVolley(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const d = Math.hypot(f.x - f.fx, f.y - f.fy), k = Math.min(1.5, 0.9 + ((f.cr && f.cr.length) || 1) * 0.12);
+        const sp = fxPlay(sc, 'brilda', 'crystalVolley', f.fx, f.fy - 16, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), origin: [0, 0.5], flipY: f.x < f.fx });
+        if (sp) sp.setScale(Math.max(1, d / 66), k);
+        sc.time.delayedCall(220, () => { fxPlay(sc, 'brilda', 'hit', f.x, f.y - 10, { scale: k }); shake(sc, f, 120, 0.005); });
+        return true;
+      },
+      crystalBarrier(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'brilda', 'crystalBarrier', f.x, f.y - 18, { scale: 1.1, follow: c, dy: -18 });
+        sc.time.delayedCall(300, () => fxPlay(sc, 'brilda', 'aura', f.x, f.y, { scale: 1.2, follow: c }));
+        return true;
+      },
+    },
     wugazh: {
       // Хлыст корней: лоза тянется от тролля к цели
       rootLash(sc, f, c) {

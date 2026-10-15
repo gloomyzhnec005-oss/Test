@@ -272,6 +272,13 @@ window.Skins = (() => {
       // slash — дуга корней; rootLash — хлыст корней; rootDown — укоренение; bloom — цветение; aura — кольцо из лоз
       fx: { sheet: 'assets/heroes/wugazh_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'rootLash', 'rootDown', 'bloom', 'aura'] },
     },
+    brilda: {
+      sheet: 'assets/heroes/brilda_sheet.png', portrait: 'assets/heroes/brilda_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо (выпад посохом), вверх-вправо (зеркало бокового ряда), вверх и поза умения
+      attack: { sheet: 'assets/heroes/brilda_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — кристалл; cutCrystal — кристаллы вокруг; crystalVolley — залп осколков; crystalBarrier — кристальная сфера; aura — кольцо
+      fx: { sheet: 'assets/heroes/brilda_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'cutCrystal', 'crystalVolley', 'crystalBarrier', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет
