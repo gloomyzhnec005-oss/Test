@@ -477,6 +477,30 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    leblanc: {
+      // Двойник появляется там, где встал его клон
+      decoy(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'leblanc', 'decoy', f.x, f.y - 24, { scale: 1.2 });
+        return true;
+      },
+      mirage(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'leblanc', 'mirage', f.x, f.y - 20, { scale: (f.r || 160) / 70 });
+        sc.time.delayedCall(150, () => fxPlay(sc, 'leblanc', 'aura', f.x, f.y, { scale: (f.r || 160) / 80 }));
+        return true;
+      },
+      deceptionFlash(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'leblanc', 'deceptionFlash', f.x, f.y - 22, { scale: (f.r || 140) / 70 });
+        shake(sc, f, 160, 0.007);
+        return true;
+      },
+      illusionSwap(sc, f, c) {
+        fxPlay(sc, 'leblanc', 'hit', f.x, f.y - 14, { scale: 0.9 });
+        return true;
+      },
+    },
     brilda: {
       cutCrystal(sc, f, c) {
         heroAnim(sc, c, undefined, undefined, true);

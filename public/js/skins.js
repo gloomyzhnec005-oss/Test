@@ -279,6 +279,13 @@ window.Skins = (() => {
       // bolt — кристалл; cutCrystal — кристаллы вокруг; crystalVolley — залп осколков; crystalBarrier — кристальная сфера; aura — кольцо
       fx: { sheet: 'assets/heroes/brilda_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'cutCrystal', 'crystalVolley', 'crystalBarrier', 'aura'] },
     },
+    leblanc: {
+      sheet: 'assets/heroes/leblanc_sheet.png', portrait: 'assets/heroes/leblanc_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо, вверх-вправо (зеркало бокового ряда), вверх и поза умения
+      attack: { sheet: 'assets/heroes/leblanc_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — розовый кристалл; decoy — двойники; mirage — маски морока; deceptionFlash — вспышка обмана; aura — кольцо
+      fx: { sheet: 'assets/heroes/leblanc_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'decoy', 'mirage', 'deceptionFlash', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет
