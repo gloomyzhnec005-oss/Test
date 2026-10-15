@@ -237,6 +237,13 @@ window.Skins = (() => {
       // bolt — ледяной осколок; iceArrow — ледяное копьё; iceWall — стена льда; frostBlast — морозный взрыв; aura — ледяное кольцо
       fx: { sheet: 'assets/heroes/itilior_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'iceArrow', 'iceWall', 'frostBlast', 'aura'] },
     },
+    flare: {
+      sheet: 'assets/heroes/flare_sheet.png', portrait: 'assets/heroes/flare_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо (огненный выброс), вверх-вправо (зеркало бокового ряда), вверх и поза умения (руки вверх)
+      attack: { sheet: 'assets/heroes/flare_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — огненный шар; flameShift — огненный вихрь смены формы; flameBurst — огненное копьё (лавина); incinerate — испепеление; aura — кольцо
+      fx: { sheet: 'assets/heroes/flare_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'flameShift', 'flameBurst', 'incinerate', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет

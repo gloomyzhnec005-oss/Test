@@ -477,6 +477,41 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    flare: {
+      // Смена формы: огненный вихрь вокруг; лавина — крупнее
+      flameShift(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        const k = f.form === 'avalanche' ? 1.3 : f.form === 'spark' ? 0.85 : 1;
+        fxPlay(sc, 'flare', 'flameShift', f.x, f.y - 22, { scale: 1.3 * k, follow: c, dy: -22 });
+        return true;
+      },
+      // Огненный всполох: искра — быстрый шар, костёр — взрыв у цели, лавина — огненный поток вперёд
+      flameBurst(sc, f, c) {
+        if (f.form === 'avalanche' || f.form === 'lava') {
+          heroAnim(sc, c, f.x + f.dx * 60, f.y + f.dy * 60);
+          const sp = fxPlay(sc, 'flare', 'flameBurst', f.x + f.dx * 20, f.y - 14, { rot: Math.atan2(f.dy, f.dx), origin: [0, 0.5], flipY: f.dx < 0, scale: 1 });
+          if (sp) sp.setScale((f.len || 220) / 70, 1.2);
+          shake(sc, f, 160, 0.007);
+          return true;
+        }
+        heroAnim(sc, c, f.x, f.y);
+        const dur = Math.min(420, Math.hypot(f.x - f.fx, f.y - f.fy) * (f.form === 'spark' ? 0.8 : 1.2));
+        const sp = fxPlay(sc, 'flare', 'bolt', f.fx, f.fy - 16, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), scale: f.form === 'spark' ? 0.8 : 1.1, to: { x: f.x, y: f.y - 10 }, dur, flipY: f.x < f.fx });
+        if (sp) sp.anims.msPerFrame = dur / 6;
+        sc.time.delayedCall(dur, () => {
+          fxPlay(sc, 'flare', 'hit', f.x, f.y - 10, { scale: f.r ? 1.4 : 0.9 });
+          if (f.r) { fxPlay(sc, 'flare', 'aura', f.x, f.y, { scale: f.r / 50 }); shake(sc, f, 140, 0.006); }
+        });
+        return true;
+      },
+      incinerate(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'flare', 'incinerate', f.x, f.y - 24, { scale: (f.r || 140) / 70 });
+        sc.time.delayedCall(150, () => fxPlay(sc, 'flare', 'aura', f.x, f.y, { scale: (f.r || 140) / 80 }));
+        shake(sc, f, 240, 0.011);
+        return true;
+      },
+    },
     itilior: {
       // Ледяная стрела: копьё льда летит к цели
       iceArrow(sc, f, c) {
