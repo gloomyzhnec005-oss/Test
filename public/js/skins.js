@@ -286,6 +286,13 @@ window.Skins = (() => {
       // bolt — розовый кристалл; decoy — двойники; mirage — маски морока; deceptionFlash — вспышка обмана; aura — кольцо
       fx: { sheet: 'assets/heroes/leblanc_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'decoy', 'mirage', 'deceptionFlash', 'aura'] },
     },
+    gardin: {
+      sheet: 'assets/heroes/gardin_sheet.png', portrait: 'assets/heroes/gardin_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо, вверх-вправо (= вверх, со спины), вверх и поза умения
+      attack: { sheet: 'assets/heroes/gardin_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — рунный снаряд; carveRune — руна на земле; activateRunes — взрыв рун; weaponRune — руна на молоте; aura — кольцо
+      fx: { sheet: 'assets/heroes/gardin_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'carveRune', 'activateRunes', 'weaponRune', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет

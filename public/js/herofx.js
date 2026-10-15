@@ -477,6 +477,29 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    gardin: {
+      carveRune(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'gardin', 'carveRune', f.x, f.y - 14, { scale: 1.1 });
+        return true;
+      },
+      activateRunes(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'gardin', 'aura', f.x, f.y, { scale: 1.3, follow: c });
+        return true;
+      },
+      // Взрыв каждой руны (приходит отдельным событием на её месте)
+      runeBurst(sc, f) {
+        fxPlay(sc, 'gardin', 'activateRunes', f.x, f.y - 18, { scale: (f.r || 90) / 50 });
+        shake(sc, f, 160, 0.007);
+        return true;
+      },
+      weaponRune(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'gardin', 'weaponRune', f.x, f.y - 22, { scale: 1.1, follow: c, dy: -22 });
+        return true;
+      },
+    },
     leblanc: {
       // Двойник появляется там, где встал его клон
       decoy(sc, f, c) {
@@ -1452,7 +1475,7 @@ window.HeroFx = (() => {
     const c = casterOf(sc, f);
     const own = c && (c.skinOn || c.beast) && SHEET_SKILL[c.skin] && SHEET_SKILL[c.skin][f.s];
     // Ряд эффекта обычно назван как умение; событие «духи благосклонны» играет ауру
-    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', starShot: 'bolt', elixir: 'aura', witcherSign: 'sign_' + (f.sign || 'igni'), arcaneMissile: 'bolt', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire'), dragonBreath: 'breath_' + (f.asp || 'fire') })[f.s] || f.s)) return own(sc, f, c);
+    if (own && hasFx(sc, c.skin, ({ favorReady: 'aura', spiritPact: 'aura', feralThirst: 'aura', faithPower: 'faith', starShot: 'bolt', elixir: 'aura', witcherSign: 'sign_' + (f.sign || 'igni'), arcaneMissile: 'bolt', elementSwap: 'aura_' + (f.el || 'fire'), elementBolt: 'bolt_' + (f.el || 'fire'), elementStorm: 'storm_' + (f.el || 'fire'), dragonBreath: 'breath_' + (f.asp || 'fire'), runeBurst: 'activateRunes', illusionSwap: 'hit' })[f.s] || f.s)) return own(sc, f, c);
     const fn = SKILL[f.s];
     return fn ? fn(sc, f) : false;
   }
