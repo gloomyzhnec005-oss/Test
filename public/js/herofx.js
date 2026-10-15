@@ -477,6 +477,30 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    wugazh: {
+      // Хлыст корней: лоза тянется от тролля к цели
+      rootLash(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const d = Math.hypot(f.x - f.fx, f.y - f.fy);
+        const sp = fxPlay(sc, 'wugazh', 'rootLash', f.fx, f.fy - 14, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), origin: [0, 0.5], flipY: f.x < f.fx });
+        if (sp) sp.setScale(Math.max(1, d / 66), 1.1);
+        sc.time.delayedCall(200, () => fxPlay(sc, 'wugazh', 'hit', f.x, f.y - 10, { scale: 1 }));
+        return true;
+      },
+      rootDown(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'wugazh', 'rootDown', f.x, f.y - 14, { scale: (f.r || 110) / 50 });
+        sc.time.delayedCall(200, () => fxPlay(sc, 'wugazh', 'aura', f.x, f.y, { scale: (f.r || 110) / 50, follow: c }));
+        shake(sc, f, 180, 0.008);
+        return true;
+      },
+      bloom(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'wugazh', 'bloom', f.x, f.y - 18, { scale: 1.6 });
+        sc.time.delayedCall(150, () => fxPlay(sc, 'wugazh', 'aura', f.x, f.y, { scale: (f.r || 180) / 70 }));
+        return true;
+      },
+    },
     medea: {
       // Взгляд горгоны: конус окаменения вперёд (остриё у героини)
       gorgonGaze(sc, f, c) {
