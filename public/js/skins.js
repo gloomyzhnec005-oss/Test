@@ -223,6 +223,13 @@ window.Skins = (() => {
       // bolt — водяной трезубец; deepWave — волна; createDeep — фонтан и водоворот; seaSpirits — морской дух; aura — кольцо
       fx: { sheet: 'assets/heroes/voldan_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'deepWave', 'createDeep', 'seaSpirits', 'aura'] },
     },
+    galatea: {
+      sheet: 'assets/heroes/galatea_sheet.png', portrait: 'assets/heroes/galatea_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо, вверх-вправо (зеркало бокового ряда), вверх (с трезубцем) и поза умения (руки раскрыты)
+      attack: { sheet: 'assets/heroes/galatea_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — звуковая жемчужина; sirenSong — ноты песни; soundWave — звуковые круги; drownedCall — утопленница; aura — кольцо из ракушек
+      fx: { sheet: 'assets/heroes/galatea_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'sirenSong', 'soundWave', 'drownedCall', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет

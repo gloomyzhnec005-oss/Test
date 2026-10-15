@@ -477,6 +477,30 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    galatea: {
+      // Песнь сирены: ноты над героиней и кольцо ракушек; очарованные монстры получают вспышку
+      sirenSong(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'galatea', 'sirenSong', f.x, f.y - 34, { scale: 1.3, follow: c, dy: -34 });
+        fxPlay(sc, 'galatea', 'aura', f.x, f.y, { scale: (f.r || 200) / 100 });
+        for (const id of f.ids || []) { const m = sc.monsters && sc.monsters.get(id); if (m) fxPlay(sc, 'galatea', 'hit', m.c.x, m.c.y - 14, { scale: 0.6 }); }
+        return true;
+      },
+      // Волна звука: круги расходятся вокруг
+      soundWave(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        fxPlay(sc, 'galatea', 'soundWave', f.x, f.y, { scale: (f.r || 140) / 58 });
+        shake(sc, f, 160, 0.007);
+        return true;
+      },
+      // Призыв утопленников: водяные фигуры поднимаются вокруг
+      drownedCall(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        const n = Math.max(1, Math.min(3, f.n || 1));
+        for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + 0.6; sc.time.delayedCall(i * 140, () => fxPlay(sc, 'galatea', 'drownedCall', f.x + Math.cos(a) * 40, f.y + Math.sin(a) * 24 - 24, { scale: 1.1 })); }
+        return true;
+      },
+    },
     voldan: {
       deepWave(sc, f, c) {
         heroAnim(sc, c, f.x + f.dx * 60, f.y + f.dy * 60);
