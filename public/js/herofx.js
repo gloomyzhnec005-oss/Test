@@ -477,6 +477,30 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    gideon: {
+      // Тёмная молитва: сгусток летит к цели, на месте — проклятый круг
+      darkPrayer(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        const dur = Math.min(420, Math.hypot(f.x - f.fx, f.y - f.fy) * 1.2);
+        const sp = fxPlay(sc, 'gideon', 'bolt', f.fx, f.fy - 16, { rot: Math.atan2(f.y - f.fy, f.x - f.fx), scale: 0.9, to: { x: f.x, y: f.y - 10 }, dur, flipY: f.x < f.fx });
+        if (sp) sp.anims.msPerFrame = dur / 6;
+        sc.time.delayedCall(dur, () => fxPlay(sc, 'gideon', 'darkPrayer', f.x, f.y - 16, { scale: 1.3 }));
+        return true;
+      },
+      sacrifice(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'gideon', 'sacrifice', f.x, f.y - 20, { scale: 1.3 });
+        shake(sc, f, 180, 0.008);
+        return true;
+      },
+      abyssWrath(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'gideon', 'abyssWrath', f.x, f.y - 24, { scale: (f.r || 110) / 50 });
+        sc.time.delayedCall(150, () => fxPlay(sc, 'gideon', 'aura', f.x, f.y, { scale: (f.r || 110) / 55 }));
+        shake(sc, f, 240, 0.011);
+        return true;
+      },
+    },
     gardin: {
       carveRune(sc, f, c) {
         heroAnim(sc, c, f.x, f.y);

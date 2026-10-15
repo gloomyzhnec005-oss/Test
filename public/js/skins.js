@@ -293,6 +293,13 @@ window.Skins = (() => {
       // bolt — рунный снаряд; carveRune — руна на земле; activateRunes — взрыв рун; weaponRune — руна на молоте; aura — кольцо
       fx: { sheet: 'assets/heroes/gardin_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'carveRune', 'activateRunes', 'weaponRune', 'aura'] },
     },
+    gideon: {
+      sheet: 'assets/heroes/gideon_sheet.png', portrait: 'assets/heroes/gideon_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо, вверх-вправо (= вверх, со спины), вверх и поза умения
+      attack: { sheet: 'assets/heroes/gideon_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — тёмный кристалл; darkPrayer — проклятый круг; sacrifice — жертва; abyssWrath — кара бездны; aura — кольцо
+      fx: { sheet: 'assets/heroes/gideon_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'darkPrayer', 'sacrifice', 'abyssWrath', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет
