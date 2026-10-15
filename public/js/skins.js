@@ -251,6 +251,13 @@ window.Skins = (() => {
       // slash — огненная дуга удара; lavaStrike — лавовый выплеск; eruption — извержение; ashArmor — каменная корка; aura — кольцо
       fx: { sheet: 'assets/heroes/caldero_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'lavaStrike', 'eruption', 'ashArmor', 'aura'] },
     },
+    torden: {
+      sheet: 'assets/heroes/torden_sheet.png', portrait: 'assets/heroes/torden_portrait.png', w: 36, h: 48, frames: 5,
+      // Атака: вниз, вниз-вправо, вправо (выпад посохом), вверх-вправо (= вниз-вправо), вверх и поза умения (руки вверх)
+      attack: { sheet: 'assets/heroes/torden_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // bolt — каменный кристалл; stoneSpike — шипы из земли; rift — разлом; earthGrip — корни и камни; aura — каменное кольцо
+      fx: { sheet: 'assets/heroes/torden_fx.png', size: 72, frames: 6, rows: ['bolt', 'hit', 'stoneSpike', 'rift', 'earthGrip', 'aura'] },
+    },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
       // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет

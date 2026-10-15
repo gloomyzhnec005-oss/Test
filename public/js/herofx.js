@@ -477,6 +477,27 @@ window.HeroFx = (() => {
         return true;
       },
     },
+    torden: {
+      stoneSpike(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        sc.time.delayedCall(140, () => { fxPlay(sc, 'torden', 'stoneSpike', f.x, f.y - 20, { scale: 1.3 }); shake(sc, f, 150, 0.007); });
+        return true;
+      },
+      // Разлом: трещина бежит вперёд по земле
+      rift(sc, f, c) {
+        heroAnim(sc, c, f.x + f.dx * 60, f.y + f.dy * 60);
+        const sp = fxPlay(sc, 'torden', 'rift', f.x + f.dx * 16, f.y, { rot: Math.atan2(f.dy, f.dx), origin: [0, 0.5], flipY: f.dx < 0 });
+        if (sp) sp.setScale((f.len || 220) / 70, 1.1);
+        shake(sc, f, 220, 0.01);
+        return true;
+      },
+      earthGrip(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'torden', 'earthGrip', f.x, f.y - 12, { scale: (f.r || 120) / 55 });
+        sc.time.delayedCall(200, () => fxPlay(sc, 'torden', 'aura', f.x, f.y, { scale: (f.r || 120) / 60 }));
+        return true;
+      },
+    },
     caldero: {
       lavaStrike(sc, f, c) {
         heroAnim(sc, c, f.x, f.y);
