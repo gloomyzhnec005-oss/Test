@@ -366,13 +366,21 @@
         more: () => menuSheet('☰ Ещё', [
           ['chat', 'Чат', 'Написать игрокам в этой зоне', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
+          ['🔊', 'Звук', window.Sfx && Sfx.isOn() ? 'Включён — нажмите, чтобы выключить' : 'Выключен — нажмите, чтобы включить', () => { const on = Sfx.toggle(); Town.toast(on ? '🔊 Звук включён' : '🔇 Звук выключен'); NAV.more(); }],
+          ['❓', 'Подсказки', 'Показать обучение заново', () => { Town.close(); Tutorial.start(true); }],
           ['🏠', 'В лобби', 'Сменить героя или фон', () => location.reload()],
         ]),
       };
-      $('navBar').onclick = (e) => { const b = e.target.closest('button[data-nav]'); if (b) { vibrate('light'); NAV[b.dataset.nav](); } };
+      // Значок готовых наград на кнопке «Квесты»
+      const questBadge = (n) => { const b = document.querySelector('[data-nav="quests"]'); b.dataset.badge = n > 0 ? n : ''; };
+      Town.setContext({ onQuests: questBadge });
+      socket.on('chat', (m) => { if (m.sys && /^📜 Задание выполнено/.test(m.text)) { const b = document.querySelector('[data-nav="quests"]'); questBadge((+b.dataset.badge || 0) + 1); if (window.Sfx) Sfx.play('quest'); } });
+      Bag.act('quests').then((r) => r.quests && questBadge(['daily', 'weekly', 'monthly'].reduce((s, k) => s + r.quests[k].list.filter((q) => q.prog >= q.goal && !q.claimed).length, 0)));
+      $('navBar').onclick = (e) => { const b = e.target.closest('button[data-nav]'); if (b) { vibrate('light'); if (window.Sfx) Sfx.play('click'); NAV[b.dataset.nav](); } };
       const ui = {
         onWorld: (s, myId) => drawMinimap(s, myId, w.tile, zone),
         onZone: (z) => {
+          if (window.Sfx) { if (zone && zone.id !== z.id) Sfx.play('portal'); Sfx.music(z.kind === 'town' ? z.theme : 'dungeon'); }
           zone = z;
           buildMinimap(z);
           Town.setContext({ zone: z });
@@ -416,6 +424,7 @@
         scene: [],
       });
       game.scene.add('Game', window.GameScene, true, { socket, welcome: w, ui, input });
+      setTimeout(() => window.Tutorial && Tutorial.start(), 1800); // обучение при первом входе
       let rt = 0;
       window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { game.scale.resize(Math.round(window.innerWidth * DPR), Math.round(window.innerHeight * DPR)); game.scale.setZoom(1 / DPR); }, 100); });
     });

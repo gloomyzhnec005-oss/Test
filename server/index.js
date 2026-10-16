@@ -15,6 +15,7 @@ const MOBX = require('./mobs');
 const createDungeons = require('./dungeon');
 C.MONSTERS = MOBX.MOBS; // 75 видов монстров + миньоны (server/mobs.js)
 const createMeta = require('./meta');
+const createQuests = require('./quests');
 const createAdmin = require('./admin');
 const Loot = require('./loot');
 
@@ -129,6 +130,7 @@ app.post('/api/gacha/spin', (req, res) => {
   else pr.heroes.push(hero);
   getChar(who.uid, hero);
   meta.addPassXp(pr, 10);
+  Q.track(who.uid, 'summon');
   saveProfiles();
   res.json({ hero, dupe, profile: profileView(who) });
 });
@@ -203,8 +205,14 @@ const pets = new Map(); // id -> зверь-спутник (Урсус)
 let monsterSeq = 1;
 let fx = []; // события за тик (удары, снаряды, смерти)
 
+// Задания «Квесты» (server/quests.js)
+const Q = createQuests({
+  getProfile: (uid) => getProfile(uid), notifyUid: (uid, t) => notifyUid(uid, t),
+  reward: (...a) => meta.reward(...a), addPassXp: (pr, n) => meta.addPassXp(pr, n), save: () => saveProfiles(),
+});
 // Мета-игра: предметы, рынок, аукцион, батл-пасс, подписка, арена (server/meta.js)
 const meta = createMeta({
+  quest: (...a) => Q.track(...a),
   C, getProfile, saveProfiles, players, profiles,
   refreshPlayer: (p) => refreshPlayer(p), notifyUid: (uid, t) => notifyUid(uid, t),
   statsFor: (...a) => statsFor(...a), unlockedSkills: (...a) => unlockedSkills(...a),
@@ -224,6 +232,7 @@ const D = createDungeons({
   partyMembers: (p) => partyMembers(p),
   getProfile: (uid) => getProfile(uid),
   addPassXp: (pr, n) => meta.addPassXp(pr, n),
+  quest: (...a) => Q.track(...a),
   giveLoot: (...a) => giveLoot(...a),
   giveMats: (...a) => giveMats(...a), rollMats: (...a) => Loot.rollMats(...a),
   rollItem: (...a) => I.rollItem(...a),
@@ -446,6 +455,11 @@ function damageMonster(p, m, raw, opt = {}) {
     if (ps && ps.onKill) ps.onKill(skillCtx, p, Date.now(), m);
     if (m.rank === 'boss') io.emit('chat', { sys: true, text: `${p.name} победил босса «${m.name || def.name}»!` });
     D.onKilled(m, p);
+    const zt = (world.byId.get(m.zone) || {}).tier;
+    Q.track(p.uid, 'kill', 1, { tier: zt });
+    if (['magic', 'rare', 'mini'].includes(m.rank)) Q.track(p.uid, 'elite');
+    if (m.rank === 'boss') Q.track(p.uid, 'boss');
+    if (m.rank === 'world') Q.track(p.uid, 'world');
   }
   return dmg;
 }
@@ -905,7 +919,7 @@ io.on('connection', (socket) => {
   socket.on('act', (d, cb) => {
     const p = players.get(socket.id);
     if (!p || typeof cb !== 'function') return;
-    try { cb(meta.handle(p, d || {})); markDirty(p); } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
+    try { cb(d && /^quest/.test(d.op) ? Q.handle(p, d) : meta.handle(p, d || {})); markDirty(p); } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
   });
 
   // Группа: приглашение игрока из своей зоны, до 4 человек

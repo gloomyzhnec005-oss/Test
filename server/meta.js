@@ -367,6 +367,7 @@ module.exports = function createMeta(deps) {
       if (pr.freeItemDay !== dayKey()) { pr.freeItemDay = dayKey(); pr.freeItemLeft = free; }
       pr.freeItemLeft -= useFree;
       pr.itemSpins = (pr.itemSpins || 0) - (n - useFree);
+      deps.quest(p.uid, 'summon', n);
       const results = [];
       for (let i = 0; i < n; i++) {
         pr.pity = (pr.pity || 0) + 1;
@@ -521,6 +522,7 @@ module.exports = function createMeta(deps) {
         foeArena = op.arena;
       }
       a.fightsDay = dayKey(); a.fights = (a.fights || 0) + 1;
+      deps.quest(p.uid, 'arena');
       const res = simulate({ ...me }, { ...foe, name: foe.name + ' ' });
       const exp = 1 / (1 + 10 ** ((foeArena.rating - a.rating) / 400));
       const delta = Math.round(32 * ((res.win ? 1 : 0) - exp));
@@ -631,6 +633,6 @@ module.exports = function createMeta(deps) {
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
   };
 
-  return { handle, addPassXp, passOf, isSub, bagSize, onPaid, INVOICES, SHOP, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
+  return { handle, addPassXp, passOf, isSub, bagSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
 };
 module.exports.simulate = simulate;

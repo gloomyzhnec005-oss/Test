@@ -22,6 +22,7 @@ window.Town = (() => {
     sb.innerHTML = '';
     sb.append(body);
     $('sheet').classList.remove('hidden');
+    if (window.Sfx) Sfx.play('open');
   }
   function close() { $('sheet').classList.add('hidden'); $('itemCard').classList.add('hidden'); }
   const el = (html) => { const d = document.createElement('div'); d.innerHTML = html; return d; };
@@ -391,32 +392,37 @@ window.Town = (() => {
     open('💀 Данж выживания', box);
   }
 
-  // ---------- События ----------
-  const EVENTS = {
-    1: { daily: [['🗡️', 'Охотник долины', 'Победите 30 монстров за порталами', 30], ['🌀', 'Путешественник', 'Посетите 3 разных портала', 3], ['🎰', 'Удача дня', 'Сделайте 1 призыв', 1]],
-      weekly: [['🐉', 'Гроза дракона', 'Победите дракона в Логове дракона', 1], ['💀', 'Чистильщик кладбища', 'Победите 200 скелетов', 200]],
-      monthly: [['🏆', 'Герой Эльдмира', 'Наберите 5000 очков событий за месяц', 5000], ['⭐', 'Коллекционер', 'Соберите 10 героев', 10]] },
-    2: { daily: [['🔥', 'Пепельная жатва', 'Победите 50 монстров Бездны', 50], ['🕯️', 'Тёмный обет', 'Пройдите 2 портала Морграта', 2]],
-      weekly: [['👁️', 'Взгляд в Бездну', 'Победите пепельного змея 3 раза', 3], ['⚔️', 'Крестовый поход', 'Победите 500 монстров Морграта', 500]],
-      monthly: [['🌑', 'Владыка тьмы', 'Наберите 15000 очков событий', 15000]] },
-    3: { daily: [['☁️', 'Небесный дозор', 'Победите 80 небесных монстров', 80], ['💎', 'Звёздная пыль', 'Соберите 20 осколков звёзд', 20]],
-      weekly: [['⚡', 'Повелитель бурь', 'Пройдите Бастион бурь 5 раз', 5], ['🐲', 'Трон небес', 'Победите небесного дракона', 1]],
-      monthly: [['👑', 'Вознесение', 'Наберите 40000 очков событий', 40000]] },
-  };
-  function untilReset(kind) {
-    const now = new Date();
-    const next = new Date(now);
-    next.setHours(24, 0, 0, 0);
-    if (kind === 'weekly') next.setDate(next.getDate() + ((8 - next.getDay()) % 7));
-    if (kind === 'monthly') { next.setDate(1); next.setMonth(now.getMonth() + 1); }
-    return fmtLeft(next - now);
-  }
-  function eventsPanel() {
-    const ev = EVENTS[ctx.zone.tier] || EVENTS[1];
-    const list = (kind) => `<p class="sheet-hint">Сброс через ${untilReset(kind)} · события мира ${ctx.zone.name}</p>`
-      + ev[kind].map(([icon, name, desc, goal]) => `<div class="tw-ev"><span class="tw-ev-i">${icon}</span><div><b>${name}</b><small>${desc}</small>
-        <div class="tw-prog"><i style="width:0%"></i><em>0 / ${goal}</em></div></div><button class="l2-btn" disabled>🎁</button></div>`).join('');
-    open('📜 События', tabs([['Ежедневные', list('daily')], ['Еженедельные', list('weekly')], ['Ежемесячные', list('monthly')]]));
+  // ---------- Квесты (server/quests.js) ----------
+  let questTab = 0;
+  async function eventsPanel(r) {
+    if (!r) r = await Bag.act('quests');
+    if (!r.quests) return toast(r.error || 'Нет связи');
+    const Q = r.quests;
+    const page = (per) => () => {
+      const box = document.createElement('div');
+      const d = Q[per];
+      box.innerHTML = `<p class="sheet-hint">Обновятся через ${fmtLeft(d.endsIn)} · ${per === 'monthly' ? 'награды месяца' : 'выполняйте задания — забирайте награды'}</p>`;
+      for (const q of d.list) {
+        const done = q.prog >= q.goal;
+        const row = el(`<div class="tw-ev quest ${q.claimed ? 'claimed' : done ? 'ready' : ''}"><span class="tw-ev-i">${q.icon}</span><div><b>${q.name}</b><small>${q.desc}</small>
+          <div class="tw-prog"><i style="width:${Math.round((100 * q.prog) / q.goal)}%"></i><em>${q.prog} / ${q.goal}</em></div>
+          <small class="q-rew">${q.reward}${q.points ? ` · ★ ${q.points} очков` : ''}</small></div>
+          <button class="l2-btn" ${done && !q.claimed ? '' : 'disabled'}>${q.claimed ? '✔' : '🎁'}</button></div>`).firstElementChild;
+        row.querySelector('button').onclick = async () => {
+          const res = await Bag.act('questClaim', { id: q.id });
+          toast(res.error || res.toast);
+          if (window.Sfx) Sfx.play(res.error ? 'error' : 'reward');
+          questTab = lastTabIdx; eventsPanel(res);
+        };
+        box.append(row);
+      }
+      return box;
+    };
+    const cnt = (per) => Q[per].list.filter((q) => q.prog >= q.goal && !q.claimed).length;
+    if (ctx.onQuests) ctx.onQuests(cnt('daily') + cnt('weekly') + cnt('monthly'));
+    const lbl = (n, per) => n + (cnt(per) ? ` (${cnt(per)})` : '');
+    open('📜 Квесты', tabs([[lbl('Ежедневные', 'daily'), page('daily')], [lbl('Еженедельные', 'weekly'), page('weekly')], [lbl('Ежемесячные', 'monthly'), page('monthly')]], questTab));
+    questTab = 0;
   }
 
   // ---------- Телепорт ----------

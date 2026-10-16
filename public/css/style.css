@@ -821,3 +821,21 @@ canvas.skin { object-fit: contain; }
 .attack.art { padding: 0; background: none; box-shadow: none; filter: drop-shadow(0 4px 8px rgba(0,0,0,.7)); }
 .attack.art img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; -webkit-user-drag: none; }
 .attack.art.pressed, .attack.art:active { filter: drop-shadow(0 0 12px rgba(255,210,120,.8)) brightness(1.15); }
+/* Квесты */
+.nav-bar button[data-badge]:not([data-badge=""])::after { content: attr(data-badge); position: absolute; top: 2px; right: calc(50% - 22px); min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px;
+  font: bold 10px/16px Georgia, serif; color: #fff; background: #d8342a; box-shadow: 0 0 6px #ff5a3a; }
+.tw-ev.quest.ready { border-color: #d4a63c; box-shadow: 0 0 10px rgba(212,166,60,.35); }
+.tw-ev.quest.ready .l2-btn { animation: actPulse 1.4s ease-in-out infinite; }
+.tw-ev.quest.claimed { opacity: .55; }
+.tw-ev .q-rew { margin-top: 3px; color: #ffd36a !important; }
+/* Обучение */
+.tut { position: fixed; inset: 0; z-index: 60; font-family: Georgia, serif; }
+.tut-hl { position: absolute; border-radius: 12px; border: 2px solid #ffd36a; box-shadow: 0 0 0 9999px rgba(0,0,0,.62), 0 0 16px rgba(255,210,100,.8);
+  transition: all .25s ease; pointer-events: none; animation: tutPulse 1.4s ease-in-out infinite; }
+@keyframes tutPulse { 50% { border-color: #fff3d0; } }
+.tut-tip { position: absolute; left: 16px; right: 16px; max-width: 420px; margin: 0 auto; padding: 12px 14px; border-radius: 10px; }
+.tut-tip b { display: block; color: #ffe0a0; font-size: 16px; font-weight: normal; margin-bottom: 4px; }
+.tut-tip p { margin: 0 0 10px; color: #e9dcc0; font-size: 13px; line-height: 1.35; }
+.tut-btns { display: flex; gap: 8px; align-items: center; }
+.tut-btns .tut-n { flex: 1; color: #a8987a; font-size: 11px; }
+.tut-btns .l2-btn { padding: 6px 12px; font-size: 13px; }

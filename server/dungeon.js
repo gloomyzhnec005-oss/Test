@@ -523,6 +523,7 @@ module.exports = function createDungeons(d) {
       const gold = 60 * run.dg.lv[1];
       pr.gold += gold;
       d.addPassXp(pr, 25);
+      d.quest(p.uid, 'dungeon');
       pr.dungeonClears = pr.dungeonClears || {};
       const key = `${z.town}:${z.dgIndex}`;
       const first = !pr.dungeonClears[key];
@@ -575,6 +576,7 @@ module.exports = function createDungeons(d) {
       pr.gold += gold;
       d.addPassXp(pr, 5);
       pr.survivalBest = Math.max(pr.survivalBest || 0, s.wave);
+      d.quest(o.uid, 'survival', s.wave);
       o.socket.emit('chat', { sys: true, text: `Волна ${s.wave} пройдена! +${gold} 💰 · рекорд: ${pr.survivalBest}` });
       if (s.wave % 5 === 0 || Math.random() < 0.25) d.giveLoot(o, pr, d.rollItem(z.tier, s.wave % 5 === 0 ? C.DROPS.boss[z.tier] : C.DROPS.weights[z.tier]), o);
       d.markDirty(o);

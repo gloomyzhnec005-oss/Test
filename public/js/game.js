@@ -21,6 +21,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   preload() {
+    // Нарисованные значки городских мест для подписей зданий (public/assets/ui/place_*.webp)
+    for (const k of ['warehouse', 'equip', 'alchemy', 'smith', 'runes', 'trainer', 'auction', 'market', 'events', 'gacha', 'teleport', 'arena', 'survival']) this.load.image('place_' + k, `assets/ui/place_${k}.webp`);
     for (const [id, m] of Object.entries(Skins.MOBS)) this.load.spritesheet('mskin_' + id, m.sheet, { frameWidth: m.w, frameHeight: m.h });
     // Нарисованные эффекты монстров (tools/gen_mobs.py): снаряды, вспышка попадания, рунный круг
     this.MOB_PROJ = ['arrow', 'bolt', 'axe', 'feather', 'leaf', 'nature', 'fireball', 'frost', 'spark', 'holy', 'arcane', 'dark', 'necro', 'spirit', 'venom', 'illusion'];
@@ -205,6 +207,15 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor({ green: '#2f6a28', abyss: '#07040c', sky: '#bfe0ff' }[z.theme]);
     const keep = (o) => { this.zoneObjs.push(o); return o; };
     const labelStyle = { fontSize: '11px', fontFamily: 'Arial', color: '#fff6d8', stroke: '#000', strokeThickness: 3, resolution: 2 };
+    // Подпись здания: нарисованный значок места + название
+    const placeLabel = (o, x, y) => {
+      const t = keep(this.add.text(x, y, o.name, labelStyle).setOrigin(0.5, 1).setDepth(3000));
+      if (!this.textures.exists('place_' + o.place)) { t.setText(`${o.icon} ${o.name}`); return; }
+      const ic = keep(this.add.image(0, y + 2, 'place_' + o.place).setOrigin(0.5, 1).setDepth(3000));
+      ic.setScale(20 / ic.height);
+      const w = ic.displayWidth + 2 + t.width;
+      ic.x = x - w / 2 + ic.displayWidth / 2; t.x = x - w / 2 + ic.displayWidth + 2 + t.width / 2;
+    };
     const PORTAL_COL = [0x5fd17a, 0x8ad3ff, 0xc890ff, 0xff8a5a, 0xffd84a, 0xff4a4a];
     for (const o of z.objs) {
       if (o.kind === 'place' && o.place !== 'teleport') {
@@ -212,7 +223,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         if (!this.textures.exists(key)) this.textures.addCanvas(key, Gfx.building(o.place, z.theme));
         const img = keep(this.add.image(o.bx + o.bw / 2, o.by + o.bh + (art ? 6 : 0), key).setOrigin(0.5, 1).setDepth(10 + o.by + o.bh - 8));
         img.setInteractive().on('pointerdown', () => this.goTo(o));
-        keep(this.add.text(o.bx + o.bw / 2, img.y - img.displayHeight + (art ? 6 : 0), `${o.icon} ${o.name}`, labelStyle).setOrigin(0.5, 1).setDepth(3000));
+        placeLabel(o, o.bx + o.bw / 2, img.y - img.displayHeight + (art ? 6 : 0));
       } else if (o.place === 'teleport') {
         const col = { green: 0x5fd1c8, abyss: 0xb04aff, sky: 0xffd84a }[z.theme];
         if (art) {
@@ -230,7 +241,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: glow, alpha: 0.7, duration: 600, yoyo: true, repeat: -1 });
         const beam = keep(this.add.rectangle(o.x, o.y - 30, 30, 60, col, 0.15).setDepth(5));
         this.tweens.add({ targets: beam, alpha: 0.05, duration: 1200, yoyo: true, repeat: -1 });
-        keep(this.add.text(o.x, o.y - 30, `${o.icon} ${o.name}`, labelStyle).setOrigin(0.5, 1).setDepth(3000));
+        placeLabel(o, o.x, o.y - 30);
       } else if (o.kind === 'portal') {
         const col = o.world ? 0xff3a3a : o.id === 'exit' ? 0x7dff8a : !o.num ? 0xffd36a : PORTAL_COL[(o.num - 1) % 6];
         keep(this.add.ellipse(o.x, o.y + 22, 50, 14, 0x000000, 0.3).setDepth(1));
@@ -748,7 +759,22 @@ window.GameScene = class GameScene extends Phaser.Scene {
     b.play('mfx_burst'); b.once('animationcomplete', () => b.destroy());
   }
 
+  // Звуки событий, которые касаются своего героя (public/js/sfx.js)
+  playSound(f) {
+    if (!window.Sfx) return;
+    const me = this.myId;
+    if (f.t === 'hit' && f.kind === 'm' && f.from === me) Sfx.play(f.crit ? 'crit' : f.proj ? 'shoot' : 'hit', { pitch: 0.9 + Math.random() * 0.2 });
+    else if (f.t === 'hit' && f.kind === 'p' && f.target === me) Sfx.play('hurt');
+    else if (f.t === 'death' && f.by === me) { Sfx.play('kill'); Sfx.play('coin'); }
+    else if (f.t === 'levelup' && f.id === me) Sfx.play('levelup');
+    else if (f.t === 'loot' && f.to === me) Sfx.play('loot');
+    else if (f.t === 'skill' && f.from === me && !f.quiet) Sfx.play(/burst|quake|eruption|storm|flashover|incinerate|wrath|blast|explo/i.test(f.s) ? 'boom' : 'skill', { pitch: 0.8 + ((f.s.length * 7) % 10) / 20 });
+    else if (f.t === 'heal' && f.target === me) Sfx.play('heal');
+    else if (f.t === 'pdeath' && f.target === me) Sfx.play('death');
+  }
+
   playFx(f) {
+    this.playSound(f);
     if (f.t === 'hit' && f.kind === 'm') {
       const e = this.monsters.get(f.target);
       const doHit = () => {
