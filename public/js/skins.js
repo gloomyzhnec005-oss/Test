@@ -308,6 +308,8 @@ window.Skins = (() => {
       fx: { sheet: 'assets/heroes/morvenKnight_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'gloomStrike', 'darkBurst', 'darkSeal', 'aura'] },
     },
   };
+  // Нарисованные спутники и призванные (public/assets/pets, нарезка tools/cut_creatures.py): 4 кадра ходьбы + 3 удара, смотрят вправо
+  const PETS = { wolf: [49, 38], bear: [61, 47], hawk: [49, 38], skeleton: [65, 50], clone: [72, 56], turret: [55, 43] };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
   const MOBS = {};
   // Все монстры нарисованы генератором tools/gen_mobs.py (размеры — public/js/mobart.js): 4 кадра ходьбы, 3 кадра удара
@@ -343,5 +345,5 @@ window.Skins = (() => {
   // Ряд листа атаки по направлению ходьбы: влево — зеркало правых рядов
   const ATTACK_ROW = [[0, false], [1, false], [2, false], [3, false], [4, false], [3, true], [2, true], [1, true]];
   const attackRow = (walkRow) => ATTACK_ROW[walkRow] || ATTACK_ROW[0];
-  return { LIST, MOBS, DIRS, rowFor, attackRow, canvas, get: (id) => LIST[id] };
+  return { LIST, MOBS, PETS, DIRS, rowFor, attackRow, canvas, get: (id) => LIST[id] };
 })();
