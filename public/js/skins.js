@@ -302,8 +302,10 @@ window.Skins = (() => {
     },
     morvenKnight: {
       sheet: 'assets/heroes/morvenKnight_sheet.png', portrait: 'assets/heroes/morvenKnight_portrait.png', w: 36, h: 48, frames: 5,
-      // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх (= вверх-вправо) и поза умения; эффектов пока нет
+      // Атака: 6 рядов — вниз, вниз-вправо, вправо, вверх-вправо, вверх и поза умения (меч вверх)
       attack: { sheet: 'assets/heroes/morvenKnight_attack.png', w: 72, h: 60, frames: 5, rows: 6, cast: 5 },
+      // slash — тёмный серп; gloomStrike — клинок тьмы в землю; darkBurst — взрыв мрака; darkSeal — печать; aura — тёмное кольцо
+      fx: { sheet: 'assets/heroes/morvenKnight_fx.png', size: 72, frames: 6, rows: ['slash', 'hit', 'gloomStrike', 'darkBurst', 'darkSeal', 'aura'] },
     },
   };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар

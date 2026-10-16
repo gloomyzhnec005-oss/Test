@@ -165,17 +165,6 @@ window.HeroFx = (() => {
       }
       return true;
     },
-    // Морвен: тяжёлый взмах тёмного меча — чёрно-багровый серп и тлеющие искры тьмы
-    morvenKnight(sc, a, x, y, f) {
-      a.combo = ((a.combo || 0) + 1) % 2;
-      const ang = Math.atan2(y - a.c.y, x - a.c.x), dist = Math.hypot(x - a.c.x, y - a.c.y);
-      if (!heroAnim(sc, a, x, y)) lunge(sc, a, x - a.c.x, y - a.c.y, 11, 90); // нарисованные кадры взмаха, иначе рывок
-      slash(sc, a.c.x, a.c.y - 10, ang, { r: Math.max(32, Math.min(50, dist * 0.9)), w: 9, sweep: 2.9, col: 0x2a0a1a, edge: 0xff3a4a, glow: 0x9b1a3a, flip: a.combo === 1, dur: 260 });
-      sparks(sc, x, y - 6, [0xff3a4a, 0x9b4dff, 0x3a0a2a], 10, { max: 180, life: 420, gravity: -120 });
-      flash(sc, x, y - 6, 16, 0xff3a4a, 200, 0.5);
-      if (f.crit) { shock(sc, x, y + 4, 34, 0xff3a4a, { w: 4 }); shake(sc, f, 90, 0.005); }
-      return true;
-    },
   };
   // Удар по нарисованным листам для героев без собственной функции: кадры атаки + серп + вспышка
   function sheetAttack(sc, a, x, y, f) {
@@ -474,6 +463,27 @@ window.HeroFx = (() => {
           fxPlay(sc, 'sanguine', 'bloodBond', (f.x + x) / 2, (f.y + y) / 2 - 12, { rot: ang, scale: Math.max(0.8, d / 60) });
           fxPlay(sc, 'sanguine', 'hit', x, y - 10, { scale: 0.8 });
         }
+        return true;
+      },
+    },
+    morvenKnight: {
+      gloomStrike(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        sc.time.delayedCall(120, () => { fxPlay(sc, 'morvenKnight', 'gloomStrike', f.x, f.y - 22, { scale: 1.3 }); fxPlay(sc, 'morvenKnight', 'hit', f.x, f.y - 10, { scale: 1 }); shake(sc, f, 150, 0.007); });
+        return true;
+      },
+      // Тёмная вспышка: сила — по накопленному мраку
+      darkBurst(sc, f, c) {
+        heroAnim(sc, c, undefined, undefined, true);
+        const R = f.r || 130, k = 1 + Math.min(1, ((f.power || 1) - 1) / 4) * 0.4;
+        fxPlay(sc, 'morvenKnight', 'darkBurst', f.x, f.y - 16, { scale: (R / 60) * k });
+        sc.time.delayedCall(150, () => fxPlay(sc, 'morvenKnight', 'aura', f.x, f.y, { scale: R / 60 }));
+        shake(sc, f, 240, 0.011);
+        return true;
+      },
+      darkSeal(sc, f, c) {
+        heroAnim(sc, c, f.x, f.y);
+        fxPlay(sc, 'morvenKnight', 'darkSeal', f.x, f.y - 10, { scale: 1.2 });
         return true;
       },
     },
