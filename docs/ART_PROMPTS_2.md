@@ -123,10 +123,10 @@ One image with exactly 2 icons side by side, equal cells, generous empty space b
 
 ```
 Fantasy MMORPG game logo, ornate gold and dark iron lettering with glowing magic runes, a sword and crystal behind the text, Diablo / Lineage 2 style, high detail.
-Text: "ЛЕГЕНДЫ ТРЁХ МИРОВ" (Russian, exactly this spelling), two lines.
+Text: "TELEGRAM QUEST" (exactly this spelling), two lines.
 Centered, isolated on a flat solid magenta #FF00FF background, no other text, no watermark. Wide format 2:1.
 ```
-*(если название игры другое — замените текст в кавычках)*
+*(сейчас игра называется «Telegram Quest» — если хотите другое название, замените текст в кавычках)*
 
 ### И-6: заставка загрузки (без вырезания, картинка целиком)
 
