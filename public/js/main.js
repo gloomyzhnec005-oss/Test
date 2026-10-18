@@ -440,7 +440,7 @@
         backgroundColor: '#11151c',
         pixelArt: true,
         scale: { mode: Phaser.Scale.NONE, width: Math.round(window.innerWidth * DPR), height: Math.round(window.innerHeight * DPR), zoom: 1 / DPR },
-        input: { activePointers: 3 },
+        input: { activePointers: 3, windowEvents: false }, // касания поверх окон и кнопок не доходят до мира
         scene: [],
       });
       game.scene.add('Game', window.GameScene, true, { socket, welcome: w, ui, input });

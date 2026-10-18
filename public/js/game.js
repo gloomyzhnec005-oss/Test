@@ -113,6 +113,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
     // Тап по монстру — выбрать цель
     this.input.on('gameobjectdown', (pointer, obj) => {
+      if (this.uiBlocked(pointer)) return;
       if (obj.getData('monsterId')) {
         this.targetId = obj.getData('monsterId');
         this.tryAttack(true);
@@ -240,7 +241,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const key = `bld_${z.theme}_${o.place}`;
         if (!this.textures.exists(key)) this.textures.addCanvas(key, Gfx.building(o.place, z.theme));
         const img = keep(this.add.image(o.bx + o.bw / 2, o.by + o.bh + (art ? 6 : 0), key).setOrigin(0.5, 1).setDepth(10 + o.by + o.bh - 8));
-        img.setInteractive().on('pointerdown', () => this.goTo(o));
+        img.setInteractive().on('pointerdown', (ptr) => { if (!this.uiBlocked(ptr)) this.goTo(o); });
         placeLabel(o, o.bx + o.bw / 2, img.y - img.displayHeight + (art ? 6 : 0));
       } else if (o.place === 'teleport') {
         const col = { green: 0x5fd1c8, abyss: 0xb04aff, sky: 0xffd84a }[z.theme];
@@ -254,7 +255,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         }
         const ring = keep(this.add.ellipse(o.x, o.y, 64, 30).setStrokeStyle(3, col, 0.9).setDepth(2));
         const glow = keep(this.add.ellipse(o.x, o.y, 50, 22, col, 0.35).setDepth(2));
-        glow.setInteractive().on('pointerdown', () => this.goTo(o));
+        glow.setInteractive().on('pointerdown', (ptr) => { if (!this.uiBlocked(ptr)) this.goTo(o); });
         this.tweens.add({ targets: ring, scaleX: 1.15, scaleY: 1.15, alpha: 0.4, duration: 900, yoyo: true, repeat: -1 });
         this.tweens.add({ targets: glow, alpha: 0.7, duration: 600, yoyo: true, repeat: -1 });
         const beam = keep(this.add.rectangle(o.x, o.y - 30, 30, 60, col, 0.15).setDepth(5));
@@ -279,7 +280,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
           keep(this.add.rectangle(o.x, o.y - 26, 58, 8, 0x5a5550).setDepth(10 + o.y + 20));
         }
         const swirl = keep(this.add.ellipse(o.x, o.y + 2, 38, 46, col, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setDepth(10 + o.y));
-        swirl.setInteractive().on('pointerdown', () => this.goTo(o));
+        swirl.setInteractive().on('pointerdown', (ptr) => { if (!this.uiBlocked(ptr)) this.goTo(o); });
         const core = keep(this.add.ellipse(o.x, o.y + 2, 18, 26, 0xffffff, 0.5).setDepth(10 + o.y + 1));
         this.tweens.add({ targets: swirl, scaleX: 0.8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         this.tweens.add({ targets: core, alpha: 0.15, scale: 1.4, duration: 900, yoyo: true, repeat: -1 });
@@ -793,6 +794,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
     else if (f.t === 'skill' && f.from === me && !f.quiet) Sfx.play(/burst|quake|eruption|storm|flashover|incinerate|wrath|blast|explo/i.test(f.s) ? 'boom' : 'skill', { pitch: 0.8 + ((f.s.length * 7) % 10) / 20 });
     else if (f.t === 'heal' && f.target === me) Sfx.play('heal');
     else if (f.t === 'pdeath' && f.target === me) Sfx.play('death');
+  }
+
+  // Нажатие пришло не на холст игры (поверх открыто окно, панель, кнопка) — по миру не кликаем
+  uiBlocked(pointer) {
+    const t = pointer && pointer.event && pointer.event.target;
+    if (t && t !== this.game.canvas) return true;
+    const open = (id) => { const e = document.getElementById(id); return e && !e.classList.contains('hidden'); };
+    return open('sheet') || open('itemCard');
   }
 
   // Добыча подпрыгивает из точки, лежит и улетает к своему герою (или тает)
