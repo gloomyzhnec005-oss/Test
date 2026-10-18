@@ -110,8 +110,12 @@ window.Lobby = (() => {
       el.innerHTML = `<div class="hero-name"><b>${h.name}</b><span>Ур. ${lvl}</span></div><div class="hero-shadow"></div>`;
       el.onclick = () => select(id);
     } else {
-      el.innerHTML = `<div class="hero-name"><b>${slot === 2 ? 'Получите героя' : '?'}</b></div><div class="hero-shadow"></div><div class="mystery-mark">?</div>`;
+      // Пустое место: в центре — светящийся круг призыва, по бокам — ничего (без тёмных силуэтов)
+      if (slot !== 2) { el.classList.add('empty'); return el; }
+      el.innerHTML = '<div class="summon-glow"><i></i><i></i><i></i></div>';
       el.onclick = () => openGacha();
+      el.classList.add('selected');
+      return el;
     }
     el.appendChild(heroCanvas(id, true));
     // Звери-спутники стоят у ног хозяина (на нарисованном портрете они уже есть)

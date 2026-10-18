@@ -282,13 +282,16 @@ input, select, textarea { font-size: 16px !important; }
 .start-btn.summon { font-size: 13px; letter-spacing: .5px; width: min(34vw, 190px); white-space: nowrap; animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { box-shadow: inset 0 1px 0 rgba(255,230,170,.35), 0 0 26px rgba(255,190,70,.75), 0 3px 8px rgba(0,0,0,.7); } }
 .hero.mystery { filter: none; }
-.hero.mystery canvas { filter: brightness(0) drop-shadow(0 0 6px rgba(212,166,60,.7)); opacity: .75; }
-.hero.mystery .hero-name b { color: #d4b06a; }
-.mystery-mark {
-  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 1;
-  font-size: calc(var(--size) * .35); color: #ffd36a; text-shadow: 0 0 12px rgba(255,190,60,.9); font-weight: bold;
-  animation: idle 2s ease-in-out infinite;
-}
+.hero.mystery.empty { display: none; }
+/* Круг призыва на пустой сцене: мягкое золотое сияние и поднимающиеся искры */
+.summon-glow { position: absolute; left: 50%; bottom: 4%; width: 120%; height: 70%; transform: translateX(-50%); pointer-events: none;
+  background: radial-gradient(ellipse 50% 60% at 50% 100%, rgba(255,210,120,.55), rgba(255,170,60,.18) 55%, transparent 75%); animation: glowPulse 2.4s ease-in-out infinite; }
+.summon-glow i { position: absolute; bottom: 8%; width: 6px; height: 6px; border-radius: 50%; background: #ffe7a8; box-shadow: 0 0 8px 2px rgba(255,200,90,.9); animation: spark 2.6s linear infinite; opacity: 0; }
+.summon-glow i:nth-child(1) { left: 34%; }
+.summon-glow i:nth-child(2) { left: 52%; animation-delay: .9s; }
+.summon-glow i:nth-child(3) { left: 66%; animation-delay: 1.7s; }
+@keyframes glowPulse { 50% { opacity: .65; } }
+@keyframes spark { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-110px); opacity: 0; } }
 .hero.mystery[data-slot="2"] { pointer-events: auto; }
 .hero[data-id] .hero-name b { color: var(--rarity, #f3f0e6); }
 
