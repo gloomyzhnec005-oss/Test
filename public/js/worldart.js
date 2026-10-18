@@ -20,10 +20,12 @@ window.WorldArt = (() => {
   const THEMES = { green: true, abyss: true, sky: true };
   // Свои бесшовные текстуры земли (assets/world/<тема>/ground/<имя>.png, любой размер) заменяют тайл 32×32 —
   // повтор квадратов исчезает. Номер тайла → имя файла; в GROUND — какие файлы у мира уже есть
-  const GROUND_NAMES = { 2: 'tree', 0: 'grass', 15: 'grass', 10: 'grass2', 11: 'moss', 1: 'water', 3: 'path', 4: 'flowers', 5: 'dirt', 6: 'rock', 7: 'wall', 8: 'plaza', 12: 'ruins', 13: 'floor', 14: 'dwall' };
-  const GROUND = { green: ['grass', 'path', 'plaza', 'water', 'floor', 'dwall'], abyss: ['grass', 'path', 'plaza', 'water', 'floor', 'dwall'], sky: ['grass', 'path', 'plaza', 'water', 'floor', 'dwall', 'flowers'] };
+  const GROUND_NAMES = { 2: 'tree', 0: 'grass', 15: 'grass', 10: 'grass2', 11: 'moss', 17: 'floor2', 1: 'water', 3: 'path', 4: 'flowers', 5: 'dirt', 6: 'rock', 7: 'wall', 8: 'plaza', 12: 'ruins', 13: 'floor', 14: 'dwall' };
+  const GROUND = { green: ['grass', 'path', 'plaza', 'water', 'floor', 'floor2', 'dwall'], abyss: ['grass', 'path', 'plaza', 'water', 'floor', 'floor2', 'dwall'], sky: ['grass', 'path', 'plaza', 'water', 'floor', 'floor2', 'dwall', 'flowers'] };
+  // Пятна на полу данжей (assets/world/<тема>/dungeon/): решётки, кровь, руны, кости — с мягкими краями
+  const DUN_DECALS = ['bones', 'grate', 'blood', 'rune'];
   // Нет своего файла — берём близкий: варианты травы, цветы и клетки под деревьями — трава, земля — дорога, скалы — стена данжа
-  const GROUND_ALIAS = { grass2: 'grass', moss: 'grass', flowers: 'grass', tree: 'grass', dirt: 'path', rock: 'dwall', ruins: 'dwall', wall: 'dwall' };
+  const GROUND_ALIAS = { floor2: 'floor', grass2: 'grass', moss: 'grass', flowers: 'grass', tree: 'grass', dirt: 'path', rock: 'dwall', ruins: 'dwall', wall: 'dwall' };
   const base = (th) => `assets/world/${th}`;
   // Загрузка в Phaser (вызывается из preload сцены)
   function preload(scene) {
@@ -34,6 +36,7 @@ window.WorldArt = (() => {
       for (const o of PORTALS) scene.load.image(`ptl_${th}_${o}`, `${base(th)}/portals/${o}.png`);
       for (const o of DECO[th] || []) scene.load.image(`deco_${th}_${o}`, `${base(th)}/deco/${o}.png`);
       for (const g of GROUND[th] || []) scene.load.image(`gnd_${th}_${g}`, `${base(th)}/ground/${g}.png`);
+      for (const d of DUN_DECALS) scene.load.image(`dun_${th}_${d}`, `${base(th)}/dungeon/${d}.png`);
     }
   }
   const has = (th) => !!THEMES[th];
@@ -41,12 +44,14 @@ window.WorldArt = (() => {
   // Тайл для отрисовки: разнообразие травы в городе, свои пол и стены в данжах (столкновения не меняются)
   function remap(t, x, y, dungeon) {
     const h = hash(x, y);
-    if (dungeon) return t === 0 || t === 3 || t === 5 || t === 2 || t === 16 ? 13 : t === 6 ? 14 : t === 4 ? 11 : t;
+    if (dungeon) return t === 0 || t === 3 || t === 5 || t === 2 || t === 16 || t === 4 ? (h < 22 ? 17 : 13) : t === 6 ? 14 : t;
     if (t === 16) return 0; // под украшением — обычная земля
     if (t === 0) return h < 18 ? 10 : h < 26 ? 11 : 0;
     return t;
   }
   // Какое дерево стоит на клетке леса
+  // Пятно на клетке пола данжа (или null): примерно одна клетка из 60
+  const decalAt = (x, y) => { const h = hash(x + 11, y + 5); return h < 2 ? DUN_DECALS[hash(x, y + 17) % DUN_DECALS.length] : null; };
   const treeAt = (x, y) => { const h = hash(x + 7, y + 3); return h < 55 ? 'tree' : h < 72 ? 'goldTree' : 'bush'; };
   // Фоны лобби по городу, из которого игрок вышел (public/assets/lobby/<тема>_1..4.jpg)
   // Только чёткие полноразмерные картинки; мелкие с общих листов убраны (были мыльными)
@@ -61,8 +66,8 @@ window.WorldArt = (() => {
   // а границы между ними — мягкие и неровные (маска по клеткам, растянутая с интерполяцией, плюс шум).
   // Стены и скалы отбрасывают тень, у воды — тёмный берег. Столкновения по-прежнему по клеткам.
   const HIGH = new Set([6, 7, 12, 14]);          // скалы и стены: рисуются поверх, с тенью
-  const ORDER = [0, 15, 10, 11, 2, 4, 5, 3, 8, 13, 1, 6, 12, 7, 14]; // снизу вверх
-  const FLIP = new Set([0, 1, 2, 4, 5, 10, 11, 13, 15]); // природные тайлы можно отражать — меньше заметен повтор
+  const ORDER = [0, 15, 10, 11, 2, 4, 5, 3, 8, 13, 17, 1, 6, 12, 7, 14]; // снизу вверх
+  const FLIP = new Set([0, 1, 2, 4, 5, 10, 11, 13, 15, 17]); // природные тайлы можно отражать — меньше заметен повтор
   function pattern(ctx, src, id, rnd, scene, th) {
     const have = GROUND[th] || [];
     let name = GROUND_NAMES[id];
@@ -153,5 +158,5 @@ window.WorldArt = (() => {
     return out;
   }
 
-  return { has, preload, remap, treeAt, hash, lobbyBgs, terrain };
+  return { has, preload, remap, treeAt, decalAt, hash, lobbyBgs, terrain };
 })();

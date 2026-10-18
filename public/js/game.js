@@ -205,6 +205,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.zoneObjs.push(this.add.image(px, py, `obj_${z.theme}_${WorldArt.treeAt(x, y)}`).setOrigin(0.5, 1).setDepth(10 + py));
       }
     }
+    // Пятна на полу данжей: решётки, кровь, руны, кости (под ногами, поверх земли)
+    if (art && dungeon) {
+      for (let y = 0; y < z.h; y++) for (let x = 0; x < z.w; x++) {
+        const t = data2d[y][x], k = (t === 13 || t === 17) && WorldArt.decalAt(x, y), key = k && `dun_${z.theme}_${k}`;
+        if (key && this.textures.exists(key)) this.zoneObjs.push(this.add.image(z.ox + x * T + T / 2, z.oy + y * T + T / 2, key).setDisplaySize(64, 64).setAngle((WorldArt.hash(x, y) % 4) * 90).setDepth(1));
+      }
+    }
     // Нарисованные украшения (статуи, фонтаны, сундуки): сервер ставит их на непроходимые клетки DECO
     for (const d of z.deco || []) {
       const key = `deco_${z.theme}_${d.k}`;
