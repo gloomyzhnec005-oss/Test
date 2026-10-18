@@ -366,3 +366,171 @@ Row 2 — Vampire Lord (mini-boss, bigger): tall vampire noble in an ornate blac
 Row 3 — Necro Priest (mini-boss, bigger): skeletal high priest in a bone mitre and black-violet robes with a large necrotic staff; attack = casting a violet soul blast.
 Row 4 — Demon Executioner (mini-boss, bigger): huge hooded red demon with a giant executioner axe and chains; attack = overhead axe execution strike.
 ```
+
+---
+
+## Д. Данжи и арены
+
+Тайлы — квадратные, **бесшовные** (края пола стыкуются). Предметы обстановки — отдельным листом на зелёном фоне.
+
+**Д-1** — тайлы данжей мира I (склепы и руины)
+```
+Pixel art top-down fantasy RPG dungeon tileset, Lineage 2 / Diablo pixel art style, same pixel style as the monsters, seen from above.
+One image, strict 4×4 grid of equal SQUARE tiles touching each other, no gaps, no text, no grid lines, no characters.
+Every floor tile must be SEAMLESS and tileable on all four sides.
+Theme: old crypt and ruins — grey mossy stone, roots, dirt.
+Row 1 — four floor variants: plain grey stone slabs; slabs with moss; cracked slabs; slabs with small bones and dirt.
+Row 2 — four wall tiles: wall top seen from above; wall front face with bricks; wall front face with a burning torch; wall front face with roots and ivy.
+Row 3 — floor with a drain grate; floor with an old blood stain; floor with a rune circle; stairs going down.
+Row 4 — closed iron-bound wooden door; open door; iron bars gate; collapsed rubble blocking the way.
+```
+
+**Д-2** — тайлы данжей мира II (бездна)
+```
+Pixel art top-down fantasy RPG dungeon tileset, Lineage 2 / Diablo pixel art style, same pixel style as the monsters, seen from above.
+One image, strict 4×4 grid of equal SQUARE tiles touching each other, no gaps, no text, no grid lines, no characters.
+Every floor tile must be SEAMLESS and tileable on all four sides.
+Theme: abyss fortress — black obsidian and basalt, glowing purple cracks, lava veins.
+Row 1 — four floor variants: plain black basalt slabs; slabs with purple glowing cracks; slabs with a thin lava vein; slabs with ash and bones.
+Row 2 — four wall tiles: wall top seen from above; obsidian wall front face; wall front face with a purple flame brazier; wall front face with chains and spikes.
+Row 3 — floor with a lava grate; floor with a demonic sigil glowing red; floor with purple crystals; stairs going down into darkness.
+Row 4 — closed spiked iron door; open door; demonic bone gate; collapsed obsidian rubble.
+```
+
+**Д-3** — тайлы данжей мира III (небесная цитадель)
+```
+Pixel art top-down fantasy RPG dungeon tileset, Lineage 2 / Diablo pixel art style, same pixel style as the monsters, seen from above.
+One image, strict 4×4 grid of equal SQUARE tiles touching each other, no gaps, no text, no grid lines, no characters.
+Every floor tile must be SEAMLESS and tileable on all four sides.
+Theme: celestial citadel — white marble with gold inlay, blue crystals, clouds.
+Row 1 — four floor variants: plain white marble tiles; marble with gold lines; cracked marble; marble with small blue crystal shards.
+Row 2 — four wall tiles: wall top seen from above; white marble wall front face with gold trim; wall front face with a blue crystal lamp; wall front face with a broken stained-glass window.
+Row 3 — floor with a gold star mosaic; floor with a glowing blue rune; floor with a hole showing clouds below; stairs going up.
+Row 4 — closed gold-and-white gate; open gate; crystal barrier wall; collapsed marble pillar rubble.
+```
+
+**Д-4** — обстановка данжей (зелёный фон)
+```
+Pixel art fantasy RPG dungeon props sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same pixel style as the monsters.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 4 objects, all cells the same size, generous empty green space between objects, objects never touch.
+Row 1: closed wooden treasure chest; opened chest with gold inside; wooden barrel; stack of wooden crates.
+Row 2: pile of bones and skulls; tall candle on a skull; stone brazier with fire; floor spike trap (spikes up).
+Row 3: broken stone pillar; ancient knight statue; hanging iron cage; big spider web.
+Row 4: dungeon exit altar with a glowing portal; purple demonic altar; blue crystal cluster; golden sarcophagus.
+```
+
+**Д-5** — арена мирового босса, мир I
+```
+Fantasy MMORPG world boss arena floor, painterly digital art in Diablo / Lineage 2 style, seen straight from above (top-down), square 1:1.
+A large round arena of ancient grey stone in a forest clearing: carved rune circle in the center, cracked slabs, moss, broken pillars around the edge, roots and old bones. Dark forest edges fading to black in the corners.
+Empty — no characters, no monsters, no text, no UI.
+```
+
+**Д-6** — арена мирового босса, мир II
+```
+Fantasy MMORPG world boss arena floor, painterly digital art in Diablo / Lineage 2 style, seen straight from above (top-down), square 1:1.
+A large round arena of black obsidian floating over a lava abyss: glowing purple demonic sigil in the center, cracks with lava light, chains and spiked pillars around the edge, lava glow in the corners.
+Empty — no characters, no monsters, no text, no UI.
+```
+
+**Д-7** — арена мирового босса, мир III
+```
+Fantasy MMORPG world boss arena floor, painterly digital art in Diablo / Lineage 2 style, seen straight from above (top-down), square 1:1.
+A large round arena of white marble with gold inlay floating among clouds: a glowing golden star mosaic in the center, blue crystal pylons and broken white columns around the edge, clouds and sky in the corners.
+Empty — no characters, no monsters, no text, no UI.
+```
+
+---
+
+## И (продолжение). Интерфейс, магазин, продвижение
+
+**И-10** — иконки состояний в бою (пурпурный фон)
+```
+Fantasy MMORPG status effect icons (buffs and debuffs), hand-painted in the style of Diablo and Lineage 2 skill icons, round medallion shape with a thin ornate rim, one bold readable symbol per icon, readable at 32 px, high detail.
+Flat solid pure magenta #FF00FF background everywhere, no text, no watermark.
+One image with exactly 16 icons in a 4×4 grid, equal cells, generous empty space between them, icons never touch.
+Debuffs have a dark red rim, buffs have a gold rim.
+Row 1 (debuffs): 1) Stun — golden stars circling over a dazed helmet. 2) Root — green thorny vines wrapped around a boot. 3) Slow — a cracked blue hourglass with a snail shell. 4) Freeze — a block of blue ice with frost crystals.
+Row 2 (debuffs): 5) Fear — a pale screaming ghost face. 6) Taunt — a furious red eye inside a target mark. 7) Weakness — a broken sword. 8) Curse — a purple skull in dark smoke.
+Row 3: 9) Poison (debuff) — a green venom drop with a small skull. 10) Burn (debuff) — orange-red flames. 11) Bleed (debuff) — red blood drops over a claw slash. 12) Shield (buff) — a glowing blue magic barrier dome.
+Row 4 (buffs): 13) Haste — a winged boot with wind streaks. 14) Rage — a roaring red beast face in flames. 15) Regeneration — a green leaf with healing sparkles. 16) Invulnerability — a radiant golden shield with a halo.
+```
+
+**И-11** — магазин: кристаллы, золото, ларцы, подписка (пурпурный фон)
+```
+Fantasy MMORPG shop item icons, hand-painted digital art in the style of Diablo and Lineage 2 item icons, ornate details, magical glow, 3/4 view, strong readable silhouette at 64 px, soft rim light, painterly texture, high detail.
+Each object is isolated and centered in its own cell, fills about 80% of the cell, does not touch neighbours.
+Flat solid pure magenta #FF00FF background everywhere, no shadows on the background, no text, no frame, no watermark.
+One image with exactly 12 icons in a 3×4 grid (3 rows, 4 columns), equal cells, generous empty space between them:
+Row 1: 1) small handful of blue crystals; 2) leather pouch overflowing with blue crystals; 3) wooden chest full of blue crystals; 4) huge golden treasure chest bursting with glowing blue crystals.
+Row 2: 5) small stack of gold coins; 6) leather bag of gold coins; 7) iron-bound chest full of gold coins; 8) ornate purple-and-gold set chest with a glowing class emblem on the lid.
+Row 3: 9) black-and-gold grandmaster chest with glowing magic scrolls on top; 10) five ornate set chests stacked in a pyramid; 11) premium subscription — golden crown on a red velvet cushion; 12) battle pass — rolled golden scroll with a red ribbon and a sword through it.
+```
+
+**И-12** — добыча на земле (пурпурный фон)
+```
+Pixel art fantasy RPG loot sprites, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same pixel style as the monsters, small objects lying on the ground.
+Pure bright magenta background (#FF00FF), no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 objects, all cells the same size, generous empty magenta space between objects.
+Row 1: a few scattered gold coins; a leather bag of gold; a rolled magic scroll with a ribbon; a red health potion bottle.
+Row 2: small iron chest (grey); silver chest with blue glow; gold chest with purple glow; ornate golden chest with orange radiant glow and light rays.
+```
+
+**И-13** — фон окна арены PvP (без вырезания)
+```
+Fantasy MMORPG arena screen background, vertical 3:4, dark painterly digital art, Diablo / Lineage 2 style.
+An ancient stone coliseum at dusk seen from the sand floor: tiers of seats in shadow, banners, torches, crossed swords emblem over the gate, dust in golden light. Center and lower part calmer for UI.
+Empty — no characters, no UI, no text.
+```
+
+**И-14** — фон окна выживания (без вырезания)
+```
+Fantasy MMORPG survival mode screen background, vertical 3:4, dark painterly digital art, Diablo / Lineage 2 style.
+A ruined fortress courtyard at night under a red moon, broken walls, burning barricades, shadows of a monster horde on the horizon, embers in the air. Center and lower part calmer for UI.
+Empty — no characters in the foreground, no UI, no text.
+```
+
+**И-15** — фон кузницы и аукциона (без вырезания, 2 картинки отдельно)
+```
+Fantasy MMORPG blacksmith screen background, vertical 3:4, warm painterly digital art, Diablo / Lineage 2 style.
+A dwarven forge interior: glowing furnace, anvil with a hammer, weapons on the walls, sparks and warm orange light, dark edges. Center and lower part calmer for UI.
+Empty — no characters, no UI, no text.
+```
+```
+Fantasy MMORPG auction house screen background, vertical 3:4, painterly digital art, Diablo / Lineage 2 style.
+A grand merchant hall: wooden counters, chests of gold, scales, hanging lanterns, shelves with goods and scrolls, warm candle light, dark edges. Center and lower part calmer for UI.
+Empty — no characters, no UI, no text.
+```
+
+**И-16** — рамки аватаров (пурпурный фон)
+```
+Fantasy MMORPG round player avatar frames, hand-painted ornate metal, Diablo / Lineage 2 style.
+One image with exactly 6 ROUND frames in a row, equal size, generous empty space between them, flat solid magenta #FF00FF background.
+Each frame is a ring with ornaments on the outside only; the CENTER is EMPTY and magenta (hollow), no portraits, no text.
+1) Bronze — simple bronze ring. 2) Silver — silver ring with small blue gems. 3) Gold — gold ring with laurel leaves. 4) Platinum — white-gold ring with wings on the sides. 5) Diamond — crystal-blue ring with large diamonds and frost. 6) Legend — gold and crimson ring with flames, a crown on top and dragon wings on the sides.
+```
+
+**И-17** — аватар и баннер бота в Telegram (без вырезания, 2 картинки)
+```
+Fantasy MMORPG game app icon, square 1:1, painterly digital art in Diablo / Lineage 2 style.
+A heraldic emblem: a glowing blue crystal and a sword crossed over a dark iron shield with gold trim and small dragon wings, dramatic light, dark background with a soft blue glow. Bold silhouette readable as a small round avatar. No text.
+```
+```
+Fantasy MMORPG promo banner, wide 16:9, painterly digital art in Diablo / Lineage 2 style.
+A party of four heroes (armored knight, elf archer, mage with a staff, dwarf with a hammer) standing heroically in front of a glowing portal, a dragon in the stormy sky behind them, golden light. Leave the left third calmer and darker for a title. No text, no logo.
+```
+
+**И-18** — карточка приглашения друга (без вырезания)
+```
+Fantasy MMORPG invite card illustration, wide 1.9:1 (1200×630), painterly digital art in Diablo / Lineage 2 style.
+Two heroes from behind (knight and mage) looking at a huge glowing portal with three worlds visible inside (green valley, purple abyss, golden sky citadel), the knight raising a hand as if calling a friend. Leave the bottom quarter calmer for text. No text, no logo.
+```
+
+**И-19** — стикеры для чата (пурпурный фон)
+```
+Fantasy MMORPG chat stickers, cute chibi characters, hand-painted, bold outlines, expressive faces, Diablo / Lineage 2 fantasy theme.
+Flat solid pure magenta #FF00FF background, no text, no watermark.
+One image with exactly 8 stickers in a 2×4 grid, equal cells, generous empty space between them, each sticker has a thin white outline:
+1) knight giving a thumbs up; 2) mage laughing with tears; 3) elf archer crying a river; 4) orc furious with steam from the ears; 5) greedy goblin hugging a bag of gold; 6) skeleton waving for help; 7) dwarf sleeping on his hammer with Zzz bubbles; 8) baby dragon making a heart with its wings.
+```
