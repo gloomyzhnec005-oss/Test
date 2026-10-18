@@ -534,3 +534,17 @@ Flat solid pure magenta #FF00FF background, no text, no watermark.
 One image with exactly 8 stickers in a 2×4 grid, equal cells, generous empty space between them, each sticker has a thin white outline:
 1) knight giving a thumbs up; 2) mage laughing with tears; 3) elf archer crying a river; 4) orc furious with steam from the ears; 5) greedy goblin hugging a bag of gold; 6) skeleton waving for help; 7) dwarf sleeping on his hammer with Zzz bubbles; 8) baby dragon making a heart with its wings.
 ```
+
+---
+
+**Д-8** — ворота в комнаты боссов (зелёный фон)
+```
+Pixel art fantasy RPG dungeon boss gates sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same pixel style as the monsters and dungeon tiles.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 3 rows × 4 objects, all cells the same size, generous empty green space between objects, objects never touch.
+Each gate is seen from the front, wide enough for a 3-tile corridor (about 3 times wider than tall is NOT needed — make it a square-ish archway), standing on the floor.
+Columns in every row: 1) closed gate; 2) gate half open; 3) gate fully open (empty passage); 4) magic seal barrier glowing over the closed gate.
+Row 1 — World I crypt: grey mossy stone arch with skulls, heavy iron portcullis bars, rusty chains, torches on both sides; seal = green ghost-fire rune wall.
+Row 2 — World II abyss: black obsidian arch with horns and spikes, demonic bone-and-iron bars, purple fire braziers; seal = purple-red demonic sigil wall.
+Row 3 — World III celestial: white marble arch with gold trim and blue crystals, golden ornate bars; seal = shimmering blue crystal light wall.
+```
