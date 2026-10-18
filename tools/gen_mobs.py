@@ -899,7 +899,7 @@ if __name__ == '__main__':
         mm = re.search(r'=\s*(\{.*\});', txt, re.S)
         if mm: meta = json.loads(mm.group(1))
     # Нарисованные вручную листы (присланные картинки боссов) генератор не трогает
-    hand = {'ancientDragon', 'abyssTitan', 'demonLord', 'dragonWhelp', 'orcChief', 'stoneTitan', 'devourer', 'trollShaman', 'gryphon', 'skeletonKing', 'kraken', 'cerberus', 'lichKing', 'phoenix', 'fallenAngel', 'gorgonBoss', 'chaosLord', 'legion', 'abyssAvatar', 'eternalDragon', 'chaosTitan', 'goblinRaider', 'goblinArcher', 'goblinShaman', 'goblinHealer', 'orcWarrior', 'orcThrower', 'goblin', 'poisonSpider', 'skeletonSword', 'skeletonXbow', 'skeletonBanner', 'skeleton', 'ent', 'druid', 'zombieBerserk', 'zombie', 'skeletonLord', 'lich', 'necromancer', 'boneTitan', 'alphaWolf', 'wolf', 'lycanthrope', 'minotaur', 'darkHunter', 'banditXbow', 'phantomArcher', 'centaurArcher'}
+    hand = {'ancientDragon', 'abyssTitan', 'demonLord', 'dragonWhelp', 'orcChief', 'stoneTitan', 'devourer', 'trollShaman', 'gryphon', 'skeletonKing', 'kraken', 'cerberus', 'lichKing', 'phoenix', 'fallenAngel', 'gorgonBoss', 'chaosLord', 'legion', 'abyssAvatar', 'eternalDragon', 'chaosTitan', 'goblinRaider', 'goblinArcher', 'goblinShaman', 'goblinHealer', 'orcWarrior', 'orcThrower', 'goblin', 'poisonSpider', 'skeletonSword', 'skeletonXbow', 'skeletonBanner', 'skeleton', 'ent', 'druid', 'zombieBerserk', 'zombie', 'skeletonLord', 'lich', 'necromancer', 'boneTitan', 'alphaWolf', 'wolf', 'lycanthrope', 'minotaur', 'darkHunter', 'banditXbow', 'phantomArcher', 'centaurArcher', 'harpy', 'spiderMatriarch', 'spiderling', 'crystalGuardian'}
     for mid, name, L in mobs:
         if only and mid not in only: continue
         if mid in hand and mid not in only: continue
