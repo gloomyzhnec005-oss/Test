@@ -898,8 +898,11 @@ if __name__ == '__main__':
         txt = open(meta_path, encoding='utf8').read()
         mm = re.search(r'=\s*(\{.*\});', txt, re.S)
         if mm: meta = json.loads(mm.group(1))
+    # Нарисованные вручную листы (присланные картинки боссов) генератор не трогает
+    hand = {'ancientDragon', 'stoneTitan', 'devourer'}
     for mid, name, L in mobs:
         if only and mid not in only: continue
+        if mid in hand and mid not in only: continue
         meta[mid] = sheet(mid, L)
         print(mid, meta[mid])
     with open(meta_path, 'w', encoding='utf8') as fo:
