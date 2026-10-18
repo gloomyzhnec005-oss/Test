@@ -542,7 +542,7 @@ One image with exactly 8 stickers in a 2×4 grid, equal cells, generous empty sp
 Pixel art fantasy RPG dungeon boss gates sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same pixel style as the monsters and dungeon tiles.
 Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
 Strict grid: 3 rows × 4 objects, all cells the same size, generous empty green space between objects, objects never touch.
-Each gate is seen from the front, wide enough for a 3-tile corridor (about 3 times wider than tall is NOT needed — make it a square-ish archway), standing on the floor.
+Each gate is a square-ish stone archway seen from the front, standing on the floor, wide enough for a corridor 3 tiles wide.
 Columns in every row: 1) closed gate; 2) gate half open; 3) gate fully open (empty passage); 4) magic seal barrier glowing over the closed gate.
 Row 1 — World I crypt: grey mossy stone arch with skulls, heavy iron portcullis bars, rusty chains, torches on both sides; seal = green ghost-fire rune wall.
 Row 2 — World II abyss: black obsidian arch with horns and spikes, demonic bone-and-iron bars, purple fire braziers; seal = purple-red demonic sigil wall.
