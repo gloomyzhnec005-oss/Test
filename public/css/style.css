@@ -866,10 +866,10 @@ canvas.skin { object-fit: contain; }
 .tut-btns .tut-n { flex: 1; color: #a8987a; font-size: 11px; }
 .tut-btns .l2-btn { padding: 6px 12px; font-size: 13px; }
 
-/* Нарисованные рамки ячеек по редкости (assets/ui/frames/<редкость>.webp, тело рамки ≈ 82% картинки) */
+/* Нарисованные рамки ячеек по редкости (assets/ui/frames/<редкость>.webp, тело рамки ≈ 88% картинки) */
 .it[class*="fr-"], .pd-slot[class*="fr-"] { border-color: transparent; }
 .it[class*="fr-"]::before, .pd-slot[class*="fr-"]::before {
-  content: ''; position: absolute; inset: -13%; z-index: 1; pointer-events: none; background: var(--fr) center / contain no-repeat;
+  content: ''; position: absolute; inset: -5%; z-index: 1; pointer-events: none; background: var(--fr) center / contain no-repeat;
 }
 .it[class*="fr-"] > em, .it[class*="fr-"] > i, .it[class*="fr-"] > b, .it[class*="fr-"] > s, .pd-slot[class*="fr-"] > b, .pd-slot[class*="fr-"] > em, .pd-slot[class*="fr-"] > i, .pd-slot[class*="fr-"] > s { z-index: 2; }
 .fr-common { --fr: url(../assets/ui/frames/common.webp); }
@@ -877,7 +877,7 @@ canvas.skin { object-fit: contain; }
 .fr-epic { --fr: url(../assets/ui/frames/epic.webp); }
 .fr-legendary { --fr: url(../assets/ui/frames/legendary.webp); }
 .fr-mythic { --fr: url(../assets/ui/frames/mythic.webp); }
-.it[class*="fr-"] span:has(.it-art), .pd-slot[class*="fr-"] span:has(.it-art) { padding: 7%; }
+.it[class*="fr-"] span:has(.it-art), .pd-slot[class*="fr-"] span:has(.it-art) { padding: 9%; }
 /* Фон экрана персонажа (И-9): зал с пьедесталом; края затемнены под ячейки */
 .pd { background: linear-gradient(90deg, rgba(0,0,0,.55), transparent 28%, transparent 72%, rgba(0,0,0,.55)), #0d0a08 url(../assets/ui/hero_bg.webp) center 80% / cover no-repeat; }
 .pd .pd-ped { opacity: 0; }
