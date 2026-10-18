@@ -372,22 +372,10 @@ window.Town = (() => {
   // ---------- PvP-арена ----------
   async function arenaPanel() {
     const { arena: a } = await Bag.act('arena');
-    const box = el(`<div class="pass-head"><b>🏟️ Рейтинг ${a.rating}</b><small>Победы ${a.wins} · поражения ${a.losses} · боёв сегодня осталось ${a.left} · сила героя ${a.power}</small>
-      <small>Бой идёт со снимком героя другого игрока: экипировка, дубликаты и открытые умения решают исход. Ваш текущий герой защищает вашу позицию.</small></div>
-      <div class="ic-sec">Соперники</div>`);
-    for (const r of a.rivals) {
-      box.append(row(null, `${r.name}${r.bot ? ' · тренировочный' : ''}`, `рейтинг ${r.rating}`, 'В бой ⚔️', async () => {
-        const res = await Bag.act('arenaFight', { uid: r.uid });
-        if (res.error) return toast(res.error);
-        const f = res.fight;
-        const rb = el(`<div class="fight ${f.win ? 'win' : 'lose'}"><b>${f.win ? '🏆 Победа!' : '💀 Поражение'}</b>
-          <small>против ${f.foe} (${f.foeHero}) · ${Math.round(f.time / 1000)} с</small>
-          <small>Рейтинг ${f.delta >= 0 ? '+' : ''}${f.delta} → ${f.rating} · +${f.gold} 💰</small></div>`);
-        const back = document.createElement('button'); back.className = 'l2-btn wide'; back.textContent = 'Назад'; back.onclick = arenaPanel;
-        rb.append(back);
-        open('🏟️ Итог боя', rb);
-      }, a.left <= 0));
-    }
+    const box = el(`<div class="pass-head"><b>🏟️ Рейтинг ${a.rating}</b><small>Победы ${a.wins} · поражения ${a.losses}</small>
+      <small>Настоящий бой с другими игроками: выходите на арену и сражайтесь в реальном времени своими атаками и умениями. Победа — рейтинг и золото; после гибели вы возрождаетесь на арене. Урон по героям ниже, чем по монстрам, группа друг друга не бьёт. Арена этого мира — для героев ${{ town1: '1–20', town2: '15–35', town3: '30+' }[ctx.zone.id] || ''} уровня.</small></div>
+      <button class="l2-btn wide spin-btn" id="pvpGo">⚔️ Выйти на арену</button>`);
+    box.querySelector('#pvpGo').onclick = () => { ctx.socket.emit('travel', { via: 'arena' }); close(); };
     box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Топ-10</div>${a.top.map((t, i) => `<div class="top-row"><span>${i + 1}</span><b>${t.name}</b><small>${t.hero}</small><em>${t.rating}</em></div>`).join('') || soon('Пока пусто')}`);
     open('🏟️ PvP-арена', box);
   }

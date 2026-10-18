@@ -127,7 +127,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.net.on('zone', (d) => {
       this.buildZone(d.zone);
       for (const [id, e] of this.players) if (id !== this.myId) { e.c.destroy(); this.players.delete(id); }
-      for (const e of this.monsters.values()) e.c.destroy();
+      for (const e of this.monsters.values()) if (!e.pvp) e.c.destroy();
       this.monsters.clear();
       this.targetId = null; this.autoWalk = null;
       if (this.me) { this.me.x = d.x; this.me.y = d.y; this.me.e.c.setPosition(d.x, d.y); }
@@ -170,7 +170,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.zone = z;
     if (z.kind === 'town') { try { localStorage.setItem('lastTown', z.theme); } catch { /* приватный режим */ } } // фон лобби — по этому городу
     const data2d = [];
-    const art = WorldArt.has(z.theme), dungeon = z.kind !== 'town' && z.kind !== 'worldboss';
+    const art = WorldArt.has(z.theme), dungeon = z.kind !== 'town' && z.kind !== 'worldboss' && z.kind !== 'pvp';
     for (let y = 0; y < z.h; y++) {
       const row = z.tiles.slice(y * z.w, (y + 1) * z.w);
       data2d.push(art ? row.map((t, x) => WorldArt.remap(t === 16 ? this.groundUnder(z, x, y) : t, x, y, dungeon)) : row);
@@ -181,7 +181,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Нарисованные миры: земля одной картинкой с плавными переходами (WorldArt.terrain), сетка тайлов скрыта
     if (this.terrainImg) { this.terrainImg.destroy(); if (this.textures.exists('terrain')) this.textures.remove('terrain'); this.terrainImg = null; }
     // Арена мирового босса — одна нарисованная картинка; внутренний край стен совпадает с краем проходимого круга
-    if (art && z.kind === 'worldboss' && this.textures.exists('arena_' + z.theme)) {
+    if (art && (z.kind === 'worldboss' || z.kind === 'pvp') && this.textures.exists('arena_' + z.theme)) {
       const R = (Math.min(z.w, z.h) / 2 - 1) * T, size = R / 0.39;
       this.terrainImg = this.add.image(z.ox + z.w * T / 2, z.oy + z.h * T / 2, 'arena_' + z.theme).setDisplaySize(size, size).setDepth(0);
       this.layer.setVisible(false);
@@ -580,6 +580,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Монстры
     const seenM = new Set();
     for (const m of s.m) {
+      // Цель-двойник героя на PvP-арене: своей картинки нет — целимся в самого героя (свой двойник не цель)
+      if (m.pv) {
+        const pe = this.players.get(m.pv);
+        if (!pe || m.pv === this.myId) continue;
+        seenM.add(m.id);
+        this.monsters.set(m.id, { ...pe, data: m, pvp: true });
+        continue;
+      }
       seenM.add(m.id);
       let e = this.monsters.get(m.id);
       if (!e) {
@@ -627,6 +635,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     for (const [id, e] of this.monsters) {
       if (!seenM.has(id)) {
         this.monsters.delete(id);
+        if (e.pvp) { if (this.targetId === id) this.targetId = null; continue; }
         this.tweens.add({ targets: e.c, alpha: 0, scale: 0.4, duration: 300, onComplete: () => e.c.destroy() });
         if (this.targetId === id) this.targetId = null;
       }
@@ -2083,6 +2092,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       } else if (e.beast) this.animBeast(e, mx, my, Math.hypot(mx, my) > 1.5);
     }
     for (const e of this.monsters.values()) {
+      if (e.pvp) continue; // герой-соперник на арене движется вместе с героем
       const mx = e.tx - e.c.x, my = e.ty - e.c.y;
       e.c.x += mx * k; e.c.y += my * k;
       // Нарисованный монстр: шагает, пока движется, стоит — первый кадр ходьбы

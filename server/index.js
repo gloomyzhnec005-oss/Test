@@ -400,9 +400,74 @@ function privateStats(p) {
 // Статы отправляются не чаще 4 раз в секунду (см. игровой цикл)
 const markDirty = (p) => { p.dirty = true; };
 
+// ---------- PvP-арена: бой героев в реальном времени ----------
+// На арене у каждого героя есть невидимая цель-двойник (запись в monsters с pvpOf), которая каждый тик стоит на месте героя.
+// Атаки и умения бьют по двойникам как по монстрам, а урон и контроль переходят на самого героя — так работают все 44 героя без доработки умений.
+const PVP_K = 0.45; // урон героев рассчитан на монстров — по игрокам он ниже
+const PVP_LEVELS = { town1: [1, 20], town2: [15, 35], town3: [30, 99] };
+let pvpSeq = 9e6;
+function pvpSync(now) {
+  for (const p of players.values()) {
+    const z = world.byId.get(p.zone), want = z && z.kind === 'pvp' && !p.dead;
+    let m = p.pvpProxy && monsters.get(p.pvpProxy);
+    if (!want) { if (m) monsters.delete(m.id); p.pvpProxy = null; continue; }
+    if (!m) {
+      m = { id: pvpSeq++, pvpOf: p.id, type: 'goblin', x: p.x, y: p.y, homeX: p.x, homeY: p.y, zone: p.zone, tier: z.tier, level: p.char.level, rank: 'normal', affixes: [],
+        hp: p.hp, maxHp: p.maxHp, dmg: 0, cd: 1e9, speed: 0, xp: 0, range: 0, aggro: 0, size: 1, target: null, lastAttack: 0, abAt: 1e15,
+        dots: [], summons: 0, stunUntil: 0, rootUntil: 0, slowUntil: 0, contrib: null, nm: p.name };
+      monsters.set(m.id, m); p.pvpProxy = m.id;
+    }
+    m.x = p.x; m.y = p.y; m.hp = Math.max(1, p.hp); m.maxHp = p.maxHp; m.level = p.char.level;
+    // Контроль, наложенный умениями на двойника, переходит на героя (короче, чем на монстрах)
+    if (m.stunUntil > now) { D.ccPlayer(p, 'stun', Math.min(1500, m.stunUntil - now), now); m.stunUntil = 0; }
+    if (m.rootUntil > now) { D.ccPlayer(p, 'root', Math.min(1500, m.rootUntil - now), now); m.rootUntil = 0; }
+    if (m.freezeUntil > now) { D.ccPlayer(p, 'freeze', Math.min(1200, m.freezeUntil - now), now); m.freezeUntil = 0; }
+    if (m.slowUntil > now) { p.slowUntil = Math.max(p.slowUntil || 0, Math.min(m.slowUntil, now + 2500)); m.slowUntil = 0; markDirty(p); }
+    m.fearUntil = 0; m.confusedUntil = 0; m.charmUntil = 0; m.tauntUntil = 0;
+  }
+}
+function pvpHit(p, m, raw, opt) {
+  const victim = players.get(m.pvpOf);
+  if (!victim || victim === p || victim.dead || !p.uid) return 0;
+  if (p.party && p.party === victim.party) return 0; // по своей группе не бьём
+  let crit = opt.crit ?? false;
+  if (opt.basic && p.nextCritUntil > Date.now()) { crit = true; p.nextCritUntil = 0; }
+  const dmg = opt.fixed ? raw * PVP_K : raw * dmgMult(p) * (0.85 + Math.random() * 0.3) * (crit ? 1.6 : 1) * PVP_K
+    * (!opt.basic && !opt.pet && p.gear && p.gear.skill ? 1 + p.gear.skill / 100 : 1);
+  const before = victim.hp;
+  victim.lastPvpBy = p.id; victim.lastPvpAt = Date.now();
+  hurtPlayer(victim, dmg, null, Date.now());
+  const dealt = Math.max(0, before - Math.max(0, victim.hp));
+  if (p.gear && p.gear.ls && dealt > 0 && !p.dead) { p.hp = Math.min(p.maxHp, p.hp + dealt * p.gear.ls / 100); markDirty(p); }
+  return dealt;
+}
+// Победа на арене: рейтинг по Эло; за одного и того же соперника чаще раза в 5 минут рейтинг не растёт
+function pvpKill(victim) {
+  const killer = Date.now() - (victim.lastPvpAt || 0) < 8000 ? players.get(victim.lastPvpBy) : null;
+  const zid = victim.zone;
+  if (!killer || killer.zone !== zid) return;
+  const kp = getProfile(killer.uid), vp = getProfile(victim.uid);
+  const ka = kp.arena ??= { rating: 1000, wins: 0, losses: 0, fights: 0, fightsDay: '' }, va = vp.arena ??= { rating: 1000, wins: 0, losses: 0, fights: 0, fightsDay: '' };
+  killer.pvpRecent = (killer.pvpRecent || []).filter((x) => Date.now() - x.t < 5 * 60000);
+  const farm = killer.pvpRecent.some((x) => x.uid === victim.uid);
+  killer.pvpRecent.push({ uid: victim.uid, t: Date.now() });
+  const exp = 1 / (1 + 10 ** ((va.rating - ka.rating) / 400)), delta = farm ? 0 : Math.max(1, Math.round(24 * (1 - exp)));
+  ka.rating += delta; va.rating = Math.max(0, va.rating - delta); ka.wins++; va.losses++;
+  ka.hero = killer.heroId; ka.name = killer.name; va.hero = victim.heroId; va.name = victim.name;
+  const gold = farm ? 0 : 15 * (world.byId.get(zid).tier || 1);
+  kp.gold += gold;
+  if (!farm) { meta.addPassXp(kp, 3); Q.track(killer.uid, 'arena'); }
+  killer.streak = (killer.streak || 0) + 1; victim.streak = 0;
+  const msg = `⚔️ ${killer.name} победил ${victim.name}${delta ? ` · рейтинг +${delta} (${ka.rating})` : ' · без рейтинга (тот же соперник)'}${killer.streak >= 3 ? ` · серия ${killer.streak}!` : ''}`;
+  for (const o of players.values()) if (o.zone === zid) o.socket.emit('chat', { sys: true, text: msg });
+  if (gold) killer.socket.emit('chat', { sys: true, text: `+${gold} 💰 за победу` });
+  markDirty(killer);
+}
+
 // Урон монстру с учётом разброса и усилений; возвращает нанесённый урон
 function damageMonster(p, m, raw, opt = {}) {
   if (!monsters.has(m.id) || m.hp <= 0) return 0;
+  if (m.pvpOf) return pvpHit(p, m, raw, opt); // на PvP-арене «монстр» — цель-двойник другого героя
   if (p.oneShot) raw = m.maxHp * 1000; // тест из админки: убийство с одного удара
   let crit = opt.crit ?? false;
   const ps = passiveOf(p);
@@ -583,6 +648,8 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
     target.cc = null; target.pdots = [];
     if (m) m.target = null;
     fx.push({ t: 'pdeath', target: target.id });
+    const zKind = (world.byId.get(target.zone) || {}).kind;
+    if (zKind === 'pvp') pvpKill(target);
     // Гибель союзника рядом усиливает Талмиру
     for (const o of players.values()) {
       const ops = passiveOf(o);
@@ -601,8 +668,15 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
       if (victim.darkCharges) victim.darkCharges = Math.floor(victim.darkCharges / 2); // Гидеон теряет половину зарядов тьмы
       if (victim.hero.forms) victim.form = 'human'; // возрождается в облике друида
       markDirty(victim);
-      // Возрождение в городе своего мира
-      const home = world.byId.get(world.byId.get(victim.zone).town);
+      // Возрождение в городе своего мира; на PvP-арене — на арене, в случайной точке
+      const vz = world.byId.get(victim.zone);
+      if (vz.kind === 'pvp') {
+        const a = Math.random() * Math.PI * 2, r = (vz.w / 2 - 5) * C.TILE * Math.random();
+        victim.x = vz.ox + vz.w * C.TILE / 2 + Math.cos(a) * r; victim.y = vz.oy + vz.h * C.TILE / 2 + Math.sin(a) * r;
+        victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });
+        return;
+      }
+      const home = world.byId.get(vz.town);
       if (home.id !== victim.zone) moveToZone(victim, home.id);
       else { victim.x = home.spawn.x; victim.y = home.spawn.y; }
       victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });
@@ -910,6 +984,12 @@ io.on('connection', (socket) => {
     const obj = z && z.objs.find((o) => o.id === d.via);
     if (!obj || Math.hypot(obj.x - p.x, obj.y - p.y) > 110) return socket.emit('skillFail', 'Подойдите ближе');
     if (obj.id === 'survival') return D.startSurvival(p);
+    if (obj.id === 'arena' && z.kind === 'town') {
+      const [lo, hi] = PVP_LEVELS[z.id] || [1, 99];
+      if (p.char.level < lo || p.char.level > hi) return socket.emit('skillFail', `Арена ${z.name}: герои ${lo}–${hi} уровня`);
+      moveToZone(p, `pvp_${z.id}`);
+      return socket.emit('chat', { sys: true, text: `🏟️ PvP-арена ${z.name}: бей других героев! Победа — рейтинг и золото, после гибели — возрождение на арене. Выход — портал на юге.` });
+    }
     if (obj.dungeon !== undefined) return D.startDungeon(p, z.id, obj.dungeon);
     let to = obj.to;
     if (obj.id === 'teleport') {
@@ -985,6 +1065,7 @@ setInterval(() => {
   // Звери-спутники
   for (const p of players.values()) if (p.pets) updatePets(skillCtx, p, now, dt);
 
+  pvpSync(now);
   // ИИ монстров
   for (const m of monsters.values()) {
     const def = C.MONSTERS[m.type];
@@ -1003,6 +1084,7 @@ setInterval(() => {
       m.dots = m.dots.filter((d) => now < d.until);
       if (!monsters.has(m.id)) continue;
     }
+    if (m.pvpOf) continue; // цель-двойник героя на арене не ходит и не атакует
     if (m.stunUntil > now) continue; // оглушён
     // Страх (рёв Талиесина): монстр убегает от источника
     if (m.starUntil > now) { m.fearUntil = 0; m.confusedUntil = 0; } // звёздная метка Фаэлина не даёт скрыться
@@ -1160,7 +1242,7 @@ setInterval(() => {
   for (const Z of byZone.values()) {
   const state = {
     p: Z.p.map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
-    m: Z.m.map((m) => ({ id: m.id, type: m.type, tr: m.tier, lv: m.level, rk: m.rank, nm: m.name, inv: m.inv ? 1 : 0, sz: m.size, sh: m.shieldHp > 0 ? 1 : 0, fm: m.form || m.phase || m.element || null, x: Math.round(m.x), y: Math.round(m.y),
+    m: Z.m.map((m) => m.pvpOf ? { id: m.id, pv: m.pvpOf, nm: '⚔️ ' + m.nm, lv: m.level, x: Math.round(m.x), y: Math.round(m.y), hp: Math.ceil(m.hp), maxHp: m.maxHp } : ({ id: m.id, type: m.type, tr: m.tier, lv: m.level, rk: m.rank, nm: m.name, inv: m.inv ? 1 : 0, sz: m.size, sh: m.shieldHp > 0 ? 1 : 0, fm: m.form || m.phase || m.element || null, x: Math.round(m.x), y: Math.round(m.y),
       hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
       mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0,
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
