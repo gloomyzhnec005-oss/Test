@@ -178,8 +178,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const ts = this.tilemap.addTilesetImage('tiles_' + z.theme, 'tiles_' + z.theme, T, T, 0, 0);
     this.layer = this.tilemap.createLayer(0, ts, z.ox, z.oy).setDepth(0);
     // Нарисованные миры: земля одной картинкой с плавными переходами (WorldArt.terrain), сетка тайлов скрыта
-    if (this.terrainImg) { this.terrainImg.destroy(); this.textures.remove('terrain'); this.terrainImg = null; }
-    if (art) {
+    if (this.terrainImg) { this.terrainImg.destroy(); if (this.textures.exists('terrain')) this.textures.remove('terrain'); this.terrainImg = null; }
+    // Арена мирового босса — одна нарисованная картинка; внутренний край стен совпадает с краем проходимого круга
+    if (art && z.kind === 'worldboss' && this.textures.exists('arena_' + z.theme)) {
+      const R = (Math.min(z.w, z.h) / 2 - 1) * T, size = R / 0.39;
+      this.terrainImg = this.add.image(z.ox + z.w * T / 2, z.oy + z.h * T / 2, 'arena_' + z.theme).setDisplaySize(size, size).setDepth(0);
+      this.layer.setVisible(false);
+    } else if (art) {
       try {
         this.textures.addCanvas('terrain', WorldArt.terrain(this, z, data2d));
         this.terrainImg = this.add.image(z.ox, z.oy, 'terrain').setOrigin(0, 0).setDepth(0);
