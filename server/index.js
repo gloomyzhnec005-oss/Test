@@ -97,7 +97,7 @@ function profileView(who) {
     name: who.name, heroes: pr.heroes, chars, bgs,
     isAdmin: !!who.tg && admin.isAdminUid(who.uid),
     freeSpin: !pr.freeSpinUsed || FREE_SPINS || S.freeSpins, paidSpins: pr.paidSpins, spinPrice: C.GACHA.spinPrice, gold: pr.gold, dupeMax: C.GACHA.heroDupeMax,
-    pity: { epic: C.GACHA.pityEpic - ((pr.pity || {}).e || 0), legend: C.GACHA.pityLegend - ((pr.pity || {}).l || 0) },
+    wish: Wish.view(pr), spin10Price: C.GACHA.spin10Price,
   };
 }
 app.post('/api/profile', (req, res) => {
@@ -109,40 +109,31 @@ app.post('/api/profile', (req, res) => {
   res.json(profileView(who));
 });
 
-// Гача: выдаёт случайного ещё не полученного героя с учётом редкости
+// Молитвы героев (server/wish.js): баннеры ивент/стандарт, ×1/×10, гарант и 50/50
+const Wish = require('./wish')({
+  C, getChar: (...a) => getChar(...a), refreshUid: (uid) => refreshUid(uid),
+  addPassXp: (pr, n) => meta.addPassXp(pr, n), quest: (...a) => Q.track(...a),
+});
 app.post('/api/gacha/spin', (req, res) => {
-  const { initData, guestId } = req.body || {};
+  const { initData, guestId, banner, n } = req.body || {};
   const who = resolveUid(initData, guestId);
   if (!who) return res.status(403).json({ error: 'Откройте игру через Telegram-бота' });
   const pr = getProfile(who.uid);
-  // В пуле все герои: новый — открывается, уже полученный — становится дубликатом (до 10 копий)
-  const pool = Object.keys(C.HEROES).filter((id) => !pr.heroes.includes(id) || (pr.heroDupes[id] || 0) < C.GACHA.heroDupeMax);
-  if (!pool.length) return res.status(400).json({ error: 'Все герои собраны полностью' });
-  if (FREE_SPINS || S.freeSpins || !pr.freeSpinUsed) pr.freeSpinUsed = true;
-  else if (pr.paidSpins > 0) pr.paidSpins -= 1;
-  else return res.status(402).json({ error: 'Нет круток', needPayment: true });
-
-  // Сначала редкость (по её шансу), потом герой этой редкости поровну. Гарант: счётчики круток без эпического+ и легендарного+
-  const RO = Object.keys(C.RARITIES), rk = (id) => RO.indexOf(C.HEROES[id].rarity);
-  pr.pity = pr.pity || { e: 0, l: 0 };
-  // Первый герой — не ниже редкого, чтобы старт не был слабым
-  const minRank = !pr.heroes.length ? RO.indexOf('rare') : pr.pity.l + 1 >= C.GACHA.pityLegend ? RO.indexOf('legendary') : pr.pity.e + 1 >= C.GACHA.pityEpic ? RO.indexOf('epic') : 0;
-  let tiers = RO.filter((k, i) => i >= minRank && pool.some((id) => C.HEROES[id].rarity === k));
-  if (!tiers.length) tiers = RO.filter((k) => pool.some((id) => C.HEROES[id].rarity === k));
-  let roll = Math.random() * tiers.reduce((sum, k) => sum + C.RARITIES[k].weight, 0), tier = tiers[tiers.length - 1];
-  for (const k of tiers) { roll -= C.RARITIES[k].weight; if (roll < 0) { tier = k; break; } }
-  const inTier = pool.filter((id) => C.HEROES[id].rarity === tier);
-  const hero = inTier[Math.floor(Math.random() * inTier.length)];
-  pr.pity.e = rk(hero) >= RO.indexOf('epic') ? 0 : pr.pity.e + 1;
-  pr.pity.l = rk(hero) >= RO.indexOf('legendary') ? 0 : pr.pity.l + 1;
-  let dupe = 0;
-  if (pr.heroes.includes(hero)) { dupe = pr.heroDupes[hero] = (pr.heroDupes[hero] || 0) + 1; refreshUid(who.uid); }
-  else pr.heroes.push(hero);
-  getChar(who.uid, hero);
-  meta.addPassXp(pr, 10);
-  Q.track(who.uid, 'summon');
+  const r = Wish.pull(who.uid, pr, banner, n, FREE_SPINS || S.freeSpins);
+  if (r.error) return res.status(402).json(r);
   saveProfiles();
-  res.json({ hero, dupe, profile: profileView(who) });
+  const one = r.results[0];
+  res.json({ results: r.results, hero: one.hero, dupe: one.dupe, profile: profileView(who) });
+});
+// Обмен звёздного блеска на молитвы героя или снаряжения
+app.post('/api/gacha/exchange', (req, res) => {
+  const { initData, guestId, what, n } = req.body || {};
+  const who = resolveUid(initData, guestId);
+  if (!who) return res.status(403).json({ error: 'Нет игрока' });
+  const r = Wish.exchange(getProfile(who.uid), what, n);
+  if (r.error) return res.status(400).json(r);
+  saveProfiles();
+  res.json({ profile: profileView(who) });
 });
 app.get('/api/config', (req, res) => res.json({
   heroes: C.HEROES, rarities: C.RARITIES, monsters: C.MONSTERS, backgrounds: C.LOBBY_BACKGROUNDS, gacha: C.GACHA, skillUnlock: C.SKILL_UNLOCK,
@@ -166,9 +157,10 @@ app.post('/api/invoice', async (req, res) => {
   if (meta.INVOICES[item]) {
     const v = meta.INVOICES[item];
     invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
-  } else if (item === 'spin') {
-    invoice = { title: 'Крутка призыва героя', description: 'Призыв случайного нового героя', payload: `spin:${who.uid}`,
-      prices: [{ label: 'Крутка', amount: C.GACHA.spinPrice }] };
+  } else if (item === 'spin' || item === 'spin10') {
+    const ten = item === 'spin10';
+    invoice = { title: ten ? 'Молитвы героя ×10' : 'Молитва героя', description: ten ? 'Десять молитв на любом баннере героев' : 'Одна молитва на любом баннере героев', payload: `${item}:${who.uid}`,
+      prices: [{ label: ten ? 'Молитвы ×10' : 'Молитва', amount: ten ? C.GACHA.spin10Price : C.GACHA.spinPrice }] };
   } else {
     const bg = C.LOBBY_BACKGROUNDS.find((b) => b.id === bgId && b.price > 0);
     if (!bg) return res.status(400).json({ error: 'Неизвестный фон' });
@@ -188,7 +180,7 @@ app.post('/api/invoice', async (req, res) => {
 function isValidPayload(payload) {
   const [kind, uid, id] = String(payload).split(':');
   if (!uid) return false;
-  if (kind === 'spin' || meta.INVOICES[kind]) return true;
+  if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind]) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
 }
 function onPaid(payload) {
@@ -196,6 +188,7 @@ function onPaid(payload) {
   const [kind, uid, id] = String(payload).split(':');
   const pr = getProfile(uid);
   if (kind === 'spin') pr.paidSpins += 1;
+  else if (kind === 'spin10') pr.paidSpins += 10;
   else if (meta.INVOICES[kind]) { meta.onPaid(kind, pr); refreshUid(uid); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
   else if (!pr.bgs.includes(id)) pr.bgs.push(id);
   admin.log('pay', `${pr.name || uid}: оплата ${kind}${id ? ' ' + id : ''}`);
@@ -660,6 +653,8 @@ function grantXp(p, amount, gold, shared = false) {
     p.res = p.resMax;
     fx.push({ t: 'levelup', id: p.id, x: p.x, y: p.y, lvl: p.char.level });
     io.emit('chat', { sys: true, text: `${p.name} (${p.hero.name}) достиг ${p.char.level} уровня!` });
+    // Каждые 10 уровней героя — кристаллы судьбы (на одну молитву)
+    if (p.char.level % 10 === 0) { pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: `💎 ${p.hero.name} — ${p.char.level} уровень: +160 кристаллов судьбы` }); }
   }
   markDirty(p);
 }

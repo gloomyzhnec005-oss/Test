@@ -16,12 +16,19 @@ const SHOP = {
   itemSpin: { price: 15, price10: 135 }, // Telegram Stars
   freeItemSpins: 1, freeItemSpinsSub: 2, // бесплатно каждый день
   pity: 50, // гарантированный легендарный предмет каждые 50 круток
+  gemsPerWish: 160, // кристаллов судьбы за одну молитву, если молитв нет
+  gems: { gems1: { gems: 330, amount: 50 }, gems2: { gems: 1090, amount: 150 }, gems3: { gems: 2240, amount: 300 }, gems4: { gems: 6480, amount: 800 } }, // пачки кристаллов за Stars
   pass: { price: 300, levels: 30, xpPerLevel: 100, days: 30 },
   sub: { price: 250, days: 30, xpBonus: 0.25, goldBonus: 0.25 },
   ads: { perDay: 5, cooldownMs: 30000 },
   arena: { perDay: 5, perDaySub: 8 },
 };
 // Веса редкостей в призыве предметов (обычных нет)
+// Баннер снаряжения: каждую неделю — свой «комплект недели» (класс), его вещи выпадают чаще
+const gearBanner = (t = Date.now()) => {
+  const week = Math.floor((t - Date.UTC(2024, 0, 1)) / (7 * DAY)), cls = Object.keys(I.CLASSES)[week % Object.keys(I.CLASSES).length];
+  return { cls, name: I.CLASSES[cls].name, ends: Date.UTC(2024, 0, 1) + (week + 1) * 7 * DAY };
+};
 const ITEM_GACHA = { rare: 62, epic: 29, legendary: 7.5, mythic: 1.5 };
 
 const isSub = (pr) => (pr.subUntil || 0) > Date.now();
@@ -31,7 +38,7 @@ const bagSize = (pr) => (isSub(pr) ? SHOP.bagSub : SHOP.bag);
 const passSeason = () => Math.floor(Date.now() / (SHOP.pass.days * DAY));
 const PASS_REWARDS = Array.from({ length: SHOP.pass.levels }, (_, i) => {
   const lvl = i + 1;
-  const free = lvl % 5 === 0 ? { itemSpins: 1 } : { gold: 80 + lvl * 20 };
+  const free = lvl % 10 === 0 ? { heroSpins: 1 } : lvl % 5 === 0 ? { itemSpins: 1 } : lvl % 3 === 0 ? { gems: 80 } : { gold: 80 + lvl * 20 };
   const RARE = { 5: 'rare', 10: 'epic', 15: 'epic', 20: 'legendary', 25: 'legendary', 30: 'mythic' };
   const MATS = { 3: { scrollE: 1 }, 7: { ore: 20, ess: 10 }, 9: { scrollE: 1 }, 12: { core: 2 }, 17: { scrollE: 2 }, 21: { scrollL: 1 }, 24: { core: 3 }, 27: { scrollL: 1 }, 29: { scrollM: 1 } };
   const prem = RARE[lvl] ? { item: RARE[lvl] } : MATS[lvl] ? { mats: MATS[lvl] } : lvl % 2 ? { gold: 250 + lvl * 50 } : { itemSpins: 1 };
@@ -141,7 +148,7 @@ module.exports = function createMeta(deps) {
       bagSize: bagSize(pr), whSize: SHOP.wh, sub: isSub(pr) ? pr.subUntil : 0, buffs: pr.buffs || {}, tier: tierOf(p),
       hero: { id: p.heroId, level: p.char.level, dupes: (pr.heroDupes || {})[p.heroId] || 0, unlocked: deps.unlockedSkills(pr, p.heroId) },
       power: (({ hp, dmg, crit, power }) => ({ hp, dmg: Math.round(dmg), crit: Math.round(crit * 100), power }))(fighter(deps, pr, p.heroId, '')),
-      itemSpins: pr.itemSpins || 0, freeItemSpins: freeSpinsLeft(pr), pity: pr.pity || 0, pityMax: SHOP.pity,
+      itemSpins: pr.itemSpins || 0, freeItemSpins: freeSpinsLeft(pr), pity: typeof pr.pity === 'number' ? pr.pity : 0, pityMax: SHOP.pity, pityE: pr.pityE || 0, gems: pr.gems || 0, glitter: pr.glitter || 0, gemsPerWish: SHOP.gemsPerWish, gearBanner: gearBanner(),
       attrs: I.ATTRS, rarities: I.ITEM_RARITIES, rarOrder: I.RARITY_ORDER, cats: I.CATEGORIES, slots: I.SLOT_ORDER, slotNames: I.SLOT_NAMES,
     };
   }
@@ -152,7 +159,9 @@ module.exports = function createMeta(deps) {
   function reward(pr, r, tier) {
     const out = [];
     if (r.gold) { pr.gold += r.gold; out.push(`💰 ${r.gold}`); }
-    if (r.itemSpins) { pr.itemSpins = (pr.itemSpins || 0) + r.itemSpins; out.push(`🎁 крутка предмета ×${r.itemSpins}`); }
+    if (r.itemSpins) { pr.itemSpins = (pr.itemSpins || 0) + r.itemSpins; out.push(`🎁 молитва снаряжения ×${r.itemSpins}`); }
+    if (r.gems) { pr.gems = (pr.gems || 0) + r.gems; out.push(`💎 ${r.gems} кристаллов`); }
+    if (r.heroSpins) { pr.paidSpins = (pr.paidSpins || 0) + r.heroSpins; out.push(`🌟 молитва героя ×${r.heroSpins}`); }
     if (r.item) out.push(grantMsg(grant(pr, I.rollItem(tier, { [r.item]: 1 }))));
     for (const [k, n] of Object.entries(r.mats || {})) { const id = matKey(k, tier); I.addMat(pr, id, n); out.push(matName(id, n)); }
     return out.join(', ');
@@ -361,22 +370,28 @@ module.exports = function createMeta(deps) {
     // ---------- Призыв предметов ----------
     itemSpin(p, d, pr) {
       const n = d.n === 10 ? 10 : 1;
+      if (pr.pity && typeof pr.pity === 'object') pr.pity = 0; // старый формат счётчика гаранта героя
       const free = freeSpinsLeft(pr);
-      const useFree = Math.min(free, n);
-      if (useFree + (pr.itemSpins || 0) < n) return { error: 'Нет круток', needPayment: true };
+      const useFree = Math.min(free, n), tickets = Math.min(pr.itemSpins || 0, n - useFree), gems = (n - useFree - tickets) * SHOP.gemsPerWish;
+      if ((pr.gems || 0) < gems) return { error: 'Не хватает молитв или кристаллов', needPayment: true };
       if (pr.freeItemDay !== dayKey()) { pr.freeItemDay = dayKey(); pr.freeItemLeft = free; }
       pr.freeItemLeft -= useFree;
-      pr.itemSpins = (pr.itemSpins || 0) - (n - useFree);
+      pr.itemSpins = (pr.itemSpins || 0) - tickets;
+      pr.gems = (pr.gems || 0) - gems;
       deps.quest(p.uid, 'summon', n);
-      const results = [];
+      const results = [], feat = gearBanner();
       for (let i = 0; i < n; i++) {
         pr.pity = (pr.pity || 0) + 1;
+        pr.pityE = (pr.pityE || 0) + 1;
         let rar = I.rollRarity(ITEM_GACHA);
         if (pr.pity >= SHOP.pity && I.RARITY_ORDER.indexOf(rar) < 3) rar = 'legendary';
+        else if (pr.pityE >= 10 && I.RARITY_ORDER.indexOf(rar) < 2) rar = 'epic'; // эпический и лучше — не реже раза в 10
         if (I.RARITY_ORDER.indexOf(rar) >= 3) pr.pity = 0;
-        // Эпические и лучшие — с шансом 25% вещь комплекта (класса текущего героя чаще)
-        const setPiece = I.RARITY_ORDER.indexOf(rar) >= 2 && Math.random() < 0.25;
-        const cls = Math.random() < 0.5 ? I.classOf(p.heroId) : null;
+        if (I.RARITY_ORDER.indexOf(rar) >= 2) pr.pityE = 0;
+        // Комплект недели: легендарная и лучше — в половине случаев его вещь; эпическая — с шансом 25% вещь комплекта
+        const hi = I.RARITY_ORDER.indexOf(rar) >= 3;
+        const setPiece = hi ? Math.random() < 0.5 : I.RARITY_ORDER.indexOf(rar) >= 2 && Math.random() < 0.25;
+        const cls = hi ? feat.cls : Math.random() < 0.5 ? I.classOf(p.heroId) : null;
         const res = grant(pr, setPiece ? I.createSetItem(cls, tierOf(p), rar) : I.rollItem(tierOf(p), { [rar]: 1 }));
         results.push({ ...I.itemView(res.item), dupe: res.dupe });
       }
@@ -489,7 +504,7 @@ module.exports = function createMeta(deps) {
     shopInfo(p, d, pr) {
       if (pr.adDay !== dayKey()) { pr.adDay = dayKey(); pr.adCount = 0; }
       return { sub: isSub(pr) ? pr.subUntil : 0, subPrice: SHOP.sub.price, passPrice: SHOP.pass.price, premium: passOf(pr).premium,
-        itemSpin: SHOP.itemSpin, adsLeft: SHOP.ads.perDay - pr.adCount, gold: pr.gold,
+        itemSpin: SHOP.itemSpin, gemPacks: Object.entries(SHOP.gems).map(([id, g]) => ({ id, ...g })), gems: pr.gems || 0, adsLeft: SHOP.ads.perDay - pr.adCount, gold: pr.gold,
         chests: Object.entries(CHESTS).map(([k, c]) => ({ id: k, title: c.title, desc: c.description, amount: c.amount })) };
     },
 
@@ -611,6 +626,7 @@ module.exports = function createMeta(deps) {
   function onPaid(kind, pr) {
     if (kind === 'ispin') pr.itemSpins = (pr.itemSpins || 0) + 1;
     else if (kind === 'ispin10') pr.itemSpins = (pr.itemSpins || 0) + 10;
+    else if (SHOP.gems[kind]) pr.gems = (pr.gems || 0) + SHOP.gems[kind].gems;
     else if (kind === 'pass') passOf(pr).premium = true;
     else if (kind === 'sub') pr.subUntil = Math.max(Date.now(), pr.subUntil || 0) + SHOP.sub.days * DAY;
     else if (CHESTS[kind]) I.addMat(pr, CHESTS[kind].mat || kind, CHESTS[kind].n);
@@ -629,6 +645,7 @@ module.exports = function createMeta(deps) {
     ...Object.fromEntries(Object.entries(CHESTS).map(([k, c]) => [k, { title: c.title, description: c.description, amount: c.amount }])),
     ispin: { title: 'Призыв предмета', description: 'Одна крутка призыва предметов', amount: SHOP.itemSpin.price },
     ispin10: { title: 'Призыв предметов ×10', description: 'Десять круток призыва предметов', amount: SHOP.itemSpin.price10 },
+    ...Object.fromEntries(Object.entries(SHOP.gems).map(([k, g]) => [k, { title: `Кристаллы судьбы ×${g.gems}`, description: `${g.gems} кристаллов судьбы: 160 = одна молитва героя или снаряжения`, amount: g.amount }])),
     pass: { title: 'Премиум батл-пасс', description: 'Премиум-награды текущего сезона', amount: SHOP.pass.price },
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
   };

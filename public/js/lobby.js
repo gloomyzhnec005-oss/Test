@@ -321,36 +321,48 @@ window.Lobby = (() => {
   // ---------- Гача ----------
   function openGacha() { openSheet('Призыв героя', gachaSheet()); }
 
-  function spinLabel() {
-    const pool = Object.keys(heroes).filter((id) => !profile.heroes.includes(id));
-    if (!pool.length) return ['Все герои получены', true];
-    if (profile.freeSpin) return ['✨ Получить персонажа · бесплатно', false];
-    if (profile.paidSpins > 0) return [`✨ Получить персонажа · круток: ${profile.paidSpins}`, false];
-    return [`✨ Получить персонажа · ${profile.spinPrice} ⭐`, false];
+  // ---------- Молитвы (баннеры героев) ----------
+  let banner = 'event';
+  const W = () => profile.wish || {};
+  const wishes = () => (profile.paidSpins || 0) + Math.floor((W().gems || 0) / (W().gemsPerWish || 160));
+  const canPay = (n) => (n === 1 && profile.freeSpin) || wishes() >= n;
+  function costLabel(n) {
+    if (n === 1 && profile.freeSpin) return 'бесплатно';
+    const t = Math.min(profile.paidSpins || 0, n), g = (n - t) * (W().gemsPerWish || 160);
+    return [t ? `🌟${t}` : '', g ? `💎${g}` : ''].filter(Boolean).join(' + ');
   }
+  const plural = (n, a, b, c) => (n % 10 === 1 && n % 100 !== 11 ? a : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? b : c);
+  const left = (t) => { const ms = Math.max(0, t - Date.now()), d = Math.floor(ms / 864e5), h = Math.floor((ms % 864e5) / 36e5); return d ? `${d} д ${h} ч` : `${h} ч`; };
+  const portrait = (id, cls) => { const sk = window.Skins && Skins.get(id); return sk && sk.portrait ? `<img class="${cls}" src="${sk.portrait}" alt="${heroes[id].name}">` : ''; };
+  const nameC = (id) => `<b style="color:${rarityOf(id).color}">${heroes[id].name}</b>`;
 
-  const plural = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'крутку' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'крутки' : 'круток');
   function gachaSheet() {
     const box = document.createElement('div');
     box.className = 'gacha';
-    // Реальные шансы: все герои, кроме собранных полностью (10 дубликатов)
+    const w = W(), ev = w.event || {}, st = banner === 'event' ? ev : w.standard || {};
     const dupes = (id) => (profile.chars[id] || {}).dupes || 0;
-    const pool = Object.keys(heroes).filter((id) => !profile.heroes.includes(id) || dupes(id) < (profile.dupeMax || 10));
-    // Шанс — у редкости целиком (внутри неё герои поровну); редкости без героев в пуле не выпадают
-    const live = Object.entries(rarities).filter(([key]) => pool.some((id) => heroes[id].rarity === key));
-    const total = live.reduce((s, [, r]) => s + r.weight, 0);
-    const pct = (w) => { const v = (100 * w) / total; return v < 1 ? v.toFixed(1) : Math.round(v); };
-    const chances = live.map(([, r]) => `<span style="color:${r.color}">${r.name} ${pct(r.weight)}%</span>`).join(' · ');
-    const pity = profile.pity ? `<p class="chances">Гарант: эпический и выше — через ${profile.pity.epic} ${plural(profile.pity.epic)} · легендарный и выше — через ${profile.pity.legend} ${plural(profile.pity.legend)}</p>` : '';
-    const [label, disabled] = spinLabel();
+    const R = w.rates || {}, pct = (v) => (v * 100 < 1 ? (v * 100).toFixed(1) : +(v * 100).toFixed(1)) + '%';
+    const common = 1 - (R.mythic + R.legendary + R.epic + R.rare);
+    const chances = [['mythic', R.mythic], ['legendary', R.legendary], ['epic', R.epic], ['rare', R.rare], ['common', common]]
+      .map(([k, v]) => `<span style="color:${rarities[k].color}">${rarities[k].name} ${pct(v)}</span>`).join(' · ');
+    const head = banner === 'event' && ev.mythic
+      ? `<div class="wb-banner event">${portrait(ev.mythic, 'wb-main')}
+          <div class="wb-info"><small>Молитва недели · ещё ${left(ev.ends)}</small><b>${heroes[ev.mythic].name}</b><em>«${heroes[ev.mythic].title}» · мифический</em>
+          <div class="wb-sub">${ev.legendary.map((id) => `<span>${portrait(id, 'wb-mini')}${nameC(id)}</span>`).join('')}</div>
+          <small>Мифический выпал не тот — следующий гарантированно ${heroes[ev.mythic].name}. Легендарные недели — 50%.</small></div></div>`
+      : `<div class="wb-banner standard"><div class="wb-info"><small>Постоянный баннер</small><b>Звёздный зов</b><em>Все ${Object.keys(heroes).length} героев, шанс внутри редкости поровну</em></div></div>`;
     box.innerHTML = `
+      <div class="tw-tabs wb-tabs"><button class="tw-tab ${banner === 'event' ? 'on' : ''}" data-b="event">🌟 Ивент${ev.mythic ? ': ' + heroes[ev.mythic].name : ''}</button><button class="tw-tab ${banner === 'standard' ? 'on' : ''}" data-b="standard">⭐ Стандарт</button></div>
+      ${head}
       <div class="reel-wrap"><div class="reel-marker"></div><div id="reel" class="reel"></div></div>
-      <button id="spinBtn" class="l2-btn spin-btn" ${disabled ? 'disabled' : ''}>${label}</button>
-      <p class="sheet-hint">Чем выше редкость, тем сильнее герой: больше здоровья и урона на старте и быстрее рост с уровнем (мифический на 50 уровне ≈ на 40% сильнее обычного). Каждый герой уникален: своё имя, оружие и умения. Повторно выпавший герой — дубликат: +5% к здоровью и урону (до 10 копий) и раньше открытые умения.</p>
-      <p class="chances">${chances}</p>${pity}
+      <div class="wb-wallet"><span title="Кристаллы судьбы">💎 ${w.gems || 0}</span><span title="Молитвы героя">🌟 ${profile.paidSpins || 0}</span><span title="Звёздный блеск">✨ ${w.glitter || 0}</span></div>
+      <div class="btn-row wb-btns"><button id="spinBtn" class="l2-btn spin-btn" data-n="1">Молитва ×1<small>${costLabel(1)}</small></button><button class="l2-btn spin-btn" data-n="10">Молитва ×10<small>${costLabel(10)}</small></button></div>
+      <p class="chances">Мифический гарантирован через ${st.mythicIn} · легендарный или выше — через ${st.legIn}${banner === 'event' && ev.guarM ? ' · <b class="ok">следующий мифический — герой недели</b>' : ''}${banner === 'event' && ev.guarL ? ' · <b class="ok">следующий легендарный — герой недели</b>' : ''}</p>
+      <p class="chances">${chances}</p>
+      <div class="btn-row wb-links"><button class="l2-btn" data-a="hist">📜 История</button><button class="l2-btn" data-a="glitter">✨ Обмен блеска</button><button class="l2-btn" data-a="buy">⭐ Молитвы</button></div>
+      <p class="sheet-hint">С ${w.soft}-й молитвы без мифического шанс растёт, на ${w.hard}-й — гарант. Повтор — дубликат (+5% к силе, до 10) и звёздный блеск. 160 💎 = одна молитва. Чем выше редкость, тем сильнее герой и быстрее растёт.</p>
       <div class="sheet-sub">Все герои · получено ${profile.heroes.length} из ${Object.keys(heroes).length}</div>
       <div class="hero-grid"></div>`;
-    // Барабан в покое: показываем случайные карточки
     fillReel(box.querySelector('#reel'), null);
     const grid = box.querySelector('.hero-grid');
     for (const id of Object.keys(heroes)) {
@@ -365,7 +377,35 @@ window.Lobby = (() => {
       card.onclick = () => (owned ? (select(id), closeSheet()) : showHeroInfo(id, false));
       grid.appendChild(card);
     }
-    box.querySelector('#spinBtn').onclick = spin;
+    box.querySelectorAll('[data-b]').forEach((b) => { b.onclick = () => { banner = b.dataset.b; openGacha(); }; });
+    box.querySelectorAll('.wb-btns [data-n]').forEach((b) => { b.onclick = () => spin(+b.dataset.n); });
+    box.querySelector('[data-a="hist"]').onclick = () => openSheet('📜 История молитв', histSheet());
+    box.querySelector('[data-a="glitter"]').onclick = () => openSheet('✨ Обмен звёздного блеска', glitterSheet());
+    box.querySelector('[data-a="buy"]').onclick = () => buySpin('spin10');
+    return box;
+  }
+
+  function histSheet() {
+    const box = document.createElement('div');
+    const h = W().hist || [];
+    box.innerHTML = `<p class="sheet-hint">Последние ${h.length} молитв героев</p><div class="wb-hist">${h.map((x) => heroes[x.h] ? `<div><span>${new Date(x.t).toLocaleDateString('ru-RU')}</span>${nameC(x.h)}<em style="color:${rarities[x.r].color}">${rarities[x.r].name}</em><small>${x.b === 'event' ? '🌟 ивент' : '⭐ стандарт'}${x.f ? ' · герой недели' : ''}</small></div>` : '').join('') || '<p class="sheet-hint">Пока пусто</p>'}</div>`;
+    const back = document.createElement('button'); back.className = 'l2-btn wide'; back.textContent = 'Назад'; back.onclick = openGacha;
+    box.append(back);
+    return box;
+  }
+
+  function glitterSheet() {
+    const box = document.createElement('div'), w = W(), pr = w.glitterPrice || { hero: 10, gear: 8 };
+    box.innerHTML = `<p class="sheet-hint">Звёздный блеск даётся за повторных героев: обычный и редкий 1, эпический 2, легендарный 5, мифический 10 (вдвое, если дубликатов уже 10). У вас ✨ ${w.glitter || 0}</p>
+      <div class="tw-ev"><div><b>🌟 Молитва героя</b><small>${pr.hero} ✨</small></div><div class="btn-row"><button class="l2-btn" data-w="hero" data-n="1">×1</button><button class="l2-btn" data-w="hero" data-n="10">×10</button></div></div>
+      <div class="tw-ev"><div><b>🎁 Молитва снаряжения</b><small>${pr.gear} ✨</small></div><div class="btn-row"><button class="l2-btn" data-w="gear" data-n="1">×1</button><button class="l2-btn" data-w="gear" data-n="10">×10</button></div></div>`;
+    box.querySelectorAll('[data-w]').forEach((b) => { b.onclick = async () => {
+      const { ok, data } = await api('/api/gacha/exchange', { what: b.dataset.w, n: +b.dataset.n });
+      if (!ok) return toast(data.error || 'Не получилось');
+      profile = data.profile; toast('Обмен выполнен'); openSheet('✨ Обмен звёздного блеска', glitterSheet());
+    }; });
+    const back = document.createElement('button'); back.className = 'l2-btn wide'; back.textContent = 'Назад'; back.onclick = openGacha;
+    box.append(back);
     return box;
   }
 
@@ -420,23 +460,23 @@ window.Lobby = (() => {
     return near;
   }
 
-  async function spin() {
+  async function spin(n = 1) {
     if (spinning) return;
     const btn = $('spinBtn');
-    // Нужна оплата — открываем счёт в Telegram Stars
-    if (!profile.freeSpin && profile.paidSpins <= 0) return buySpin();
+    // Не хватает молитв и кристаллов — открываем счёт в Telegram Stars
+    if (!canPay(n)) return buySpin(n === 10 ? 'spin10' : 'spin');
     spinning = true;
-    btn.disabled = true;
-    btn.textContent = 'Призыв...';
-    const { ok, data } = await api('/api/gacha/spin', {});
+    document.querySelectorAll('.wb-btns button').forEach((b) => { b.disabled = true; });
+    btn.textContent = 'Молитва...';
+    const { ok, data } = await api('/api/gacha/spin', { banner, n });
     if (!ok) {
       spinning = false;
-      if (data.needPayment) { profile.freeSpin = false; profile.paidSpins = 0; return buySpin(); }
+      if (data.needPayment) return buySpin(n === 10 ? 'spin10' : 'spin');
       toast(data.error || 'Ошибка призыва');
-      btn.disabled = false;
-      btn.textContent = spinLabel()[0];
+      openGacha();
       return;
     }
+    if (n === 10) return wish10(data);
     const rk = heroes[data.hero].rarity, high = rankOf(rk) >= RANK().length - 1;
     const reel = $('reel');
     const near = fillReel(reel, data.hero);
@@ -481,7 +521,7 @@ window.Lobby = (() => {
 
   // ---------- Раскрытие печати ----------
   // Печать загорается редкостями по очереди — от обычной до выпавшей, затем трескается и показывает силуэт героя
-  function summon(id, dupe) {
+  function summon(id, dupe, onEnd) {
     const h = heroes[id], rk = h.rarity, steps = RANK().slice(0, rankOf(rk) + 1);
     const box = document.createElement('div');
     box.className = 'sm-overlay';
@@ -513,7 +553,7 @@ window.Lobby = (() => {
     });
     at(t + 500, () => { box.classList.add('shown'); box.querySelector('.sm-name').innerHTML = `${dupe ? `<small>Дубликат ★${dupe}</small>` : '<small>Новый герой</small>'}<b>${h.name}</b><em>«${h.title}»</em>`; });
     at(t + 1500, () => box.classList.add('lit'));
-    const end = () => { timers.forEach(clearTimeout); box.remove(); showHeroInfo(id, true, dupe); };
+    const end = () => { timers.forEach(clearTimeout); box.remove(); if (onEnd) onEnd(); else showHeroInfo(id, true, dupe); };
     at(t + 3200, end);
     box.onclick = () => (box.classList.contains('lit') ? end() : (timers.forEach(clearTimeout), timers.length = 0,
       box.style.setProperty('--c', rarities[rk].color), box.classList.add('burst', 'shown', 'lit'),
@@ -530,10 +570,32 @@ window.Lobby = (() => {
     }
   }
 
-  async function buySpin() {
+  // ×10: если среди результатов есть легендарный или выше — сначала раскрытие лучшего, затем все десять карт
+  function wish10(data) {
+    profile = data.profile;
+    const res = data.results, RO = Object.keys(rarities);
+    const best = res.slice().sort((a, b) => RO.indexOf(b.rar) - RO.indexOf(a.rar))[0];
+    order = [best.hero, ...order.filter((k) => k !== best.hero)];
+    opts.store.set('lastHero', best.hero);
+    buildStage();
+    spinning = false;
+    const grid = () => {
+      const box = document.createElement('div');
+      box.className = 'sm-overlay wish10';
+      box.innerHTML = `<div class="w10-grid">${res.map((r, i) => `<div class="w10-card" style="--rarity:${rarities[r.rar].color};--d:${i * 0.12}s" data-i="${i}"><b>${heroes[r.hero].name}</b><span>${rarities[r.rar].name}</span><em>${r.isNew ? 'Новый!' : r.dupe ? `Дубликат ★${r.dupe}` : 'Максимум'}${r.glitter ? ` · ✨${r.glitter}` : ''}</em></div>`).join('')}</div>
+        <button class="l2-btn spin-btn w10-ok">Готово</button>`;
+      box.querySelectorAll('.w10-card').forEach((c) => c.prepend(heroCanvas(res[+c.dataset.i].hero, true)));
+      $('reveal').parentElement.appendChild(box);
+      box.querySelector('.w10-ok').onclick = () => { box.remove(); openGacha(); };
+    };
+    if (RO.indexOf(best.rar) >= RO.indexOf('legendary')) summon(best.hero, best.dupe, grid);
+    else grid();
+  }
+
+  async function buySpin(item = 'spin') {
     const tg = opts.tg;
-    if (!tg || !opts.tgUser || !tg.openInvoice) { toast('Крутки за Telegram Stars доступны только в Telegram'); return; }
-    const { ok, data } = await api('/api/invoice', { item: 'spin' });
+    if (!tg || !opts.tgUser || !tg.openInvoice) { toast('Нет молитв: 💎 кристаллы — за задания и в магазине, молитвы за Stars — в Telegram'); return; }
+    const { ok, data } = await api('/api/invoice', { item });
     if (!ok) { toast(data.error || 'Оплата недоступна'); return; }
     tg.openInvoice(data.link, async (status) => {
       if (status !== 'paid') return;
@@ -541,8 +603,8 @@ window.Lobby = (() => {
         await new Promise((res) => setTimeout(res, 800));
         await loadProfile();
       }
-      if (profile.paidSpins > 0) spin();
-      else toast('Оплата получена, крутка появится через несколько секунд');
+      if (profile.paidSpins > 0) openGacha();
+      else toast('Оплата получена, молитвы появятся через несколько секунд');
     });
   }
 

@@ -906,3 +906,46 @@ canvas.skin { object-fit: contain; }
 .chat-log .stk { display: flex; align-items: center; gap: 4px; }
 .chat-sticker { width: 56px; height: 56px; object-fit: contain; }
 .sheet-card.l2-panel.bg-auction { background-image: linear-gradient(180deg, rgba(10,8,6,.35), rgba(10,8,6,.78) 45%, rgba(10,8,6,.92)), url(../assets/ui/bg_auction.webp); }
+.gem-packs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.gem-pack { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border-radius: 8px; border: 1px solid #a8864a; background: linear-gradient(180deg, #3a2f45, #1c1525); color: #f3e6c6; font-family: inherit; cursor: pointer; }
+.gem-pack img { width: 46px; height: 46px; object-fit: contain; }
+.gem-pack b { font-size: 14px; color: #9fd8ff; }
+.gem-pack span { font-size: 11px; }
+/* ---------- Молитвы: баннеры героев ---------- */
+.wb-tabs { margin-bottom: 8px; }
+.wb-banner { position: relative; min-height: 150px; margin-bottom: 8px; padding: 12px; border-radius: 10px; overflow: hidden; border: 1px solid #d4a63c;
+  background: radial-gradient(ellipse at 80% 40%, rgba(255,80,110,.35), transparent 60%), linear-gradient(135deg, #2a1230, #120a18); }
+.wb-banner.standard { min-height: 84px; background: radial-gradient(ellipse at 80% 30%, rgba(90,160,255,.3), transparent 60%), linear-gradient(135deg, #142038, #0a0f1c); border-color: #6a8ac8; }
+.wb-main { position: absolute; right: -6px; bottom: 0; height: 150px; width: auto; filter: drop-shadow(0 0 14px rgba(255,90,120,.6)); pointer-events: none; }
+.wb-info { position: relative; display: flex; flex-direction: column; gap: 3px; max-width: 64%; }
+.wb-info > small { color: #d8c8a8; font-size: 11px; }
+.wb-info > b { font-size: 20px; color: #ff8aa0; text-shadow: 0 0 8px rgba(255,60,100,.6); font-weight: normal; }
+.wb-banner.standard .wb-info > b { color: #9fd0ff; text-shadow: 0 0 8px rgba(80,150,255,.6); }
+.wb-info > em { font-style: normal; font-size: 12px; color: #f3e6c6; }
+.wb-sub { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0; }
+.wb-sub span { display: flex; align-items: center; gap: 3px; font-size: 11px; background: rgba(0,0,0,.35); border-radius: 12px; padding: 2px 6px 2px 2px; }
+.wb-sub b { font-weight: normal; }
+.wb-mini { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; object-position: center 12%; background: #1a1410; }
+.wb-wallet { display: flex; justify-content: center; gap: 16px; margin: 6px 0; font-size: 14px; color: #f3e6c6; }
+.wb-btns { gap: 6px; }
+.wb-btns .spin-btn { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 9px; }
+.wb-btns .spin-btn small { font-size: 11px; color: #d8c8a8; }
+.wb-links .l2-btn { font-size: 12px; padding: 7px 4px; }
+.chances .ok { color: #7dff8a; font-weight: normal; }
+.wb-hist { display: flex; flex-direction: column; gap: 3px; max-height: 50vh; overflow: auto; margin-bottom: 8px; }
+.wb-hist div { display: grid; grid-template-columns: 70px 1fr auto; gap: 2px 8px; padding: 5px 8px; border-radius: 6px; background: rgba(255,255,255,.04); font-size: 12px; }
+.wb-hist span { color: #8a7a5a; }
+.wb-hist em { font-style: normal; text-align: right; }
+.wb-hist small { grid-column: 2 / 4; color: #a89878; font-size: 10px; }
+/* ×10: десять карт переворачиваются по очереди */
+.wish10 { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; background: rgba(5,3,8,.92); }
+.w10-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; width: min(100%, 460px); }
+.w10-card { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px; border-radius: 8px; border: 2px solid var(--rarity); text-align: center;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--rarity) 40%, transparent), #120e0b 75%); box-shadow: 0 0 10px color-mix(in srgb, var(--rarity) 50%, transparent);
+  animation: w10in .45s cubic-bezier(.2,.9,.3,1.3) backwards; animation-delay: var(--d); }
+.w10-card canvas { width: 54px; height: 54px; image-rendering: pixelated; }
+.w10-card b { font-size: 11px; color: #fff3d0; font-weight: normal; line-height: 1.1; }
+.w10-card span { font-size: 9px; color: var(--rarity); }
+.w10-card em { font-size: 9px; font-style: normal; color: #d8c8a8; }
+@keyframes w10in { from { transform: rotateY(90deg) scale(.6); opacity: 0; } }
+.w10-ok { width: min(100%, 300px); }

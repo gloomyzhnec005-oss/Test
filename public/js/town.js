@@ -265,10 +265,11 @@ window.Town = (() => {
   async function gachaPanel() {
     const inv = await Bag.refresh();
     const box = el(`<p class="sheet-hint">Алтарь призыва · ${ctx.zone.name}</p>
-      <div class="tw-banner hero"><b>✨ Призыв героя</b><small>Новый герой или дубликат: +5% к статам и раньше открытые умения</small><button class="l2-btn" id="twHeroSpin">Призвать</button></div>
-      <div class="tw-banner items"><b>🎁 Призыв предметов</b>
-        <small>Экипировка и руны мира ${ROMAN[ctx.zone.tier]} · редкий 62% · эпический 29% · легендарный 7.5% · мифический 1.5% · каждая эпическая и лучше — с шансом 25% вещь комплекта<br>
-        Гарант легендарного: ${inv.pity} / ${inv.pityMax} · бесплатно сегодня: ${inv.freeItemSpins} · круток: ${inv.itemSpins}</small>
+      <div class="tw-banner hero"><b>🌟 Молитвы героев</b><small>Ивентовый баннер недели и стандартный · гарант мифического на 80-й молитве, 50/50 на героя недели</small><button class="l2-btn" id="twHeroSpin">Открыть баннеры</button></div>
+      <div class="tw-banner items"><b>🎁 Баннер снаряжения</b>
+        <small>Комплект недели: <b>${inv.gearBanner.name}</b> — половина легендарных и мифических вещей из него · экипировка мира ${ROMAN[ctx.zone.tier]}<br>
+        редкий 62% · эпический 29% · легендарный 7.5% · мифический 1.5% · эпический и выше — не реже раза в 10<br>
+        Гарант легендарного: ${inv.pity} / ${inv.pityMax} · бесплатно сегодня: ${inv.freeItemSpins} · молитв: ${inv.itemSpins} · 💎 ${inv.gems} (160 = молитва)</small>
         <div class="btn-row"><button class="l2-btn" data-n="1">Призвать ×1</button><button class="l2-btn" data-n="10">×10</button></div>
         <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · 15 ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · 135 ⭐</button></div></div>`);
     box.querySelector('#twHeroSpin').onclick = () => ctx.onGacha();
@@ -297,7 +298,7 @@ window.Town = (() => {
   }
 
   // ---------- Батл-пасс ----------
-  const rwText = (r) => (r.gold ? `💰 ${r.gold}` : r.itemSpins ? `🎁 крутка ×${r.itemSpins}` : r.item ? `🎁 ${{ rare: 'редкий', epic: 'эпический', legendary: 'легендарный', mythic: 'мифический' }[r.item]} предмет` : '');
+  const rwText = (r) => (r.gold ? `💰 ${r.gold}` : r.gems ? `💎 ${r.gems}` : r.heroSpins ? `🌟 молитва героя ×${r.heroSpins}` : r.itemSpins ? `🎁 молитва снаряжения ×${r.itemSpins}` : r.item ? `🎁 ${{ rare: 'редкий', epic: 'эпический', legendary: 'легендарный', mythic: 'мифический' }[r.item]} предмет` : '');
   async function passPanel() {
     const { pass: ps } = await Bag.act('pass');
     const box = el(`<div class="pass-head"><b>Сезон · уровень ${ps.level} / ${ps.rewards.length}</b>
@@ -334,7 +335,11 @@ window.Town = (() => {
         <small>+25% опыта и золота · 2 бесплатных призыва предметов в день · комиссия рынка 5% вместо 10% · сумка 80 ячеек · 8 боёв на арене в день</small>
         ${s.sub ? `<small class="ok">Активна до ${new Date(s.sub).toLocaleDateString('ru-RU')}</small>` : ''}
         <button class="l2-btn" data-buy="sub">${s.sub ? 'Продлить' : 'Оформить'} · ${s.subPrice} ⭐</button></div>
-      <div class="tw-banner items has-art"><img class="tw-art" src="assets/ui/shop/gems3.webp" alt=""><b>🎁 Крутки призыва предметов</b><small>Гарантированный легендарный предмет каждые 50 круток</small>
+      <div class="tw-banner hero gems-row"><b>💎 Кристаллы судьбы · у вас ${s.gems || 0}</b><small>160 кристаллов = одна молитва героя или снаряжения</small>
+        <div class="gem-packs">${(s.gemPacks || []).map((g) => `<button class="gem-pack" data-buy="${g.id}"><img src="assets/ui/shop/${g.id}.webp" alt=""><b>${g.gems}</b><span>${g.amount} ⭐</span></button>`).join('')}</div></div>
+      <div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/gems4.webp" alt=""><b>🌟 Молитвы героя</b><small>Для ивентового и стандартного баннера героев</small>
+        <div class="btn-row"><button class="l2-btn" data-buy="spin">+1 · 25 ⭐</button><button class="l2-btn" data-buy="spin10">+10 · 225 ⭐</button></div></div>
+      <div class="tw-banner items has-art"><img class="tw-art" src="assets/ui/shop/gems3.webp" alt=""><b>🎁 Молитвы снаряжения</b><small>Гарантированный легендарный предмет каждые 50 круток</small>
         <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · ${s.itemSpin.price} ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · ${s.itemSpin.price10} ⭐</button></div></div>
       <div class="tw-banner pass has-art"><img class="tw-art" src="assets/ui/shop/pass.webp" alt=""><b>🎟️ Премиум батл-пасс</b><small>Мифический предмет на 30 уровне, легендарные на 20 и 25</small>
         <button class="l2-btn" data-buy="pass" ${s.premium ? 'disabled' : ''}>${s.premium ? 'Уже куплен' : `${s.passPrice} ⭐`}</button></div>

@@ -530,7 +530,7 @@ module.exports = function createDungeons(d) {
       pr.dungeonClears[key] = (pr.dungeonClears[key] || 0) + 1;
       p.socket.emit('zoneObjs', z.objs);
       p.socket.emit('chat', { sys: true, text: `🏆 ${run.dg.name} пройден за ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}! +${gold} 💰${first ? ' · первое прохождение: награда' : ''}` });
-      if (first) d.giveLoot(p, pr, d.rollItem(z.tier, C.DROPS.boss[z.tier]), p);
+      if (first) { d.giveLoot(p, pr, d.rollItem(z.tier, C.DROPS.boss[z.tier]), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первое прохождение: +160 кристаллов судьбы' }); }
       d.markDirty(p);
     }
   }
