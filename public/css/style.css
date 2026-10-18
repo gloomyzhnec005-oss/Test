@@ -49,6 +49,17 @@ input, select, textarea { font-size: 16px !important; }
 .l2-btn:disabled { opacity: .5; }
 .icon-btn { border: none; background: none; font-size: 15px; padding: 0 2px; cursor: pointer; color: #e9dcc0; }
 
+/* Заставка загрузки */
+.splash {
+  position: fixed; inset: 0; z-index: 10000; background: #120e16 url(../assets/ui/loading.webp) center top / cover no-repeat;
+  transition: opacity .55s;
+}
+.splash.out { opacity: 0; pointer-events: none; }
+.splash-load { position: absolute; left: 50%; bottom: calc(6% + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(76vw, 320px); text-align: center; }
+.splash-bar { height: 12px; border: 1px solid #a8864a; border-radius: 6px; background: rgba(10,8,7,.85); overflow: hidden; box-shadow: 0 0 12px rgba(0,0,0,.8), inset 0 0 0 1px rgba(0,0,0,.7); }
+.splash-bar i { display: block; height: 100%; width: 0; background: linear-gradient(180deg, #ffe08a, #c08a2a 55%, #8a5a14); box-shadow: 0 0 10px #ffb84a; transition: width .3s; }
+.splash-load p { margin: 8px 0 0; color: #f3e6c6; font-size: 13px; letter-spacing: .5px; text-shadow: 0 1px 3px #000; }
+
 /* Логотип игры: под окном героя, над сценой */
 .lobby-logo {
   position: absolute; z-index: 4; left: 50%; top: calc(140px + env(safe-area-inset-top)); transform: translateX(-50%);

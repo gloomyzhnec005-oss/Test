@@ -670,6 +670,7 @@ window.Lobby = (() => {
       backgrounds = cfg.backgrounds;
     } catch {
       $('status').textContent = 'Сервер недоступен';
+      window.splashDone?.('Сервер недоступен');
       return;
     }
     await loadProfile();
@@ -681,6 +682,7 @@ window.Lobby = (() => {
     if (savedBg && (savedBg === 'city' || profile.bgs.includes(savedBg)) && savedBg !== bgId) applyBg(savedBg, false);
     buildStage();
     $('playBtn').disabled = false;
+    window.splashDone?.();
 
     $('menuHeroes').onclick = openGacha;
     $('menuBg').onclick = () => openSheet('Фон лобби', bgSheet());

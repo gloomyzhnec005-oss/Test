@@ -5,11 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Telegram Quest — MMORPG</title>
   <link rel="stylesheet" href="css/style.css" />
+  <link rel="preload" as="image" href="assets/ui/loading.webp" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="/vendor/phaser.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
+  <!-- Заставка загрузки: держится, пока лобби не получит профиль -->
+  <div id="splash" class="splash">
+    <div class="splash-load"><div class="splash-bar"><i id="splashFill"></i></div><p id="splashText">Загрузка мира…</p></div>
+  </div>
+  <script>
+    (function () {
+      var p = 0, fill = document.getElementById('splashFill');
+      var t = setInterval(function () { p += (92 - p) * 0.06; fill.style.width = p + '%'; }, 120);
+      window.splashDone = function (msg) {
+        clearInterval(t); fill.style.width = '100%';
+        var el = document.getElementById('splash');
+        if (msg) document.getElementById('splashText').textContent = msg;
+        setTimeout(function () { el.classList.add('out'); setTimeout(function () { el.remove(); }, 600); }, msg ? 1200 : 250);
+        window.splashDone = function () {};
+      };
+    })();
+  </script>
   <!-- Лобби (выбор персонажа) -->
   <div id="lobby" class="lobby">
     <canvas id="lobbyBg" class="lobby-bg"></canvas>
