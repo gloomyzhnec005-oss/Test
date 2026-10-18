@@ -323,19 +323,21 @@ window.Town = (() => {
   }
 
   // ---------- Магазин: подписка, крутки, реклама ----------
+  // Нарисованные значки товаров магазина (assets/ui/shop/)
+  const SHOP_ART = { chestSet: 'chestSet', chestSet5: 'chestSet5', chestLegend: 'chestLegend' };
   async function storePanel() {
     const s = await Bag.act('shopInfo');
-    const box = el(`<div class="tw-banner hero"><b>👑 Подписка «Покровитель» · 30 дней</b>
+    const box = el(`<div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/sub.webp" alt=""><b>👑 Подписка «Покровитель» · 30 дней</b>
         <small>+25% опыта и золота · 2 бесплатных призыва предметов в день · комиссия рынка 5% вместо 10% · сумка 80 ячеек · 8 боёв на арене в день</small>
         ${s.sub ? `<small class="ok">Активна до ${new Date(s.sub).toLocaleDateString('ru-RU')}</small>` : ''}
         <button class="l2-btn" data-buy="sub">${s.sub ? 'Продлить' : 'Оформить'} · ${s.subPrice} ⭐</button></div>
-      <div class="tw-banner items"><b>🎁 Крутки призыва предметов</b><small>Гарантированный легендарный предмет каждые 50 круток</small>
+      <div class="tw-banner items has-art"><img class="tw-art" src="assets/ui/shop/gems3.webp" alt=""><b>🎁 Крутки призыва предметов</b><small>Гарантированный легендарный предмет каждые 50 круток</small>
         <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · ${s.itemSpin.price} ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · ${s.itemSpin.price10} ⭐</button></div></div>
-      <div class="tw-banner pass"><b>🎟️ Премиум батл-пасс</b><small>Мифический предмет на 30 уровне, легендарные на 20 и 25</small>
+      <div class="tw-banner pass has-art"><img class="tw-art" src="assets/ui/shop/pass.webp" alt=""><b>🎟️ Премиум батл-пасс</b><small>Мифический предмет на 30 уровне, легендарные на 20 и 25</small>
         <button class="l2-btn" data-buy="pass" ${s.premium ? 'disabled' : ''}>${s.premium ? 'Уже куплен' : `${s.passPrice} ⭐`}</button></div>
-      ${(s.chests || []).map((c) => `<div class="tw-banner items"><b>${{ kitSmith: '🧰', chestSet: '🎁', chestSet5: '🎁', chestLegend: '👑' }[c.id] || '🎁'} ${c.title}</b><small>${c.desc} · открывается в сумке, награда — мира, где вы его открыли</small>
+      ${(s.chests || []).map((c) => `<div class="tw-banner items ${SHOP_ART[c.id] ? 'has-art' : ''}">${SHOP_ART[c.id] ? `<img class="tw-art" src="assets/ui/shop/${SHOP_ART[c.id]}.webp" alt="">` : ''}<b>${{ kitSmith: '🧰', chestSet: '🎁', chestSet5: '🎁', chestLegend: '👑' }[c.id] || '🎁'} ${c.title}</b><small>${c.desc} · открывается в сумке, награда — мира, где вы его открыли</small>
         <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}
-      <div class="tw-banner ad"><b>📺 Награда за рекламу</b><small>Осталось сегодня: ${s.adsLeft} · золото, каждая 5-я — крутка предмета</small>
+      <div class="tw-banner ad has-art"><img class="tw-art" src="assets/ui/shop/gold2.webp" alt=""><b>📺 Награда за рекламу</b><small>Осталось сегодня: ${s.adsLeft} · золото, каждая 5-я — крутка предмета</small>
         <button class="l2-btn" id="watchAd" ${s.adsLeft > 0 ? '' : 'disabled'}>Смотреть</button></div>`);
     box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, storePanel); });
     box.querySelector('#watchAd').onclick = () => showAd(storePanel);

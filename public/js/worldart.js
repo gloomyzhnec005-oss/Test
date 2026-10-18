@@ -32,6 +32,8 @@ window.WorldArt = (() => {
   const PROPS = ['barrel', 'crates', 'bones', 'candles', 'brazier', 'brokenPillar', 'statue', 'cage', 'web', 'exitAltar', 'demonAltar', 'crystal', 'sarcophagus', 'chestClosed', 'chestOpen'];
   function preload(scene) {
     for (const k of PROPS) scene.load.image('prop_' + k, `assets/world/props/${k}.png`);
+    for (const k of ['stun', 'root', 'slow', 'freeze', 'fear', 'taunt', 'weak', 'curse', 'poison', 'burn', 'bleed', 'shield', 'haste', 'rage', 'regen', 'invuln']) scene.load.image('st_' + k, `assets/ui/status/${k}.webp`);
+    for (const k of ['coins', 'goldBag', 'scroll', 'potion', 'lootCommon', 'lootRare', 'lootEpic', 'lootLegend']) scene.load.image('loot_' + k, `assets/world/loot/${k}.webp`);
     // Арены мировых боссов (assets/world/arena/<тема>.webp): одна картинка на всю площадку
     for (const th of Object.keys(THEMES)) scene.load.image('arena_' + th, `assets/world/arena/${th}.webp`);
     for (const th of Object.keys(THEMES)) {

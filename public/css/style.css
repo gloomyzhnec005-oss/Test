@@ -883,3 +883,6 @@ canvas.skin { object-fit: contain; }
 .pd .pd-ped { opacity: 0; }
 .pd .pd-glow { opacity: .6; }
 .pd .pd-name b, .pd .pd-name small { text-shadow: 0 0 4px #000, 0 0 8px #000, 0 1px 2px #000; }
+.tw-banner.has-art { position: relative; left: 0; top: 0; min-height: 84px; }
+.tw-banner.has-art > b, .tw-banner.has-art > small { padding-right: 80px; }
+.tw-banner.has-art .tw-art { position: absolute; right: 8px; top: 8px; width: 72px; height: 72px; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0,0,0,.7)); pointer-events: none; }

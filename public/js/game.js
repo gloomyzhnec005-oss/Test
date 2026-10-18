@@ -527,12 +527,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.cryObjs.forEach((o, i) => { const a = tt + (i / e.cryObjs.length) * Math.PI * 2; o.setPosition(Math.cos(a) * 20, -2 + Math.sin(a) * 9); });
       }
       // Состояния от монстров: контроль, яд, замедление, проклятие
-      const pst = ({ stun: '💫', freeze: '🧊', root: '🕸️', confuse: '😵' }[p.pcc] || '') + ({ poison: '🧪', bleed: '🩸', burn: '🔥' }[p.pdot] || '') + (p.pslow ? '🐌' : '') + (p.pweak ? '💔' : '');
-      if (pst !== (e.pst || '')) {
-        e.pst = pst;
-        if (!e.pstText) { e.pstText = this.add.text(0, e.label.y - 12, '', { fontSize: '11px', resolution: 2 }).setOrigin(0.5, 1); e.c.add(e.pstText); }
-        e.pstText.setText(pst);
-      }
+      const pcc = { stun: 'stun', freeze: 'freeze', root: 'root', confuse: '😵' }[p.pcc];
+      this.statusRow(e, [pcc, p.pdot, p.pslow && 'slow', p.pweak && 'weak', p.sh && 'shield']);
       if (!!p.tree !== !!e.tree) { e.tree = !!p.tree; if (p.tree) e.sprite.setTint(0xb8ffb8); else e.sprite.clearTint(); }
       // Полёт (Талмира): герой поднят над землёй
       const flyY = p.fly ? -16 : 0;
@@ -611,21 +607,17 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
       if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
-      const status = (m.st ? '💫' : '') + (m.wk ? '😨' : '') + (m.mk ? '🎯' : '') + (m.sl ? '⛓️' : '') + (m.sw ? '🐌' : '') + (m.tn ? '😡' : '')
+      // Нарисованные значки (assets/ui/status/<имя>.webp); у редких эффектов без значка — эмодзи
+      const status = [m.st && 'stun', m.wk && 'weak', m.mk && '🎯', m.sl && '⛓️', m.sw && 'slow', m.tn && 'taunt', m.ws && '✨', m.br && 'weak', m.ps && 'poison', m.bn && 'burn',
+        (m.bc || m.bl) && 'bleed', m.rt && 'root', m.cf && '😵', m.fr && 'fear', m.fz && 'freeze', m.mo && '🤡', m.st2 && '⭐', m.ds && '🔯', m.bd && '⛓', m.ch && '💘', m.cu && 'curse',
+        m.fs && '❄️' + m.fs, m.sn ? '🗿' : m.pf && '🪨' + m.pf];
         + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '') + (m.mo ? '🤡' : '') + (m.st2 ? '⭐' : '') + (m.ds ? '🔯' : '') + (m.bd ? '⛓' : '') + (m.bl ? '🩸' : '') + (m.ch ? '💘' : '') + (m.cu ? '🕯️' : '') + (m.fs ? '❄️' + m.fs : '') + (m.sn ? '🗿' : m.pf ? '🪨' + m.pf : '');
       // Печать тьмы Морвена — вращающийся знак под монстром
       if (m.ds && !e.sealFx) e.sealFx = HeroFx.sealMark(this, e);
       else if (!m.ds && e.sealFx) { e.sealFx.destroy(); e.sealFx = null; }
       if (m.sn) e.sprite.setTint(0x8a8a88); else if (e.stone) e.sprite.clearTint();
       e.stone = !!m.sn;
-      if (status !== (e.status || '')) {
-        e.status = status;
-        if (!e.statusText) {
-          e.statusText = this.add.text(0, e.label.y - 12, '', { fontSize: '11px', resolution: 2 }).setOrigin(0.5, 1);
-          e.c.add(e.statusText);
-        }
-        e.statusText.setText(status);
-      }
+      this.statusRow(e, status);
       e.tx = m.x; e.ty = m.y; e.data = m;
       this.setBar(e, m.hp, m.maxHp);
       e.c.setAlpha(m.inv ? 0.18 : 1); // тень в невидимости
@@ -803,6 +795,40 @@ window.GameScene = class GameScene extends Phaser.Scene {
     else if (f.t === 'pdeath' && f.target === me) Sfx.play('death');
   }
 
+  // Добыча подпрыгивает из точки, лежит и улетает к своему герою (или тает)
+  dropSprite(x, y, key, size) {
+    if (!this.textures.exists(key)) return;
+    const dx = (Math.random() - 0.5) * 36, img = this.add.image(x, y, key).setDisplaySize(size, size).setDepth(10 + y + 2);
+    const sx = img.scaleX, sy = img.scaleY;
+    img.setScale(sx * 0.3, sy * 0.3);
+    this.tweens.add({ targets: img, x: x + dx, scaleX: sx, scaleY: sy, duration: 420, ease: 'Quad.easeOut' });
+    this.tweens.add({ targets: img, y: y - 26, duration: 210, ease: 'Quad.easeOut', yoyo: true, onComplete: () => {
+      this.time.delayedCall(900, () => {
+        const me = this.players.get(this.myId);
+        if (!img.active) return;
+        if (me) this.tweens.add({ targets: img, x: me.c.x, y: me.c.y - 14, scaleX: sx * 0.4, scaleY: sy * 0.4, alpha: 0.2, duration: 380, ease: 'Quad.easeIn', onComplete: () => img.destroy() });
+        else this.tweens.add({ targets: img, alpha: 0, duration: 400, onComplete: () => img.destroy() });
+      });
+    } });
+  }
+
+  // Ряд значков состояний над головой: имена — картинки из assets/ui/status, остальное — эмодзи
+  statusRow(e, list) {
+    const items = [...new Set(list.filter(Boolean))], key = items.join('|');
+    if (key === (e.statusKey || '')) return;
+    e.statusKey = key;
+    if (e.statusBox) e.statusBox.destroy();
+    e.statusBox = null;
+    if (!items.length) return;
+    const box = this.add.container(0, e.label.y - 13), S = 13;
+    items.forEach((k, i) => {
+      const x = (i - (items.length - 1) / 2) * (S + 1);
+      if (this.textures.exists('st_' + k)) box.add(this.add.image(x, 0, 'st_' + k).setDisplaySize(S, S));
+      else box.add(this.add.text(x, 0, k, { fontSize: '11px', resolution: 2 }).setOrigin(0.5));
+    });
+    e.c.add(box); e.statusBox = box;
+  }
+
   playFx(f) {
     this.playSound(f);
     if (f.t === 'hit' && f.kind === 'm') {
@@ -897,6 +923,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         if (f.contract) this.floatText(f.x, f.y - 52, 'Контракт выполнен!', '#ffcc4d', 14);
         this.floatText(f.x, f.y - 34, `+${f.xp} XP`, '#8ad3ff', 13);
         this.floatText(f.x, f.y - 18, `+${f.gold} 💰`, '#ffcc4d', 12);
+        if (f.gold) this.dropSprite(f.x, f.y, f.gold >= 100 ? 'loot_goldBag' : 'loot_coins', 26);
         this.ui.vibrate('medium');
       }
     } else if (f.t === 'levelup') {
@@ -940,7 +967,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
     } else if (f.t === 'loot') {
       // Выпавший предмет: название цветом редкости. Если рядом сундук босса — вылетает из него после открытия
       const ch = (this.chests || []).find((c) => Math.hypot(c.x - f.x, c.y - f.y) < 60 && performance.now() - c.openAt < 3000);
+      // Значок добычи на земле: сундучок цвета редкости, у материалов — свиток
+      const LOOT = { '#b8c4d6': 'lootCommon', '#4da3ff': 'lootRare', '#b86bff': 'lootEpic', '#ffb340': 'lootLegend', '#ff4d6a': 'lootLegend' };
       const show = (x, y) => {
+        this.dropSprite(x, y, 'loot_' + (LOOT[String(f.color).toLowerCase()] || 'scroll'), 30);
         this.floatText(x, y - 46, f.name, f.color, 13);
         this.burst(x, y, parseInt(f.color.slice(1), 16), 14);
       };
