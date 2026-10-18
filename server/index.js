@@ -97,6 +97,7 @@ function profileView(who) {
     name: who.name, heroes: pr.heroes, chars, bgs,
     isAdmin: !!who.tg && admin.isAdminUid(who.uid),
     freeSpin: !pr.freeSpinUsed || FREE_SPINS || S.freeSpins, paidSpins: pr.paidSpins, spinPrice: C.GACHA.spinPrice, gold: pr.gold, dupeMax: C.GACHA.heroDupeMax,
+    pity: { epic: C.GACHA.pityEpic - ((pr.pity || {}).e || 0), legend: C.GACHA.pityLegend - ((pr.pity || {}).l || 0) },
   };
 }
 app.post('/api/profile', (req, res) => {
@@ -121,10 +122,19 @@ app.post('/api/gacha/spin', (req, res) => {
   else if (pr.paidSpins > 0) pr.paidSpins -= 1;
   else return res.status(402).json({ error: 'Нет круток', needPayment: true });
 
-  const weight = (id) => C.RARITIES[C.HEROES[id].rarity].weight;
-  let roll = Math.random() * pool.reduce((sum, id) => sum + weight(id), 0);
-  let hero = pool[pool.length - 1];
-  for (const id of pool) { roll -= weight(id); if (roll < 0) { hero = id; break; } }
+  // Сначала редкость (по её шансу), потом герой этой редкости поровну. Гарант: счётчики круток без эпического+ и легендарного+
+  const RO = Object.keys(C.RARITIES), rk = (id) => RO.indexOf(C.HEROES[id].rarity);
+  pr.pity = pr.pity || { e: 0, l: 0 };
+  // Первый герой — не ниже редкого, чтобы старт не был слабым
+  const minRank = !pr.heroes.length ? RO.indexOf('rare') : pr.pity.l + 1 >= C.GACHA.pityLegend ? RO.indexOf('legendary') : pr.pity.e + 1 >= C.GACHA.pityEpic ? RO.indexOf('epic') : 0;
+  let tiers = RO.filter((k, i) => i >= minRank && pool.some((id) => C.HEROES[id].rarity === k));
+  if (!tiers.length) tiers = RO.filter((k) => pool.some((id) => C.HEROES[id].rarity === k));
+  let roll = Math.random() * tiers.reduce((sum, k) => sum + C.RARITIES[k].weight, 0), tier = tiers[tiers.length - 1];
+  for (const k of tiers) { roll -= C.RARITIES[k].weight; if (roll < 0) { tier = k; break; } }
+  const inTier = pool.filter((id) => C.HEROES[id].rarity === tier);
+  const hero = inTier[Math.floor(Math.random() * inTier.length)];
+  pr.pity.e = rk(hero) >= RO.indexOf('epic') ? 0 : pr.pity.e + 1;
+  pr.pity.l = rk(hero) >= RO.indexOf('legendary') ? 0 : pr.pity.l + 1;
   let dupe = 0;
   if (pr.heroes.includes(hero)) { dupe = pr.heroDupes[hero] = (pr.heroDupes[hero] || 0) + 1; refreshUid(who.uid); }
   else pr.heroes.push(hero);
@@ -277,9 +287,10 @@ const statsFor = (heroId, lvl, pr = null) => {
   const b = C.HEROES[heroId];
   const g = pr ? I.gearStats(pr, heroId) : {};
   const dk = 1 + I.DUPE_STEP * ((pr && pr.heroDupes && pr.heroDupes[heroId]) || 0);
+  const R = C.RARITIES[b.rarity] || { base: 1, grow: 1 }; // редкость: сильнее старт и быстрее рост
   return {
-    maxHp: Math.round((b.hp * (1 + 0.12 * (lvl - 1)) + (g.hp || 0)) * (1 + (g.hpP || 0) / 100) * dk),
-    dmg: Math.round((b.dmg * (1 + 0.1 * (lvl - 1)) + (g.atk || 0)) * (1 + (g.atkP || 0) / 100) * dk),
+    maxHp: Math.round((b.hp * R.base * (1 + 0.12 * R.grow * (lvl - 1)) + (g.hp || 0)) * (1 + (g.hpP || 0) / 100) * dk),
+    dmg: Math.round((b.dmg * R.base * (1 + 0.1 * R.grow * (lvl - 1)) + (g.atk || 0)) * (1 + (g.atkP || 0) / 100) * dk),
     resMax: Math.round(b.resource.max * (1 + 0.05 * (lvl - 1))),
   };
 };

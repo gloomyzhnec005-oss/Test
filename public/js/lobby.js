@@ -329,23 +329,25 @@ window.Lobby = (() => {
     return [`✨ Получить персонажа · ${profile.spinPrice} ⭐`, false];
   }
 
+  const plural = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'крутку' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'крутки' : 'круток');
   function gachaSheet() {
     const box = document.createElement('div');
     box.className = 'gacha';
     // Реальные шансы: все герои, кроме собранных полностью (10 дубликатов)
     const dupes = (id) => (profile.chars[id] || {}).dupes || 0;
     const pool = Object.keys(heroes).filter((id) => !profile.heroes.includes(id) || dupes(id) < (profile.dupeMax || 10));
-    const total = pool.reduce((s, id) => s + rarityOf(id).weight, 0);
-    const chances = Object.entries(rarities)
-      .map(([key, r]) => [r, pool.filter((id) => heroes[id].rarity === key).reduce((s, id) => s + r.weight, 0)])
-      .filter(([, w]) => w > 0)
-      .map(([r, w]) => `<span style="color:${r.color}">${r.name} ${Math.round((100 * w) / total)}%</span>`).join(' · ');
+    // Шанс — у редкости целиком (внутри неё герои поровну); редкости без героев в пуле не выпадают
+    const live = Object.entries(rarities).filter(([key]) => pool.some((id) => heroes[id].rarity === key));
+    const total = live.reduce((s, [, r]) => s + r.weight, 0);
+    const pct = (w) => { const v = (100 * w) / total; return v < 1 ? v.toFixed(1) : Math.round(v); };
+    const chances = live.map(([, r]) => `<span style="color:${r.color}">${r.name} ${pct(r.weight)}%</span>`).join(' · ');
+    const pity = profile.pity ? `<p class="chances">Гарант: эпический и выше — через ${profile.pity.epic} ${plural(profile.pity.epic)} · легендарный и выше — через ${profile.pity.legend} ${plural(profile.pity.legend)}</p>` : '';
     const [label, disabled] = spinLabel();
     box.innerHTML = `
       <div class="reel-wrap"><div class="reel-marker"></div><div id="reel" class="reel"></div></div>
       <button id="spinBtn" class="l2-btn spin-btn" ${disabled ? 'disabled' : ''}>${label}</button>
-      <p class="sheet-hint">Каждый герой уникален: своё имя, оружие и умения. Повторно выпавший герой — дубликат: +5% к здоровью и урону (до 10 копий) и раньше открытые умения.</p>
-      <p class="chances">${chances}</p>
+      <p class="sheet-hint">Чем выше редкость, тем сильнее герой: больше здоровья и урона на старте и быстрее рост с уровнем (мифический на 50 уровне ≈ на 40% сильнее обычного). Каждый герой уникален: своё имя, оружие и умения. Повторно выпавший герой — дубликат: +5% к здоровью и урону (до 10 копий) и раньше открытые умения.</p>
+      <p class="chances">${chances}</p>${pity}
       <div class="sheet-sub">Все герои · получено ${profile.heroes.length} из ${Object.keys(heroes).length}</div>
       <div class="hero-grid"></div>`;
     // Барабан в покое: показываем случайные карточки
@@ -369,7 +371,7 @@ window.Lobby = (() => {
 
   // ---------- Барабан: рубашки карт по редкости ----------
   // На барабане видна только редкость (цвет и звёзды), герой скрыт до раскрытия печати
-  // Только редкости, у которых есть герои (сейчас — эпические и легендарные), от низшей к высшей
+  // Только редкости, у которых есть герои, от низшей к высшей
   const RANK = () => Object.keys(rarities).filter((k) => Object.values(heroes).some((h) => h.rarity === k));
   const rankOf = (rk) => RANK().indexOf(rk);
   const gRank = (rk) => Object.keys(rarities).indexOf(rk);    // место среди всех редкостей
@@ -402,9 +404,8 @@ window.Lobby = (() => {
     reel.style.transition = 'none';
     reel.style.transform = 'translateX(0)';
     const ids = Object.keys(heroes);
-    const weight = (id) => rarityOf(id).weight;
-    const total = ids.reduce((s, id) => s + weight(id), 0);
-    const pick = () => { let r = Math.random() * total; for (const id of ids) { r -= weight(id); if (r < 0) return heroes[id].rarity; } return heroes[ids[0]].rarity; };
+    const tiers = RANK(), total = tiers.reduce((s, k) => s + rarities[k].weight, 0);
+    const pick = () => { let r = Math.random() * total; for (const k of tiers) { r -= rarities[k].weight; if (r < 0) return k; } return tiers[0]; };
     const n = result ? WIN_INDEX + 5 : 9;
     const cards = Array.from({ length: n }, pick);
     let near = false;
@@ -508,7 +509,7 @@ window.Lobby = (() => {
     at(t, () => {
       box.classList.add('burst');
       if (top) { box.classList.add('shake'); haptic('notificationOccurred', 'success'); }
-      burst(box, rarities[rk].color, [10, 20, 34, 60][gRank(rk)] || 20);
+      burst(box, rarities[rk].color, [10, 16, 26, 40, 64][gRank(rk)] || 20);
     });
     at(t + 500, () => { box.classList.add('shown'); box.querySelector('.sm-name').innerHTML = `${dupe ? `<small>Дубликат ★${dupe}</small>` : '<small>Новый герой</small>'}<b>${h.name}</b><em>«${h.title}»</em>`; });
     at(t + 1500, () => box.classList.add('lit'));
