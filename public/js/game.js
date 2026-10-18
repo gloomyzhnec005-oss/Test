@@ -637,7 +637,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const turretArt = ownerSkin && this.textures.exists('turret_' + ownerSkin) ? 'turret_' + ownerSkin : null; // нарисованная турель (Ингрид)
         // Нарисованный спутник (assets/pets): двойник — только если он двойник Ле Блан
         const ownerP = this.players.get(pt.owner);
-        const psk = this.textures.exists('psk_' + pt.kind) && (pt.kind !== 'clone' || (ownerP && ownerP.skin === 'leblanc')) ? pt.kind : null;
+        const pk = pt.drowned ? 'drowned' : pt.kind; // утопленник Галатеи — поднятый монстр, но со своим рисунком
+        const psk = this.textures.exists('psk_' + pk) && (pk !== 'clone' || (ownerP && ownerP.skin === 'leblanc')) ? pk : null;
         e = this.makeEntity(psk ? 'psk_' + psk : pt.skin || turretArt || 'pet_' + pt.kind, pt.label || names[pt.kind], pt.owner === this.myId ? '#c8f0a0' : '#d8d0c0');
         if (psk) {
           e.psk = psk;
@@ -2022,7 +2023,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       e.c.setDepth(10 + e.c.y);
       if (e.data && e.data.kind === 'hawk') e.sprite.y = -10 + Math.sin(time / 180) * 3; // сокол парит
       if (e.psk && !e.attacking) {
-        const moving = Math.hypot(e.tx - e.c.x, e.ty - e.c.y) > 1.5 || e.psk === 'hawk' || e.psk === 'turret';
+        const moving = Math.hypot(e.tx - e.c.x, e.ty - e.c.y) > 1.5 || ['hawk', 'turret', 'wisp', 'sprite'].includes(e.psk);
         if (moving && !e.sprite.anims.isPlaying) e.sprite.play(`pwalk_${e.psk}`);
         else if (!moving && e.sprite.anims.isPlaying) { e.sprite.stop(); e.sprite.setFrame(0); }
       }

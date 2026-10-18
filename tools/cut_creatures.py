@@ -1,5 +1,5 @@
 """Нарезка листа существ: сетка рядов × 7 кадров (4 ходьба + 3 атака), существо смотрит вправо, фон зелёный или пурпурный.
-python3 tools/cut_creatures.py лист.png имя1:рост,имя2:рост,... [out_dir] [cols]
+python3 tools/cut_creatures.py лист.png имя1:рост[:ширина],имя2:рост,... [out_dir] [cols]  (ширина — во сколько раз ячейка шире высоты, по умолчанию 1.3)
 Каждый ряд → <out>/<имя>.png: 7 кадров в ряд, ячейка W×H (W = H*1.3), существо внизу по центру, рост — высота в пикселях.
 Куски каждого кадра собираются по центру в ячейке сетки (искры, вспышки выстрела остаются у своего кадра)."""
 import sys, numpy as np
@@ -22,17 +22,44 @@ rgb = np.clip((im - (1 - a3) * bg) / a3, 0, 255)
 if bg[1] > max(bg[0], bg[2]): rgb[..., 1] = np.minimum(rgb[..., 1], np.maximum(rgb[..., 0], rgb[..., 2]) + 30)
 else:
     ex = np.clip(np.minimum(rgb[..., 0], rgb[..., 2]) - rgb[..., 1] - 30, 0, None); rgb[..., 0] -= ex; rgb[..., 2] -= ex
-lab, n = ndimage.label(fg)
+# Ряды — по пустым строкам; кадры в ряду — по фигурам слева направо (колонки бывают неровные из-за широких ударов).
+prof = np.convolve(fg.sum(1).astype(float), np.ones(9) / 9, mode='same')
+nz = np.nonzero(prof > 1)[0]; y0a, y1a = nz.min(), nz.max() + 1; st = (y1a - y0a) / rows
+cuts = [y0a] + [int(y0a + st * k - st * 0.3) + int(np.argmin(prof[int(y0a + st * k - st * 0.3):int(y0a + st * k + st * 0.3)])) for k in range(1, rows)] + [y1a]
+lab = np.zeros(fg.shape, np.int32)
 cells = {}
-for i, sl in enumerate(ndimage.find_objects(lab), 1):
-    m = lab[sl] == i
-    if m.sum() < 25: continue
-    ys, xs = np.nonzero(m)
-    cy, cx = ys.mean() + sl[0].start, xs.mean() + sl[1].start
-    c = (min(rows - 1, int(cy / H * rows)), min(cols - 1, int(cx / W * cols)))
-    cells.setdefault(c, []).append(i)
-for r, (name, hpx) in enumerate(spec):
-    hpx = int(hpx); CH = int(hpx * 1.15) + 4; CW = int(CH * 1.3)
+for r in range(rows):
+    band = np.zeros_like(fg); band[cuts[r]:cuts[r + 1]] = fg[cuts[r]:cuts[r + 1]]
+    bl, bn = ndimage.label(ndimage.binary_dilation(band, iterations=5))
+    sizes = ndimage.sum(band, bl, range(1, bn + 1))
+    big = [i + 1 for i, z in enumerate(sizes) if z > 0.12 * sizes.max()]
+    objs = ndimage.find_objects(bl)
+    cx = {i: (objs[i - 1][1].start + objs[i - 1][1].stop) / 2 for i in range(1, bn + 1)}
+    big.sort(key=lambda i: cx[i])
+    # мелкие куски (искры, кончик хлыста) — к ближайшей фигуре по x
+    owner = {i: min(big, key=lambda j: abs(cx[j] - cx[i])) for i in range(1, bn + 1)}
+    # слиплись соседние кадры (хлыст, коса до соседа) — делим самую широкую фигуру по самому пустому столбцу
+    nxt = bn + 1
+    while len(big) < cols:
+        j = max(big, key=lambda i: objs[i - 1][1].stop - objs[i - 1][1].start)
+        sl = objs[j - 1]; m = (bl[sl] == j) & band[sl]
+        col = np.convolve(m.sum(0).astype(float), np.ones(5) / 5, mode='same'); L = len(col)
+        cut = int(L * 0.3) + int(np.argmin(col[int(L * 0.3):int(L * 0.7)]))
+        right = np.zeros_like(bl, bool); right[sl][:, cut:] = (bl[sl] == j)[:, cut:]
+        bl[right] = nxt; objs.append((sl[0], slice(sl[1].start + cut, sl[1].stop)))
+        objs[j - 1] = (sl[0], slice(sl[1].start, sl[1].start + cut))
+        cx[j] = (objs[j - 1][1].start + objs[j - 1][1].stop) / 2; cx[nxt] = (objs[nxt - 1][1].start + objs[nxt - 1][1].stop) / 2
+        big.append(nxt); owner[nxt] = nxt; bn = nxt; nxt += 1
+        big.sort(key=lambda i: cx[i])
+    order = big if len(big) <= cols else big[:4] + big[-(cols - 4):]
+    for c, j in enumerate(order):
+        ids = [i for i in range(1, bn + 1) if owner[i] == j]
+        m = np.isin(bl, ids) & band
+        lab[m] = r * 100 + c + 1
+        cells[(r, c)] = [r * 100 + c + 1]
+    print('ряд', r + 1, 'фигур', len(big))
+for r, (name, hpx, *wf) in enumerate(spec):
+    hpx = int(hpx); CH = int(hpx * 1.15) + 4; CW = int(CH * float(wf[0] if wf else 1.3))
     boxes = []
     for c in range(cols):
         m = np.isin(lab, cells.get((r, c), []))

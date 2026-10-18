@@ -309,7 +309,7 @@ window.Skins = (() => {
     },
   };
   // Нарисованные спутники и призванные (public/assets/pets, нарезка tools/cut_creatures.py): 4 кадра ходьбы + 3 удара, смотрят вправо
-  const PETS = { wolf: [49, 38], bear: [61, 47], hawk: [49, 38], skeleton: [65, 50], clone: [72, 56], turret: [55, 43] };
+  const PETS = { wolf: [49, 38], bear: [61, 47], hawk: [49, 38], skeleton: [65, 50], clone: [72, 56], turret: [55, 43], sprite: [99, 45], seaSpirit: [85, 45], drowned: [70, 47], wisp: [93, 52] };
   // Нарисованные монстры: лист кадров в ряд (монстр смотрит вправо), какие кадры — ходьба, какие — удар
   const MOBS = {};
   // Все монстры нарисованы генератором tools/gen_mobs.py (размеры — public/js/mobart.js): 4 кадра ходьбы, 3 кадра удара
