@@ -77,10 +77,17 @@
 
   // ---------- Чат ----------
   const chatLog = $('chatLog');
+  // Стикеры (assets/ui/stickers/<имя>.webp): сообщение вида [st:имя] рисуется картинкой
+  const STICKERS = ['gg', 'lol', 'cry', 'angry', 'greedy', 'help', 'sleep', 'love'];
   function addChat(msg) {
     const div = document.createElement('div');
+    const st = !msg.sys && /^\[st:(\w+)\]$/.exec(msg.text || '');
     if (msg.sys) { div.className = 'sys'; div.textContent = msg.text; }
-    else { const b = document.createElement('b'); b.textContent = msg.name + ': '; div.append(b, msg.text); }
+    else if (st && STICKERS.includes(st[1])) {
+      const b = document.createElement('b'); b.textContent = msg.name + ': ';
+      const im = document.createElement('img'); im.className = 'chat-sticker'; im.src = `assets/ui/stickers/${st[1]}.webp`; im.alt = st[1];
+      div.className = 'stk'; div.append(b, im);
+    } else { const b = document.createElement('b'); b.textContent = msg.name + ': '; div.append(b, msg.text); }
     chatLog.appendChild(div);
     while (chatLog.children.length > 6) chatLog.removeChild(chatLog.firstChild);
     setTimeout(() => div.remove(), 15000);
@@ -88,6 +95,13 @@
   $('chatBtn').onclick = () => {
     $('chatForm').classList.toggle('hidden');
     if (!$('chatForm').classList.contains('hidden')) $('chatInput').focus();
+  };
+  $('stickerBar').innerHTML = STICKERS.map((k) => `<button type="button" data-st="${k}"><img src="assets/ui/stickers/${k}.webp" alt="${k}"></button>`).join('');
+  $('stickerBar').onclick = (e) => {
+    const b = e.target.closest('[data-st]');
+    if (!b || !socket) return;
+    socket.emit('chat', `[st:${b.dataset.st}]`);
+    $('chatForm').classList.add('hidden'); $('chatInput').blur();
   };
   $('chatForm').onsubmit = (e) => {
     e.preventDefault();
@@ -117,8 +131,12 @@
     }
   }
   let passiveDef = null;
+  // Рамка аватара по уровню героя: бронза, серебро, золото, платина, бриллиант, легенда (50)
+  const avaTier = (l) => (l >= 50 ? 'legend' : l >= 40 ? 'diamond' : l >= 30 ? 'platinum' : l >= 20 ? 'gold' : l >= 10 ? 'silver' : 'bronze');
   function setStats(s) {
     $('lvl').textContent = s.level;
+    const tier = avaTier(s.level);
+    if ($('hudAvaFrame').dataset.t !== tier) { $('hudAvaFrame').dataset.t = tier; $('hudAvaFrame').style.backgroundImage = `url(assets/ui/ava/${tier}.webp)`; }
     $('hpFill').style.width = (100 * s.hp / s.maxHp) + '%';
     $('hpText').textContent = `${s.hp} / ${s.maxHp}${s.shield ? ` +🛡${s.shield}` : ''}`;
     if (s.resMax) {
@@ -265,6 +283,8 @@
       $('hud').classList.remove('hidden');
       const hero = w.heroes[selected];
       $('heroName').textContent = `${name} · ${hero.name}`;
+      const sk = window.Skins && Skins.get(selected);
+      if (sk && sk.portrait) $('hudAvaImg').src = sk.portrait; else $('hudAva').classList.add('hidden');
       resName = hero.resource.name;
       $('resFill').style.background = hero.resource.color;
       buildSkills({ ...hero, id: selected });

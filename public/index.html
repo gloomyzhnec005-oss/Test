@@ -82,6 +82,7 @@
   <div id="hud" class="hidden">
     <div class="top">
       <div class="panel stats">
+        <div id="hudAva" class="hud-ava"><img id="hudAvaImg" alt=""><i id="hudAvaFrame"></i></div>
         <div class="row"><span id="lvl" class="lvl">1</span><span id="heroName"></span></div>
         <div class="bar hp"><div id="hpFill"></div><span id="hpText"></span></div>
         <div class="bar res"><div id="resFill"></div><span id="resText"></span></div>
@@ -96,7 +97,7 @@
       <div class="bar hp"><div id="targetFill"></div></div>
     </div>
     <div id="chatLog" class="chat-log"></div>
-    <form id="chatForm" class="chat-form hidden"><input id="chatInput" maxlength="120" placeholder="Сообщение..." /></form>
+    <form id="chatForm" class="chat-form hidden"><div id="stickerBar" class="sticker-bar"></div><input id="chatInput" maxlength="120" placeholder="Сообщение..." /></form>
     <button id="chatBtn" class="round small-btn art"><img class="it-art" src="assets/ui/nav_chat.webp" alt="💬"></button>
     <button id="potBtn" class="round small-btn art" title="Выпить зелье здоровья"><img class="it-art" src="assets/items/mat_potHp.webp" alt="🧪"></button>
     <div id="partyFrame" class="party-frame hidden"></div>
