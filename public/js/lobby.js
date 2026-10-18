@@ -370,13 +370,13 @@ window.Lobby = (() => {
   const rankOf = (rk) => RANK().indexOf(rk);
   const gRank = (rk) => Object.keys(rarities).indexOf(rk);    // место среди всех редкостей
   const STARS = (rk) => '✦'.repeat(gRank(rk) + 1);
-  // Необязательные картинки рубашек: assets/gacha/back_<редкость>.png (если файла нет — рисуется CSS)
+  // Нарисованные рубашки: assets/gacha/back_<редкость>.webp (если файла нет — рисуется CSS)
   const backArt = {};
   function loadBackArt() {
     for (const rk of RANK()) {
       const im = new Image();
-      im.onload = () => { backArt[rk] = `url(assets/gacha/back_${rk}.png)`; };
-      im.src = `assets/gacha/back_${rk}.png`;
+      im.onload = () => { backArt[rk] = `url("${im.src}")`; };
+      im.src = `assets/gacha/back_${rk}.webp`;
     }
   }
   function reelCard(rk) {
@@ -385,7 +385,7 @@ window.Lobby = (() => {
     card.className = 'reel-card back rk-' + rk;
     card.dataset.rk = rk;
     card.style.setProperty('--rarity', r.color);
-    if (backArt[rk]) card.style.setProperty('--art', backArt[rk]);
+    if (backArt[rk]) { card.style.setProperty('--art', backArt[rk]); card.classList.add('has-art'); }
     card.innerHTML = `<div class="rc-seal">◈</div><b>${STARS(rk)}</b><small>${r.name}</small>`;
     return card;
   }
