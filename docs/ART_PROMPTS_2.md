@@ -179,3 +179,190 @@ Fantasy MMORPG character screen background, vertical 3:4, dark painterly digital
 A dark stone hall with a round carved stone pedestal in the center lit by a warm golden light from above, faint magic circle on the pedestal, dark edges, subtle dust particles.
 Empty — no character, no UI, no text. The pedestal is in the lower-middle part of the image.
 ```
+
+---
+
+## М. Обычные монстры и полубоссы (сейчас их рисует генератор)
+
+Каждый промт самодостаточный — копируйте блок целиком. 4 монстра на лист, ряд — один монстр, **смотрит вправо**, 4 кадра ходьбы + 3 кадра атаки.
+Листы М-1…М-3 — на **пурпурном** фоне (там зелёные гоблины, орки, энт и зомби), остальные — на зелёном.
+
+**М-1** — гоблины
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright magenta background (#FF00FF), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty magenta space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Goblin Raider: small green goblin in scrap leather armor with a jagged cleaver and a round wooden shield; attack = cleaver chop.
+Row 2 — Goblin Archer: skinny green goblin with a hood, quiver and short bow; attack = drawing and shooting an arrow.
+Row 3 — Goblin Shaman: hunched green goblin in a bone mask and feathers, staff with a glowing skull; attack = raising the staff with a purple spark.
+Row 4 — Goblin Healer: old green goblin with a herb bag and a mortar on its back, wooden ladle staff; attack = splashing a yellow healing potion.
+```
+
+**М-2** — орки, гоблин-миньон, паук
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright magenta background (#FF00FF), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty magenta space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Orc Warrior: muscular green orc in iron shoulder plates with a heavy notched sword; attack = overhead sword slash.
+Row 2 — Orc Thrower: green orc with a fur vest and a bundle of throwing axes on the back; attack = throwing an axe.
+Row 3 — Goblin (summoned minion): tiny green goblin with a dagger and a pot helmet; attack = quick dagger stab.
+Row 4 — Poison Spider: large black spider with toxic green markings and dripping fangs; attack = lunging venom bite.
+```
+
+**М-3** — лес и гниль
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright magenta background (#FF00FF), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty magenta space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Ancient Ent: walking tree giant with mossy bark, branch arms, glowing amber eyes; attack = heavy branch swing.
+Row 2 — Renegade Druid: hooded druid in leaf-and-bark robes with antler crown and gnarled staff; attack = casting a whirl of thorny leaves.
+Row 3 — Zombie Berserker: big rotting green-grey zombie with a rusty axe stuck in its shoulder, torn clothes; attack = wild two-handed axe swing.
+Row 4 — Zombie (summoned minion): small shambling green-grey zombie with outstretched arms; attack = clawing grab.
+```
+
+**М-4** — скелеты
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Skeleton Swordsman: yellowed skeleton in a dented helmet with a rusty sword and wooden shield; attack = sword slash.
+Row 2 — Skeleton Crossbowman: skeleton in tattered leather with a heavy crossbow; attack = aiming and firing a bolt.
+Row 3 — Skeleton Banner-bearer: skeleton in rusted mail holding a tall torn black banner with a skull emblem; attack = slamming the banner pole with a blue ghost-fire flash.
+Row 4 — Skeleton (summoned minion): small plain skeleton with a bone club; attack = club swing.
+```
+
+**М-5** — нежить-колдуны
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Skeleton Lord: tall skeleton in a black-gold cape and spiked crown with a bone scepter, blue ghost fire in its eyes; attack = raising the scepter with blue fire.
+Row 2 — Lich: floating skeletal mage in purple-black robes with a glowing phylactery gem; attack = casting a violet death bolt.
+Row 3 — Necromancer: pale gaunt man in a black hooded robe with bone ornaments and a skull staff; attack = summoning gesture with purple-blue necrotic energy.
+Row 4 — Bone Titan: hulking giant built from many fused bones and skulls, huge bone fists; attack = double-fist ground smash.
+```
+
+**М-6** — звери
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Alpha Wolf: large dark grey wolf with scars, a white mane and glowing yellow eyes; attack = leaping bite.
+Row 2 — Wolf (summoned minion): small grey wolf; attack = quick bite.
+Row 3 — Lycanthrope: werewolf in torn trousers, dark brown fur, long claws, red eyes; attack = double claw rake.
+Row 4 — Minotaur: huge bull-headed brown minotaur with a nose ring, iron bracers and a giant double axe; attack = axe cleave.
+```
+
+**М-7** — стрелки
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Dark Hunter: hooded ranger in black leather with a red scarf and a long recurve bow; attack = drawing and shooting a dark arrow.
+Row 2 — Bandit Crossbowman: scruffy bandit in a brown hat and patched leather with a crossbow; attack = firing a bolt.
+Row 3 — Phantom Archer: translucent pale-blue ghost archer with a spectral bow and a flowing hooded cloak; attack = shooting a glowing blue arrow.
+Row 4 — Centaur Archer: brown-horse centaur with a bare torso, leather bracers and a tall bow; attack = rearing shot.
+```
+
+**М-8** — летающие, пауки, кристаллы
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Harpy: winged woman with grey-brown feathered wings, talons for feet and wild hair, flying low; attack = diving talon swipe.
+Row 2 — Spider Matriarch: huge purple-black spider with an egg sac on its back and a crown of horns; attack = rearing up and spitting purple web.
+Row 3 — Spiderling (summoned minion): tiny purple-black spider; attack = quick bite.
+Row 4 — Crystal Guardian: floating humanoid made of blue-violet crystals with a glowing white core; attack = casting a beam of light from its core.
+```
+
+**М-9** — маги
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Dark Mage: robed sorcerer in black and dark-red robes with a crooked staff and a hood hiding the face; attack = casting a dark purple orb.
+Row 2 — Elementalist: mage in blue-orange robes with three small orbs (fire, water, lightning) floating around; attack = launching a lightning bolt.
+Row 3 — Chaos Mage: mage in jagged purple-black robes with a cracked mask and swirling chaos sigils; attack = casting a pink-purple chaos burst.
+Row 4 — Cursed Priest: priest in a torn grey cassock with chains and a burning censer, bandaged eyes; attack = swinging the censer with dark smoke.
+```
+
+**М-10** — огонь и лёд
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Fire Cultist: cultist in a red hooded robe with a flaming dagger and burning runes on the sleeves; attack = throwing a fireball.
+Row 2 — Pyromancer: fiery mage in orange-black robes, hair made of flames, a burning staff; attack = casting a large fire blast.
+Row 3 — Ice Warlock: pale warlock in white-blue furs with an icicle staff and frost breath; attack = casting an ice shard.
+Row 4 — Cryomancer: frost mage in crystal-blue robes with a floating ice crown; attack = casting a swirling blizzard orb.
+```
+
+**М-11** — големы и стражи
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Stone Golem: chunky grey stone golem with glowing blue cracks; attack = heavy punch.
+Row 2 — Stone Guard: humanoid statue knight of grey stone with a tower shield and a stone spear; attack = spear thrust.
+Row 3 — Iron Golem: riveted iron automaton with an orange furnace glow in its chest; attack = hammer-arm smash with sparks.
+Row 4 — Ice Colossus: giant made of blue ice blocks with frosty mist and icicle shoulders; attack = icy ground pound.
+```
+
+**М-12** — демоны
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Demon Butcher: fat red-skinned demon in a bloody leather apron with a giant meat cleaver and hooks; attack = cleaver chop.
+Row 2 — Hell Guard: armored demon soldier in black-red spiked plate with a halberd and burning eyes; attack = halberd sweep.
+Row 3 — Temptress Demon: slender demoness with purple skin, small horns, bat wings and a whip; attack = whip lash with pink sparks.
+Row 4 — Imp (summoned minion): tiny red imp with small wings and a pitchfork; attack = pitchfork poke.
+```
+
+**М-13** — тёмные жрецы и рыцари
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Demonologist: robed sorcerer in dark red with a demonic grimoire floating in front of him and horned mask; attack = opening the book with a red summoning circle.
+Row 2 — Demon Herald: tall horned demon with a war horn and a red banner; attack = blowing the horn with a red shockwave.
+Row 3 — Dark Priest: priest in black-purple vestments with a crooked holy symbol and a dark halo; attack = casting a dark purple light.
+Row 4 — Cursed Knight: knight in blackened rusted plate armor with a broken greatsword and purple ghost fire in the visor; attack = greatsword slash.
+```
+
+**М-14** — убийцы
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Shadow: living black shadow humanoid with glowing white eyes and wisps of smoke; attack = shadow claw strike.
+Row 2 — Night Blade: masked assassin in dark blue leather with twin curved daggers; attack = fast double stab.
+Row 3 — Phantom Assassin: translucent pale-violet ghost assassin with a hood and a spectral blade; attack = dashing slash with a ghost trail.
+Row 4 — Blood Reaper: gaunt hooded reaper in crimson rags with a blood-red scythe; attack = scythe sweep with blood mist.
+```
+
+**М-15** — вампиры и полубоссы (чуть крупнее и богаче деталями)
+```
+Pixel art fantasy RPG monster sprite sheet, Lineage 2 / Diablo pixel art style, top-down 3/4 view, same style as the heroes. Regular enemies: medium size, simpler than bosses, strong readable silhouette.
+Pure bright green background (#00FF00), no text, no grid lines, no ground shadows.
+Strict grid: 4 rows × 7 frames, all frames the same size, generous empty green space between frames, monsters never touch each other.
+Every monster faces RIGHT. In each row: frames 1–4 = walk cycle, frames 5–7 = attack (wind-up, strike, recover).
+Row 1 — Vampire Duelist: elegant pale vampire in a black-red coat with a rapier; attack = rapier lunge.
+Row 2 — Vampire Lord (mini-boss, bigger): tall vampire noble in an ornate black-gold armor and a high-collar crimson cape, bat wings; attack = claw slash with red blood energy.
+Row 3 — Necro Priest (mini-boss, bigger): skeletal high priest in a bone mitre and black-violet robes with a large necrotic staff; attack = casting a violet soul blast.
+Row 4 — Demon Executioner (mini-boss, bigger): huge hooded red demon with a giant executioner axe and chains; attack = overhead axe execution strike.
+```
