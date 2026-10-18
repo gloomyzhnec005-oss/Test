@@ -49,6 +49,15 @@ input, select, textarea { font-size: 16px !important; }
 .l2-btn:disabled { opacity: .5; }
 .icon-btn { border: none; background: none; font-size: 15px; padding: 0 2px; cursor: pointer; color: #e9dcc0; }
 
+/* Логотип игры: под окном героя, над сценой */
+.lobby-logo {
+  position: absolute; z-index: 4; left: 50%; top: calc(140px + env(safe-area-inset-top)); transform: translateX(-50%);
+  width: min(58vw, 230px); pointer-events: none; filter: drop-shadow(0 4px 10px rgba(0,0,0,.7));
+  animation: logoIn .9s ease-out;
+}
+@keyframes logoIn { from { opacity: 0; transform: translateX(-50%) scale(.85); } }
+@media (max-height: 700px) { .lobby-logo { width: min(44vw, 170px); top: calc(128px + env(safe-area-inset-top)); } }
+
 /* Окно 1 */
 .hero-panel {
   position: absolute; z-index: 5; left: 10px; top: calc(10px + env(safe-area-inset-top));
