@@ -158,6 +158,20 @@ One image with exactly 5 square frames in a row, equal size, generous space betw
 1) Common — plain dark iron.  2) Rare — silver with blue gems.  3) Epic — gold with purple gems.  4) Legendary — ornate gold with orange glow.  5) Mythic — gold and crimson with red glowing crystals.
 ```
 
+### И-8b: тонкие рамки ячеек (замена И-8 — прежние закрывали предмет)
+
+```
+Fantasy MMORPG inventory slot frames, square, hand-painted thin ornate metal frames, Diablo / Lineage 2 style.
+One image with exactly 5 square frames in a row, equal size, generous empty space between them (frames never touch), flat solid magenta #FF00FF background.
+Each frame is a THIN border: the border band is only about 6% of the frame width, with small decorations ONLY on the four corners and pointing OUTWARD.
+Nothing points inward: no spikes, gems or ornaments inside the frame. The whole inner area (about 88% of the frame) is EMPTY and magenta, no items, no text.
+1) Common — thin dark iron band, tiny iron corner rivets.
+2) Rare — thin silver band, small blue gem on each corner.
+3) Epic — thin gold band, small purple gem on each corner.
+4) Legendary — thin ornate gold band with a soft orange glow, small amber gem on each corner.
+5) Mythic — thin gold and crimson band, small glowing red crystal on each corner.
+```
+
 ### И-9: фон экрана персонажа (без вырезания)
 
 ```
