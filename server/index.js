@@ -688,6 +688,8 @@ function shareKill(killer, m, xp) {
 function dropLoot(killer, m) {
   const tier = m.tier || 1, boss = m.rank === 'boss' || m.rank === 'mini';
   if (m.rank === 'world') return; // награда мирового босса — по вкладу (server/dungeon.js)
+  // Босс и полубосс оставляют сундук: клиент открывает его, и добыча вылетает из него
+  if (boss) fx.push({ t: 'chest', x: m.x, y: m.y + 10, big: m.rank === 'boss' });
   const receivers = boss ? partyMembers(killer).filter((o) => o.zone === killer.zone && Math.hypot(o.x - m.x, o.y - m.y) < 900) : [killer];
   for (const o of receivers) {
     const pr = getProfile(o.uid);

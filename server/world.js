@@ -46,6 +46,14 @@ const DECO = {
   },
 };
 
+// Обстановка данжей (public/assets/world/props/<имя>.png, ключ с приставкой p_) — общая для миров, подбор по теме
+const PROPS = {
+  green: ['p_barrel', 'p_crates', 'p_bones', 'p_candles', 'p_brazier', 'p_brokenPillar', 'p_statue', 'p_cage', 'p_sarcophagus'],
+  abyss: ['p_bones', 'p_candles', 'p_brazier', 'p_brokenPillar', 'p_cage', 'p_crystal', 'p_demonAltar'],
+  sky: ['p_crystal', 'p_statue', 'p_brokenPillar', 'p_candles', 'p_brazier', 'p_barrel', 'p_crates'],
+};
+const BOSS_ALTAR = { green: 'p_sarcophagus', abyss: 'p_demonAltar', sky: 'p_crystal' };
+
 // Простой value-noise
 function makeNoise(rand, cell, W, H) {
   const gw = Math.ceil(W / cell) + 2, gh = Math.ceil(H / cell) + 2;
@@ -103,14 +111,36 @@ function mazeMap(seed, theme, minis) {
   };
   const done = new Set();
   for (const a of cells) for (const b of a.links) { const k = [a, b].sort((p, q) => cells.indexOf(p) - cells.indexOf(q)).map((x) => cells.indexOf(x)).join(); if (!done.has(k)) { done.add(k); corridor(a, b); } }
-  // Препятствия в комнатах: нарисованные украшения мира (кристаллы, статуи, столбы), без набора — деревья
+  // Обстановка комнат — только вплотную к стене и не у входов из коридоров, чтобы не мешать проходу и бою.
+  // Сундуков среди неё нет: сундук появляется на месте убитого босса или полубосса (награда выпадает из него)
   const D = DECO[theme], deco = [];
-  for (const cl of cells) if (cl !== start) for (let i = 0; i < 2; i++) {
-    const x = cl.x0 + 1 + Math.floor(rand() * (cl.x1 - cl.x0 - 1)), y = cl.y0 + 1 + Math.floor(rand() * (cl.y1 - cl.y0 - 1));
-    if (Math.abs(x - cl.cx) > 1 || Math.abs(y - cl.cy) > 1) {
-      if (!D) { set(x, y, T.TREE); continue; }
-      set(x, y, T.DECO);
-      deco.push({ k: D.dungeon[Math.floor(rand() * D.dungeon.length)], tx: x, ty: y, s: 1 });
+  const rock = (x, y) => x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1 || tiles[y * W + x] === T.ROCK;
+  const used = [];
+  const free = (x, y) => tiles[y * W + x] !== T.DECO && used.every(([ux, uy]) => Math.abs(ux - x) + Math.abs(uy - y) > 2);
+  const put = (k, x, y) => { set(x, y, T.DECO); used.push([x, y]); deco.push({ k, tx: x, ty: y, s: 1 }); };
+  // Клетки у стен комнаты: сверху, слева, справа (у нижней стены обстановка закрывала бы героя) и верхние углы
+  function wallSpots(cl) {
+    const out = [], corners = [];
+    for (let x = cl.x0 + 1; x < cl.x1; x++) if (rock(x - 1, cl.y0 - 1) && rock(x, cl.y0 - 1) && rock(x + 1, cl.y0 - 1)) out.push([x, cl.y0]);
+    for (let y = cl.y0 + 1; y < cl.y1 - 1; y++) {
+      if (rock(cl.x0 - 1, y - 1) && rock(cl.x0 - 1, y) && rock(cl.x0 - 1, y + 1)) out.push([cl.x0, y]);
+      if (rock(cl.x1 + 1, y - 1) && rock(cl.x1 + 1, y) && rock(cl.x1 + 1, y + 1)) out.push([cl.x1, y]);
+    }
+    for (const x of [cl.x0, cl.x1]) if (rock(x, cl.y0 - 1) && rock(x + (x === cl.x0 ? -1 : 1), cl.y0) && rock(x + (x === cl.x0 ? -1 : 1), cl.y0 + 1) && rock(x, cl.y0 - 1)) corners.push([x, cl.y0]);
+    return { out, corners };
+  }
+  const pick = (arr) => arr[Math.floor(rand() * arr.length)];
+  const kit = D ? [...D.dungeon.filter((k) => !/chest/i.test(k)), ...PROPS[theme]] : [];
+  for (const cl of cells) {
+    const { out, corners } = wallSpots(cl);
+    if (!D) { for (let i = 0; i < 2 && out.length; i++) { const [x, y] = out.splice(Math.floor(rand() * out.length), 1)[0]; set(x, y, T.TREE); } continue; }
+    if (corners.length && rand() < (theme === 'sky' ? 0.15 : 0.45)) { const [x, y] = pick(corners); if (free(x, y)) put('p_web', x, y); }
+    const n = cl === start ? 1 : 2 + Math.floor(rand() * 2);
+    for (let i = 0, tries = 0; i < n && tries < 20; tries++) {
+      if (!out.length) break;
+      const [x, y] = out[Math.floor(rand() * out.length)];
+      if (!free(x, y)) continue;
+      put(cl === start ? pick(['p_brazier', 'p_candles']) : pick(kit), x, y); i++;
     }
   }
   // Глубина комнат и путь к боссу
@@ -120,12 +150,16 @@ function mazeMap(seed, theme, minis) {
   const boss = [...depth.entries()].sort((a, b) => b[1] - a[1])[0][0];
   const path = [];
   for (let c = boss; c; c = prev.get(c)) path.unshift(c);
-  // Комната босса: два крупных украшения по углам
-  if (D) [[boss.x0 + 1, boss.y0 + 1], [boss.x1 - 1, boss.y0 + 1]].forEach(([x, y], i) => {
-    if (tiles[y * W + x] === T.DECO) return;
-    set(x, y, T.DECO);
-    deco.push({ k: D.boss[i % D.boss.length], tx: x, ty: y, s: 1 });
-  });
+  // Комната босса: два крупных украшения по углам и алтарь мира у верхней стены
+  if (D) {
+    [[boss.x0 + 1, boss.y0 + 1], [boss.x1 - 1, boss.y0 + 1]].forEach(([x, y], i) => {
+      if (tiles[y * W + x] === T.DECO) return;
+      set(x, y, T.DECO);
+      deco.push({ k: D.boss[i % D.boss.length], tx: x, ty: y, s: 1 });
+    });
+    const ax = boss.cx, ay = boss.y0;
+    if (rock(ax, ay - 1) && tiles[ay * W + ax] !== T.DECO) put(BOSS_ALTAR[theme], ax, ay);
+  }
   const rooms = cells.map((c) => ({ x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1, cx: c.cx, cy: c.cy, depth: depth.get(c), role: c === start ? 'start' : c === boss ? 'boss' : 'normal' }));
   const maxD = depth.get(boss);
   const miniAt = minis === 1 ? [0.6] : [0.45, 0.75];

@@ -214,7 +214,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
     // Нарисованные украшения (статуи, фонтаны, сундуки): сервер ставит их на непроходимые клетки DECO
     for (const d of z.deco || []) {
-      const key = `deco_${z.theme}_${d.k}`;
+      const key = d.k.startsWith('p_') ? `prop_${d.k.slice(2)}` : `deco_${z.theme}_${d.k}`;
       if (this.textures.exists(key)) this.zoneObjs.push(this.add.image(d.x, d.y, key).setOrigin(0.5, 1).setDepth(10 + d.y));
     }
     this.cameras.main.setBackgroundColor({ green: '#2f6a28', abyss: '#07040c', sky: '#bfe0ff' }[z.theme]);
@@ -262,7 +262,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
         if (art) {
           // Нарисованная арка: обычная, выход из данжа или драконьи врата мирового босса
           const kind = o.world ? 'boss' : o.id === 'exit' ? 'exit' : 'arch';
-          const arch = keep(this.add.image(o.x, o.y + 26, `ptl_${z.theme}_${kind}`).setOrigin(0.5, 1).setDepth(10 + o.y + 20));
+          // Возврат в город из данжа — алтарь с порталом
+          const tex = z.kind === 'dungeon' && o.id === 'back' && this.textures.exists('prop_exitAltar') ? 'prop_exitAltar' : `ptl_${z.theme}_${kind}`;
+          const arch = keep(this.add.image(o.x, o.y + 26, tex).setOrigin(0.5, 1).setDepth(10 + o.y + 20));
           top = arch.y - arch.displayHeight + 2;
           if (o.world) for (const dx of [-62, 62]) keep(this.add.image(o.x + dx, o.y + 26, `obj_${z.theme}_dragonStatue`).setOrigin(0.5, 1).setDepth(10 + o.y + 26));
         } else {
@@ -914,10 +916,31 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (e) { this.floatText(e.c.x, e.c.y - 30, '+🛡 ' + f.amount, '#8ad3ff', 12); this.ring(e.c.x, e.c.y, 26, 0x8ad3ff, 500, 3); }
     } else if (f.t === 'petGone') {
       this.burst(f.x, f.y, 0x5fffb0, 10);
+    } else if (f.t === 'chest') {
+      // Сундук на месте босса: падает, открывается — добыча вылетает из него
+      if (!this.textures.exists('prop_chestClosed')) return;
+      const s = f.big ? 1.25 : 1;
+      const img = this.add.image(f.x, f.y - 60, 'prop_chestClosed').setOrigin(0.5, 1).setScale(s).setDepth(10 + f.y).setAlpha(0);
+      this.zoneObjs.push(img);
+      const chest = { x: f.x, y: f.y, openAt: performance.now() + 650, n: 0 };
+      (this.chests = (this.chests || []).filter((c) => performance.now() - c.openAt < 60000)).push(chest);
+      this.tweens.add({ targets: img, y: f.y, alpha: 1, duration: 380, ease: 'Bounce.easeOut' });
+      this.time.delayedCall(650, () => {
+        if (!img.active) return;
+        img.setTexture('prop_chestOpen');
+        this.burst(f.x, f.y - 16, 0xffd36a, 22);
+        Sfx.play('reward');
+      });
+      this.time.delayedCall(60000, () => { if (img.active) this.tweens.add({ targets: img, alpha: 0, duration: 800, onComplete: () => img.destroy() }); });
     } else if (f.t === 'loot') {
-      // Выпавший предмет: название цветом редкости
-      this.floatText(f.x, f.y - 46, f.name, f.color, 13);
-      this.burst(f.x, f.y, parseInt(f.color.slice(1), 16), 14);
+      // Выпавший предмет: название цветом редкости. Если рядом сундук босса — вылетает из него после открытия
+      const ch = (this.chests || []).find((c) => Math.hypot(c.x - f.x, c.y - f.y) < 60 && performance.now() - c.openAt < 3000);
+      const show = (x, y) => {
+        this.floatText(x, y - 46, f.name, f.color, 13);
+        this.burst(x, y, parseInt(f.color.slice(1), 16), 14);
+      };
+      if (ch) { const i = ch.n++, wait = Math.max(0, ch.openAt - performance.now()) + 60 + 220 * i; this.time.delayedCall(wait, () => show(ch.x + ((i % 3) - 1) * 14, ch.y - 18 - 14 * (i % 3))); }
+      else show(f.x, f.y);
       if (f.to === this.myId) this.ui.vibrate('success');
     } else if (f.t === 'tele') {
       // Предупреждение об ударе по площади: круг наполняется, пока не ударит

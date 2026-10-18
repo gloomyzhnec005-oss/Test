@@ -28,7 +28,10 @@ window.WorldArt = (() => {
   const GROUND_ALIAS = { floor2: 'floor', grass2: 'grass', moss: 'grass', flowers: 'grass', tree: 'grass', dirt: 'path', rock: 'dwall', ruins: 'dwall', wall: 'dwall' };
   const base = (th) => `assets/world/${th}`;
   // Загрузка в Phaser (вызывается из preload сцены)
+  // Обстановка данжей и сундуки наград (assets/world/props/): общие для всех миров
+  const PROPS = ['barrel', 'crates', 'bones', 'candles', 'brazier', 'brokenPillar', 'statue', 'cage', 'web', 'exitAltar', 'demonAltar', 'crystal', 'sarcophagus', 'chestClosed', 'chestOpen'];
   function preload(scene) {
+    for (const k of PROPS) scene.load.image('prop_' + k, `assets/world/props/${k}.png`);
     for (const th of Object.keys(THEMES)) {
       scene.load.image('tiles_' + th, `${base(th)}/tiles.png`);
       for (const p of PLACES) scene.load.image(`bld_${th}_${p}`, `${base(th)}/buildings/${p}.png`);
