@@ -32,7 +32,7 @@ window.Bag = (() => {
   const statName = (k) => (BASE_NAMES[k] || (inv && inv.attrs[k]) || [k, ''])[0];
   const statUnit = (k) => { const u = (BASE_NAMES[k] || (inv && inv.attrs[k]) || ['', ''])[1]; return u === '−%' ? '%' : u; };
   const statLine = (k, v) => `${statName(k)} ${(inv && inv.attrs[k] && inv.attrs[k][1] === '−%') ? '−' : '+'}${v}${statUnit(k)}`;
-  const cell = (it, extra = '') => `<button class="it ${extra} ${it.set ? 'set' : ''}" data-id="${it.id}" style="--rc:${it.color}">
+  const cell = (it, extra = '') => `<button class="it ${extra} ${it.set ? 'set' : ''} ${it.rar ? 'fr-' + it.rar : ''}" data-id="${it.id}" style="--rc:${it.color}">
       <span>${art(it)}</span>${it.dupes ? `<em>+${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}<i>${ROMAN[it.tier] || ''}</i>${it.runes && it.runes.length ? `<b>${it.runes.map(mini).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}</button>`;
   function grid(items, onTap, opts = {}) {
     const box = document.createElement('div');
@@ -152,7 +152,7 @@ window.Bag = (() => {
   const fits = (s) => inv.items.filter((i) => i.cat === s && i.loc !== 'wh' && !isEquipped(i));
   function slotBtn(s) {
     const it = worn(s), n = fits(s).length;
-    return `<button class="pd-slot ${it ? 'full' : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
+    return `<button class="pd-slot ${it ? 'full fr-' + it.rar : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
       ${it ? `<span>${art(it)}</span><i>${ROMAN[it.tier] || ''}</i>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost"><img class="it-art slot-ghost" src="assets/items/slot_${s}.webp" alt="${SLOT_ICONS[s]}"></span>`}
       ${n ? `<b>${n}</b>` : ''}<em>${it ? it.name : inv.slotNames[s]}</em></button>`;
   }
