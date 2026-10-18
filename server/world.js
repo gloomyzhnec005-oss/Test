@@ -294,7 +294,7 @@ const WORLDS = [
 function buildWorld() {
   const zones = [];
   const byId = new Map();
-  const FIXED = WORLDS.length * 2; // города и арены мировых боссов; дальше — временные копии данжей
+  let FIXED = 0; // постоянные зоны (города, арены, общие данжи); дальше — временные копии (выживание)
   const add = (z) => {
     let idx = zones.length;
     for (let i = FIXED; i < zones.length; i++) if (!zones[i]) { idx = i; break; } // занимаем место удалённой копии
@@ -347,17 +347,26 @@ function buildWorld() {
     z.objs.push({ id: 'back', kind: 'portal', to: w.id, name: `В город ${w.name}`, icon: '🏰', x: back.x, y: back.y });
   });
 
-  // Данж-лабиринт: отдельная копия на игрока или группу
-  let dunSeq = 1;
+  // Данж-лабиринт: один общий зал на всех игроков (id dg_<город>_<номер>), карта постоянная
   const addDungeon = (townId, i) => {
     const town = byId.get(townId), dg = DUNGEONS[townId][i];
-    const m = mazeMap(9000 + dunSeq * 13 + i * 101, town.theme, dg.minis.length);
-    const z = add({ id: `dun${dunSeq++}`, kind: 'dungeon', name: dg.name, sub: `${town.name} · портал ${i + 1} · ур. ${dg.lv[0]}–${dg.lv[1]}`, theme: town.theme, tier: town.tier,
+    const m = mazeMap(9000 + WORLDS.findIndex((w) => w.id === townId) * 500 + i * 101, town.theme, dg.minis.length);
+    const z = add({ id: `dg_${townId}_${i}`, kind: 'dungeon', name: dg.name, sub: `${town.name} · портал ${i + 1} · ур. ${dg.lv[0]}–${dg.lv[1]}`, theme: town.theme, tier: town.tier,
       w: m.w, h: m.h, tiles: m.tiles, spawnTile: m.spawn, town: townId, objs: [], rooms: m.rooms, maxD: m.maxD, dg, dgIndex: i, decoTiles: m.deco });
     const back = z.abs(m.spawn.tx, m.spawn.ty - 2);
     z.objs.push({ id: 'back', kind: 'portal', to: townId, name: `В город ${town.name}`, icon: '🏰', x: back.x, y: back.y });
     return z;
   };
+
+  WORLDS.forEach((w) => DUNGEONS[w.id].forEach((dg, i) => addDungeon(w.id, i)));
+  // PvP-арены: общая площадка мира, бой героев друг с другом в реальном времени
+  WORLDS.forEach((w) => {
+    const z = add({ id: `pvp_${w.id}`, kind: 'pvp', name: 'PvP-арена', sub: `${w.name} · бой игроков`, theme: w.theme, tier: w.tier,
+      w: 34, h: 34, tiles: arenaTiles(34, 34), spawnTile: { tx: 17, ty: 28 }, town: w.id, objs: [] });
+    const back = z.abs(17, 30.5);
+    z.objs.push({ id: 'back', kind: 'portal', to: w.id, name: `В город ${w.name}`, icon: '🏰', x: back.x, y: back.y });
+  });
+  FIXED = zones.length;
 
   // Данж выживания: отдельная копия арены на каждый заход (игрок или группа)
   let instSeq = 1;

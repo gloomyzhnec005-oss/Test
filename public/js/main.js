@@ -346,7 +346,12 @@
       // Прогресс данжа-лабиринта
       socket.on('dungeon', (d) => {
         const b = $('waveBadge');
-        b.textContent = `🗺️ ${d.killed}/${d.total} · ★ ${d.minisKilled}/${d.minis} · ${d.boss ? '🏆 пройден!' : '👑 ' + d.bossName}`;
+        // Общий зал: сколько игроков, полубоссы (здесь / через N мин) и босс (здесь / время появления)
+        const mins = (ms) => Math.max(1, Math.ceil(ms / 60000));
+        const at = (t) => new Date(t).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        const mi = (d.minis || []).map((m) => (m.alive ? '⭐ здесь' : `⭐ ${mins(m.in)} мин`)).join(' ');
+        const bs = d.boss ? (d.boss.alive ? '👑 здесь!' : d.boss.in < 36e5 ? `👑 ${mins(d.boss.in)} мин` : `👑 в ${at(d.boss.at)}`) : '';
+        b.textContent = `👥 ${d.online} · ${mi} · ${bs}`;
         b.classList.remove('hidden');
       });
       socket.on('survival', (d) => {

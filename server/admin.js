@@ -308,7 +308,7 @@ module.exports = function createAdmin(ctx) {
     return {
       uptime: Math.round(process.uptime()), memMb: Math.round(process.memoryUsage().rss / 1048576),
       online: ctx.players.size, profiles: Object.keys(ctx.profiles).length, monsters: ctx.monsters.size,
-      dungeons: ctx.D.runs.size, survivals: ctx.D.survivals.size, worldBosses: wb, settings,
+      dungeons: [...ctx.D.halls.values()].filter((h) => h.populated).length, survivals: ctx.D.survivals.size, worldBosses: wb, settings,
       zones: [...ctx.world.byId.values()].filter((z) => z.kind === 'town' || zones.has(z.id) || mz.has(z.id))
         .map((z) => ({ id: z.id, name: zoneName(z.id), kind: z.kind, players: zones.get(z.id) || 0, monsters: mz.get(z.id) || 0 })),
       sessions: [...ctx.players.values()].map((p) => ({ uid: p.uid, name: p.name, ...sessionView(p) })),

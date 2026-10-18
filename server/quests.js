@@ -15,20 +15,20 @@ const DEFS = {
     ['d_kill2', '🔥', 'Пепельная жатва', 'Победите 50 монстров мира Морграта', 'kill', 50, 2, { gold: 200, gems: 20, passXp: 15 }],
     ['d_kill3', '☁️', 'Небесный дозор', 'Победите 80 монстров мира Аэлиона', 'kill', 80, 3, { gold: 250, gems: 20, passXp: 15 }],
     ['d_elite', '⭐', 'Охота на сильных', 'Победите 5 усиленных, редких монстров или полубоссов', 'elite', 5, null, { gold: 120, gems: 20, mats: { ess: 3 }, passXp: 10 }],
-    ['d_dungeon', '🗺️', 'Покоритель лабиринта', 'Пройдите 1 данж до босса', 'dungeon', 1, null, { gold: 200, gems: 20, mats: { ore: 5 }, passXp: 20 }],
+    ['d_dungeon', '🗺️', 'Покоритель лабиринта', 'Победите полубосса или босса в данже', 'dungeon', 1, null, { gold: 200, gems: 20, mats: { ore: 5 }, passXp: 20 }],
     ['d_summon', '🎰', 'Удача дня', 'Сделайте 1 призыв героя или предмета', 'summon', 1, null, { gold: 100, gems: 20, passXp: 10 }],
     ['d_arena', '🏟️', 'Разминка на арене', 'Проведите 2 боя на PvP-арене', 'arena', 2, null, { gold: 120, gems: 20, passXp: 10 }],
   ],
   weekly: [
     ['w_kill', '⚔️', 'Крестовый поход', 'Победите 600 монстров в любых мирах', 'kill', 600, null, { gold: 800, gems: 120, mats: { ess: 10 }, passXp: 60 }],
     ['w_boss', '👑', 'Гроза боссов', 'Победите 5 боссов данжей', 'boss', 5, null, { gold: 900, gems: 120, itemSpins: 1, passXp: 60 }],
-    ['w_dungeon', '🏰', 'Знаток подземелий', 'Пройдите 10 данжей', 'dungeon', 10, null, { gold: 1000, gems: 120, mats: { core: 1 }, passXp: 70 }],
+    ['w_dungeon', '🏰', 'Знаток подземелий', 'Победите 10 полубоссов или боссов данжей', 'dungeon', 10, null, { gold: 1000, gems: 120, mats: { core: 1 }, passXp: 70 }],
     ['w_survival', '💀', 'Несломленный', 'Дойдите до 10-й волны в данже выживания', 'survival', 10, null, { gold: 700, gems: 120, mats: { scrollE: 1 }, passXp: 50 }],
     ['w_world', '🐉', 'Победитель исполина', 'Победите мирового босса', 'world', 1, null, { gold: 1200, gems: 120, itemSpins: 1, passXp: 80 }],
   ],
   monthly: [
     ['m_points', '🏆', 'Герой месяца', 'Наберите 600 очков событий: 10 за ежедневное задание, 40 за еженедельное', 'points', 600, null, { gold: 3000, gems: 400, itemSpins: 3, mats: { scrollL: 1 }, passXp: 200 }],
-    ['m_dungeon', '🗝️', 'Хозяин лабиринтов', 'Пройдите 40 данжей', 'dungeon', 40, null, { gold: 2500, gems: 400, mats: { core: 3 }, passXp: 150 }],
+    ['m_dungeon', '🗝️', 'Хозяин лабиринтов', 'Победите 40 полубоссов или боссов данжей', 'dungeon', 40, null, { gold: 2500, gems: 400, mats: { core: 3 }, passXp: 150 }],
     ['m_heroes', '🧙', 'Коллекционер', 'Соберите 15 разных героев', 'heroes', 15, null, { gold: 2000, gems: 400, itemSpins: 2, passXp: 120 }],
   ],
 };

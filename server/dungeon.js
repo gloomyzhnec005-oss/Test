@@ -25,7 +25,7 @@ module.exports = function createDungeons(d) {
       undead: !!def.undead, boss: rank === 'boss' || rank === 'world', mini: rank === 'mini',
       wander: null, nextWander: 0, stunUntil: 0, rootUntil: 0, dots: [], summons: 0,
       noclip: !!def.noclip, name: opts.name || null, extra: !!opts.extra, lootMult: opts.lootMult ?? 1, owner: opts.owner || null,
-      inv: !!def.stealth, contrib: rank === 'world' ? {} : null,
+      inv: !!def.stealth, contrib: ['world', 'boss', 'mini'].includes(rank) ? {} : null,
     };
     if (rank === 'rare') m.name = `${def.name} · ${affixes.map((a) => AFFIXES[a].name).join(', ')}`;
     monsters.set(m.id, m);
@@ -429,13 +429,7 @@ module.exports = function createDungeons(d) {
       if (od.harvest && o.zone === m.zone && dist(o, m) < 320 && !od.devour) { o.hp = Math.min(o.maxHp, o.hp + o.maxHp * od.harvest); fx({ t: 'mtext', x: o.x, y: o.y, text: 'Жатва!', color: '#ff3a3a' }); }
     }
     // Легион: при потере 50% все монстры зоны злее
-    const run = runs.get(m.zone);
-    if (run && !m.extra) {
-      run.killed++;
-      if (m.rank === 'mini') run.minisKilled++;
-      if (m.rank === 'boss') finishRun(run, killer);
-      sendRun(run);
-    }
+    if (m.hall && (m.rank === 'boss' || m.rank === 'mini')) rewardHallBoss(m);
     if (m.rank === 'world') rewardWorldBoss(m);
   }
   function onMonsterHp(m, now) {
@@ -448,91 +442,162 @@ module.exports = function createDungeons(d) {
     if (def.legion) m.legionArmed = true;
   }
 
-  // ---------- Данжи-лабиринты ----------
-  const runs = new Map();
+  // ---------- Данжи: общие залы для всех игроков ----------
+  // Каждый данж — один зал на сервер. В обычных комнатах убитые монстры возрождаются через 5–10 секунд (пока в зале есть люди),
+  // полубоссы появляются раз в час (в начале часа), босс данжа — раз в день вечером (BOSS_HOUR:BOSS_MIN по UTC, по умолчанию 20:00 МСК).
+  // Награду за полубосса и босса получают все, кто нанёс хотя бы 3% его здоровья.
+  const halls = new Map(), announced = {};
+  const BOSS_HOUR = Number(process.env.DUNGEON_BOSS_HOUR_UTC ?? 17), BOSS_MIN = Number(process.env.DUNGEON_BOSS_MIN ?? 0);
+  const RESPAWN = [5000, 10000], IDLE_MS = 5 * 60000, WARN_MS = 15 * 60000;
+  const nextHour = (t) => Math.floor(t / 36e5) * 36e5 + 36e5;
+  function nextBossAt(t) {
+    const x = new Date(t);
+    let at = Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), BOSS_HOUR, BOSS_MIN);
+    if (at <= t) at += 864e5;
+    return at;
+  }
+  const hhmm = (t) => new Date(t + 3 * 36e5).toISOString().slice(11, 16) + ' МСК';
   function rollRank(depthK) {
     const r = Math.random();
     if (r < 0.04 + 0.06 * depthK) return 'rare';
     if (r < 0.2 + 0.15 * depthK) return 'magic';
     return 'normal';
   }
-  function startDungeon(p, townId, i) {
-    const dg = X.DUNGEONS[townId][i];
-    if (!dg) return;
-    if (p.char.level < Math.max(1, dg.lv[0] - 2)) return p.socket.emit('skillFail', `Нужен ${Math.max(1, dg.lv[0] - 2)} уровень (данж ${dg.lv[0]}–${dg.lv[1]})`);
-    const z = world.addDungeon(townId, i);
-    const run = { z, dg, total: 0, killed: 0, minis: dg.minis.length, minisKilled: 0, boss: false, startedAt: Date.now(), members: new Set() };
-    runs.set(z.id, run);
+  function initHall(z) {
+    const dg = z.dg, now = Date.now();
     const lvAt = (depth) => Math.round(dg.lv[0] + (dg.lv[1] - dg.lv[0]) * depth / Math.max(1, z.maxD));
+    const h = { z, dg, rooms: [], minis: [], boss: null, populated: false, lastPlayerAt: now };
     let mi = 0;
     for (const room of z.rooms) {
       if (room.role === 'start') continue;
       const c = z.abs(room.cx, room.cy), R = Math.min(room.x1 - room.x0, room.y1 - room.y0) * 16;
       const lv = lvAt(room.depth), depthK = room.depth / Math.max(1, z.maxD);
-      const pick = () => dg.pool[Math.floor(Math.random() * dg.pool.length)];
-      if (room.role === 'boss') {
-        create(z, dg.boss, c, dg.lv[1] + 1, { rank: 'boss', name: dg.bossName });
-        for (let k = 0; k < 2; k++) create(z, pick(), near(z, c, R), lv);
-        run.total += 3;
-        continue;
-      }
-      if (room.role === 'mini') {
-        create(z, dg.minis[mi++ % dg.minis.length], c, lv + 1, { rank: 'mini' });
-        for (let k = 0; k < 2; k++) create(z, pick(), near(z, c, R), lv);
-        run.total += 3;
-        continue;
-      }
-      // Стая: бойцы (ближний/дальний бой, маги, танки, ассасины) + не больше одного призывателя или лекаря
       const fighters = dg.pool.filter((t) => !['summoner', 'support'].includes(MOBS[t].cls));
-      const helpers = dg.pool.filter((t) => ['summoner', 'support'].includes(MOBS[t].cls));
-      const type = fighters[Math.floor(Math.random() * fighters.length)] || pick(), def = MOBS[type];
-      const n = Math.round((3 + Math.floor(Math.random() * 2)) * (def.pack || 1)); // стая 3–4 (гоблины — больше)
-      const withHelper = helpers.length && Math.random() < 0.5;
-      for (let k = 0; k < n; k++) {
-        const t = k === n - 1 && withHelper ? helpers[Math.floor(Math.random() * helpers.length)]
-          : k === 0 || Math.random() < 0.6 ? type : fighters[Math.floor(Math.random() * fighters.length)] || type;
-        const rank = rollRank(depthK);
-        const affixes = rank === 'rare' ? Object.keys(AFFIXES).sort(() => Math.random() - 0.5).slice(0, 1 + (Math.random() < 0.5 ? 1 : 0)) : [];
-        create(z, t, near(z, c, R), lv, { rank, affixes });
-        run.total++;
+      const type = fighters[Math.floor(Math.random() * fighters.length)] || dg.pool[0];
+      const target = room.role === 'normal' ? Math.round((3 + Math.floor(Math.random() * 2)) * (MOBS[type].pack || 1)) : 2; // у полубосса и босса — охрана
+      h.rooms.push({ c, R, lv, depthK, type, target, ids: new Set(), nextAt: 0 });
+      if (room.role === 'mini') h.minis.push({ c, type: dg.minis[mi++ % dg.minis.length], lv: lv + 1, id: null, at: now });
+      if (room.role === 'boss') h.boss = { c, type: dg.boss, lv: dg.lv[1] + 1, id: null, at: nextBossAt(now), warned: false };
+    }
+    return h;
+  }
+  const hallOf = (z) => { let h = halls.get(z.id); if (!h) { h = initHall(z); halls.set(z.id, h); } return h; };
+  // Точка возрождения: в комнате, по возможности не рядом с героями
+  function spawnPoint(z, r, heroes) {
+    let best = null, bestD = -1;
+    for (let i = 0; i < 8; i++) {
+      const pt = near(z, r.c, r.R), d0 = heroes.reduce((m, p) => Math.min(m, Math.hypot(p.x - pt.x, p.y - pt.y)), 1e9);
+      if (d0 > 160) return pt;
+      if (d0 > bestD) { bestD = d0; best = pt; }
+    }
+    return best;
+  }
+  function spawnInRoom(h, r, heroes) {
+    const dg = h.dg;
+    const fighters = dg.pool.filter((t) => !['summoner', 'support'].includes(MOBS[t].cls));
+    const helpers = dg.pool.filter((t) => ['summoner', 'support'].includes(MOBS[t].cls));
+    const hasHelper = [...r.ids].some((id) => { const m = monsters.get(id); return m && ['summoner', 'support'].includes(MOBS[m.type].cls); });
+    const t = helpers.length && !hasHelper && Math.random() < 0.2 ? helpers[Math.floor(Math.random() * helpers.length)]
+      : Math.random() < 0.6 ? r.type : fighters[Math.floor(Math.random() * fighters.length)] || r.type;
+    const rank = rollRank(r.depthK);
+    const affixes = rank === 'rare' ? Object.keys(AFFIXES).sort(() => Math.random() - 0.5).slice(0, 1 + (Math.random() < 0.5 ? 1 : 0)) : [];
+    const m = create(h.z, t, spawnPoint(h.z, r, heroes), r.lv, { rank, affixes });
+    r.ids.add(m.id);
+    return m;
+  }
+  function tellHall(h, text) {
+    const town = world.byId.get(h.z.town);
+    for (const p of players.values()) if (p.zone === h.z.id || p.zone === h.z.town) p.socket.emit('chat', { sys: true, text: `${text} — ${h.dg.name} (${town.name})` });
+  }
+  function tickHall(h, now) {
+    const heroes = inZone(h.z.id);
+    if (heroes.length) {
+      h.lastPlayerAt = now;
+      if (!h.populated) { h.populated = true; for (const r of h.rooms) while (r.ids.size < r.target) spawnInRoom(h, r, heroes); }
+    } else if (h.populated && now - h.lastPlayerAt > IDLE_MS) {
+      // Зал пуст 5 минут: обычные монстры исчезают (полубоссы и босс остаются)
+      for (const r of h.rooms) { for (const id of r.ids) monsters.delete(id); r.ids.clear(); r.nextAt = 0; }
+      h.populated = false;
+    }
+    if (h.populated) for (const r of h.rooms) {
+      for (const id of r.ids) if (!monsters.has(id)) r.ids.delete(id);
+      if (r.ids.size >= r.target) { r.nextAt = 0; continue; }
+      if (!r.nextAt) r.nextAt = now + RESPAWN[0] + Math.random() * (RESPAWN[1] - RESPAWN[0]);
+      else if (now >= r.nextAt && heroes.length) { spawnInRoom(h, r, heroes); r.nextAt = 0; }
+    }
+    for (const mi of h.minis) {
+      if (mi.id && !monsters.has(mi.id)) { mi.id = null; mi.at = nextHour(now); }
+      if (!mi.id && now >= mi.at) {
+        const m = create(h.z, mi.type, mi.c, mi.lv, { rank: 'mini' });
+        mi.id = m.id; m.hall = h.z.id;
+        tellHall(h, `⭐ Полубосс «${MOBS[mi.type].name}» появился`);
+        h.sentAt = 0;
       }
     }
-    // Вход: игрок и его группа из этого города
+    const b = h.boss;
+    if (b) {
+      if (b.id && !monsters.has(b.id)) { b.id = null; b.at = nextBossAt(now); b.warned = false; }
+      // Объявления — одно на всех (боссы всех данжей появляются в одно время), плюс строка в своём городе
+      if (!b.id && !b.warned && b.at - now <= WARN_MS) {
+        b.warned = true;
+        if (announced.warn !== b.at) { announced.warn = b.at; d.broadcast(`👑 Через ${Math.max(1, Math.round((b.at - now) / 60000))} мин (в ${hhmm(b.at)}) в данжах появятся боссы! Награда — всем, кто сражался.`); }
+      }
+      if (!b.id && now >= b.at) {
+        const m = create(h.z, b.type, b.c, b.lv, { rank: 'boss', name: h.dg.bossName });
+        b.id = m.id; m.hall = h.z.id;
+        if (announced.spawn !== b.at) { announced.spawn = b.at; d.broadcast('👑 Боссы данжей появились! Заходите в порталы своего мира.'); }
+        tellHall(h, `👑 Босс «${m.name || MOBS[b.type].name}» ждёт`);
+        h.sentAt = 0;
+      }
+    }
+  }
+  // Вход в данж — в общий зал; HUD: таймеры полубоссов и босса
+  function startDungeon(p, townId, i) {
+    const dg = X.DUNGEONS[townId][i];
+    if (!dg) return;
+    if (p.char.level < Math.max(1, dg.lv[0] - 2)) return p.socket.emit('skillFail', `Нужен ${Math.max(1, dg.lv[0] - 2)} уровень (данж ${dg.lv[0]}–${dg.lv[1]})`);
+    const z = world.byId.get(`dg_${townId}_${i}`);
+    const h = hallOf(z);
     const group = d.partyMembers(p).filter((o) => o.zone === p.zone && !o.dead);
     for (const o of group) {
       d.moveToZone(o, z.id);
-      run.members.add(o.uid);
-      o.socket.emit('chat', { sys: true, text: `${dg.name} (ур. ${dg.lv[0]}–${dg.lv[1]}): пройдите лабиринт — полубоссы ждут на пути, босс в самой дальней комнате.` });
+      o.socket.emit('chat', { sys: true, text: `${dg.name} (ур. ${dg.lv[0]}–${dg.lv[1]}): общий зал — здесь охотятся все игроки. Монстры возрождаются, полубоссы — каждый час, босс — каждый день в ${hhmm(nextBossAt(Date.now()))}.` });
     }
-    sendRun(run);
+    tickHall(h, Date.now());
+    sendHall(h);
   }
-  function sendRun(run) {
-    const info = { name: run.dg.name, killed: run.killed, total: run.total, minis: run.minis, minisKilled: run.minisKilled, boss: run.boss, bossName: run.dg.bossName || MOBS[run.dg.boss].name };
-    for (const p of inZone(run.z.id)) p.socket.emit('dungeon', info);
+  function hallInfo(h) {
+    const now = Date.now(), b = h.boss;
+    return { name: h.dg.name, hall: true, online: inZone(h.z.id).length,
+      minis: h.minis.map((mi) => ({ name: MOBS[mi.type].name, alive: !!mi.id, in: mi.id ? 0 : Math.max(0, mi.at - now) })),
+      boss: b ? { name: h.dg.bossName || MOBS[b.type].name, alive: !!b.id, at: b.at, in: b.id ? 0 : Math.max(0, b.at - now) } : null };
   }
-  function finishRun(run, killer) {
-    run.boss = true;
-    const z = run.z;
-    const bossRoom = z.rooms.find((r) => r.role === 'boss');
-    const pos = z.abs(bossRoom.cx, bossRoom.cy + 2);
-    const exit = { id: 'exit', kind: 'portal', to: z.town, name: 'Выход: данж пройден!', icon: '🏆', x: pos.x, y: pos.y };
-    z.objs.push(exit);
-    const secs = Math.round((Date.now() - run.startedAt) / 1000);
-    for (const p of inZone(z.id)) {
+  function sendHall(h) { const info = hallInfo(h); for (const p of inZone(h.z.id)) p.socket.emit('dungeon', info); }
+  // Награда за полубосса и босса — всем с вкладом от 3% здоровья
+  function rewardHallBoss(m) {
+    const h = halls.get(m.hall);
+    if (!h || !m.contrib) return;
+    const boss = m.rank === 'boss';
+    for (const p of players.values()) {
+      const part = (m.contrib[p.uid] || 0) / m.maxHp;
+      if (part < 0.03 || p.zone !== m.zone) continue;
       const pr = d.getProfile(p.uid);
-      const gold = 60 * run.dg.lv[1];
+      const gold = Math.round((boss ? 60 : 20) * h.dg.lv[1] * (0.6 + Math.min(1, part * 3) * 0.4));
       pr.gold += gold;
-      d.addPassXp(pr, 25);
+      d.addPassXp(pr, boss ? 25 : 10);
       d.quest(p.uid, 'dungeon');
+      if (boss) d.quest(p.uid, 'boss');
       pr.dungeonClears = pr.dungeonClears || {};
-      const key = `${z.town}:${z.dgIndex}`;
-      const first = !pr.dungeonClears[key];
-      pr.dungeonClears[key] = (pr.dungeonClears[key] || 0) + 1;
-      p.socket.emit('zoneObjs', z.objs);
-      p.socket.emit('chat', { sys: true, text: `🏆 ${run.dg.name} пройден за ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}! +${gold} 💰${first ? ' · первое прохождение: награда' : ''}` });
-      if (first) { d.giveLoot(p, pr, d.rollItem(z.tier, C.DROPS.boss[z.tier]), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первое прохождение: +160 кристаллов судьбы' }); }
+      const key = `${h.z.town}:${h.z.dgIndex}`;
+      const first = boss && !pr.dungeonClears[key];
+      if (boss) pr.dungeonClears[key] = (pr.dungeonClears[key] || 0) + 1;
+      p.socket.emit('chat', { sys: true, text: `${boss ? '🏆 Босс' : '⭐ Полубосс'} «${m.name || MOBS[m.type].name}» повержен! Ваш вклад ${Math.round(part * 100)}% · +${gold} 💰${first ? ' · первая победа над боссом данжа' : ''}` });
+      if (boss) d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier]), m);
+      if (first) { d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier]), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первая победа над боссом данжа: +160 кристаллов судьбы' }); }
       d.markDirty(p);
     }
+    if (boss) d.broadcast(`🏆 Босс «${m.name || MOBS[m.type].name}» в данже «${h.dg.name}» повержен! Следующий — завтра в ${hhmm(nextBossAt(Date.now() + 60000))}.`);
+    setImmediate(() => { tickHall(h, Date.now()); sendHall(h); });
   }
 
   // ---------- Данж выживания: волны из монстров этого мира ----------
@@ -624,11 +689,10 @@ module.exports = function createDungeons(d) {
   // Периодические задачи: копии данжей, волны, мировые боссы
   setInterval(() => {
     const now = Date.now();
-    for (const [id, run] of runs) {
-      if (inZone(id).length) continue;
-      for (const m of monsters.values()) if (m.zone === id) monsters.delete(m.id);
-      runs.delete(id);
-      world.removeZone(run.z);
+    for (const z of world.zones) if (z && z.kind === 'dungeon') {
+      const h = hallOf(z);
+      tickHall(h, now);
+      if ((h.sentAt || 0) + 5000 < now && inZone(z.id).length) { h.sentAt = now; sendHall(h); }
     }
     for (const [id, s] of survivals) {
       const inside = inZone(id);
@@ -657,6 +721,6 @@ module.exports = function createDungeons(d) {
 
   return {
     create, act, melee, meleeRange, curSpeed, takenMult, onHurt, preventDeath, onKilled, onMonsterHp,
-    startDungeon, startSurvival, worldBossInfo, ccActive, ccPlayer, tickPlayer, runs, survivals, wbState,
+    startDungeon, startSurvival, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState,
   };
 };

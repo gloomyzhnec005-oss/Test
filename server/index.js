@@ -462,7 +462,7 @@ function damageMonster(p, m, raw, opt = {}) {
     const zt = (world.byId.get(m.zone) || {}).tier;
     Q.track(p.uid, 'kill', 1, { tier: zt });
     if (['magic', 'rare', 'mini'].includes(m.rank)) Q.track(p.uid, 'elite');
-    if (m.rank === 'boss') Q.track(p.uid, 'boss');
+    if (m.rank === 'boss' && !m.hall) Q.track(p.uid, 'boss'); // боссы данжей засчитываются всем участникам (server/dungeon.js)
     if (m.rank === 'world') Q.track(p.uid, 'world');
   }
   return dmg;
