@@ -131,6 +131,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       for (const k of g.idx) this.tiles[k] = g.tile;
       const img = this.gates && this.gates.get(g.i);
       if (!img || !img.active) return;
+      img.gateState = g.state;
       const th = this.zone.theme, seq = g.state === 'open' ? ['closed', 'half', 'open'] : ['open', 'half', 'closed', 'seal'];
       seq.forEach((st, n) => this.time.delayedCall(n * 280, () => { if (img.active && this.textures.exists(`gate_${th}_${st}`)) img.setTexture(`gate_${th}_${st}`); }));
       this.cameras.main.flash(250, 255, 230, 180);
@@ -239,6 +240,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const img = this.add.image(g.x, g.y, key).setOrigin(0.5, 1);
       const src = img.frame;
       img.setDisplaySize(g.w, g.w * src.height / src.width).setDepth(10 + g.y);
+      img.gateState = g.state;
       this.zoneObjs.push(img); this.gates.set(g.i, img);
     }
     // Нарисованные украшения (статуи, фонтаны, сундуки): сервер ставит их на непроходимые клетки DECO
@@ -877,8 +879,18 @@ window.GameScene = class GameScene extends Phaser.Scene {
     e.c.add(box); e.statusBox = box;
   }
 
+  // Кадры атаки нарисованного монстра (удар, выстрел, умение)
+  mobSwing(m, tx) {
+    if (!m || !m.mskin || m.attacking) return;
+    if (tx != null) m.sprite.setFlipX(tx < m.c.x);
+    m.attacking = true;
+    m.sprite.play(`matk_${m.mskin}`);
+    m.sprite.once('animationcomplete', () => { m.attacking = false; m.sprite.setFrame(Skins.MOBS[m.mskin].walk[0]); });
+  }
   playFx(f) {
     this.playSound(f);
+    // Умения монстров (круг на земле, призыв, рывок, бафф, лечение) — тоже с кадрами атаки
+    if (f.from && /^(tele|teleHit|msum|mtext|mdash|mheal|mbuff|mrevive)$/.test(f.t)) this.mobSwing(this.monsters.get(f.from), f.t === 'tele' ? f.x : null);
     if (f.t === 'hit' && f.kind === 'm') {
       const e = this.monsters.get(f.target);
       const doHit = () => {
@@ -958,10 +970,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const m = this.monsters.get(f.from);
       if (m && m.mskin) {
         // Удар нарисованного монстра: поворот к цели и кадры атаки
-        m.sprite.setFlipX(e.c.x < m.c.x);
-        m.attacking = true;
-        m.sprite.play(`matk_${m.mskin}`);
-        m.sprite.once('animationcomplete', () => { m.attacking = false; m.sprite.setFrame(Skins.MOBS[m.mskin].walk[0]); });
+        this.mobSwing(m, e.c.x);
         this.time.delayedCall(180, () => this.mobBurst(e.c.x, e.c.y - 12, 0xff6a5a, 0.55));
       } else if (m) this.tweens.add({ targets: m.sprite, x: Math.sign(e.c.x - m.c.x) * 6, duration: 80, yoyo: true });
       if (f.target === this.myId) { this.cameras.main.shake(100, 0.004); this.ui.vibrate('light'); }
@@ -1042,12 +1051,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (this.me && Math.hypot(this.me.x - f.x, this.me.y - f.y) < f.r) this.cameras.main.shake(140, 0.006);
     } else if (f.t === 'mshot') {
       const shooter = this.monsters.get(f.from);
-      if (shooter && shooter.mskin && !shooter.attacking) {
-        // Нарисованный монстр: кадры удара (выстрел / заклинание)
-        shooter.sprite.setFlipX(f.x < shooter.c.x); shooter.attacking = true;
-        shooter.sprite.play(`matk_${shooter.mskin}`);
-        shooter.sprite.once('animationcomplete', () => { shooter.attacking = false; shooter.sprite.setFrame(Skins.MOBS[shooter.mskin].walk[0]); });
-      }
+      this.mobSwing(shooter, f.x); // нарисованный монстр: кадры удара (выстрел / заклинание)
       const art = this.textures.exists('mproj_' + f.proj) ? 'mproj_' + f.proj : null;
       const key = art || (this.textures.exists('proj_' + f.proj) ? 'proj_' + f.proj : 'proj_arrow');
       const pr = art ? this.add.sprite(f.fx, f.fy, art).play(art) : this.add.image(f.fx, f.fy, key);
@@ -2110,6 +2114,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     const dt = delta / 1000;
+    // Подошёл к запечатанным воротам босса — когда они откроются
+    if (this.me && this.gates && this.gates.size && time > (this.gateHintAt || 0)) {
+      for (const img of this.gates.values()) {
+        if (img.gateState === 'open' || Math.hypot(img.x - this.me.x, img.y - 20 - this.me.y) > 70) continue;
+        const b = window.hallInfo && window.hallInfo.boss, t = b && new Date(b.at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+        this.floatText(img.x, img.y - img.displayHeight - 6, b ? `🔒 Откроются, когда придёт босс — в ${t}` : '🔒 Ворота запечатаны', '#ffd9a0', 12);
+        this.gateHintAt = time + 5000;
+        break;
+      }
+    }
     // Интерполяция чужих сущностей
     const k = Math.min(1, dt * 12);
     for (const [id, e] of this.players) {

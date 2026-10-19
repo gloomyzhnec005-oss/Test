@@ -116,7 +116,7 @@ module.exports = function createDungeons(d) {
   }
   // Удар по площади с предупреждением: круг на земле, через delay — урон всем героям внутри
   function telegraph(m, x, y, r, delay, color, onHit, label) {
-    fx({ t: 'tele', x, y, r, ms: delay, color, label });
+    fx({ t: 'tele', from: m.id, x, y, r, ms: delay, color, label });
     setTimeout(() => {
       if (!monsters.has(m.id)) return;
       fx({ t: 'teleHit', x, y, r, color });
@@ -136,7 +136,7 @@ module.exports = function createDungeons(d) {
       s.target = m.target;
       m.summons++;
     }
-    fx({ t: 'msum', x: m.x, y: m.y, n: k });
+    fx({ t: 'msum', from: m.id, x: m.x, y: m.y, n: k });
   }
   function resurrect(m, n, r, now) {
     const corpses = d.corpses().filter((c) => c.zone === m.zone && Math.hypot(c.x - m.x, c.y - m.y) <= r && MOBS[c.type] && MOBS[c.type].rank === 'normal');
@@ -161,7 +161,7 @@ module.exports = function createDungeons(d) {
       const s = create(world.byId.get(m.zone), pool[Math.floor(Math.random() * pool.length)], near(world.byId.get(m.zone), m, 90), m.level - 3, { extra: true, lootMult: 0, owner: m.id, aggro: 600 });
       s.target = m.target; m.summons++;
     }
-    fx({ t: 'msum', x: m.x, y: m.y, n: def.legion.n });
+    fx({ t: 'msum', from: m.id, x: m.x, y: m.y, n: def.legion.n });
   }
 
   // ---------- Умения ----------
@@ -186,12 +186,12 @@ module.exports = function createDungeons(d) {
       }
       case 'stunHit': case 'critHit':
         if (dd > 60 + m.size * 10) return false;
-        fx({ t: 'mtext', x: m.x, y: m.y, text: name, color: '#ffb060' });
+        fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: name, color: '#ffb060' });
         hit(m, t, ab.mult, now, ab.type === 'stunHit' ? { cc: 'stun', ms: ab.ms } : { crit: true });
         return true;
       case 'spin':
         if (dd > ab.r) return false;
-        fx({ t: 'teleHit', x: m.x, y: m.y, r: ab.r, color: 0xece6cc });
+        fx({ t: 'teleHit', from: m.id, x: m.x, y: m.y, r: ab.r, color: 0xece6cc });
         for (const p of inZone(m.zone)) if (!p.dead && dist(p, m) <= ab.r) hit(m, p, ab.mult, now);
         return true;
       case 'aoe': case 'cone': {
@@ -206,7 +206,7 @@ module.exports = function createDungeons(d) {
       }
       case 'multi': {
         if (dd > (m.range || 60 + m.size * 10)) return false;
-        fx({ t: 'mtext', x: m.x, y: m.y, text: name, color: '#ffe08a' });
+        fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: name, color: '#ffe08a' });
         for (let i = 0; i < ab.n; i++) setTimeout(() => { if (!monsters.has(m.id) || t.dead) return; if (m.range) shoot(m, t, ab.mult, Date.now()); else if (dist(m, t) < 70 + m.size * 10) hit(m, t, ab.mult, Date.now()); }, i * 220);
         if (ab.retreat) { const k = ab.retreat / (dd || 1); d.moveEntity(m, (m.x - t.x) * k, (m.y - t.y) * k); }
         return true;
@@ -214,21 +214,21 @@ module.exports = function createDungeons(d) {
       case 'trap': case 'ccShot': case 'curse': {
         if (dd > (ab.range || m.range || 200)) return false;
         const o = ab.type === 'curse' ? { curse: ab.ms } : { cc: ab.type === 'ccShot' ? ab.cc : 'root', ms: ab.ms };
-        fx({ t: 'mtext', x: m.x, y: m.y, text: name, color: '#c8b0ff' });
+        fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: name, color: '#c8b0ff' });
         shoot(m, t, ab.type === 'curse' ? 0.6 : 0.8, now, { ...o, proj: ab.web ? 'web' : ab.type === 'trap' ? 'trap' : def.proj });
-        if (ab.heal) { m.hp = Math.min(m.maxHp, m.hp + m.maxHp * ab.heal); fx({ t: 'mheal', x: m.x, y: m.y }); }
+        if (ab.heal) { m.hp = Math.min(m.maxHp, m.hp + m.maxHp * ab.heal); fx({ t: 'mheal', from: m.id, x: m.x, y: m.y }); }
         return true;
       }
       case 'summon':
         if (m.summons >= ab.cap) return false;
-        fx({ t: 'mtext', x: m.x, y: m.y, text: name, color: '#5fffb0' });
+        fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: name, color: '#5fffb0' });
         summon(m, ab.mob, ab.n, ab.cap, now);
         if (ab.resurrect) resurrect(m, ab.resurrect, 320, now);
         return true;
       case 'resurrect': {
         const k = resurrect(m, ab.n, ab.r, now);
         if (ab.heal) for (const o of monsters.values()) if (o.zone === m.zone && dist(o, m) < ab.r && o.hp < o.maxHp) { o.hp = Math.min(o.maxHp, o.hp + o.maxHp * ab.heal); }
-        if (k) fx({ t: 'mtext', x: m.x, y: m.y, text: name, color: '#5fffb0' });
+        if (k) fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: name, color: '#5fffb0' });
         return k > 0;
       }
       case 'heal': {
@@ -236,7 +236,7 @@ module.exports = function createDungeons(d) {
         for (const o of monsters.values()) if (o.zone === m.zone && o !== m && dist(o, m) <= ab.r && o.hp < o.maxHp * 0.8 && (!best || o.hp / o.maxHp < best.hp / best.maxHp)) best = o;
         if (!best) return false;
         best.hp = Math.min(best.maxHp, best.hp + best.maxHp * ab.frac);
-        fx({ t: 'mheal', x: best.x, y: best.y, fx: m.x, fy: m.y });
+        fx({ t: 'mheal', from: m.id, x: best.x, y: best.y, fx: m.x, fy: m.y });
         return true;
       }
       case 'buff': case 'shieldAlly': {
@@ -246,16 +246,16 @@ module.exports = function createDungeons(d) {
           else if (ab.stat === 'atk') { o.atkBuff = ab.mult; o.atkBuffUntil = now + ab.ms; } else { o.spdBuff = ab.mult; o.spdBuffUntil = now + ab.ms; }
           n++;
         }
-        fx({ t: 'mbuff', x: m.x, y: m.y, r: ab.r, kind: ab.type === 'shieldAlly' ? 'shield' : ab.stat });
+        fx({ t: 'mbuff', from: m.id, x: m.x, y: m.y, r: ab.r, kind: ab.type === 'shieldAlly' ? 'shield' : ab.stat });
         return n > 0;
       }
       case 'selfDef':
         m.defUntil = now + ab.ms; m.defMult = ab.mult; m.defPhysOnly = !!ab.physOnly;
-        fx({ t: 'mtext', x: m.x, y: m.y, text: name, color: '#c8d0e0' });
+        fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: name, color: '#c8d0e0' });
         return true;
       case 'shield':
         m.shieldHp = m.maxHp * ab.frac;
-        fx({ t: 'mbuff', x: m.x, y: m.y, r: 40, kind: 'shield' });
+        fx({ t: 'mbuff', from: m.id, x: m.x, y: m.y, r: 40, kind: 'shield' });
         return true;
       case 'mind': {
         if (t.owner || dd > 260) return false;
@@ -267,11 +267,11 @@ module.exports = function createDungeons(d) {
       }
       case 'form':
         m.form = m.form === 'beast' ? null : 'beast';
-        fx({ t: 'mtext', x: m.x, y: m.y, text: m.form ? 'Звериная форма!' : 'Облик человека', color: '#9aff6a' });
+        fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: m.form ? 'Звериная форма!' : 'Облик человека', color: '#9aff6a' });
         return false;
       case 'element': {
         const keys = ['fire', 'ice', 'lightning'], k = keys[Math.floor(Math.random() * keys.length)];
-        fx({ t: 'mtext', x: m.x, y: m.y, text: `Стихия: ${ELEMENTS[k].name}`, color: '#ffe94a' });
+        fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: `Стихия: ${ELEMENTS[k].name}`, color: '#ffe94a' });
         shoot(m, t, 1.3, now, { ...ELEMENTS[k].o, proj: ELEMENTS[k].proj });
         return true;
       }
@@ -283,10 +283,10 @@ module.exports = function createDungeons(d) {
     const pw = big ? 1.5 : 1;
     const opts = [
       () => telegraph(m, t.x, t.y, 110 * pw, 900, 0xff6ad8, (p) => hit(m, p, 1.5 * pw, Date.now()), 'Хаос: взрыв'),
-      () => { fx({ t: 'mtext', x: m.x, y: m.y, text: 'Хаос: морок', color: '#ff6ad8' }); shoot(m, t, 0.8, now, { cc: 'confuse', ms: TURN, proj: 'illusion' }); },
-      () => { fx({ t: 'mtext', x: m.x, y: m.y, text: 'Хаос: призыв', color: '#ff6ad8' }); summon(m, 'imp', big ? 2 : 1, big ? 6 : 2, now); },
-      () => { fx({ t: 'mtext', x: m.x, y: m.y, text: 'Хаос: проклятие', color: '#ff6ad8' }); shoot(m, t, 0.6, now, { curse: 3 * TURN, proj: 'dark' }); },
-      () => { m.hp = Math.min(m.maxHp, m.hp + m.maxHp * (big ? 0.03 : 0.1)); fx({ t: 'mheal', x: m.x, y: m.y }); },
+      () => { fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: 'Хаос: морок', color: '#ff6ad8' }); shoot(m, t, 0.8, now, { cc: 'confuse', ms: TURN, proj: 'illusion' }); },
+      () => { fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: 'Хаос: призыв', color: '#ff6ad8' }); summon(m, 'imp', big ? 2 : 1, big ? 6 : 2, now); },
+      () => { fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: 'Хаос: проклятие', color: '#ff6ad8' }); shoot(m, t, 0.6, now, { curse: 3 * TURN, proj: 'dark' }); },
+      () => { m.hp = Math.min(m.maxHp, m.hp + m.maxHp * (big ? 0.03 : 0.1)); fx({ t: 'mheal', from: m.id, x: m.x, y: m.y }); },
       () => { const p = near(world.byId.get(m.zone), t, 60); m.x = p.x; m.y = p.y; fx({ t: 'mdash', from: m.id, x: m.x, y: m.y, name: 'Хаос: скачок' }); },
     ];
     opts[Math.floor(Math.random() * opts.length)]();
@@ -328,14 +328,14 @@ module.exports = function createDungeons(d) {
       const keys = Object.keys(ELEMENTS);
       m.element = keys[(keys.indexOf(m.element) + 1) % keys.length];
       m.elemAt = now + def.eternity;
-      fx({ t: 'mtext', x: m.x, y: m.y - 30, text: `Вечность: ${ELEMENTS[m.element].name}`, color: '#bfe8ff', big: true });
+      fx({ t: 'mtext', from: m.id, x: m.x, y: m.y - 30, text: `Вечность: ${ELEMENTS[m.element].name}`, color: '#bfe8ff', big: true });
     }
     // Титан хаоса: каждые 5 ходов — новая фаза
     if (def.phases && now > (m.phaseAt || 0)) {
       const P = { rage: 'Ярость', stone: 'Камень', storm: 'Буря', dark: 'Тьма' }, keys = Object.keys(P);
       m.phase = keys[Math.floor(Math.random() * keys.length)];
       m.phaseAt = now + def.phases;
-      fx({ t: 'mtext', x: m.x, y: m.y - 30, text: `Фаза: ${P[m.phase]}`, color: '#ff6ad8', big: true });
+      fx({ t: 'mtext', from: m.id, x: m.x, y: m.y - 30, text: `Фаза: ${P[m.phase]}`, color: '#ff6ad8', big: true });
     }
     // Пожиратель миров: поедает своих демонов рядом (+20% HP за каждого)
     if (def.devour) {
@@ -343,7 +343,7 @@ module.exports = function createDungeons(d) {
       for (const o of monsters.values()) if (o.owner === m.id && o.zone === m.zone && dist(o, m) < 70 && now - (o.bornAt || (o.bornAt = now)) > 6000) {
         monsters.delete(o.id); m.summons--;
         m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.2);
-        fx({ t: 'mtext', x: m.x, y: m.y, text: 'Поглощение! +20%', color: '#ff4a8a', big: true });
+        fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: 'Поглощение! +20%', color: '#ff4a8a', big: true });
       }
     }
     // Тень: невидима, пока не подойдёт вплотную
@@ -364,7 +364,7 @@ module.exports = function createDungeons(d) {
       m.abAt = now + 1000;
     }
     // Тень: удар в спину из невидимости
-    if (m.inv && dd < 46) { m.inv = false; m.revealUntil = now + 6000; fx({ t: 'mtext', x: m.x, y: m.y, text: 'Удар в спину!', color: '#c070ff' }); hit(m, target, def.backstab || 2, now); m.lastAttack = now; return true; }
+    if (m.inv && dd < 46) { m.inv = false; m.revealUntil = now + 6000; fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text: 'Удар в спину!', color: '#c070ff' }); hit(m, target, def.backstab || 2, now); m.lastAttack = now; return true; }
     // Дальний бой: держит дистанцию и стреляет
     if (m.range > 0) {
       const speed = curSpeed(m, now);
@@ -415,7 +415,7 @@ module.exports = function createDungeons(d) {
       m.revived = true;
       m.hp = Math.round(m.maxHp * def.revive);
       m.dots = [];
-      fx({ t: 'mrevive', x: m.x, y: m.y, big: m.boss });
+      fx({ t: 'mrevive', from: m.id, x: m.x, y: m.y, big: m.boss });
       return true;
     }
     return false;
@@ -437,7 +437,7 @@ module.exports = function createDungeons(d) {
     if (def.enrage && def.enrage.allies && !m.alliesEnraged && m.hp < m.maxHp * def.enrage.below) {
       m.alliesEnraged = true;
       for (const o of monsters.values()) if (o.zone === m.zone) o.allEnraged = true;
-      fx({ t: 'mtext', x: m.x, y: m.y - 30, text: 'Единая воля: +50% атаки!', color: '#5fffb0', big: true });
+      fx({ t: 'mtext', from: m.id, x: m.x, y: m.y - 30, text: 'Единая воля: +50% атаки!', color: '#5fffb0', big: true });
     }
     if (def.legion) m.legionArmed = true;
   }
@@ -584,6 +584,19 @@ module.exports = function createDungeons(d) {
     }
     tickHall(h, Date.now());
     sendHall(h);
+  }
+  // Админка: боссы и полубоссы во всех данжах — сейчас, а не по расписанию (для проверки)
+  function summonHallBosses() {
+    const now = Date.now();
+    let n = 0;
+    for (const z of world.zones) {
+      if (!z || z.kind !== 'dungeon') continue;
+      const h = hallOf(z);
+      if (h.boss && !h.boss.id) { h.boss.at = now; h.boss.warned = true; n++; }
+      for (const mi of h.minis) if (!mi.id) mi.at = now;
+      tickHall(h, now); sendHall(h);
+    }
+    return n;
   }
   function hallInfo(h) {
     const now = Date.now(), b = h.boss;
@@ -740,6 +753,6 @@ module.exports = function createDungeons(d) {
 
   return {
     create, act, melee, meleeRange, curSpeed, takenMult, onHurt, preventDeath, onKilled, onMonsterHp,
-    startDungeon, startSurvival, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState,
+    startDungeon, startSurvival, summonHallBosses, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState,
   };
 };

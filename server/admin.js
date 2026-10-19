@@ -396,6 +396,7 @@ module.exports = function createAdmin(ctx) {
     st.nextAt = 0;
     return { text: 'Мировой босс появится через секунду' };
   }, (d) => `мировой босс ${d.town}${d.kill ? ' (удалить)' : ''}`));
+  r.post('/dungeonBosses', act(() => ({ text: `Боссы появились в данжах: ${ctx.D.summonHallBosses()}; полубоссы — во всех` }), () => 'боссы данжей сейчас'));
   r.post('/settings', act((d) => {
     if (d.set) {
       for (const k of ['xpMult', 'goldMult', 'dropMult']) if (d.set[k] !== undefined) settings[k] = num(d.set[k], 0, 100, 1);

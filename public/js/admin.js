@@ -94,6 +94,8 @@
         ${o.worldBosses.map((w) => `<div class="row"><span class="grow"><b>${esc(w.townName)}</b><br><small class="muted">${w.boss ? `👹 ${esc(w.boss.name)} · ${fmtNum(w.boss.hp)} / ${fmtNum(w.boss.maxHp)}` : `появится ${w.nextAt <= Date.now() ? 'сейчас' : 'через ' + Math.ceil((w.nextAt - Date.now()) / 60000) + ' мин'}`}</small></span>
           ${w.boss ? `<button class="btn small danger" data-wb="${w.town}" data-kill="1">Убрать</button>` : `<button class="btn small primary" data-wb="${w.town}">Вызвать сейчас</button>`}</div>`).join('')}
       </div>
+      <div class="card"><h3>Боссы данжей</h3><div class="row"><span class="grow"><small class="muted">По расписанию — раз в день; ворота к боссу открыты, пока он жив, и 10 минут после победы</small></span>
+          <button class="btn small primary" data-dgboss="1">Вызвать сейчас</button></div></div>
       <div class="card"><h3>В игре (${o.sessions.length})</h3>
         <div class="list">${o.sessions.map((s) => `<div class="item" data-uid="${esc(s.uid)}"><span class="dot on"></span>
           <div class="main"><b>${esc(s.name)} · ${esc(s.heroName)} ${s.level} ур.</b><small>${esc(s.zoneName)} · ❤️ ${s.hp}/${s.maxHp}${s.dead ? ' · мёртв' : ''}${s.god ? ' · 🛡 бессмертие' : ''}${s.oneShot ? ' · ⚡ ваншот' : ''}</small></div></div>`).join('') || '<p class="muted">Никого нет</p>'}</div>
@@ -105,6 +107,7 @@
       if (it) return openPlayer(it.dataset.uid);
       const wb = e.target.closest('[data-wb]');
       if (wb) { await api('worldBoss', { town: wb.dataset.wb, kill: !!wb.dataset.kill }); setTimeout(drawOverview, 800); }
+      if (e.target.closest('[data-dgboss]')) { await api('dungeonBosses', {}); setTimeout(drawOverview, 800); }
       const cl = e.target.closest('[data-clear]');
       if (cl) { await api('clearZone', { zone: cl.dataset.clear }); drawOverview(); }
     };
