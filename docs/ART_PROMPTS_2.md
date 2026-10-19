@@ -576,3 +576,219 @@ Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 
 The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — 1) wind-up, 2) strike, 3) strike impact with effect kept inside the frame, 4) recover.
 Same character, same size and same colors in all 8 frames.
 ```
+
+---
+
+## БХ. Боссы в высоком качестве — готовые промты (один босс на картинку)
+
+Копируйте блок целиком, подписывайте номер (БХ-1, БХ-2…). Заменит прежний рисунок босса.
+
+**БХ-1** — Тролль-шаман
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Troll Shaman: hunched green-grey troll with tusks, bone staff with skulls, feathers and voodoo totems; attack = staff slam with green magic.
+Pure bright magenta background (#FF00FF) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-2** — Грифон
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Gryphon: eagle-headed lion with golden-brown feathers and huge wings; attack = wing-spread claw strike.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-3** — Король скелетов
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Skeleton King: tall skeleton in rusted crown and royal tattered cape, giant bone sword, blue ghost fire; attack = overhead sword cleave.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-4** — Вождь орков
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Orc Chief: massive green orc in spiked iron armor with a huge double axe and war paint; attack = axe swing.
+Pure bright magenta background (#FF00FF) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-5** — Каменный титан
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Stone Titan: giant golem of mossy grey boulders with glowing amber runes; attack = ground-pound with both fists.
+Pure bright magenta background (#FF00FF) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-6** — Дракончик
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Dragon Whelp: young red-orange dragon, small wings, fiery belly; attack = fire breath burst.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-7** — Кракен
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Kraken: dark purple sea monster with many tentacles rising from a small pool of black water; attack = tentacle slam.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-8** — Цербер
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Cerberus: three-headed black hellhound with burning red eyes and fiery manes; attack = triple bite with flames.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-9** — Король-лич
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Lich King: skeletal sorcerer in black-purple robes and ice crown, floating, with a frost staff; attack = casting a blue-violet frost spell.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-10** — Повелитель демонов
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Demon Lord: huge red-black demon with horns, bat wings and a flaming whip; attack = whip lash with fire.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-11** — Титан Бездны
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Abyss Titan: colossal giant of black obsidian with purple cracks of void energy; attack = heavy punch with void shockwave.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-12** — Древний дракон
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Ancient Dragon: enormous dark green-bronze dragon with horns and torn wings; attack = biting lunge with smoke.
+Pure bright magenta background (#FF00FF) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-13** — Феникс
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Phoenix: blazing golden-orange firebird with long flaming tail feathers; attack = fiery wing sweep.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-14** — Падший ангел
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Fallen Angel: dark angel in cracked white-gold armor with black feathered wings and a broken halo, holding a spear; attack = spear thrust with dark light.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-15** — Горгона
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Gorgon: snake-haired queen with a serpent tail, bronze armor and a bow; attack = petrifying green gaze burst.
+Pure bright magenta background (#FF00FF) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-16** — Повелитель хаоса
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Lord of Chaos: armored warlord in jagged purple-black armor, cloak of storm clouds, two chaos blades; attack = double cross slash with lightning.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-17** — Легион
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: The Legion: a towering mass of armored skeletal soldiers fused into one giant with many shields and spears; attack = spear wall thrust.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-18** — Пожиратель
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: The Devourer: bloated abyss beast with a huge fanged maw and many eyes, purple-black flesh; attack = gaping bite.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-19** — Аватар Бездны
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Avatar of the Abyss: giant shadow humanoid made of void and purple fire, with a crown of black spikes; attack = void palm strike.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-20** — Вечный дракон
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Eternal Dragon: majestic white-gold celestial dragon with glowing blue runes and star-filled wings; attack = holy breath beam.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
+
+**БХ-21** — Титан хаоса
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur.
+ONE boss only: Chaos Titan: colossus of floating rock and storm with lightning veins and a ring of debris; attack = lightning slam.
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — wind-up, strike, impact (effect kept inside the frame), recover.
+Same character, same size and same colors in all 8 frames.
+```
