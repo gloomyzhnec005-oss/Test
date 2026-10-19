@@ -25,7 +25,14 @@ for r in range(2):
         if r == 1 and os.environ.get('CUTS2'):  # ручные границы кадров атаки: CUTS2=0,350,715,1140,1448 или с наложением 0-345,345-745,705-1110,1110-1448
             v = os.environ['CUTS2']
             x0, x1 = (int(t) for t in v.split(',')[c].split('-')) if '-' in v else (int(t) for t in v.split(',')[c:c + 2])
-        aa = a[y0:y1, x0:x1]; m = aa > 0.5
+        if r == 1 and os.environ.get('COMP2'):  # кадры атаки налезают друг на друга: делим по связным частям, а не по столбцам
+            ra = a[y0:y1]; rl, rn = ndimage.label(ndimage.binary_dilation(ra > 0.5)); rs = ndimage.sum(ra > 0.5, rl, range(1, rn + 1))
+            cx = np.array([c_[1] for c_ in ndimage.center_of_mass(ra > 0.5, rl, range(1, rn + 1))])
+            big = sorted(np.argsort(-rs)[:4], key=lambda i: cx[i]); own = [i + 1 for i in range(rn) if int(np.argmin([abs(cx[i] - cx[b]) for b in big])) == c]
+            sel = np.isin(rl, own); xs_ = np.nonzero(sel.any(0))[0]; x0, x1 = int(xs_.min()), int(xs_.max()) + 1
+            aa = (ra * sel)[:, x0:x1]; m = aa > 0.5
+        else:
+            aa = a[y0:y1, x0:x1]; m = aa > 0.5
         lab, n = ndimage.label(ndimage.binary_dilation(m, iterations=4)); sz = ndimage.sum(m, lab, range(1, n + 1))
         keep = ndimage.binary_dilation(np.isin(lab, [i + 1 for i, z in enumerate(sz) if z > 0.02 * sz.max()]) & m, iterations=2)
         aa = aa * keep; ys, xs = np.nonzero(aa > 0.05)
