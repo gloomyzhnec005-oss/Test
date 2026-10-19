@@ -125,6 +125,17 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Сеть
     this.net.on('state', (s) => this.onState(s));
     this.net.on('stats', (st) => { this.myStats = st; });
+    // Ворота босса открылись или запечатались: клетки прохода и анимация створок
+    this.net.on('gate', (g) => {
+      if (!this.tiles) return;
+      for (const k of g.idx) this.tiles[k] = g.tile;
+      const img = this.gates && this.gates.get(g.i);
+      if (!img || !img.active) return;
+      const th = this.zone.theme, seq = g.state === 'open' ? ['closed', 'half', 'open'] : ['open', 'half', 'closed', 'seal'];
+      seq.forEach((st, n) => this.time.delayedCall(n * 280, () => { if (img.active && this.textures.exists(`gate_${th}_${st}`)) img.setTexture(`gate_${th}_${st}`); }));
+      this.cameras.main.flash(250, 255, 230, 180);
+      if (window.Sfx) Sfx.play('portal');
+    });
     // Переход в другую зону: новая карта, прежние сущности исчезнут со следующим состоянием
     this.net.on('zone', (d) => {
       this.buildZone(d.zone);
@@ -219,6 +230,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const t = data2d[y][x], k = (t === 13 || t === 17) && WorldArt.decalAt(x, y), key = k && `dun_${z.theme}_${k}`;
         if (key && this.textures.exists(key)) this.zoneObjs.push(this.add.image(z.ox + x * T + T / 2, z.oy + y * T + T / 2, key).setDisplaySize(64, 64).setAngle((WorldArt.hash(x, y) % 4) * 90).setDepth(1));
       }
+    }
+    // Ворота комнаты босса (открываются, когда босс в комнате)
+    this.gates = new Map();
+    for (const g of z.gates || []) {
+      const key = `gate_${z.theme}_${g.state}`;
+      if (!this.textures.exists(key)) continue;
+      const img = this.add.image(g.x, g.y, key).setOrigin(0.5, 1);
+      const src = img.frame;
+      img.setDisplaySize(g.w, g.w * src.height / src.width).setDepth(10 + g.y);
+      this.zoneObjs.push(img); this.gates.set(g.i, img);
     }
     // Нарисованные украшения (статуи, фонтаны, сундуки): сервер ставит их на непроходимые клетки DECO
     for (const d of z.deco || []) {

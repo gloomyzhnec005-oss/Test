@@ -380,6 +380,16 @@ window.Town = (() => {
       champion: '👤 Тень лучшего игрока арены: его герой, сила подстроена под ваш уровень. За победу — самоцветы.',
     };
     const box = el(`<div class="pass-head"><b>🏟️ Рейтинг ${a.rating}</b><small>Победы ${a.wins} · поражения ${a.losses} · бои в реальном времени своими атаками и умениями. Арена этого мира — для героев ${{ town1: '1–20', town2: '15–35', town3: '30+' }[ctx.zone.id] || ''} уровня.</small></div>`);
+    // Турнир недели: очки за бои, награды тройке лидеров в понедельник
+    const T = info.tour;
+    if (T) {
+      const left = Math.max(0, T.ends - Date.now()), dd = Math.floor(left / 864e5), hh = Math.floor((left % 864e5) / 36e5);
+      box.insertAdjacentHTML('beforeend', `<div class="tw-banner hero tour"><b>🏆 Турнир недели · до итогов ${dd ? dd + ' д ' : ''}${hh} ч</b>
+        <small>Очки: победа в дуэли или командах — ${T.pts.win}, поражение — ${T.pts.loss}, победа в схватке — ${T.pts.kill}. Ваши очки: <b>${T.my}</b>${T.place ? ` · место ${T.place}` : ''}</small>
+        <small>${T.prizes.map((p, i) => `${p.title} ${p.gems} 💎 + ${p.gold} 💰`).join(' · ')}</small>
+        ${T.top.length ? `<div class="tour-top">${T.top.map((t, i) => `<div class="top-row"><span>${i < 3 ? T.prizes[i].title : i + 1}</span><b>${t.name}</b><small>${t.hero}</small><em>${t.pts}</em></div>`).join('')}</div>` : '<small>Пока никто не набрал очков — станьте первым!</small>'}
+        ${T.last && T.last.length ? `<small>Прошлая неделя: ${T.last.map((t) => `${T.prizes[t.place - 1].title} ${t.name} (${t.pts})`).join(' · ')}</small>` : ''}</div>`);
+    }
     for (const m of info.modes) {
       const queued = info.queued === m.id;
       const sub = `${DESC[m.id] || ''}${m.solo ? ` · наград сегодня: ${m.perDay - m.left}/${m.perDay}` : ` · в очереди: ${m.waiting}`}`;
@@ -416,9 +426,9 @@ window.Town = (() => {
       box.innerHTML = `<p class="sheet-hint">Обновятся через ${fmtLeft(d.endsIn)} · ${per === 'monthly' ? 'награды месяца' : 'выполняйте задания — забирайте награды'}</p>`;
       for (const q of d.list) {
         const done = q.prog >= q.goal;
-        const row = el(`<div class="tw-ev quest ${q.claimed ? 'claimed' : done ? 'ready' : ''}"><span class="tw-ev-i">${q.icon}</span><div><b>${q.name}</b><small>${q.desc}</small>
+        const row = el(`<div class="tw-ev quest ${q.claimed ? 'claimed' : done ? 'ready' : ''}"><span class="tw-ev-i q-ic"><img src="assets/ui/quests/${q.id}.webp" alt="${q.icon}" onerror="this.replaceWith(this.alt)"></span><div><b>${q.name}</b><small>${q.desc}</small>
           <div class="tw-prog"><i style="width:${Math.round((100 * q.prog) / q.goal)}%"></i><em>${q.prog} / ${q.goal}</em></div>
-          <small class="q-rew">${q.reward}${q.points ? ` · ★ ${q.points} очков` : ''}</small></div>
+          <small class="q-rew">${q.reward}${q.points ? ` · <img class="q-pt" src="assets/ui/quests/points.webp" alt="★"> ${q.points} очков` : ''}</small></div>
           <button class="l2-btn" ${done && !q.claimed ? '' : 'disabled'}>${q.claimed ? '✔' : '🎁'}</button></div>`).firstElementChild;
         row.querySelector('button').onclick = async () => {
           const res = await Bag.act('questClaim', { id: q.id });

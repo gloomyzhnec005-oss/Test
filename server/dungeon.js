@@ -448,7 +448,7 @@ module.exports = function createDungeons(d) {
   // Награду за полубосса и босса получают все, кто нанёс хотя бы 3% его здоровья.
   const halls = new Map(), announced = {};
   const BOSS_HOUR = Number(process.env.DUNGEON_BOSS_HOUR_UTC ?? 17), BOSS_MIN = Number(process.env.DUNGEON_BOSS_MIN ?? 0);
-  const RESPAWN = [5000, 10000], IDLE_MS = 5 * 60000, WARN_MS = 15 * 60000;
+  const RESPAWN = [5000, 10000], IDLE_MS = 5 * 60000, WARN_MS = 15 * 60000, GATE_OPEN_MS = 10 * 60000;
   const nextHour = (t) => Math.floor(t / 36e5) * 36e5 + 36e5;
   function nextBossAt(t) {
     const x = new Date(t);
@@ -505,6 +505,23 @@ module.exports = function createDungeons(d) {
     r.ids.add(m.id);
     return m;
   }
+  function setGates(h, state) {
+    const z = h.z;
+    for (const g of z.gates || []) {
+      if (g.state === state) continue;
+      g.state = state;
+      for (const k of g.idx) z.tiles[k] = state === 'open' ? g.floor : 16;
+      if (state === 'seal') {
+        // Кто остался в комнате босса — переносится ко входу в данж
+        const r = z.rooms.find((x) => x.role === 'boss');
+        for (const p of inZone(z.id)) {
+          const tx = Math.floor((p.x - z.ox) / C.TILE), ty = Math.floor((p.y - z.oy) / C.TILE);
+          if (r && tx >= r.x0 - 1 && tx <= r.x1 + 1 && ty >= r.y0 - 1 && ty <= r.y1 + 1) { d.moveToZone(p, z.id); p.socket.emit('chat', { sys: true, text: '🚪 Ворота босса запечатаны — вы у входа в данж' }); }
+        }
+      }
+      for (const p of inZone(z.id)) p.socket.emit('gate', { i: g.i, state, idx: g.idx, tile: state === 'open' ? g.floor : 16 });
+    }
+  }
   function tellHall(h, text) {
     const town = world.byId.get(h.z.town);
     for (const p of players.values()) if (p.zone === h.z.id || p.zone === h.z.town) p.socket.emit('chat', { sys: true, text: `${text} — ${h.dg.name} (${town.name})` });
@@ -536,7 +553,9 @@ module.exports = function createDungeons(d) {
     }
     const b = h.boss;
     if (b) {
-      if (b.id && !monsters.has(b.id)) { b.id = null; b.at = nextBossAt(now); b.warned = false; }
+      if (b.id && !monsters.has(b.id)) { b.id = null; b.at = nextBossAt(now); b.warned = false; b.openUntil = now + GATE_OPEN_MS; }
+      // Ворота комнаты босса: открыты, пока босс жив, и ещё 10 минут после победы; потом запечатываются
+      setGates(h, b.id || now < (b.openUntil || 0) ? 'open' : 'seal');
       // Объявления — одно на всех (боссы всех данжей появляются в одно время), плюс строка в своём городе
       if (!b.id && !b.warned && b.at - now <= WARN_MS) {
         b.warned = true;

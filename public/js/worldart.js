@@ -34,6 +34,8 @@ window.WorldArt = (() => {
     for (const k of PROPS) scene.load.image('prop_' + k, `assets/world/props/${k}.png`);
     for (const k of ['stun', 'root', 'slow', 'freeze', 'fear', 'taunt', 'weak', 'curse', 'poison', 'burn', 'bleed', 'shield', 'haste', 'rage', 'regen', 'invuln']) scene.load.image('st_' + k, `assets/ui/status/${k}.webp`);
     for (const k of ['coins', 'goldBag', 'scroll', 'potion', 'lootCommon', 'lootRare', 'lootEpic', 'lootLegend']) scene.load.image('loot_' + k, `assets/world/loot/${k}.webp`);
+    // Ворота комнат боссов: закрытые, приоткрытые, открытые и запечатанные магией
+    for (const th of Object.keys(THEMES)) for (const st of ['closed', 'half', 'open', 'seal']) scene.load.image(`gate_${th}_${st}`, `assets/world/gates/${th}_${st}.webp`);
     // Арены мировых боссов (assets/world/arena/<тема>.webp): одна картинка на всю площадку
     for (const th of Object.keys(THEMES)) scene.load.image('arena_' + th, `assets/world/arena/${th}.webp`);
     for (const th of Object.keys(THEMES)) {

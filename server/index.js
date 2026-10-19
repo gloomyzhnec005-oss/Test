@@ -267,6 +267,7 @@ const Arena = require('./arena')({
   moveToZone: (...a) => moveToZone(...a), getProfile: (uid) => getProfile(uid), partyMembers: (p) => partyMembers(p),
   revive: (p) => revivePlayer(p), addPassXp: (pr, n) => meta.addPassXp(pr, n), quest: (...a) => Q.track(...a),
   statsFor: (...a) => statsFor(...a), profiles: () => profiles,
+  dataDir: path.dirname(DATA_FILE), notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => io.emit('chat', { sys: true, text: t }), save: () => saveProfiles(),
 });
 // Поднять героя с полным здоровьем и ресурсом (возрождение, начало и конец боя на арене)
 function revivePlayer(p) {
@@ -469,7 +470,7 @@ function pvpKill(victim) {
   ka.hero = killer.heroId; ka.name = killer.name; va.hero = victim.heroId; va.name = victim.name;
   const gold = farm ? 0 : 15 * (world.byId.get(zid).tier || 1);
   kp.gold += gold;
-  if (!farm) { meta.addPassXp(kp, 3); Q.track(killer.uid, 'arena'); }
+  if (!farm) { meta.addPassXp(kp, 3); Q.track(killer.uid, 'arena'); Arena.addPoints(kp, 1); }
   killer.streak = (killer.streak || 0) + 1; victim.streak = 0;
   const msg = `⚔️ ${killer.name} победил ${victim.name}${delta ? ` · рейтинг +${delta} (${ka.rating})` : ' · без рейтинга (тот же соперник)'}${killer.streak >= 3 ? ` · серия ${killer.streak}!` : ''}`;
   for (const o of players.values()) if (o.zone === zid) o.socket.emit('chat', { sys: true, text: msg });

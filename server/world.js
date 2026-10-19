@@ -355,8 +355,34 @@ function buildWorld() {
       w: m.w, h: m.h, tiles: m.tiles, spawnTile: m.spawn, town: townId, objs: [], rooms: m.rooms, maxD: m.maxD, dg, dgIndex: i, decoTiles: m.deco });
     const back = z.abs(m.spawn.tx, m.spawn.ty - 2);
     z.objs.push({ id: 'back', kind: 'portal', to: townId, name: `В город ${town.name}`, icon: '🏰', x: back.x, y: back.y });
+    z.gates = bossGates(z);
     return z;
   };
+  // Ворота комнаты босса: на каждом входе из коридора — ряд клеток сразу за стеной комнаты.
+  // Закрытые ворота — непроходимые клетки (DECO); открываются, когда босс в комнате (server/dungeon.js)
+  function bossGates(z) {
+    const r = z.rooms.find((x) => x.role === 'boss'), W = z.w, out = [];
+    if (!r) return out;
+    const open = (x, y) => x >= 0 && y >= 0 && x < W && y < z.h && !SOLID.has(z.tiles[y * W + x]);
+    const runs = (cells, side) => {
+      let cur = [];
+      const flush = () => { if (cur.length) out.push({ side, cells: cur }); cur = []; };
+      for (const [x, y] of cells) { if (open(x, y)) cur.push([x, y]); else flush(); }
+      flush();
+    };
+    const xs = [], xs2 = [], ys = [], ys2 = [];
+    for (let x = r.x0; x <= r.x1; x++) { xs.push([x, r.y0 - 1]); xs2.push([x, r.y1 + 1]); }
+    for (let y = r.y0; y <= r.y1; y++) { ys.push([r.x0 - 1, y]); ys2.push([r.x1 + 1, y]); }
+    runs(xs, 'top'); runs(xs2, 'bottom'); runs(ys, 'left'); runs(ys2, 'right');
+    return out.map((g, i) => {
+      const n = g.cells.length, mid = g.cells[Math.floor(n / 2)], horiz = g.side === 'top' || g.side === 'bottom';
+      const cx = z.ox + (horiz ? (g.cells[0][0] + n / 2) : mid[0] + 0.5) * TILE;
+      const by = z.oy + (horiz ? mid[1] + 1 : g.cells[n - 1][1] + 1) * TILE;
+      const idx = g.cells.map(([x, y]) => y * W + x);
+      for (const k of idx) z.tiles[k] = T.DECO; // по умолчанию запечатаны
+      return { i, idx, floor: T.PATH, x: cx, y: by, w: (horiz ? n + 2 : 3) * TILE, side: g.side, state: 'seal' };
+    });
+  }
 
   WORLDS.forEach((w) => DUNGEONS[w.id].forEach((dg, i) => addDungeon(w.id, i)));
   // PvP-арены: общая площадка мира, бой героев друг с другом в реальном времени
@@ -420,7 +446,7 @@ function buildWorld() {
   };
   // Данные зоны для клиента
   const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
-    town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon' });
+    town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon', gates: (z.gates || []).map((g) => ({ i: g.i, x: g.x, y: g.y, w: g.w, side: g.side, state: g.state })) });
 
   return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, addPvpInstance, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level })) };
 }

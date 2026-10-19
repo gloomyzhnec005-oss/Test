@@ -949,3 +949,8 @@ canvas.skin { object-fit: contain; }
 .w10-card em { font-size: 9px; font-style: normal; color: #d8c8a8; }
 @keyframes w10in { from { transform: rotateY(90deg) scale(.6); opacity: 0; } }
 .w10-ok { width: min(100%, 300px); }
+.tw-ev-i.q-ic { flex: none; width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; }
+.tw-ev-i.q-ic img { width: 52px; height: 52px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,.7)); }
+.q-pt { width: 14px; height: 14px; vertical-align: -2px; }
+.tw-banner.tour { background: linear-gradient(135deg, rgba(200,150,40,.4), rgba(40,25,5,.75)); }
+.tour-top { margin: 4px 0; }

@@ -13,10 +13,46 @@ const MODES = {
   champion: { name: 'Тень чемпиона', solo: true, time: 150000, perDay: 3 },
 };
 const LEVELS = { town1: [1, 20], town2: [15, 35], town3: [30, 99] };
+// Турнир недели: очки за бои на арене (победа в дуэли или командах — 3, поражение — 1, победа в свободной схватке — 1).
+// В понедельник 00:00 UTC тройка лидеров прошлой недели получает награды
+const TOUR_PTS = { win: 3, loss: 1, kill: 1 };
+const TOUR_PRIZE = [{ gems: 1600, gold: 20000, title: '🥇' }, { gems: 960, gold: 12000, title: '🥈' }, { gems: 480, gold: 6000, title: '🥉' }];
+const weekKey = (t = Date.now()) => { const x = new Date(t), dd = (x.getUTCDay() + 6) % 7; return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate() - dd)).toISOString().slice(0, 10); };
+const weekEnd = (t = Date.now()) => Date.parse(weekKey(t)) + 7 * 864e5;
 const T = 32;
 
 module.exports = function createArena(d) {
   const { C, world, players, monsters } = d;
+  const fs = require('fs'), path = require('path');
+  const TOUR_FILE = path.join(d.dataDir, 'tournament.json');
+  let tour = { paid: weekKey(), last: [] };
+  try { tour = { ...tour, ...JSON.parse(fs.readFileSync(TOUR_FILE, 'utf8')) }; } catch { /* первый запуск */ }
+  const saveTour = () => { try { fs.mkdirSync(d.dataDir, { recursive: true }); fs.writeFileSync(TOUR_FILE, JSON.stringify(tour)); } catch (e) { console.error('tournament save', e.message); } };
+  function addPoints(pr, n) {
+    const wk = weekKey();
+    if (!pr.tour || pr.tour.week !== wk) pr.tour = { week: wk, pts: 0 };
+    pr.tour.pts += n;
+  }
+  const ranking = (wk) => Object.entries(d.profiles()).filter(([, o]) => o.tour && o.tour.week === wk && o.tour.pts > 0)
+    .map(([uid, o]) => ({ uid, name: (o.arena && o.arena.name) || 'Герой', pts: o.tour.pts, hero: o.arena && C.HEROES[o.arena.hero] ? C.HEROES[o.arena.hero].name : '' }))
+    .sort((a, b) => b.pts - a.pts);
+  // Итоги прошлой недели — один раз, когда началась новая
+  function settle() {
+    const wk = weekKey();
+    if (tour.paid === wk) return;
+    const prev = weekKey(Date.parse(wk) - 864e5), top = ranking(prev).slice(0, 3);
+    tour.last = top.map((t, i) => ({ place: i + 1, name: t.name, hero: t.hero, pts: t.pts }));
+    top.forEach((t, i) => {
+      const pr = d.profiles()[t.uid], P = TOUR_PRIZE[i];
+      pr.gems = (pr.gems || 0) + P.gems; pr.gold += P.gold;
+      (pr.titles ??= []).push(`${P.title} Турнир ${prev}`);
+      d.notifyUid(t.uid, `${P.title} Турнир недели: ${i + 1} место (${t.pts} очков)! Награда: ${P.gems} 💎 и ${P.gold} 💰`);
+    });
+    if (top.length) d.broadcast(`🏆 Турнир недели завершён! ${top.map((t, i) => `${TOUR_PRIZE[i].title} ${t.name} (${t.pts})`).join(' · ')}`);
+    tour.paid = wk;
+    saveTour(); d.save();
+  }
+  setInterval(settle, 60000); setTimeout(settle, 5000);
   const queues = {}; // `${town}:${mode}` -> [{ ids: [player.id], at }]
   const matches = new Map();
   let seq = 1;
@@ -121,6 +157,7 @@ module.exports = function createArena(d) {
         if (!players.has(p.id)) continue;
         const pr = d.getProfile(p.uid), a = arenaOf(pr);
         a.rating = Math.max(0, a.rating + delta); if (!draw) { if (win) a.wins++; else a.losses++; }
+        addPoints(pr, win ? TOUR_PTS.win : TOUR_PTS.loss);
         a.hero = p.heroId; a.name = p.name;
         const gold = win ? 40 * (world.byId.get(m.town).tier || 1) : draw ? 15 : 10;
         pr.gold += gold;
@@ -243,6 +280,13 @@ module.exports = function createArena(d) {
       left: M.solo ? M.perDay - (tries(d.getProfile(p.uid), id)[id] || 0) : null,
       waiting: !M.solo && world.byId.get(p.zone)?.kind === 'town' ? (queues[qKey(p.zone, id)] || []).reduce((s, e) => s + e.ids.length, 0) : 0 })),
     queued: (inQueue(p) || [null])[0]?.split(':')[1] || null,
+    tour: tourInfo(p),
   });
-  return { join, leave, info, sameTeam, holdsDeath, matches, MODES };
+  function tourInfo(p) {
+    const wk = weekKey(), list = ranking(wk), me = d.getProfile(p.uid);
+    const place = list.findIndex((t) => t.uid === p.uid) + 1;
+    return { ends: weekEnd(), my: me.tour && me.tour.week === wk ? me.tour.pts : 0, place, top: list.slice(0, 10).map(({ name, pts, hero }) => ({ name, pts, hero })),
+      prizes: TOUR_PRIZE, pts: TOUR_PTS, last: tour.last };
+  }
+  return { join, leave, info, tourInfo, addPoints, sameTeam, holdsDeath, matches, MODES };
 };
