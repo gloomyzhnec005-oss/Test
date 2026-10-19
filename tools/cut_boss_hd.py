@@ -2,7 +2,7 @@
 python3 tools/cut_boss_hd.py лист.png id [рост=112] [ширина_кадра=240] [высота_кадра=152]
 Кадры игры: 4 ходьбы + 3 атаки (замах, удар, попадание; «возврат» не нужен).
 Лист в 2 раза крупнее обычного — в mobart.js у него вдвое меньше scale, на экране размер тот же, но чётче."""
-import sys, numpy as np
+import os, sys, numpy as np
 from PIL import Image
 from scipy import ndimage
 src, name = sys.argv[1], sys.argv[2]
@@ -22,6 +22,8 @@ for r in range(2):
         pc = (a[y0:y1] > 0.5).sum(0)  # границы кадров — самые пустые столбцы около четвертей
         cut = lambda k: 0 if k == 0 else W if k == 4 else int(W * k / 4 - W / 10) + int(np.argmin(pc[int(W * k / 4 - W / 10):int(W * k / 4 + W / 10)]))
         x0, x1 = cut(c), cut(c + 1)
+        if r == 1 and os.environ.get('CUTS2'):  # ручные границы кадров атаки: CUTS2=0,350,715,1140,1448
+            x0, x1 = (int(v) for v in os.environ['CUTS2'].split(',')[c:c + 2])
         aa = a[y0:y1, x0:x1]; m = aa > 0.5
         lab, n = ndimage.label(ndimage.binary_dilation(m, iterations=4)); sz = ndimage.sum(m, lab, range(1, n + 1))
         keep = ndimage.binary_dilation(np.isin(lab, [i + 1 for i, z in enumerate(sz) if z > 0.02 * sz.max()]) & m, iterations=2)
