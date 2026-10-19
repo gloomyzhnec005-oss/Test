@@ -22,8 +22,9 @@ for r in range(2):
         pc = (a[y0:y1] > 0.5).sum(0)  # границы кадров — самые пустые столбцы около четвертей
         cut = lambda k: 0 if k == 0 else W if k == 4 else int(W * k / 4 - W / 10) + int(np.argmin(pc[int(W * k / 4 - W / 10):int(W * k / 4 + W / 10)]))
         x0, x1 = cut(c), cut(c + 1)
-        if r == 1 and os.environ.get('CUTS2'):  # ручные границы кадров атаки: CUTS2=0,350,715,1140,1448
-            x0, x1 = (int(v) for v in os.environ['CUTS2'].split(',')[c:c + 2])
+        if r == 1 and os.environ.get('CUTS2'):  # ручные границы кадров атаки: CUTS2=0,350,715,1140,1448 или с наложением 0-345,345-745,705-1110,1110-1448
+            v = os.environ['CUTS2']
+            x0, x1 = (int(t) for t in v.split(',')[c].split('-')) if '-' in v else (int(t) for t in v.split(',')[c:c + 2])
         aa = a[y0:y1, x0:x1]; m = aa > 0.5
         lab, n = ndimage.label(ndimage.binary_dilation(m, iterations=4)); sz = ndimage.sum(m, lab, range(1, n + 1))
         keep = ndimage.binary_dilation(np.isin(lab, [i + 1 for i, z in enumerate(sz) if z > 0.02 * sz.max()]) & m, iterations=2)
