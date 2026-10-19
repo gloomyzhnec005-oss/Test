@@ -354,6 +354,26 @@
         b.textContent = `👥 ${d.online} · ${mi} · ${bs}`;
         b.classList.remove('hidden');
       });
+      // Арена: очередь, ход боя и итог
+      socket.on('arenaQ', (q) => {
+        const b = $('waveBadge');
+        if (!q) { if (b.dataset.q) { b.classList.add('hidden'); delete b.dataset.q; } return; }
+        b.dataset.q = 1;
+        b.textContent = `⏳ ${q.name}: поиск соперников · ${q.waiting}/${q.need}`;
+        b.classList.remove('hidden');
+      });
+      socket.on('match', (d) => {
+        const b = $('waveBadge'), t = Math.ceil(d.left / 1000), bar = (x) => `${x[0]} ${Math.round(x[1] * 100)}%`;
+        delete b.dataset.q;
+        if (!b.dataset.m) { b.dataset.m = 1; Town.close(); } // окно арены закрывается один раз — в начале боя
+        b.textContent = `⚔️ ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} · ${d.me.map(bar).join(', ')} ⟷ ${d.foe.map(bar).join(', ')}`;
+        b.classList.remove('hidden');
+      });
+      socket.on('matchEnd', (d) => {
+        hudToast(d.draw ? '🤝 Ничья' : d.win ? '🏆 Победа!' : '💀 Поражение');
+        if (window.Sfx) Sfx.play(d.win ? 'reward' : 'death');
+        setTimeout(() => { $('waveBadge').classList.add('hidden'); delete $('waveBadge').dataset.m; }, 3000);
+      });
       socket.on('survival', (d) => {
         const b = $('waveBadge');
         b.textContent = `💀 Волна ${d.wave}${d.boss ? ' · ДРАКОН!' : ''}`;

@@ -261,6 +261,18 @@ const D = createDungeons({
     else D_selfHit(p);
   },
 });
+// Режимы арены: дуэль, команды, клон, тень чемпиона (server/arena.js)
+const Arena = require('./arena')({
+  C, world, players, monsters, D,
+  moveToZone: (...a) => moveToZone(...a), getProfile: (uid) => getProfile(uid), partyMembers: (p) => partyMembers(p),
+  revive: (p) => revivePlayer(p), addPassXp: (pr, n) => meta.addPassXp(pr, n), quest: (...a) => Q.track(...a),
+  statsFor: (...a) => statsFor(...a), profiles: () => profiles,
+});
+// Поднять героя с полным здоровьем и ресурсом (возрождение, начало и конец боя на арене)
+function revivePlayer(p) {
+  p.dead = false; p.hp = p.maxHp; p.res = startRes(p); p.shieldHp = 0; p.cheatUsed = false;
+  markDirty(p);
+}
 function D_selfHit(p) { fx.push({ t: 'mtext', x: p.x, y: p.y - 20, text: 'Подчинён!', color: '#ff6ad8' }); hurtPlayer(p, p.dmg * 0.6, null, Date.now()); }
 
 // Определяет игрока: Telegram (подпись initData) или гость
@@ -382,7 +394,7 @@ function publicPlayer(p) {
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
-    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, phase: p.hero.phases ? p.form : null, heat: Math.round(p.heat || 0), abyss: p.abyssUntil > Date.now(), pcc: D.ccActive(p), pdot: (p.pdots || []).filter((x) => x.until > Date.now()).map((x) => x.kind)[0] || null, pslow: p.slowUntil > Date.now(), pweak: p.weakUntil > Date.now(), flame: p.hero.flames ? p.form : null, ash: p.ashArmorUntil > Date.now(), rootSelf: p.rootSelfUntil > Date.now(), cry: p.crystals && p.crystals.length ? p.crystals : null, wrune: p.weaponRuneUntil > Date.now() ? p.weaponRuneType : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
+    pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, phase: p.hero.phases ? p.form : null, heat: Math.round(p.heat || 0), abyss: p.abyssUntil > Date.now(), mt: p.match ? `${p.match}:${p.team}` : null, pcc: D.ccActive(p), pdot: (p.pdots || []).filter((x) => x.until > Date.now()).map((x) => x.kind)[0] || null, pslow: p.slowUntil > Date.now(), pweak: p.weakUntil > Date.now(), flame: p.hero.flames ? p.form : null, ash: p.ashArmorUntil > Date.now(), rootSelf: p.rootSelfUntil > Date.now(), cry: p.crystals && p.crystals.length ? p.crystals : null, wrune: p.weaponRuneUntil > Date.now() ? p.weaponRuneType : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
     song: p.hero.songs ? p.form : null, haste: p.hasteUntil > Date.now(), fly: p.flyUntil > Date.now(), tree: (p.nature || 0) >= 100, vow: p.vowUntil > Date.now() ? p.vowBy : null,
     emp: p.empoweredUntil > Date.now() };
 }
@@ -429,7 +441,8 @@ function pvpSync(now) {
 function pvpHit(p, m, raw, opt) {
   const victim = players.get(m.pvpOf);
   if (!victim || victim === p || victim.dead || !p.uid) return 0;
-  if (p.party && p.party === victim.party) return 0; // по своей группе не бьём
+  if (Arena.sameTeam(p, victim)) return 0; // своя команда в матче
+  if (!p.match && p.party && p.party === victim.party) return 0; // по своей группе не бьём
   let crit = opt.crit ?? false;
   if (opt.basic && p.nextCritUntil > Date.now()) { crit = true; p.nextCritUntil = 0; }
   const dmg = opt.fixed ? raw * PVP_K : raw * dmgMult(p) * (0.85 + Math.random() * 0.3) * (crit ? 1.6 : 1) * PVP_K
@@ -649,7 +662,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
     if (m) m.target = null;
     fx.push({ t: 'pdeath', target: target.id });
     const zKind = (world.byId.get(target.zone) || {}).kind;
-    if (zKind === 'pvp') pvpKill(target);
+    if (zKind === 'pvp' && !target.match) pvpKill(target);
     // Гибель союзника рядом усиливает Талмиру
     for (const o of players.values()) {
       const ops = passiveOf(o);
@@ -657,7 +670,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
     }
     const victim = target;
     setTimeout(() => {
-      if (!players.has(victim.id)) return;
+      if (!players.has(victim.id) || Arena.holdsDeath(victim)) return; // павший в матче ждёт конца боя
       victim.dead = false;
       victim.hp = victim.maxHp;
       victim.res = startRes(victim);
@@ -1043,9 +1056,19 @@ io.on('connection', (socket) => {
     if (clean) io.emit('chat', { name: p.name, text: clean });
   });
 
+  // Арена: очередь на дуэль и команды, бой с клоном и тенью чемпиона
+  socket.on('arena', (d = {}, cb) => {
+    const p = players.get(socket.id);
+    if (!p || typeof cb !== 'function') return;
+    if (d.op === 'join') return cb(Arena.join(p, d.mode));
+    if (d.op === 'leave') { Arena.leave(p); return cb({ ok: true }); }
+    cb(Arena.info(p));
+  });
+
   socket.on('disconnect', () => {
     const p = players.get(socket.id);
     if (!p) return;
+    Arena.leave(p);
     leaveParty(p);
     players.delete(socket.id);
     getProfile(p.uid).lastSeen = Date.now();
@@ -1242,8 +1265,8 @@ setInterval(() => {
   for (const Z of byZone.values()) {
   const state = {
     p: Z.p.map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
-    m: Z.m.map((m) => m.pvpOf ? { id: m.id, pv: m.pvpOf, nm: '⚔️ ' + m.nm, lv: m.level, x: Math.round(m.x), y: Math.round(m.y), hp: Math.ceil(m.hp), maxHp: m.maxHp } : ({ id: m.id, type: m.type, tr: m.tier, lv: m.level, rk: m.rank, nm: m.name, inv: m.inv ? 1 : 0, sz: m.size, sh: m.shieldHp > 0 ? 1 : 0, fm: m.form || m.phase || m.element || null, x: Math.round(m.x), y: Math.round(m.y),
-      hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
+    m: Z.m.map((m) => m.pvpOf ? { id: m.id, pv: m.pvpOf, nm: '⚔️ ' + m.nm, lv: m.level, tm: (players.get(m.pvpOf) || {}).match ? `${players.get(m.pvpOf).match}:${players.get(m.pvpOf).team}` : null, x: Math.round(m.x), y: Math.round(m.y), hp: Math.ceil(m.hp), maxHp: m.maxHp } : ({ id: m.id, type: m.type, tr: m.tier, lv: m.level, rk: m.rank, nm: m.name, inv: m.inv ? 1 : 0, sz: m.size, sh: m.shieldHp > 0 ? 1 : 0, fm: m.form || m.phase || m.element || null, x: Math.round(m.x), y: Math.round(m.y),
+      hs: m.heroSkin || undefined, hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
       mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0,
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,

@@ -563,8 +563,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.c.addAt(e.emp, 0);
         this.tweens.add({ targets: e.emp, scale: 1.2, duration: 400, yoyo: true, repeat: -1 });
       } else if (!p.emp && e.emp) { e.emp.destroy(); e.emp = null; }
-      if (p.id !== this.myId && !e.skinOn) e.sprite.setFlipX(p.dir === -1);
-      else this.me.data = p;
+      if (p.id === this.myId) { if (this.me) this.me.data = p; } else if (!e.skinOn) e.sprite.setFlipX(p.dir === -1);
       // Смена облика (Талиесин): другой спрайт
       if ((p.form || null) !== (e.form || null)) {
         e.form = p.form || null;
@@ -586,6 +585,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (m.pv) {
         const pe = this.players.get(m.pv);
         if (!pe || m.pv === this.myId) continue;
+        if (m.tm && this.me && m.tm === this.me.data.mt) continue; // союзник по команде — не цель
         seenM.add(m.id);
         this.monsters.set(m.id, { ...pe, data: m, pvp: true });
         continue;
@@ -597,8 +597,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
         // Цвет имени по рангу: синий — усиленный, жёлтый — редкий, оранжевый — полубосс, красный — босс, фиолетовый — мировой
         const RC = { normal: '#ffd9a0', summon: '#c8c0b0', magic: '#8ab8ff', rare: '#ffe066', mini: '#ffa040', boss: '#ff5a5a', world: '#d080ff' };
         const prefix = { magic: 'Усиленный ', mini: '★ ', boss: '👑 ', world: '👹 ' }[m.rk] || '';
-        const ms = this.textures.exists('mskin_' + m.type) && Skins.MOBS[m.type];
-        e = this.makeEntity(ms ? 'mskin_' + m.type : 'mon_' + m.type, `${prefix}${m.nm || def.name} · ${m.lv}`, RC[m.rk] || '#ffd9a0', m.id);
+        // Клон героя или тень чемпиона на арене — рисуется героем
+        if (m.hs) {
+          e = this.makeEntity('hero_' + m.hs, `${m.nm} · ${m.lv}`, '#ff9a6a', m.id);
+          e.c.setPosition(m.x, m.y);
+          this.applySkin(e, m.hs);
+          e.heroClone = true;
+          this.monsters.set(m.id, e);
+        }
+        const ms = !e && this.textures.exists('mskin_' + m.type) && Skins.MOBS[m.type];
+        if (!e) e = this.makeEntity(ms ? 'mskin_' + m.type : 'mon_' + m.type, `${prefix}${m.nm || def.name} · ${m.lv}`, RC[m.rk] || '#ffd9a0', m.id);
         e.c.setPosition(m.x, m.y);
         const sz = (m.sz || 1) * (ms ? ms.scale || 1 : 1);   // нарисованные листы крупнее процедурных — свой масштаб
         e.sprite.setScale(sz);
@@ -616,13 +624,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: e.c, alpha: 1, duration: 400 });
         this.monsters.set(m.id, e);
       }
-      if (m.x !== e.tx) e.sprite.setFlipX(m.x < e.tx);
+      if (m.x !== e.tx && !e.skinOn) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
       // Нарисованные значки (assets/ui/status/<имя>.webp); у редких эффектов без значка — эмодзи
       const status = [m.st && 'stun', m.wk && 'weak', m.mk && '🎯', m.sl && '⛓️', m.sw && 'slow', m.tn && 'taunt', m.ws && '✨', m.br && 'weak', m.ps && 'poison', m.bn && 'burn',
         (m.bc || m.bl) && 'bleed', m.rt && 'root', m.cf && '😵', m.fr && 'fear', m.fz && 'freeze', m.mo && '🤡', m.st2 && '⭐', m.ds && '🔯', m.bd && '⛓', m.ch && '💘', m.cu && 'curse',
         m.fs && '❄️' + m.fs, m.sn ? '🗿' : m.pf && '🪨' + m.pf];
-        + (m.ws ? '✨' : '') + (m.br ? '💔' : '') + (m.ps ? '🧪' : '') + (m.bn ? '🔥' : '') + (m.bc ? '🩸' : '') + (m.rt ? '🌿' : '') + (m.cf ? '😵' : '') + (m.fr ? '😱' : '') + (m.fz ? '🧊' : '') + (m.mo ? '🤡' : '') + (m.st2 ? '⭐' : '') + (m.ds ? '🔯' : '') + (m.bd ? '⛓' : '') + (m.bl ? '🩸' : '') + (m.ch ? '💘' : '') + (m.cu ? '🕯️' : '') + (m.fs ? '❄️' + m.fs : '') + (m.sn ? '🗿' : m.pf ? '🪨' + m.pf : '');
       // Печать тьмы Морвена — вращающийся знак под монстром
       if (m.ds && !e.sealFx) e.sealFx = HeroFx.sealMark(this, e);
       else if (!m.ds && e.sealFx) { e.sealFx.destroy(); e.sealFx = null; }
@@ -2097,6 +2104,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (e.pvp) continue; // герой-соперник на арене движется вместе с героем
       const mx = e.tx - e.c.x, my = e.ty - e.c.y;
       e.c.x += mx * k; e.c.y += my * k;
+      if (e.heroClone && e.skinOn) { const mv = Math.hypot(mx, my) > 1; this.animSkin(e, mv ? mx : 0, mv ? my : 0, mv); continue; }
       // Нарисованный монстр: шагает, пока движется, стоит — первый кадр ходьбы
       if (e.mskin && !e.attacking) {
         const moving = Math.hypot(mx, my) > 0.8;

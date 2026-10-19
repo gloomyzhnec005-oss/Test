@@ -372,10 +372,24 @@ window.Town = (() => {
   // ---------- PvP-арена ----------
   async function arenaPanel() {
     const { arena: a } = await Bag.act('arena');
-    const box = el(`<div class="pass-head"><b>🏟️ Рейтинг ${a.rating}</b><small>Победы ${a.wins} · поражения ${a.losses}</small>
-      <small>Настоящий бой с другими игроками: выходите на арену и сражайтесь в реальном времени своими атаками и умениями. Победа — рейтинг и золото; после гибели вы возрождаетесь на арене. Урон по героям ниже, чем по монстрам, группа друг друга не бьёт. Арена этого мира — для героев ${{ town1: '1–20', town2: '15–35', town3: '30+' }[ctx.zone.id] || ''} уровня.</small></div>
-      <button class="l2-btn wide spin-btn" id="pvpGo">⚔️ Выйти на арену</button>`);
-    box.querySelector('#pvpGo').onclick = () => { ctx.socket.emit('travel', { via: 'arena' }); close(); };
+    const info = await new Promise((res) => ctx.socket.emit('arena', { op: 'info' }, res));
+    const DESC = {
+      duel: '⚔️ Один на один с живым игроком. Победа — рейтинг и золото.',
+      team: '🛡️ Двое на двое: вступите в группу с другом — встанете в очередь вместе, иначе подберём напарника.',
+      clone: '🪞 Ваша копия с тем же здоровьем и уроном. Победите самого себя!',
+      champion: '👤 Тень лучшего игрока арены: его герой, сила подстроена под ваш уровень. За победу — самоцветы.',
+    };
+    const box = el(`<div class="pass-head"><b>🏟️ Рейтинг ${a.rating}</b><small>Победы ${a.wins} · поражения ${a.losses} · бои в реальном времени своими атаками и умениями. Арена этого мира — для героев ${{ town1: '1–20', town2: '15–35', town3: '30+' }[ctx.zone.id] || ''} уровня.</small></div>`);
+    for (const m of info.modes) {
+      const queued = info.queued === m.id;
+      const sub = `${DESC[m.id] || ''}${m.solo ? ` · наград сегодня: ${m.perDay - m.left}/${m.perDay}` : ` · в очереди: ${m.waiting}`}`;
+      box.append(row(null, m.name, sub, queued ? 'Выйти из очереди' : m.solo ? 'В бой' : 'В очередь', async () => {
+        const r = await new Promise((res) => ctx.socket.emit('arena', { op: queued ? 'leave' : 'join', mode: m.id }, res));
+        if (r.error) return toast(r.error);
+        if (m.solo) close(); else { toast(queued ? 'Вы вышли из очереди' : 'Вы в очереди — бой начнётся, когда найдётся соперник'); arenaPanel(); }
+      }));
+    }
+    box.append(row(null, 'Свободная схватка', '🔥 Все против всех на общей арене мира: заходите и выходите когда угодно, возрождение на месте.', 'Войти', () => { ctx.socket.emit('travel', { via: 'arena' }); close(); }));
     box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Топ-10</div>${a.top.map((t, i) => `<div class="top-row"><span>${i + 1}</span><b>${t.name}</b><small>${t.hero}</small><em>${t.rating}</em></div>`).join('') || soon('Пока пусто')}`);
     open('🏟️ PvP-арена', box);
   }

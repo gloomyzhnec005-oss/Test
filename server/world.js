@@ -379,6 +379,13 @@ function buildWorld() {
     z.objs.push({ id: 'back', kind: 'portal', to: townId, name: `Выйти в ${town.name}`, icon: '🏰', x: back.x, y: back.y });
     return z;
   };
+  // Арена матча (дуэль, команды, клон): отдельная копия на каждый бой
+  const addPvpInstance = (townId) => {
+    const town = byId.get(townId);
+    const z = add({ id: `pvpi${instSeq++}`, kind: 'pvp', inst: true, name: 'Арена', sub: `${town.name} · бой`, theme: town.theme, tier: town.tier,
+      w: 24, h: 24, tiles: arenaTiles(24, 24), spawnTile: { tx: 12, ty: 12 }, town: townId, objs: [] });
+    return z;
+  };
   const removeZone = (z) => { byId.delete(z.id); if (zones[z.idx] === z) zones[z.idx] = null; };
 
   const zoneAtX = (px) => zones[Math.floor(px / ZONE_STRIDE)] || null;
@@ -415,7 +422,7 @@ function buildWorld() {
   const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
     town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon' });
 
-  return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level })) };
+  return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, addPvpInstance, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level })) };
 }
 
 module.exports = { buildWorld, T, SOLID: [...SOLID], ZONE_STRIDE, PLACES, DECO };
