@@ -18,7 +18,10 @@ rows = [(0, mid), (mid, H)]
 tiles = []
 for r in range(2):
     for c in range(4):
-        (y0, y1), x0, x1 = rows[r], c * W // 4, (c + 1) * W // 4
+        (y0, y1) = rows[r]
+        pc = (a[y0:y1] > 0.5).sum(0)  # границы кадров — самые пустые столбцы около четвертей
+        cut = lambda k: 0 if k == 0 else W if k == 4 else int(W * k / 4 - W / 10) + int(np.argmin(pc[int(W * k / 4 - W / 10):int(W * k / 4 + W / 10)]))
+        x0, x1 = cut(c), cut(c + 1)
         aa = a[y0:y1, x0:x1]; m = aa > 0.5
         lab, n = ndimage.label(ndimage.binary_dilation(m, iterations=4)); sz = ndimage.sum(m, lab, range(1, n + 1))
         keep = ndimage.binary_dilation(np.isin(lab, [i + 1 for i, z in enumerate(sz) if z > 0.02 * sz.max()]) & m, iterations=2)
