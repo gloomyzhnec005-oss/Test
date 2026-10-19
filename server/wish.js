@@ -1,4 +1,5 @@
-// Молитвы (гача героев) в духе Genshin Impact: баннеры, гарант, 50/50, ×10, история, звёздный блеск.
+// Призыв героев: Избранный недели и Зал героев, гарант, ×10, история, осколки душ.
+// Шансы игрокам не показываются — в окне только счётчики гаранта.
 // Баннеры героев:
 //   event    — «ивентовый»: неделя = один мифический герой и три легендарных с повышенным шансом;
 //              выпал мифический не тот — следующий мифический гарантированно герой баннера (50/50), так же с легендарными.
@@ -89,7 +90,7 @@ module.exports = function createWish({ C, getChar, refreshUid, addPassXp, quest 
     if (!['event', 'standard'].includes(banner)) banner = 'event';
     n = n === 10 ? 10 : 1;
     state(pr);
-    if (!pay(pr, n, freeAll)) return { error: 'Не хватает молитв или кристаллов', needPayment: true };
+    if (!pay(pr, n, freeAll)) return { error: 'Не хватает печатей или самоцветов', needPayment: true };
     const ev = eventBanner(), results = [];
     for (let i = 0; i < n; i++) results.push(rollOne(pr, banner, ev));
     pr.wish.hist.length = Math.min(pr.wish.hist.length, HIST);
@@ -106,7 +107,7 @@ module.exports = function createWish({ C, getChar, refreshUid, addPassXp, quest 
     const price = GLITTER_PRICE[what];
     n = Math.max(1, Math.min(50, Math.floor(n) || 1));
     if (!price) return { error: 'Неизвестный обмен' };
-    if (pr.glitter < price * n) return { error: `Нужно ${price * n} ✨ блеска` };
+    if (pr.glitter < price * n) return { error: `Нужно ${price * n} ✨ осколков душ` };
     pr.glitter -= price * n;
     if (what === 'hero') pr.paidSpins = (pr.paidSpins || 0) + n; else pr.itemSpins = (pr.itemSpins || 0) + n;
     return { ok: true };

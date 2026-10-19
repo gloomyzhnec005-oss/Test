@@ -109,7 +109,7 @@ app.post('/api/profile', (req, res) => {
   res.json(profileView(who));
 });
 
-// Молитвы героев (server/wish.js): баннеры ивент/стандарт, ×1/×10, гарант и 50/50
+// Призыв героев (server/wish.js): Избранный недели и Зал героев, ×1/×10, гарант
 const Wish = require('./wish')({
   C, getChar: (...a) => getChar(...a), refreshUid: (uid) => refreshUid(uid),
   addPassXp: (pr, n) => meta.addPassXp(pr, n), quest: (...a) => Q.track(...a),
@@ -125,7 +125,7 @@ app.post('/api/gacha/spin', (req, res) => {
   const one = r.results[0];
   res.json({ results: r.results, hero: one.hero, dupe: one.dupe, profile: profileView(who) });
 });
-// Обмен звёздного блеска на молитвы героя или снаряжения
+// Обмен осколков душ на печати призыва героя или снаряжения
 app.post('/api/gacha/exchange', (req, res) => {
   const { initData, guestId, what, n } = req.body || {};
   const who = resolveUid(initData, guestId);
@@ -159,8 +159,8 @@ app.post('/api/invoice', async (req, res) => {
     invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
   } else if (item === 'spin' || item === 'spin10') {
     const ten = item === 'spin10';
-    invoice = { title: ten ? 'Молитвы героя ×10' : 'Молитва героя', description: ten ? 'Десять молитв на любом баннере героев' : 'Одна молитва на любом баннере героев', payload: `${item}:${who.uid}`,
-      prices: [{ label: ten ? 'Молитвы ×10' : 'Молитва', amount: ten ? C.GACHA.spin10Price : C.GACHA.spinPrice }] };
+    invoice = { title: ten ? 'Печати призыва ×10' : 'Печать призыва', description: ten ? 'Десять призывов героя' : 'Один призыв героя', payload: `${item}:${who.uid}`,
+      prices: [{ label: ten ? 'Печати ×10' : 'Печать', amount: ten ? C.GACHA.spin10Price : C.GACHA.spinPrice }] };
   } else {
     const bg = C.LOBBY_BACKGROUNDS.find((b) => b.id === bgId && b.price > 0);
     if (!bg) return res.status(400).json({ error: 'Неизвестный фон' });
@@ -727,8 +727,8 @@ function grantXp(p, amount, gold, shared = false) {
     p.res = p.resMax;
     fx.push({ t: 'levelup', id: p.id, x: p.x, y: p.y, lvl: p.char.level });
     io.emit('chat', { sys: true, text: `${p.name} (${p.hero.name}) достиг ${p.char.level} уровня!` });
-    // Каждые 10 уровней героя — кристаллы судьбы (на одну молитву)
-    if (p.char.level % 10 === 0) { pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: `💎 ${p.hero.name} — ${p.char.level} уровень: +160 кристаллов судьбы` }); }
+    // Каждые 10 уровней героя — самоцветы (на один призыв)
+    if (p.char.level % 10 === 0) { pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: `💎 ${p.hero.name} — ${p.char.level} уровень: +160 самоцветов` }); }
   }
   markDirty(p);
 }

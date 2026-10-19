@@ -43,6 +43,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   create() {
+    // Тряска экрана в бою отключена: мешает целиться и читать бой (удары видны по вспышкам и цифрам)
+    this.cameras.main.shake = function () { return this; };
     // Чёткий текст: высокое разрешение под зум камеры и сглаживание (а не «пиксельное» растяжение)
     const addText = this.add.text.bind(this.add);
     this.add.text = (...a) => {

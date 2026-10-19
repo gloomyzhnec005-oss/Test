@@ -548,3 +548,17 @@ Row 1 — World I crypt: grey mossy stone arch with skulls, heavy iron portculli
 Row 2 — World II abyss: black obsidian arch with horns and spikes, demonic bone-and-iron bars, purple fire braziers; seal = purple-red demonic sigil wall.
 Row 3 — World III celestial: white marble arch with gold trim and blue crystals, golden ornate bars; seal = shimmering blue crystal light wall.
 ```
+
+---
+
+**И-20** — иконки заданий (пурпурный фон)
+```
+Fantasy MMORPG quest icons, hand-painted in the style of Diablo and Lineage 2 item icons, ornate details, magical glow, 3/4 view, one bold readable object per icon, readable at 48 px, soft rim light, painterly texture, high detail.
+Each object is isolated and centered in its own cell, fills about 80% of the cell, does not touch neighbours.
+Flat solid pure magenta #FF00FF background everywhere, no frame, no circle, no text, no watermark.
+One image with exactly 16 icons in a 4×4 grid, equal cells, generous empty space between them:
+Row 1: 1) crossed hunting dagger and sword over green grass and a leaf (hunt in the green valley); 2) a burning sword stuck in red-hot ashes with embers (hunt in the ash lands); 3) a winged silver spear over a small white cloud (hunt in the sky citadel); 4) a golden star medal with a red ribbon and a small crown (hunt the strong ones).
+Row 2: 5) an old rolled dungeon map with a red X and a tiny torch (conquer the labyrinth); 6) a glowing purple summoning crystal on a small rune altar (summon of the day); 7) two crossed gladiator swords over a round arena shield (arena warm-up); 8) a battle-worn great axe and sword crossed over a pile of skulls (crusade).
+Row 3: 9) a heavy golden crown with a crack and a drop of blood (boss slayer); 10) a dungeon gate tower with an open iron door and a key (dungeon expert); 11) a horned skull with blue flames in the eyes on broken stones (survivor); 12) a dragon head trophy on a wooden shield plaque (world boss victor).
+Row 4: 13) a golden trophy cup with gems and laurels (hero of the month); 14) an ornate ancient key with a glowing rune (master of labyrinths); 15) a stack of three hero portrait cards fanned out with a golden frame (collector); 16) a single shining five-pointed golden star with sparkles (event points).
+```

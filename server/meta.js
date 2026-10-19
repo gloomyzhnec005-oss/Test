@@ -16,8 +16,8 @@ const SHOP = {
   itemSpin: { price: 15, price10: 135 }, // Telegram Stars
   freeItemSpins: 1, freeItemSpinsSub: 2, // бесплатно каждый день
   pity: 50, // гарантированный легендарный предмет каждые 50 круток
-  gemsPerWish: 160, // кристаллов судьбы за одну молитву, если молитв нет
-  gems: { gems1: { gems: 330, amount: 50 }, gems2: { gems: 1090, amount: 150 }, gems3: { gems: 2240, amount: 300 }, gems4: { gems: 6480, amount: 800 } }, // пачки кристаллов за Stars
+  gemsPerWish: 160, // самоцветов за один призыв, если печатей нет
+  gems: { gems1: { gems: 330, amount: 50 }, gems2: { gems: 1090, amount: 150 }, gems3: { gems: 2240, amount: 300 }, gems4: { gems: 6480, amount: 800 } }, // пачки самоцветов за Stars
   pass: { price: 300, levels: 30, xpPerLevel: 100, days: 30 },
   sub: { price: 250, days: 30, xpBonus: 0.25, goldBonus: 0.25 },
   ads: { perDay: 5, cooldownMs: 30000 },
@@ -159,9 +159,9 @@ module.exports = function createMeta(deps) {
   function reward(pr, r, tier) {
     const out = [];
     if (r.gold) { pr.gold += r.gold; out.push(`💰 ${r.gold}`); }
-    if (r.itemSpins) { pr.itemSpins = (pr.itemSpins || 0) + r.itemSpins; out.push(`🎁 молитва снаряжения ×${r.itemSpins}`); }
-    if (r.gems) { pr.gems = (pr.gems || 0) + r.gems; out.push(`💎 ${r.gems} кристаллов`); }
-    if (r.heroSpins) { pr.paidSpins = (pr.paidSpins || 0) + r.heroSpins; out.push(`🌟 молитва героя ×${r.heroSpins}`); }
+    if (r.itemSpins) { pr.itemSpins = (pr.itemSpins || 0) + r.itemSpins; out.push(`🎁 печать снаряжения ×${r.itemSpins}`); }
+    if (r.gems) { pr.gems = (pr.gems || 0) + r.gems; out.push(`💎 ${r.gems} самоцветов`); }
+    if (r.heroSpins) { pr.paidSpins = (pr.paidSpins || 0) + r.heroSpins; out.push(`🔮 печать призыва ×${r.heroSpins}`); }
     if (r.item) out.push(grantMsg(grant(pr, I.rollItem(tier, { [r.item]: 1 }))));
     for (const [k, n] of Object.entries(r.mats || {})) { const id = matKey(k, tier); I.addMat(pr, id, n); out.push(matName(id, n)); }
     return out.join(', ');
@@ -373,7 +373,7 @@ module.exports = function createMeta(deps) {
       if (pr.pity && typeof pr.pity === 'object') pr.pity = 0; // старый формат счётчика гаранта героя
       const free = freeSpinsLeft(pr);
       const useFree = Math.min(free, n), tickets = Math.min(pr.itemSpins || 0, n - useFree), gems = (n - useFree - tickets) * SHOP.gemsPerWish;
-      if ((pr.gems || 0) < gems) return { error: 'Не хватает молитв или кристаллов', needPayment: true };
+      if ((pr.gems || 0) < gems) return { error: 'Не хватает печатей или самоцветов', needPayment: true };
       if (pr.freeItemDay !== dayKey()) { pr.freeItemDay = dayKey(); pr.freeItemLeft = free; }
       pr.freeItemLeft -= useFree;
       pr.itemSpins = (pr.itemSpins || 0) - tickets;
@@ -645,7 +645,7 @@ module.exports = function createMeta(deps) {
     ...Object.fromEntries(Object.entries(CHESTS).map(([k, c]) => [k, { title: c.title, description: c.description, amount: c.amount }])),
     ispin: { title: 'Призыв предмета', description: 'Одна крутка призыва предметов', amount: SHOP.itemSpin.price },
     ispin10: { title: 'Призыв предметов ×10', description: 'Десять круток призыва предметов', amount: SHOP.itemSpin.price10 },
-    ...Object.fromEntries(Object.entries(SHOP.gems).map(([k, g]) => [k, { title: `Кристаллы судьбы ×${g.gems}`, description: `${g.gems} кристаллов судьбы: 160 = одна молитва героя или снаряжения`, amount: g.amount }])),
+    ...Object.fromEntries(Object.entries(SHOP.gems).map(([k, g]) => [k, { title: `Самоцветы ×${g.gems}`, description: `${g.gems} самоцветов: 160 = один призыв героя или снаряжения`, amount: g.amount }])),
     pass: { title: 'Премиум батл-пасс', description: 'Премиум-награды текущего сезона', amount: SHOP.pass.price },
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
   };

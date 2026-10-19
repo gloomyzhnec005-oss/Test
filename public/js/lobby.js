@@ -321,7 +321,7 @@ window.Lobby = (() => {
   // ---------- Гача ----------
   function openGacha() { openSheet('Призыв героя', gachaSheet()); }
 
-  // ---------- Молитвы (баннеры героев) ----------
+  // ---------- Призыв героев (баннеры) ----------
   let banner = 'event';
   const W = () => profile.wish || {};
   const wishes = () => (profile.paidSpins || 0) + Math.floor((W().gems || 0) / (W().gemsPerWish || 160));
@@ -341,26 +341,21 @@ window.Lobby = (() => {
     box.className = 'gacha';
     const w = W(), ev = w.event || {}, st = banner === 'event' ? ev : w.standard || {};
     const dupes = (id) => (profile.chars[id] || {}).dupes || 0;
-    const R = w.rates || {}, pct = (v) => (v * 100 < 1 ? (v * 100).toFixed(1) : +(v * 100).toFixed(1)) + '%';
-    const common = 1 - (R.mythic + R.legendary + R.epic + R.rare);
-    const chances = [['mythic', R.mythic], ['legendary', R.legendary], ['epic', R.epic], ['rare', R.rare], ['common', common]]
-      .map(([k, v]) => `<span style="color:${rarities[k].color}">${rarities[k].name} ${pct(v)}</span>`).join(' · ');
     const head = banner === 'event' && ev.mythic
       ? `<div class="wb-banner event">${portrait(ev.mythic, 'wb-main')}
-          <div class="wb-info"><small>Молитва недели · ещё ${left(ev.ends)}</small><b>${heroes[ev.mythic].name}</b><em>«${heroes[ev.mythic].title}» · мифический</em>
+          <div class="wb-info"><small>Избранный недели · ещё ${left(ev.ends)}</small><b>${heroes[ev.mythic].name}</b><em>«${heroes[ev.mythic].title}» · мифический</em>
           <div class="wb-sub">${ev.legendary.map((id) => `<span>${portrait(id, 'wb-mini')}${nameC(id)}</span>`).join('')}</div>
-          <small>Мифический выпал не тот — следующий гарантированно ${heroes[ev.mythic].name}. Легендарные недели — 50%.</small></div></div>`
-      : `<div class="wb-banner standard"><div class="wb-info"><small>Постоянный баннер</small><b>Звёздный зов</b><em>Все ${Object.keys(heroes).length} героев, шанс внутри редкости поровну</em></div></div>`;
+          <small>Избранный и его спутники призываются чаще. Если пришёл другой мифический — следующим точно будет ${heroes[ev.mythic].name}.</small></div></div>`
+      : `<div class="wb-banner standard"><div class="wb-info"><small>Постоянный призыв</small><b>Зал героев</b><em>Все ${Object.keys(heroes).length} героев</em></div></div>`;
     box.innerHTML = `
-      <div class="tw-tabs wb-tabs"><button class="tw-tab ${banner === 'event' ? 'on' : ''}" data-b="event">🌟 Ивент${ev.mythic ? ': ' + heroes[ev.mythic].name : ''}</button><button class="tw-tab ${banner === 'standard' ? 'on' : ''}" data-b="standard">⭐ Стандарт</button></div>
+      <div class="tw-tabs wb-tabs"><button class="tw-tab ${banner === 'event' ? 'on' : ''}" data-b="event">🌟 Избранный${ev.mythic ? ': ' + heroes[ev.mythic].name : ''}</button><button class="tw-tab ${banner === 'standard' ? 'on' : ''}" data-b="standard">⭐ Зал героев</button></div>
       ${head}
       <div class="reel-wrap"><div class="reel-marker"></div><div id="reel" class="reel"></div></div>
-      <div class="wb-wallet"><span title="Кристаллы судьбы">💎 ${w.gems || 0}</span><span title="Молитвы героя">🌟 ${profile.paidSpins || 0}</span><span title="Звёздный блеск">✨ ${w.glitter || 0}</span></div>
-      <div class="btn-row wb-btns"><button id="spinBtn" class="l2-btn spin-btn" data-n="1">Молитва ×1<small>${costLabel(1)}</small></button><button class="l2-btn spin-btn" data-n="10">Молитва ×10<small>${costLabel(10)}</small></button></div>
-      <p class="chances">Мифический гарантирован через ${st.mythicIn} · легендарный или выше — через ${st.legIn}${banner === 'event' && ev.guarM ? ' · <b class="ok">следующий мифический — герой недели</b>' : ''}${banner === 'event' && ev.guarL ? ' · <b class="ok">следующий легендарный — герой недели</b>' : ''}</p>
-      <p class="chances">${chances}</p>
-      <div class="btn-row wb-links"><button class="l2-btn" data-a="hist">📜 История</button><button class="l2-btn" data-a="glitter">✨ Обмен блеска</button><button class="l2-btn" data-a="buy">⭐ Молитвы</button></div>
-      <p class="sheet-hint">С ${w.soft}-й молитвы без мифического шанс растёт, на ${w.hard}-й — гарант. Повтор — дубликат (+5% к силе, до 10) и звёздный блеск. 160 💎 = одна молитва. Чем выше редкость, тем сильнее герой и быстрее растёт.</p>
+      <div class="wb-wallet"><span title="Самоцветы">💎 ${w.gems || 0}</span><span title="Печати призыва">🔮 ${profile.paidSpins || 0}</span><span title="Осколки душ">✨ ${w.glitter || 0}</span></div>
+      <div class="btn-row wb-btns"><button id="spinBtn" class="l2-btn spin-btn" data-n="1">Призыв ×1<small>${costLabel(1)}</small></button><button class="l2-btn spin-btn" data-n="10">Призыв ×10<small>${costLabel(10)}</small></button></div>
+      <p class="chances">Мифический герой — не позже чем через ${st.mythicIn} · легендарный или выше — через ${st.legIn}${banner === 'event' && ev.guarM ? ' · <b class="ok">следующий мифический — избранный недели</b>' : ''}${banner === 'event' && ev.guarL ? ' · <b class="ok">следующий легендарный — спутник недели</b>' : ''}</p>
+      <div class="btn-row wb-links"><button class="l2-btn" data-a="hist">📜 История</button><button class="l2-btn" data-a="glitter">✨ Обмен осколков</button><button class="l2-btn" data-a="buy">🔮 Печати</button></div>
+      <p class="sheet-hint">Повторный герой — дубликат (сильнее, до 10 копий) и осколки душ. 160 💎 = один призыв. Чем выше редкость, тем сильнее герой и быстрее растёт.</p>
       <div class="sheet-sub">Все герои · получено ${profile.heroes.length} из ${Object.keys(heroes).length}</div>
       <div class="hero-grid"></div>`;
     fillReel(box.querySelector('#reel'), null);
@@ -379,8 +374,8 @@ window.Lobby = (() => {
     }
     box.querySelectorAll('[data-b]').forEach((b) => { b.onclick = () => { banner = b.dataset.b; openGacha(); }; });
     box.querySelectorAll('.wb-btns [data-n]').forEach((b) => { b.onclick = () => spin(+b.dataset.n); });
-    box.querySelector('[data-a="hist"]').onclick = () => openSheet('📜 История молитв', histSheet());
-    box.querySelector('[data-a="glitter"]').onclick = () => openSheet('✨ Обмен звёздного блеска', glitterSheet());
+    box.querySelector('[data-a="hist"]').onclick = () => openSheet('📜 История призывов', histSheet());
+    box.querySelector('[data-a="glitter"]').onclick = () => openSheet('✨ Обмен осколков душ', glitterSheet());
     box.querySelector('[data-a="buy"]').onclick = () => buySpin('spin10');
     return box;
   }
@@ -388,7 +383,7 @@ window.Lobby = (() => {
   function histSheet() {
     const box = document.createElement('div');
     const h = W().hist || [];
-    box.innerHTML = `<p class="sheet-hint">Последние ${h.length} молитв героев</p><div class="wb-hist">${h.map((x) => heroes[x.h] ? `<div><span>${new Date(x.t).toLocaleDateString('ru-RU')}</span>${nameC(x.h)}<em style="color:${rarities[x.r].color}">${rarities[x.r].name}</em><small>${x.b === 'event' ? '🌟 ивент' : '⭐ стандарт'}${x.f ? ' · герой недели' : ''}</small></div>` : '').join('') || '<p class="sheet-hint">Пока пусто</p>'}</div>`;
+    box.innerHTML = `<p class="sheet-hint">Последние ${h.length} призывов героев</p><div class="wb-hist">${h.map((x) => heroes[x.h] ? `<div><span>${new Date(x.t).toLocaleDateString('ru-RU')}</span>${nameC(x.h)}<em style="color:${rarities[x.r].color}">${rarities[x.r].name}</em><small>${x.b === 'event' ? '🌟 избранный' : '⭐ зал героев'}${x.f ? ' · избранный недели' : ''}</small></div>` : '').join('') || '<p class="sheet-hint">Пока пусто</p>'}</div>`;
     const back = document.createElement('button'); back.className = 'l2-btn wide'; back.textContent = 'Назад'; back.onclick = openGacha;
     box.append(back);
     return box;
@@ -396,13 +391,13 @@ window.Lobby = (() => {
 
   function glitterSheet() {
     const box = document.createElement('div'), w = W(), pr = w.glitterPrice || { hero: 10, gear: 8 };
-    box.innerHTML = `<p class="sheet-hint">Звёздный блеск даётся за повторных героев: обычный и редкий 1, эпический 2, легендарный 5, мифический 10 (вдвое, если дубликатов уже 10). У вас ✨ ${w.glitter || 0}</p>
-      <div class="tw-ev"><div><b>🌟 Молитва героя</b><small>${pr.hero} ✨</small></div><div class="btn-row"><button class="l2-btn" data-w="hero" data-n="1">×1</button><button class="l2-btn" data-w="hero" data-n="10">×10</button></div></div>
-      <div class="tw-ev"><div><b>🎁 Молитва снаряжения</b><small>${pr.gear} ✨</small></div><div class="btn-row"><button class="l2-btn" data-w="gear" data-n="1">×1</button><button class="l2-btn" data-w="gear" data-n="10">×10</button></div></div>`;
+    box.innerHTML = `<p class="sheet-hint">Осколки душ даются за повторных героев (больше — за редких, вдвое — если дубликатов уже 10). У вас ✨ ${w.glitter || 0}</p>
+      <div class="tw-ev"><div><b>🔮 Печать призыва</b><small>${pr.hero} ✨</small></div><div class="btn-row"><button class="l2-btn" data-w="hero" data-n="1">×1</button><button class="l2-btn" data-w="hero" data-n="10">×10</button></div></div>
+      <div class="tw-ev"><div><b>🎁 Печать снаряжения</b><small>${pr.gear} ✨</small></div><div class="btn-row"><button class="l2-btn" data-w="gear" data-n="1">×1</button><button class="l2-btn" data-w="gear" data-n="10">×10</button></div></div>`;
     box.querySelectorAll('[data-w]').forEach((b) => { b.onclick = async () => {
       const { ok, data } = await api('/api/gacha/exchange', { what: b.dataset.w, n: +b.dataset.n });
       if (!ok) return toast(data.error || 'Не получилось');
-      profile = data.profile; toast('Обмен выполнен'); openSheet('✨ Обмен звёздного блеска', glitterSheet());
+      profile = data.profile; toast('Обмен выполнен'); openSheet('✨ Обмен осколков душ', glitterSheet());
     }; });
     const back = document.createElement('button'); back.className = 'l2-btn wide'; back.textContent = 'Назад'; back.onclick = openGacha;
     box.append(back);
@@ -463,11 +458,11 @@ window.Lobby = (() => {
   async function spin(n = 1) {
     if (spinning) return;
     const btn = $('spinBtn');
-    // Не хватает молитв и кристаллов — открываем счёт в Telegram Stars
+    // Не хватает печатей и самоцветов — открываем счёт в Telegram Stars
     if (!canPay(n)) return buySpin(n === 10 ? 'spin10' : 'spin');
     spinning = true;
     document.querySelectorAll('.wb-btns button').forEach((b) => { b.disabled = true; });
-    btn.textContent = 'Молитва...';
+    btn.textContent = 'Призыв...';
     const { ok, data } = await api('/api/gacha/spin', { banner, n });
     if (!ok) {
       spinning = false;
@@ -594,7 +589,7 @@ window.Lobby = (() => {
 
   async function buySpin(item = 'spin') {
     const tg = opts.tg;
-    if (!tg || !opts.tgUser || !tg.openInvoice) { toast('Нет молитв: 💎 кристаллы — за задания и в магазине, молитвы за Stars — в Telegram'); return; }
+    if (!tg || !opts.tgUser || !tg.openInvoice) { toast('Нет печатей: 💎 самоцветы — за задания и в магазине, печати за Stars — в Telegram'); return; }
     const { ok, data } = await api('/api/invoice', { item });
     if (!ok) { toast(data.error || 'Оплата недоступна'); return; }
     tg.openInvoice(data.link, async (status) => {
@@ -604,7 +599,7 @@ window.Lobby = (() => {
         await loadProfile();
       }
       if (profile.paidSpins > 0) openGacha();
-      else toast('Оплата получена, молитвы появятся через несколько секунд');
+      else toast('Оплата получена, печати появятся через несколько секунд');
     });
   }
 
