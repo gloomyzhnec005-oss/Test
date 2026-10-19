@@ -222,8 +222,6 @@ input, select, textarea { font-size: 16px !important; }
 }
 .chat-log div { background: rgba(0,0,0,.4); margin-top: 2px; padding: 2px 6px; border-radius: 6px; width: fit-content; }
 .chat-log .sys { color: #ffcc4d; }
-.chat-form { position: absolute; left: 8px; right: 8px; bottom: 140px; }
-.chat-form input { width: 100%; padding: 10px; border-radius: 10px; border: none; font-size: 16px; background: #1d2533; color: #fff; }
 .round { border: none; border-radius: 50%; color: #fff; font-size: 22px; }
 .small-btn {
   position: absolute; width: 40px; height: 40px; background: rgba(10,14,22,.72);
@@ -714,7 +712,6 @@ canvas.skin { object-fit: contain; }
 .skills.n2 .skill.s1 { bottom: calc(var(--nav) + 114px + env(safe-area-inset-bottom)); }
 .act-btn { bottom: calc(var(--nav) + 140px + env(safe-area-inset-bottom)); }
 .chat-log { bottom: calc(var(--nav) + 160px + env(safe-area-inset-bottom)); }
-.chat-form { bottom: calc(var(--nav) + 130px + env(safe-area-inset-bottom)); }
 .hud-toast { bottom: calc(var(--nav) + 196px + env(safe-area-inset-bottom)); }
 .nav-menu { display: flex; flex-direction: column; gap: 6px; }
 .nav-row {
@@ -956,3 +953,27 @@ canvas.skin { object-fit: contain; }
 .tour-top { margin: 4px 0; }
 /* Зелье — над умениями справа, под большим пальцем */
 #potBtn { top: auto; right: 38px; bottom: calc(var(--nav) + 196px + env(safe-area-inset-bottom)); width: 50px; height: 50px; }
+
+/* Окно чата: поверх игры, высота — видимая часть экрана (над клавиатурой телефона) */
+.chat-win { position: fixed; left: 0; right: 0; top: 0; height: 100%; z-index: 40; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; justify-content: center; }
+.chat-card { width: 100%; max-width: 560px; height: min(78%, 620px); display: flex; flex-direction: column; gap: 6px; padding: 10px 10px calc(10px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; box-sizing: border-box; }
+.chat-head { display: flex; align-items: center; gap: 6px; }
+.chat-tabs { display: flex; gap: 6px; flex: 1; }
+.chat-tabs button { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #5a4830; background: rgba(255,255,255,.05); color: #cdbb94; font-family: inherit; font-size: 14px; }
+.chat-tabs button.on { background: linear-gradient(180deg, #6a4c22, #3a2812); color: #ffe7a8; border-color: #c9a25a; }
+.chat-close { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #a8864a; background: rgba(0,0,0,.4); color: #f3e6c6; font-size: 18px; }
+.chat-list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 10px; background: rgba(0,0,0,.35); font-size: 14px; line-height: 1.3; }
+.chat-list > div { background: rgba(255,255,255,.06); padding: 5px 8px; border-radius: 10px; max-width: 88%; align-self: flex-start; word-break: break-word; color: #f1e6cc; }
+.chat-list > div.hidden { display: none; }
+.chat-list > div.mine { align-self: flex-end; background: rgba(201,162,90,.22); }
+.chat-list > div.sys { color: #ffcc4d; max-width: 100%; background: rgba(255,204,77,.08); }
+.chat-list > div b { color: #9fd0ff; }
+.chat-list > div.mine b { color: #ffd98a; }
+.chat-list small { color: #8d7d60; font-size: 11px; margin-right: 6px; }
+.chat-list .stk { display: flex; align-items: center; gap: 4px; }
+.chat-win .sticker-bar { margin: 0; flex: none; }
+.chat-send { display: flex; gap: 6px; flex: none; }
+.chat-send input { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 12px; border: 1px solid #5a4830; font-size: 16px; background: #1a1610; color: #fff; font-family: inherit; }
+.chat-send button { width: 48px; border-radius: 12px; border: 1px solid #c9a25a; background: linear-gradient(180deg, #8a6428, #4a3214); color: #ffe7a8; font-size: 20px; }
+.chat-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: #e0413a; color: #fff; font-size: 11px; font-style: normal; line-height: 18px; text-align: center; box-sizing: border-box; }
+.chat-badge.hidden { display: none; }

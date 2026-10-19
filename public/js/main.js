@@ -76,41 +76,87 @@
   atk.addEventListener('pointerleave', atkUp);
 
   // ---------- Чат ----------
-  const chatLog = $('chatLog');
+  // Отдельное окно: вкладки «Игроки» (сообщения и стикеры) и «События» (системные), история с сервера.
+  // Пока окно закрыто, свежие сообщения коротко всплывают над картой, на кнопке — счётчик непрочитанных.
+  const chatLog = $('chatLog'), chatList = $('chatList'), chatWin = $('chatWin'), chatInput = $('chatInput');
   // Стикеры (assets/ui/stickers/<имя>.webp): сообщение вида [st:имя] рисуется картинкой
   const STICKERS = ['gg', 'lol', 'cry', 'angry', 'greedy', 'help', 'sleep', 'love'];
-  function addChat(msg) {
+  let chatTab = 'talk', unread = 0;
+  const chatOpen = () => !chatWin.classList.contains('hidden');
+  const hhmm = (t) => new Date(t || Date.now()).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  function chatLine(msg, full) {
     const div = document.createElement('div');
     const st = !msg.sys && /^\[st:(\w+)\]$/.exec(msg.text || '');
-    if (msg.sys) { div.className = 'sys'; div.textContent = msg.text; }
-    else if (st && STICKERS.includes(st[1])) {
-      const b = document.createElement('b'); b.textContent = msg.name + ': ';
+    div.className = msg.sys ? 'sys' : 'talk';
+    if (full) { div.dataset.ch = msg.sys ? 'sys' : 'talk'; if (msg.sid && socket && msg.sid === socket.id) div.classList.add('mine'); }
+    if (full) { const t = document.createElement('small'); t.textContent = hhmm(msg.t); div.append(t); }
+    if (msg.sys) { div.append(msg.text); return div; }
+    const b = document.createElement('b'); b.textContent = msg.name + ': ';
+    if (st && STICKERS.includes(st[1])) {
       const im = document.createElement('img'); im.className = 'chat-sticker'; im.src = `assets/ui/stickers/${st[1]}.webp`; im.alt = st[1];
-      div.className = 'stk'; div.append(b, im);
-    } else { const b = document.createElement('b'); b.textContent = msg.name + ': '; div.append(b, msg.text); }
-    chatLog.appendChild(div);
-    while (chatLog.children.length > 6) chatLog.removeChild(chatLog.firstChild);
-    setTimeout(() => div.remove(), 15000);
+      div.classList.add('stk'); div.append(b, im);
+    } else div.append(b, msg.text);
+    return div;
   }
-  $('chatBtn').onclick = () => {
-    $('chatForm').classList.toggle('hidden');
-    if (!$('chatForm').classList.contains('hidden')) $('chatInput').focus();
-  };
+  function addChat(msg, quiet) {
+    const atBottom = chatList.scrollHeight - chatList.scrollTop - chatList.clientHeight < 40;
+    const row = chatLine(msg, true);
+    row.classList.toggle('hidden', row.dataset.ch !== chatTab);
+    chatList.appendChild(row);
+    while (chatList.children.length > 150) chatList.removeChild(chatList.firstChild);
+    if (atBottom || row.classList.contains('mine')) chatList.scrollTop = chatList.scrollHeight;
+    if (quiet || chatOpen()) return;
+    // Окно закрыто: всплывающая строка над картой и счётчик (только сообщения игроков)
+    const div = chatLine(msg, false);
+    chatLog.appendChild(div);
+    while (chatLog.children.length > 4) chatLog.removeChild(chatLog.firstChild);
+    setTimeout(() => div.remove(), 12000);
+    if (!msg.sys) { unread++; $('chatBadge').textContent = unread > 9 ? '9+' : unread; $('chatBadge').classList.remove('hidden'); }
+  }
+  function setTab(ch) {
+    chatTab = ch;
+    chatWin.querySelectorAll('[data-ch]').forEach((b) => b.tagName === 'BUTTON' && b.classList.toggle('on', b.dataset.ch === ch));
+    for (const r of chatList.children) r.classList.toggle('hidden', r.dataset.ch !== ch);
+    chatList.scrollTop = chatList.scrollHeight;
+  }
+  // Клавиатура телефона: окно подстраивается под видимую часть экрана, игра не перехватывает клавиши
+  function fitChat() {
+    const vv = window.visualViewport;
+    chatWin.style.height = vv ? vv.height + 'px' : '';
+    chatWin.style.top = vv ? vv.offsetTop + 'px' : '';
+  }
+  if (window.visualViewport) { visualViewport.addEventListener('resize', () => chatOpen() && fitChat()); visualViewport.addEventListener('scroll', () => chatOpen() && fitChat()); }
+  const gameKeys = (on) => { const kb = window.gameScene && gameScene.input && gameScene.input.keyboard; if (!kb) return; kb.enabled = on; if (on) kb.enableGlobalCapture(); else { kb.disableGlobalCapture(); kb.resetKeys(); } };
+  function openChat() {
+    chatWin.classList.remove('hidden'); chatLog.innerHTML = '';
+    unread = 0; $('chatBadge').classList.add('hidden');
+    fitChat(); gameKeys(false);
+    chatList.scrollTop = chatList.scrollHeight;
+  }
+  function closeChat() { chatInput.blur(); chatWin.classList.add('hidden'); chatWin.style.height = chatWin.style.top = ''; gameKeys(true); }
+  $('chatBtn').onclick = () => (chatOpen() ? closeChat() : openChat());
+  $('chatClose').onclick = closeChat;
+  chatWin.onclick = (e) => { if (e.target === chatWin) closeChat(); };
+  chatWin.querySelector('.chat-tabs').onclick = (e) => { const b = e.target.closest('[data-ch]'); if (b) setTab(b.dataset.ch); };
   $('stickerBar').innerHTML = STICKERS.map((k) => `<button type="button" data-st="${k}"><img src="assets/ui/stickers/${k}.webp" alt="${k}"></button>`).join('');
   $('stickerBar').onclick = (e) => {
     const b = e.target.closest('[data-st]');
     if (!b || !socket) return;
     socket.emit('chat', `[st:${b.dataset.st}]`);
-    $('chatForm').classList.add('hidden'); $('chatInput').blur();
+    setTab('talk');
   };
-  $('chatForm').onsubmit = (e) => {
-    e.preventDefault();
-    const v = $('chatInput').value.trim();
-    if (v && socket) socket.emit('chat', v);
-    $('chatInput').value = '';
-    $('chatForm').classList.add('hidden');
-    $('chatInput').blur();
+  const sendChat = () => {
+    const v = chatInput.value.trim();
+    if (!v || !socket) return;
+    socket.emit('chat', v);
+    chatInput.value = '';
+    setTab('talk');
   };
+  $('chatForm').onsubmit = (e) => { e.preventDefault(); sendChat(); };
+  // Кнопка отправки не забирает фокус у поля — клавиатура остаётся открытой
+  $('chatSend').addEventListener('pointerdown', (e) => e.preventDefault());
+  chatInput.addEventListener('keydown', (e) => e.stopPropagation());
+  chatInput.addEventListener('focus', () => gameKeys(false));
 
   // ---------- HUD ----------
   let resName = '';
@@ -270,7 +316,8 @@
       socket.emit('join', { hero: selected, initData: tg ? tg.initData : '', guestId, guestName: name });
     });
     socket.on('error_msg', (m) => { Lobby.setStatus(m); Lobby.setBusy(false); socket.disconnect(); });
-    socket.on('chat', addChat);
+    socket.on('chat', (m) => addChat(m));
+    socket.on('chatHistory', (list) => { chatList.innerHTML = ''; for (const m of list || []) addChat(m, true); });
     socket.on('stats', setStats);
     socket.on('skillUsed', ({ id, cooldown }) => startSkillCd(id, cooldown));
     // Сервер сократил перезарядку (убийство Найри) — обновляем таймеры кнопок
@@ -410,7 +457,7 @@
           ['survival', 'Данжи и порталы', zone.kind === 'town' ? 'Порталы данжей, выживание и телепорт стоят в городе — подойдите к ним' : 'Вы за порталом: победите босса или вернитесь в город', () => Town.close()],
         ]),
         more: () => menuSheet('☰ Ещё', [
-          ['chat', 'Чат', 'Написать игрокам в этой зоне', () => { Town.close(); $('chatBtn').click(); }],
+          ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
           ['🔊', 'Звук', window.Sfx && Sfx.isOn() ? 'Включён — нажмите, чтобы выключить' : 'Выключен — нажмите, чтобы включить', () => { const on = Sfx.toggle(); Town.toast(on ? '🔊 Звук включён' : '🔇 Звук выключен'); NAV.more(); }],
           ['❓', 'Подсказки', 'Показать обучение заново', () => { Town.close(); Tutorial.start(true); }],

@@ -203,6 +203,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 // ---------- Мир ----------
 const world = buildWorld(); // города и охотничьи земли за порталами (server/world.js)
 const players = new Map(); // socket.id -> player
+const chatHistory = []; // последние сообщения общего чата
 const monsters = new Map(); // id -> monster
 const pets = new Map(); // id -> зверь-спутник (Урсус)
 let monsterSeq = 1;
@@ -882,6 +883,7 @@ io.on('connection', (socket) => {
       monsters: C.MONSTERS,
       stats: privateStats(p),
     });
+    socket.emit('chatHistory', chatHistory);
     io.emit('chat', { sys: true, text: `${p.name} (${hero.name}, ${hero.title}) вошёл в мир` });
     if (S.motd) socket.emit('chat', { sys: true, text: `📢 ${S.motd}` });
     admin.log('join', `${p.name} (${uid}) вошёл: ${hero.name}`);
@@ -1050,11 +1052,18 @@ io.on('connection', (socket) => {
     } else if (d.op === 'leave') leaveParty(p);
   });
 
+  // Общий чат: последние сообщения хранятся, чтобы вошедший видел, о чём говорили; не чаще раза в 0,7 с
   socket.on('chat', (text) => {
     const p = players.get(socket.id);
     if (!p || typeof text !== 'string') return;
-    const clean = text.trim().slice(0, 120);
-    if (clean) io.emit('chat', { name: p.name, text: clean });
+    const clean = text.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 160);
+    const now = Date.now();
+    if (!clean || now - (p.chatAt || 0) < 700) return;
+    p.chatAt = now;
+    const msg = { name: p.name, text: clean, t: now, sid: socket.id };
+    chatHistory.push(msg);
+    if (chatHistory.length > 60) chatHistory.shift();
+    io.emit('chat', msg);
   });
 
   // Арена: очередь на дуэль и команды, бой с клоном и тенью чемпиона

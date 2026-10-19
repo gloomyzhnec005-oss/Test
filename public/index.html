@@ -97,8 +97,7 @@
       <div class="bar hp"><div id="targetFill"></div></div>
     </div>
     <div id="chatLog" class="chat-log"></div>
-    <form id="chatForm" class="chat-form hidden"><div id="stickerBar" class="sticker-bar"></div><input id="chatInput" maxlength="120" placeholder="Сообщение..." /></form>
-    <button id="chatBtn" class="round small-btn art"><img class="it-art" src="assets/ui/nav_chat.webp" alt="💬"></button>
+    <button id="chatBtn" class="round small-btn art"><img class="it-art" src="assets/ui/nav_chat.webp" alt="💬"><i id="chatBadge" class="chat-badge hidden"></i></button>
     <button id="potBtn" class="round small-btn art" title="Выпить зелье здоровья"><img class="it-art" src="assets/items/mat_potHp.webp" alt="🧪"></button>
     <div id="partyFrame" class="party-frame hidden"></div>
     <div id="waveBadge" class="wave-badge hidden"></div>
@@ -146,6 +145,20 @@
     <p>Возрождение в городе...</p>
   </div>
 
+  <div id="chatWin" class="chat-win hidden">
+    <div class="chat-card l2-panel">
+      <div class="chat-head">
+        <div class="chat-tabs"><button type="button" data-ch="talk" class="on">💬 Игроки</button><button type="button" data-ch="sys">📢 События</button></div>
+        <button type="button" id="chatClose" class="chat-close">✕</button>
+      </div>
+      <div id="chatList" class="chat-list"></div>
+      <div id="stickerBar" class="sticker-bar"></div>
+      <form id="chatForm" class="chat-send" autocomplete="off">
+        <input id="chatInput" maxlength="160" placeholder="Сообщение всем игрокам..." enterkeyhint="send" autocomplete="off" autocorrect="on" />
+        <button type="submit" id="chatSend">➤</button>
+      </form>
+    </div>
+  </div>
   <script src="js/textures.js"></script>
   <script src="js/mobart.js"></script>
   <script src="js/skins.js"></script>

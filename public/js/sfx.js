@@ -12,9 +12,37 @@ window.Sfx = (() => {
     master = ac.createGain(); master.gain.value = 0.55; master.connect(ac.destination);
     return ac;
   }
-  // Браузер разрешает звук только после касания
-  const unlock = () => { const c = ctx(); if (c && c.state === 'suspended') c.resume(); };
-  ['pointerdown', 'touchstart', 'keydown'].forEach((e) => document.addEventListener(e, unlock, { passive: true }));
+  // Браузер разрешает звук только после касания. Safari на iPhone — только по отпусканию пальца (touchend/click),
+  // а беззвучный режим телефона глушит Web Audio: просим у Safari режим «воспроизведение» (как у плеера),
+  // в старых версиях — тихой зацикленной дорожкой <audio>, пока вкладка открыта.
+  let keep = null;
+  function silentWav() {
+    const n = 4410, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), w = (o, t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 44100, true); v.setUint32(28, 88200, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+    return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+  }
+  function playbackSession() {
+    try { if (navigator.audioSession) { navigator.audioSession.type = 'playback'; return; } } catch (e) { /* нет API */ }
+    if (!/iP(hone|ad|od)|Macintosh/.test(navigator.userAgent) || !('ontouchend' in document)) return;
+    if (!keep) { keep = new Audio(silentWav()); keep.loop = true; keep.setAttribute('playsinline', ''); keep.volume = 0.01; }
+    if (on && !document.hidden) keep.play().catch(() => {});
+  }
+  const unlock = () => {
+    const c = ctx();
+    if (!c) return;
+    playbackSession();
+    if (c.state !== 'running') c.resume().catch(() => {});
+    // Короткий пустой буфер: Safari считает звук «включённым пользователем»
+    try { const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0); } catch (e) { /* ничего */ }
+  };
+  ['pointerdown', 'touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach((e) => document.addEventListener(e, unlock, { passive: true, capture: true }));
+  // После сворачивания вкладки iPhone «прерывает» звук — возобновляем при возврате
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (keep) keep.pause(); return; }
+    if (ac && ac.state !== 'running') ac.resume().catch(() => {});
+    if (keep && on) keep.play().catch(() => {});
+  });
 
   // Тон с огибающей: тип волны, частота от→до, длительность, громкость
   function tone(type, f0, f1, dur, vol, delay = 0, dest = master) {
@@ -80,6 +108,7 @@ window.Sfx = (() => {
   function toggle() {
     on = !on;
     try { localStorage.setItem('sfx', on ? 'on' : 'off'); } catch (e) { /* без хранилища */ }
+    if (keep) { if (on) keep.play().catch(() => {}); else keep.pause(); }
     if (!on) { const t = musicTheme; music(null); musicTheme = t; } else { const t = musicTheme; musicTheme = null; music(t); play('click'); }
     return on;
   }
