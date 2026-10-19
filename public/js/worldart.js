@@ -61,7 +61,8 @@ window.WorldArt = (() => {
   // Какое дерево стоит на клетке леса
   // Пятно на клетке пола данжа (или null): примерно одна клетка из 60
   const decalAt = (x, y) => { const h = hash(x + 11, y + 5); return h < 2 ? DUN_DECALS[hash(x, y + 17) % DUN_DECALS.length] : null; };
-  const treeAt = (x, y) => { const h = hash(x + 7, y + 3); return h < 55 ? 'tree' : h < 72 ? 'goldTree' : 'bush'; };
+  // В Бездне — только мёртвые красные деревья (кристальные фиолетовые и синие выбиваются из гаммы)
+  const treeAt = (x, y, th) => { if (th === 'abyss') return 'tree'; const h = hash(x + 7, y + 3); return h < 55 ? 'tree' : h < 72 ? 'goldTree' : 'bush'; };
   // Фоны лобби по городу, из которого игрок вышел (public/assets/lobby/<тема>_1..4.jpg)
   // Только чёткие полноразмерные картинки; мелкие с общих листов убраны (были мыльными)
   const LOBBY = {

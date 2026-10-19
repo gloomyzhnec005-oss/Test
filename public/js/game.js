@@ -221,7 +221,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       for (let y = 0; y < z.h; y++) for (let x = 0; x < z.w; x++) {
         if (z.tiles[y * z.w + x] !== 2) continue;
         const px = z.ox + x * T + T / 2, py = z.oy + y * T + T - 2;
-        this.zoneObjs.push(this.add.image(px, py, `obj_${z.theme}_${WorldArt.treeAt(x, y)}`).setOrigin(0.5, 1).setDepth(10 + py));
+        this.zoneObjs.push(this.add.image(px, py, `obj_${z.theme}_${WorldArt.treeAt(x, y, z.theme)}`).setOrigin(0.5, 1).setDepth(10 + py));
       }
     }
     // Пятна на полу данжей: решётки, кровь, руны, кости (под ногами, поверх земли)

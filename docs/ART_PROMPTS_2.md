@@ -562,3 +562,17 @@ Row 2: 5) an old rolled dungeon map with a red X and a tiny torch (conquer the l
 Row 3: 9) a heavy golden crown with a crack and a drop of blood (boss slayer); 10) a dungeon gate tower with an open iron door and a key (dungeon expert); 11) a horned skull with blue flames in the eyes on broken stones (survivor); 12) a dragon head trophy on a wooden shield plaque (world boss victor).
 Row 4: 13) a golden trophy cup with gems and laurels (hero of the month); 14) an ornate ancient key with a glowing rune (master of labyrinths); 15) a stack of three hero portrait cards fanned out with a golden frame (collector); 16) a single shining five-pointed golden star with sparkles (event points).
 ```
+
+---
+
+## Б-HD. Боссы в высоком качестве (один босс на картинку)
+
+Один босс на лист: кадры крупнее в 2–3 раза, детали не теряются при вырезке. Вместо `[ОПИСАНИЕ]` вставьте строку босса из Б-1…Б-7 (текст после «Row N —»). Подписывайте «Б-HD: имя босса».
+```
+High quality pixel art fantasy RPG boss sprite sheet, Lineage 2 / Diablo style, top-down 3/4 view, large detailed sprite with clean crisp pixels, strong silhouette, rich shading and rim light, no blur, no anti-aliasing smear.
+ONE boss only: [ОПИСАНИЕ]
+Pure bright green background (#00FF00) everywhere, no text, no grid lines, no ground shadows, no effects touching the frame edges.
+Strict grid: 2 rows × 4 frames, all frames the same size, the boss fills about 75% of each frame height, generous empty green space between frames, nothing crosses into a neighbouring frame.
+The boss faces RIGHT in every frame. Row 1: 4-frame walk cycle. Row 2: attack — 1) wind-up, 2) strike, 3) strike impact with effect kept inside the frame, 4) recover.
+Same character, same size and same colors in all 8 frames.
+```

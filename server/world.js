@@ -27,15 +27,16 @@ const DECO = {
     plaza: ['fountain', 'deerStatue', 'dragonStatue2', 'hoodStatue'],
     big: ['chapel', 'vineArch', 'pond', 'dragonNest', 'amberCrystal', 'pillar', 'stall', 'forest_spiritTree', 'forest_crystalGrove', 'forest_crystalFountain'],
     small: ['chest', 'banner', 'signpost', 'cart', 'forest_runeStone', 'forest_crystalCluster', 'forest_banner'],
-    dungeon: ['forest_crystalCluster', 'forest_runeStone', 'forest_orbTree', 'forest_reaperStatue', 'forest_crystalFountain', 'forest_crystalGrove', 'forest_chest', 'forest_banner', 'forest_spiritTree'],
-    boss: ['forest_crystalArch', 'forest_runeCircle'],
+    // В склепах — только камень и кости: синие кристаллы и светящиеся деревья не подходят по цвету
+    dungeon: ['p_statue', 'p_brokenPillar'],
+    boss: ['p_statue', 'p_brokenPillar'],
   },
   abyss: {
     plaza: ['firePit', 'gargoyle', 'dragonDark', 'reaperStatue'],
-    big: ['bloodSpire', 'bloodPortal', 'soulWell', 'cageArena', 'ritualCircle', 'stall', 'bloodPillar'],
+    big: ['bloodSpire', 'soulWell', 'cageArena', 'stall', 'bloodPillar'], // без кровавых порталов и кругов — их путали с настоящими порталами
     small: ['chest', 'banner', 'signpost'],
-    dungeon: ['bloodPillar', 'firePit', 'gargoyle', 'reaperStatue', 'soulWell', 'chest', 'banner'],
-    boss: ['bloodPortal', 'ritualCircle'],
+    dungeon: ['bloodPillar', 'firePit', 'gargoyle', 'reaperStatue', 'banner'],
+    boss: ['bloodPillar', 'gargoyle'],
   },
   sky: {
     plaza: ['fountain2', 'angelStatue', 'dragonGold', 'doveFountain'],
