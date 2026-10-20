@@ -36,6 +36,7 @@ window.Sfx = (() => {
     if (!c) return;
     playbackSession();
     if (c.state !== 'running') c.resume().catch(() => {});
+    loadFiles();
     // Короткий пустой буфер: Safari считает звук «включённым пользователем»
     try { const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0); } catch (e) { /* ничего */ }
   };
@@ -88,12 +89,30 @@ window.Sfx = (() => {
   };
   // Не чаще, чем раз в N мс (много ударов в одном тике)
   const GAP = { hit: 45, crit: 60, hurt: 90, coin: 80, kill: 60, shoot: 50, skill: 80, click: 30 };
+  // Записанные звуки: assets/sfx/<имя>.mp3 — заменяют синтезированный звук с тем же именем (остальные синтезируются)
+  const FILES = ['shoot'];
+  const buf = {};
+  let loading = false;
+  function loadFiles() {
+    if (loading || !ac) return;
+    loading = true;
+    for (const n of FILES) fetch(`assets/sfx/${n}.mp3?v=1`).then((r) => r.arrayBuffer())
+      .then((a) => new Promise((ok, no) => ac.decodeAudioData(a, ok, no))).then((b) => { buf[n] = b; }).catch(() => {});
+  }
+  function playFile(name, k) {
+    const s = ac.createBufferSource(), g = ac.createGain();
+    s.buffer = buf[name];
+    s.playbackRate.value = Math.max(0.8, Math.min(1.25, k * (0.96 + Math.random() * 0.08))); // лёгкий разброс высоты — не звучит однообразно
+    g.gain.value = 0.9;
+    s.connect(g); g.connect(master); s.start();
+  }
   function play(name, o = {}) {
-    if (!on || !SOUNDS[name] || !ctx() || ac.state !== 'running') return;
+    if (!on || !(SOUNDS[name] || buf[name]) || !ctx() || ac.state !== 'running') return;
+    loadFiles();
     const now = performance.now();
     if (now - (last[name] || 0) < (GAP[name] || 0)) return;
     last[name] = now;
-    try { SOUNDS[name](o.pitch || 1); } catch (e) { /* звук не обязателен */ }
+    try { if (buf[name]) playFile(name, o.pitch || 1); else SOUNDS[name](o.pitch || 1); } catch (e) { /* звук не обязателен */ }
   }
   // Тихий фоновый эмбиент: аккорд из трёх тонов с медленной «волной»
   const CHORDS = { green: [196, 247, 294], abyss: [110, 131, 165], sky: [262, 330, 392], dungeon: [98, 117, 147] };
