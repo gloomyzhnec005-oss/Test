@@ -439,7 +439,7 @@
       setStats(w.stats);
       let zone = w.zone;
       buildMinimap(zone);
-      Town.setContext({ socket, towns: w.towns, hero, heroes: w.heroes, skillUnlock: w.skillUnlock, onGacha: () => Lobby.openGacha(), api: Lobby.api, tg });
+      Town.setContext({ socket, towns: w.towns, hero, heroLevel: () => +$('lvl').textContent || 1, heroes: w.heroes, skillUnlock: w.skillUnlock, onGacha: () => Lobby.openGacha(), api: Lobby.api, tg });
       Bag.init({ socket });
       // ---------- Группа ----------
       let party = null, inviteId = null;
@@ -597,6 +597,7 @@
           ['arena', 'Арена', 'PvP со снимками героев других игроков · рейтинг и награды', () => Town.openPlace('arena')],
           ['pass', 'Боевой пропуск', 'Задания сезона и награды за уровни', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
+          ...(['dungeon', 'worldboss', 'pvp'].includes(zone.kind) && !zone.inst ? [['teleport', 'Телепорт в город', 'Вернуться в город без портала (не в бою)', () => { Town.close(); socket.emit('recall'); }]] : []),
           ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
           ['survival', 'Данжи и порталы', zone.kind === 'town' ? 'Порталы данжей, выживание и телепорт стоят в городе — подойдите к ним' : 'Вы за порталом: победите босса или вернитесь в город', () => Town.close()],

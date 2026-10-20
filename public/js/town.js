@@ -452,9 +452,9 @@ window.Town = (() => {
     const box = document.createElement('div');
     box.innerHTML = '<p class="sheet-hint">Выберите город для путешествия</p>';
     for (const t of ctx.towns) {
-      const here = t.id === ctx.zone.id;
-      const r = el(`<div class="tw-town ${t.theme}"><div><b>${t.name}</b><small>${t.sub} · рекомендуемый уровень ${t.level}</small></div>
-        <button class="l2-btn" ${here ? 'disabled' : ''}>${here ? 'Вы здесь' : 'Отправиться'}</button></div>`).firstElementChild;
+      const here = t.id === ctx.zone.id, lv = (ctx.hero && ctx.heroLevel ? ctx.heroLevel() : 99), low = lv < (t.minLevel || 1);
+      const r = el(`<div class="tw-town ${t.theme}"><div><b>${t.name}</b><small>${t.sub} · уровни ${t.level}</small></div>
+        <button class="l2-btn" ${here || low ? 'disabled' : ''}>${here ? 'Вы здесь' : low ? `🔒 с ${t.minLevel} ур.` : 'Отправиться'}</button></div>`).firstElementChild;
       r.querySelector('button').onclick = () => { ctx.socket.emit('travel', { via: 'teleport', to: t.id }); close(); };
       box.append(r);
     }

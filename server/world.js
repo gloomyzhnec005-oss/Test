@@ -287,9 +287,9 @@ function townDeco(tiles, reserved, W, H, cx, cy, rand, theme) {
 const WORLDS = [
   { id: 'town1', name: 'Эльдмир', sub: 'Солнечная долина', theme: 'green', tier: 1, level: '1–15',
 },
-  { id: 'town2', name: 'Морграт', sub: 'Город над Бездной', theme: 'abyss', tier: 2, level: '15–30',
+  { id: 'town2', minLevel: 15, name: 'Морграт', sub: 'Город над Бездной', theme: 'abyss', tier: 2, level: '15–30',
 },
-  { id: 'town3', name: 'Аэлион', sub: 'Небесная цитадель', theme: 'sky', tier: 3, level: '30+',
+  { id: 'town3', minLevel: 30, name: 'Аэлион', sub: 'Небесная цитадель', theme: 'sky', tier: 3, level: '30+',
 },
 ];
 function buildWorld() {
@@ -446,10 +446,10 @@ function buildWorld() {
     return { ...z.spawn };
   };
   // Данные зоны для клиента
-  const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
+  const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, inst: !!z.inst, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
     town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon', gates: (z.gates || []).map((g) => ({ i: g.i, x: g.x, y: g.y, w: g.w, side: g.side, state: g.state })) });
 
-  return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, addPvpInstance, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level })) };
+  return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, addPvpInstance, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level, minLevel: w.minLevel || 1 })) };
 }
 
 module.exports = { buildWorld, T, SOLID: [...SOLID], ZONE_STRIDE, PLACES, DECO };

@@ -1012,11 +1012,24 @@ io.on('connection', (socket) => {
       to = String(d.to || '');
       const target = world.byId.get(to);
       if (!target || target.kind !== 'town' || to === p.zone) return;
+      const need = (world.towns.find((t) => t.id === to) || {}).minLevel || 1;
+      if (p.char.level < need) return socket.emit('skillFail', `${target.name}: нужен ${need} уровень`);
     }
     if (!to) return;
     moveToZone(p, to);
     const nz = world.byId.get(to);
     socket.emit('chat', { sys: true, text: nz.kind === 'town' ? `Вы прибыли в город ${nz.name}` : nz.kind === 'worldboss' ? D.worldBossInfo(nz.town) : `Портал: ${nz.name} (${nz.sub})` });
+  });
+
+  // Возврат в город из данжа, логова мирового босса или общей PvP-арены (меню «Игра» → «В город»): не в бою
+  socket.on('recall', () => {
+    const p = players.get(socket.id);
+    if (!p || p.dead) return;
+    const z = world.byId.get(p.zone);
+    if (!z || !['dungeon', 'worldboss', 'pvp'].includes(z.kind) || z.inst || !z.town) return socket.emit('skillFail', 'Отсюда телепорт недоступен');
+    if (Date.now() - (p.lastHurt || 0) < 5000) return socket.emit('skillFail', 'Нельзя в бою — подождите 5 секунд без урона');
+    moveToZone(p, z.town);
+    socket.emit('chat', { sys: true, text: `🌀 Вы вернулись в город ${world.byId.get(z.town).name}` });
   });
 
   // Инвентарь, магазины, рынок, аукцион, пропуск, арена (server/meta.js)
