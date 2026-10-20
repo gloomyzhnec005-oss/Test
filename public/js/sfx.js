@@ -1,7 +1,8 @@
 // Звуки игры, синтезированные в браузере (Web Audio) — без звуковых файлов.
 // Sfx.play(имя, {pitch}) · Sfx.toggle() — вкл/выкл (запоминается) · Sfx.music(theme) — тихий эмбиент города/данжа.
 window.Sfx = (() => {
-  let ac = null, master = null, on = true, musicNode = null, musicTheme = null;
+  let ac = null, master = null, musBus = null, on = true, musicNode = null, musicTheme = null;
+  const vol = (k, d) => (window.Settings ? Settings.get(k) : d) / 100;
   try { on = localStorage.getItem('sfx') !== 'off'; } catch (e) { /* без хранилища */ }
   const last = {};
   function ctx() {
@@ -9,7 +10,9 @@ window.Sfx = (() => {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     ac = new AC();
-    master = ac.createGain(); master.gain.value = 0.55; master.connect(ac.destination);
+    // Две шины: эффекты и музыка — своя громкость у каждой (Настройки)
+    master = ac.createGain(); master.gain.value = 0.55 * vol('sfxVol', 80); master.connect(ac.destination);
+    musBus = ac.createGain(); musBus.gain.value = 1.6 * vol('musicVol', 60); musBus.connect(ac.destination);
     return ac;
   }
   // Браузер разрешает звук только после касания. Safari на iPhone — только по отпусканию пальца (touchend/click),
@@ -99,7 +102,7 @@ window.Sfx = (() => {
     musicTheme = theme;
     if (musicNode) { const n = musicNode; n.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.6); setTimeout(() => n.oscs.forEach((o) => o.stop()), 2500); musicNode = null; }
     if (!on || !theme || !ctx()) return;
-    const g = ac.createGain(); g.gain.value = 0.0001; g.connect(master);
+    const g = ac.createGain(); g.gain.value = 0.0001; g.connect(musBus);
     const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 0.08; lg.gain.value = 0.012; lfo.connect(lg); lg.connect(g.gain); lfo.start();
     const oscs = [lfo, ...(CHORDS[theme] || CHORDS.green).map((f, i) => { const o = ac.createOscillator(); o.type = i ? 'sine' : 'triangle'; o.frequency.value = f; o.detune.value = (i - 1) * 4; o.connect(g); o.start(); return o; })];
     g.gain.setTargetAtTime(0.025, ac.currentTime, 2);
@@ -112,5 +115,10 @@ window.Sfx = (() => {
     if (!on) { const t = musicTheme; music(null); musicTheme = t; } else { const t = musicTheme; musicTheme = null; music(t); play('click'); }
     return on;
   }
+  if (window.Settings) Settings.on((k) => {
+    if (!ac) return;
+    if (k === 'sfxVol') master.gain.setTargetAtTime(0.55 * vol('sfxVol', 80), ac.currentTime, 0.05);
+    if (k === 'musicVol') musBus.gain.setTargetAtTime(1.6 * vol('musicVol', 60), ac.currentTime, 0.05);
+  });
   return { play, toggle, music, isOn: () => on };
 })();

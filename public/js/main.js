@@ -10,6 +10,7 @@
   }
 
   const $ = (id) => document.getElementById(id);
+  document.body.classList.toggle('no-hints', !Settings.get('hints'));
 
   // ---------- Защита от приближения страницы (iOS Safari игнорирует user-scalable=no) ----------
   const block = (e) => e.preventDefault();
@@ -106,12 +107,13 @@
     while (chatList.children.length > 150) chatList.removeChild(chatList.firstChild);
     if (atBottom || row.classList.contains('mine')) chatList.scrollTop = chatList.scrollHeight;
     if (quiet || chatOpen()) return;
+    if (!msg.sys) { unread++; $('chatBadge').textContent = unread > 9 ? '9+' : unread; $('chatBadge').classList.remove('hidden'); }
+    if (!Settings.get('chatPop')) return;
     // Окно закрыто: всплывающая строка над картой и счётчик (только сообщения игроков)
     const div = chatLine(msg, false);
     chatLog.appendChild(div);
     while (chatLog.children.length > 4) chatLog.removeChild(chatLog.firstChild);
     setTimeout(() => div.remove(), 12000);
-    if (!msg.sys) { unread++; $('chatBadge').textContent = unread > 9 ? '9+' : unread; $('chatBadge').classList.remove('hidden'); }
   }
   function setTab(ch) {
     chatTab = ch;
@@ -255,8 +257,9 @@
   }
 
   const vibrate = (kind) => {
+    if (!Settings.get('vibro')) return;
     const h = tg && tg.HapticFeedback;
-    if (!h) return;
+    if (!h) { if (navigator.vibrate) navigator.vibrate(kind === 'heavy' ? 40 : kind === 'medium' ? 25 : 12); return; }
     if (kind === 'success') h.notificationOccurred('success');
     else h.impactOccurred(kind);
   };
@@ -444,6 +447,44 @@
         return r;
       };
       const menuSheet = (title, rows) => { const box = document.createElement('div'); box.className = 'nav-menu'; rows.forEach((r) => box.append(menuRow(...r))); Town.open(title, box); };
+      // ---------- Настройки ----------
+      // Звук (вкл/выкл, громкость эффектов и музыки, вибрация), экран, подсказки, экономия батареи, аккаунт
+      function openSettings() {
+        const box = document.createElement('div'); box.className = 'set-box';
+        const sec = (t) => { const h = document.createElement('h4'); h.className = 'set-h'; h.textContent = t; box.append(h); };
+        const row = (name, desc, ctl) => { const r = document.createElement('div'); r.className = 'set-row'; r.innerHTML = `<div><b>${name}</b>${desc ? `<small>${desc}</small>` : ''}</div>`; r.append(ctl); box.append(r); return r; };
+        const toggle = (val, fn) => { const b = document.createElement('button'); b.className = 'set-tg' + (val ? ' on' : ''); b.innerHTML = '<i></i>'; b.onclick = () => { const v = !b.classList.contains('on'); b.classList.toggle('on', v); fn(v); if (window.Sfx) Sfx.play('click'); }; return b; };
+        const opt = (key) => toggle(Settings.get(key), (v) => Settings.set(key, v));
+        const slider = (key) => {
+          const w = document.createElement('label'); w.className = 'set-sl';
+          w.innerHTML = `<input type="range" min="0" max="100" step="5" value="${Settings.get(key)}"><span>${Settings.get(key)}%</span>`;
+          const inp = w.querySelector('input'), out = w.querySelector('span');
+          inp.oninput = () => { out.textContent = inp.value + '%'; Settings.set(key, +inp.value); };
+          inp.onchange = () => { if (key === 'sfxVol' && window.Sfx) Sfx.play('coin'); };
+          return w;
+        };
+        const btn = (text, fn, cls = '') => { const b = document.createElement('button'); b.className = 'l2-btn small ' + cls; b.textContent = text; b.onclick = fn; return b; };
+        sec('🔊 Звук');
+        row('Звук в игре', 'Общий выключатель эффектов и музыки', toggle(window.Sfx && Sfx.isOn(), (v) => { if (window.Sfx && Sfx.isOn() !== v) Sfx.toggle(); }));
+        row('Эффекты', 'Удары, умения, добыча', slider('sfxVol'));
+        row('Музыка', 'Фоновая мелодия города и данжей', slider('musicVol'));
+        row('Вибрация', tg && tg.HapticFeedback ? 'Отдача при ударах и наградах' : 'Работает в Telegram и на Android', opt('vibro'));
+        sec('🖥️ Экран');
+        row('Цифры урона', 'Всплывающий урон над целями', opt('dmgNums'));
+        row('Имена над героями', 'Имена игроков и монстров на карте', opt('names'));
+        row('Чат над картой', 'Новые сообщения коротко видны в игре', opt('chatPop'));
+        row('Экономия батареи', '30 кадров в секунду вместо 60', opt('lowFps'));
+        sec('💡 Подсказки');
+        row('Подсказки в игре', 'У ворот босса и пояснения в окнах', opt('hints'));
+        row('Обучение', 'Показать знакомство с управлением заново', btn('Начать', () => { Town.close(); Tutorial.start(true); }));
+        sec('👤 Аккаунт');
+        const pr = Lobby.profile() || {};
+        row('Игрок', `${Lobby.playerName()} · герой ${hero.name}`, btn('В лобби', () => location.reload()));
+        const id = pr.tgId || pr.uid || '';
+        if (id) row(pr.tgId ? 'Telegram ID' : 'ID игрока', String(id), btn('Копировать', () => { (navigator.clipboard ? navigator.clipboard.writeText(String(id)) : Promise.reject()).then(() => Town.toast('ID скопирован'), () => Town.toast(String(id))); }));
+        row('Сбросить настройки', 'Вернуть всё как было по умолчанию', btn('Сбросить', () => { Settings.reset(); if (window.Sfx && !Sfx.isOn()) Sfx.toggle(); Town.toast('Настройки сброшены'); openSettings(); }, 'ghost'));
+        Town.open('⚙️ Настройки', box);
+      }
       const NAV = {
         hero: () => Bag.open('hero'),
         bag: () => Bag.open('bag'),
@@ -454,15 +495,11 @@
           ['arena', 'Арена', 'PvP со снимками героев других игроков · рейтинг и награды', () => Town.openPlace('arena')],
           ['pass', 'Боевой пропуск', 'Задания сезона и награды за уровни', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
-          ['survival', 'Данжи и порталы', zone.kind === 'town' ? 'Порталы данжей, выживание и телепорт стоят в городе — подойдите к ним' : 'Вы за порталом: победите босса или вернитесь в город', () => Town.close()],
-        ]),
-        more: () => menuSheet('☰ Ещё', [
           ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
-          ['🔊', 'Звук', window.Sfx && Sfx.isOn() ? 'Включён — нажмите, чтобы выключить' : 'Выключен — нажмите, чтобы включить', () => { const on = Sfx.toggle(); Town.toast(on ? '🔊 Звук включён' : '🔇 Звук выключен'); NAV.more(); }],
-          ['❓', 'Подсказки', 'Показать обучение заново', () => { Town.close(); Tutorial.start(true); }],
-          ['🏠', 'В лобби', 'Сменить героя или фон', () => location.reload()],
+          ['survival', 'Данжи и порталы', zone.kind === 'town' ? 'Порталы данжей, выживание и телепорт стоят в городе — подойдите к ним' : 'Вы за порталом: победите босса или вернитесь в город', () => Town.close()],
         ]),
+        settings: () => openSettings(),
       };
       // Значок готовых наград на кнопке «Квесты»
       const questBadge = (n) => { const b = document.querySelector('[data-nav="quests"]'); b.dataset.badge = n > 0 ? n : ''; };
@@ -515,6 +552,14 @@
         scale: { mode: Phaser.Scale.NONE, width: Math.round(window.innerWidth * DPR), height: Math.round(window.innerHeight * DPR), zoom: 1 / DPR },
         input: { activePointers: 3, windowEvents: false }, // касания поверх окон и кнопок не доходят до мира
         scene: [],
+        fps: { limit: Settings.get('lowFps') ? 30 : 0 },
+      });
+      // Настройки, которые меняются прямо в игре: имена над героями, частота кадров, подсказки
+      Settings.on((k, v) => {
+        const sc = window.gameScene;
+        if (k === 'names' && sc) for (const m of [sc.players, sc.monsters, sc.pets]) if (m) for (const e of m.values()) if (e.label) e.label.setVisible(v);
+        if (k === 'lowFps') { const L = game.loop; L.sleep(); L.fpsLimit = v ? 30 : 0; L.hasFpsLimit = !!v; L._limitRate = v ? 1000 / 30 : 0; L.wake(true); }
+        if (k === 'hints') document.body.classList.toggle('no-hints', !v);
       });
       game.scene.add('Game', window.GameScene, true, { socket, welcome: w, ui, input });
       setTimeout(() => window.Tutorial && Tutorial.start(), 1800); // обучение при первом входе

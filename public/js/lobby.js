@@ -787,6 +787,8 @@ window.Lobby = (() => {
     hide: () => { running = false; $('lobby').classList.add('hidden'); },
     openGacha: () => openGacha(),
     api: (url, body) => api(url, body),
+    profile: () => profile,
+    playerName: () => playerName(),
     heroCanvas: (id, big) => heroCanvas(id, big),
   };
 })();

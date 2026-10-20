@@ -94,7 +94,7 @@ function profileView(who) {
   }
   const bgs = C.LOBBY_BACKGROUNDS.filter((b) => b.price === 0 || pr.bgs.includes(b.id)).map((b) => b.id);
   return {
-    name: who.name, heroes: pr.heroes, chars, bgs,
+    name: who.name, uid: who.uid, tgId: who.tg ? who.uid.slice(2) : null, heroes: pr.heroes, chars, bgs,
     isAdmin: !!who.tg && admin.isAdminUid(who.uid),
     freeSpin: !pr.freeSpinUsed || FREE_SPINS || S.freeSpins, paidSpins: pr.paidSpins, spinPrice: C.GACHA.spinPrice, gold: pr.gold, dupeMax: C.GACHA.heroDupeMax,
     wish: Wish.view(pr), spin10Price: C.GACHA.spin10Price,

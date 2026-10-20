@@ -11,7 +11,7 @@ window.Town = (() => {
   const TITLE_ART = { '📦': 'warehouse', '⚔️': 'equip', '🧪': 'alchemy', '🔨': 'smith', '💠': 'runes', '📖': 'trainer', '🏛️': 'auction', '🏪': 'market',
     '📜': 'events', '🎰': 'gacha', '🌀': 'teleport', '🏟️': 'arena', '💀': 'survival', '🎟️': 'pass', '💎': 'store', '👥': 'party' };
   const placeImg = (id) => `<img class="place-ic" src="assets/ui/place_${id}.webp" alt="">`;
-  const NAV_TITLE = { '⚔️ Игра': 'play', '☰ Ещё': 'more', '🧙 Персонаж': 'hero', '🎒 Инвентарь': 'bag' };
+  const NAV_TITLE = { '⚔️ Игра': 'play', '⚙️ Настройки': 'more', '🧙 Персонаж': 'hero', '🎒 Инвентарь': 'bag' };
   const PANEL_BG = { '🏟️': 'arena', '💀': 'survival', '🔨': 'smith', '🏛️': 'auction' };
   function open(title, body, cls = '') {
     const em = Object.keys(TITLE_ART).find((e) => title.startsWith(e + ' '));

@@ -425,7 +425,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const sprite = this.add.sprite(0, 0, texture);
     const label = this.add.text(0, -26, name, {
       fontSize: '10px', fontFamily: 'Arial', color: nameColor, stroke: '#000', strokeThickness: 3, resolution: 2,
-    }).setOrigin(0.5, 1);
+    }).setOrigin(0.5, 1).setVisible(Settings.get('names'));
     const barBg = this.add.rectangle(0, -22, 28, 4, 0x000000).setOrigin(0.5);
     const bar = this.add.rectangle(-14, -22, 28, 4, 0xe24c4c).setOrigin(0, 0.5);
     const c = this.add.container(0, 0, [sprite, barBg, bar, label]);
@@ -897,7 +897,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const tgt = this.monsters.get(f.target);
         const x = tgt ? tgt.c.x : f.tx, y = tgt ? tgt.c.y : f.ty;
         // Отражённый урон (возмездие Малакора) — фиолетовым
-        this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
+        if (Settings.get('dmgNums')) this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
         const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { venom: 0x7ad84a, bolt: 0xffc850, blood: 0xc0101a, arrow: 0xfff6c0, arcane: 0xc8a0ff, note: 0xffe08a, necro: 0x5fffb0, holy: 0xfff0a0, spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
           illusion: 0xff7ad0, fireball: 0xff8c1a, frost: 0x8ad3ff, spark: 0xffe94a, stone: 0xa07a4a, moon: 0xdfe4ff, water: 0x5ab8ff, sonic: 0x9ff0e0, dark: 0xb04aff, crystal: 0xd8b0ff, sand: 0xe8c878, rune: 0x5fb0ff, soul: 0xbfeaff }[f.proj] || 0xff4040;
@@ -965,7 +965,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     } else if (f.t === 'hit' && f.kind === 'p') {
       const e = this.players.get(f.target);
       if (!e) return;
-      this.floatText(e.c.x, e.c.y - 20, '-' + f.dmg, '#ff5a5a');
+      if (Settings.get('dmgNums')) this.floatText(e.c.x, e.c.y - 20, '-' + f.dmg, '#ff5a5a');
       e.sprite.setTint(0xff6060); this.time.delayedCall(120, () => e.sprite.clearTint());
       const m = this.monsters.get(f.from);
       if (m && m.mskin) {
@@ -992,7 +992,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     } else if (f.t === 'hit' && f.kind === 'pet') {
       const e = this.pets.get(f.target);
       if (e) {
-        this.floatText(e.c.x, e.c.y - 16, '-' + f.dmg, '#ff9a7a', 11);
+        if (Settings.get('dmgNums')) this.floatText(e.c.x, e.c.y - 16, '-' + f.dmg, '#ff9a7a', 11);
         e.sprite.setTint(0xff6060);
         // У двойника возвращаем его розовый оттенок
         this.time.delayedCall(120, () => (e.skinTint ? e.sprite.setTint(e.skinTint) : e.sprite.clearTint()));
@@ -2115,7 +2115,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
   update(time, delta) {
     const dt = delta / 1000;
     // Подошёл к запечатанным воротам босса — когда они откроются
-    if (this.me && this.gates && this.gates.size && time > (this.gateHintAt || 0)) {
+    if (Settings.get('hints') && this.me && this.gates && this.gates.size && time > (this.gateHintAt || 0)) {
       for (const img of this.gates.values()) {
         if (img.gateState === 'open' || Math.hypot(img.x - this.me.x, img.y - 20 - this.me.y) > 70) continue;
         const b = window.hallInfo && window.hallInfo.boss, t = b && new Date(b.at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
