@@ -392,6 +392,7 @@ function mergeItems(pr, ids) {
   if (uniq.length !== 5) return { error: 'Нужно ровно 5 предметов' };
   const items = uniq.map((id) => findItem(pr, id));
   if (items.some((i) => !i)) return { error: 'Предмет не найден' };
+  if (items.some((i) => Object.values(pr.equip || {}).includes(i.id))) return { error: 'Надетые предметы нельзя соединять — сначала снимите их' };
   const { cat, rar } = items[0];
   if (items.some((i) => i.cat !== cat || i.rar !== rar)) return { error: 'Все 5 предметов должны быть одной категории и редкости' };
   const next = RARITY_ORDER[RARITY_ORDER.indexOf(rar) + 1];

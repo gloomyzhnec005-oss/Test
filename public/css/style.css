@@ -449,7 +449,7 @@ input, select, textarea { font-size: 16px !important; }
 .it b { position: absolute; right: 1px; bottom: 0; font-size: 8px; }
 .it u { position: absolute; left: 2px; top: 0; font-size: 11px; text-decoration: none; color: #7dff8a; }
 .it.sel { outline: 2px solid #ffe08a; outline-offset: 1px; }
-.it.eq::after { content: 'E'; position: absolute; left: 3px; top: 1px; font-size: 9px; color: #7dff8a; font-weight: bold; }
+.it.eq { box-shadow: inset 0 0 0 2px #5fdc6a, 0 0 6px rgba(95,220,106,.5); }
 .it.empty { border-style: dashed; border-color: #4a3b26; background: #0d0b09; color: #6a5a4a; }
 .chips { display: flex; gap: 4px; margin-bottom: 6px; overflow-x: auto; }
 .chips button { padding: 5px 9px; border-radius: 12px; border: 1px solid #4a3b26; background: #1a1612; color: #c8b890; font-family: inherit; font-size: 12px; white-space: nowrap; }
@@ -1059,3 +1059,7 @@ canvas.skin { object-fit: contain; }
 .it .it-art { max-width: 100%; max-height: 100%; }
 #sheetBody { overflow-x: hidden; }
 #sheetBody > *, #sheetBody .it-grid { max-width: 100%; min-width: 0; }
+/* Надетые вещи в сумке */
+.it > i.eq-tag { left: 0; right: 0; bottom: 0; z-index: 3; padding: 1px 0; text-align: center; font-size: 8px; line-height: 10px; color: #0c1a0c; font-weight: bold; background: linear-gradient(180deg, #8af08f, #4ab852); border-radius: 0 0 4px 4px; }
+.inv-eq-note { margin: 6px 0 4px; font-size: 12px; color: #b8a888; }
+.inv-eq-note b { color: #8af08f; }

@@ -33,7 +33,7 @@ window.Bag = (() => {
   const statUnit = (k) => { const u = (BASE_NAMES[k] || (inv && inv.attrs[k]) || ['', ''])[1]; return u === '−%' ? '%' : u; };
   const statLine = (k, v) => `${statName(k)} ${(inv && inv.attrs[k] && inv.attrs[k][1] === '−%') ? '−' : '+'}${v}${statUnit(k)}`;
   const cell = (it, extra = '') => `<button class="it ${extra} ${it.set ? 'set' : ''} ${it.rar ? 'fr-' + it.rar : ''}" data-id="${it.id}" style="--rc:${it.color}">
-      <span>${art(it)}</span>${it.dupes ? `<em>+${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}<i>${ROMAN[it.tier] || ''}</i>${it.runes && it.runes.length ? `<b>${it.runes.map(mini).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}</button>`;
+      <span>${art(it)}</span>${it.dupes ? `<em title="Усилен дубликатами: +${it.dupes * 5}% к статам">★${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}${isEquipped(it) ? '<i class="eq-tag">✔ надето</i>' : ''}${it.runes && it.runes.length ? `<b>${it.runes.map(mini).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}</button>`;
   function grid(items, onTap, opts = {}) {
     const box = document.createElement('div');
     box.className = 'it-grid';
@@ -153,7 +153,7 @@ window.Bag = (() => {
   function slotBtn(s) {
     const it = worn(s), n = fits(s).length;
     return `<button class="pd-slot ${it ? 'full fr-' + it.rar : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
-      ${it ? `<span>${art(it)}</span><i>${ROMAN[it.tier] || ''}</i>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost"><img class="it-art slot-ghost" src="assets/items/slot_${s}.webp" alt="${SLOT_ICONS[s]}"></span>`}
+      ${it ? `<span>${art(it)}</span>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost"><img class="it-art slot-ghost" src="assets/items/slot_${s}.webp" alt="${SLOT_ICONS[s]}"></span>`}
       ${n ? `<b>${n}</b>` : ''}<em>${it ? it.name : inv.slotNames[s]}</em></button>`;
   }
   function heroTab() {
@@ -259,9 +259,12 @@ window.Bag = (() => {
       if (invCat !== 'mat') items = so === 'new' ? [...items].reverse() : [...items].sort((a, b) => so === 'type'
         ? inv.slots.indexOf(a.cat) - inv.slots.indexOf(b.cat) || RO.indexOf(b.rar) - RO.indexOf(a.rar)
         : RO.indexOf(b.rar) - RO.indexOf(a.rar) || inv.slots.indexOf(a.cat) - inv.slots.indexOf(b.cat));
+      if (invCat !== 'mat') items = [...items.filter(isEquipped), ...items.filter((i) => !isEquipped(i))]; // надетое — первым рядом
+      const nEq = inBag.filter(isEquipped).length;
       const used = inBag.length, cap = inv.bagSize;
       const fill = invCat === 'all' ? Math.max(cap, Math.ceil(items.length / 6) * 6) : Math.max(18, Math.ceil(items.length / 6) * 6);
-      box.innerHTML = `<div class="inv-tabs">${INV_TABS.map(([k, n]) => `<button data-c="${k}" class="${k === invCat ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+      box.innerHTML = `<div class="inv-tabs">${INV_TABS.map(([k, n]) => `<button data-c="${k}" class="${k === invCat ? 'on' : ''}">${n}</button>`).join('')}</div>`
+        + (invCat !== 'mat' ? `<p class="inv-eq-note">🛡️ Надето на героя: <b>${nEq}</b> · ★ — усиление дубликатами</p>` : '');
       box.append(grid(items, (it) => {
         if (it.cat === 'mat') return card(it, matActions(it));
         const cur = it.cat !== 'rune' && !isEquipped(it) ? worn(it.cat) : null;
@@ -284,10 +287,10 @@ window.Bag = (() => {
     const sel = new Set();
     const draw = () => {
       const first = inv.items.find((i) => sel.has(i.id));
-      const items = inv.items.filter((i) => i.rar !== 'mythic' && (!first || (i.cat === first.cat && i.rar === first.rar)));
+      const items = inv.items.filter((i) => i.rar !== 'mythic' && !isEquipped(i) && (!first || (i.cat === first.cat && i.rar === first.rar))); // надетое не соединяется
       const R = inv.rarities, RO = inv.rarOrder;
       box.innerHTML = `<p class="sheet-hint">Выберите 5 предметов одной категории и редкости → 1 предмет следующей редкости.
-        Из всех атрибутов пяти предметов случайно останутся 3, остальные пропадут. Базовые статы — по новой редкости (не суммируются).</p>
+        Из всех атрибутов пяти предметов случайно останутся 3, остальные пропадут. Базовые статы — по новой редкости (не суммируются). Надетые вещи здесь не показываются — сначала снимите их.</p>
         <div class="merge-slots">${[0, 1, 2, 3, 4].map((i) => { const it = inv.items.find((x) => x.id === [...sel][i]); return it ? cell(it) : '<button class="it empty"><span>·</span></button>'; }).join('')}
         <span class="arrow">→</span><button class="it empty res" ${first ? `style="--rc:${R[RO[RO.indexOf(first.rar) + 1]].color}"` : ''}><span>${first ? '?' : '·'}</span></button></div>
         <button class="l2-btn merge-go" ${sel.size === 5 ? '' : 'disabled'}>⚒️ Соединить (${sel.size}/5)${first ? ' → ' + R[RO[RO.indexOf(first.rar) + 1]].name : ''}</button>`;
