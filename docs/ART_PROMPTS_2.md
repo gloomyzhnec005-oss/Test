@@ -123,10 +123,10 @@ One image with exactly 2 icons side by side, equal cells, generous empty space b
 
 ```
 Fantasy MMORPG game logo, ornate gold and dark iron lettering with glowing magic runes, a sword and crystal behind the text, Diablo / Lineage 2 style, high detail.
-Text: "MYSTIC HORIZONE" (exactly this spelling), two lines: "MYSTIC" on top, "HORIZONE" below.
+Text: "MYSTIC HORIZON" (exactly this spelling), two lines: "MYSTIC" on top, "HORIZON" below.
 Centered, isolated on a flat solid magenta #FF00FF background, no other text, no watermark. Wide format 2:1.
 ```
-*(игра называется «Mystic Horizone»; пока нет картинки, в лобби показывается текстовый логотип)*
+*(игра называется «Mystic Horizon»; пока нет картинки, в лобби показывается текстовый логотип)*
 
 ### И-6: заставка загрузки (без вырезания, картинка целиком)
 
