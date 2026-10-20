@@ -32,7 +32,22 @@ img = Image.fromarray(thin.clip(0, 255).astype(np.uint8), 'RGBA')
 k = 0.62
 c2 = comp.resize((int(comp.width * k), int(comp.height * k)), Image.LANCZOS)
 img.alpha_composite(c2, ((N - c2.width) // 2, max(0, int(T2 * 0.55 - c2.height * 0.55))))
-p2 = plate.resize((int(plate.width * k), int(plate.height * k)), Image.LANCZOS)
-img.alpha_composite(p2, ((N - p2.width) // 2, int(B2 + (N - B2) * 0.3 - p2.height * 0.5)))
+# табличка — широкая, для названия зоны: края (с уголками) как есть, середина растянута
+PW, PK = int(N * 0.86), 0.8
+pc = plate.crop((40, 0, 470, plate.height)); cap = 95
+ph = int(pc.height * PK)
+left = pc.crop((0, 0, cap, pc.height)).resize((int(cap * PK), ph), Image.LANCZOS)
+right = pc.crop((pc.width - cap, 0, pc.width, pc.height)).resize((int(cap * PK), ph), Image.LANCZOS)
+mid = pc.crop((cap, 0, pc.width - cap, pc.height))
+# середина: левая и правая половины без центрального украшения, растянуты; украшение — по центру
+cw = mid.width; orn = 70
+mL = mid.crop((0, 0, cw // 2 - orn // 2, mid.height)); mR = mid.crop((cw // 2 + orn // 2, 0, cw, mid.height)); mO = mid.crop((cw // 2 - orn // 2, 0, cw // 2 + orn // 2, mid.height))
+inner = PW - left.width - right.width; ow = int(orn * PK); half = (inner - ow) // 2
+p2 = Image.new('RGBA', (PW, ph))
+p2.alpha_composite(left, (0, 0)); p2.alpha_composite(mL.resize((half, ph), Image.LANCZOS), (left.width, 0))
+p2.alpha_composite(mO.resize((ow, ph), Image.LANCZOS), (left.width + half, 0)); p2.alpha_composite(mR.resize((inner - half - ow, ph), Image.LANCZOS), (left.width + half + ow, 0))
+p2.alpha_composite(right, (PW - right.width, 0))
+py = int(B2 + (N - B2) * 0.3 - p2.height * 0.5); py = min(py, N - p2.height)
+img.alpha_composite(p2, ((N - p2.width) // 2, py))
 img.save(out)
-print('window', round(L2 / N * 100, 2), round(T2 / N * 100, 2), round((R2 - L2) / N * 100, 2), round((B2 - T2) / N * 100, 2), 'plate y', round((B2 + (N - B2) * 0.3) / N * 100, 2))
+print('window', round(L2 / N * 100, 2), round(T2 / N * 100, 2), round((R2 - L2) / N * 100, 2), round((B2 - T2) / N * 100, 2), 'plate y', round((py + p2.height / 2) / N * 100, 2), 'plate w', round(PW / N * 100, 1), 'h', round(p2.height / N * 100, 1))
