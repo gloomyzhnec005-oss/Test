@@ -578,7 +578,11 @@ module.exports = function createDungeons(d) {
     if (p.char.level < Math.max(1, dg.lv[0] - 2)) return p.socket.emit('skillFail', `Нужен ${Math.max(1, dg.lv[0] - 2)} уровень (данж ${dg.lv[0]}–${dg.lv[1]})`);
     const z = world.byId.get(`dg_${townId}_${i}`);
     const h = hallOf(z);
-    const group = d.partyMembers(p).filter((o) => o.zone === p.zone && !o.dead);
+    const need = Math.max(1, dg.lv[0] - 2);
+    const all = d.partyMembers(p).filter((o) => o.zone === p.zone && !o.dead);
+    // Уровень у каждого героя свой: участник группы с героем ниже порога остаётся у портала
+    for (const o of all) if (o !== p && o.char.level < need) o.socket.emit('skillFail', `${dg.name}: нужен ${need} уровень — ваш герой ${o.char.level} ур., группа ушла без вас`);
+    const group = all.filter((o) => o.char.level >= need);
     for (const o of group) {
       d.moveToZone(o, z.id);
       o.socket.emit('chat', { sys: true, text: `${dg.name} (ур. ${dg.lv[0]}–${dg.lv[1]}): общий зал — здесь охотятся все игроки. Монстры возрождаются, полубоссы — каждый час, босс — каждый день в ${hhmm(nextBossAt(Date.now()))}.` });

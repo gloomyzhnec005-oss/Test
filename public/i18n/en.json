@@ -66,6 +66,7 @@
 "{0}% урона":"{0}% damage",
 "{0}: награды на сегодня получены ({1}/{2}). Бой без награды — завтра снова с наградой.":"{0}: today's rewards claimed ({1}/{2}). Fights give no reward until tomorrow.",
 "{0}: нужен {1} уровень":"{0}: requires level {1}",
+"{0}: нужен {1} уровень — ваш герой {2} ур., группа ушла без вас":"{0}: requires level {1} — your hero is Lv. {2}, the party went without you",
 "{0}: оплата {1}{2}":"{0}: payment {1}{2}",
 "{0}Сила героя":"{0}Hero Power",
 "{10}Дубликаты":"{10}Duplicates",

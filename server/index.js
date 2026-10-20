@@ -1016,6 +1016,11 @@ io.on('connection', (socket) => {
       if (p.char.level < need) return socket.emit('skillFail', `${target.name}: нужен ${need} уровень`);
     }
     if (!to) return;
+    // Логово мирового босса: не ниже уровня города и не более чем на 5 уровней ниже босса
+    if (obj.world && obj.lv) {
+      const need = Math.max((world.towns.find((t) => t.id === z.id) || {}).minLevel || 1, obj.lv[0] - 5);
+      if (p.char.level < need) return socket.emit('skillFail', `${obj.name}: нужен ${need} уровень`);
+    }
     moveToZone(p, to);
     const nz = world.byId.get(to);
     socket.emit('chat', { sys: true, text: nz.kind === 'town' ? `Вы прибыли в город ${nz.name}` : nz.kind === 'worldboss' ? D.worldBossInfo(nz.town) : `Портал: ${nz.name} (${nz.sub})` });

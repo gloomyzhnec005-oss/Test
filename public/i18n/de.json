@@ -66,6 +66,7 @@
 "{0}% урона":"{0}% Schaden",
 "{0}: награды на сегодня получены ({1}/{2}). Бой без награды — завтра снова с наградой.":"{0}: heutige Belohnungen erhalten ({1}/{2}). Kämpfe ohne Belohnung bis morgen.",
 "{0}: нужен {1} уровень":"{0}: Stufe {1} benötigt",
+"{0}: нужен {1} уровень — ваш герой {2} ур., группа ушла без вас":"{0}: Stufe {1} benötigt — dein Held ist St. {2}, die Gruppe ging ohne dich",
 "{0}: оплата {1}{2}":"{0}: Zahlung {1}{2}",
 "{0}Сила героя":"{0}Heldenstärke",
 "{10}Дубликаты":"{10}Duplikate",
