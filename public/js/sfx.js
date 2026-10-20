@@ -90,14 +90,14 @@ window.Sfx = (() => {
   // Не чаще, чем раз в N мс (много ударов в одном тике)
   const GAP = { quest: 1500, portal: 800, chest: 1500, roar: 8000, heal: 1500, zap: 120, fire: 120, ice: 120, hit: 45, crit: 60, hurt: 250, coin: 200, kill: 60, shoot: 50, skill: 80, click: 30 };
   // Записанные звуки: assets/sfx/<имя>.mp3 — заменяют синтезированный звук с тем же именем (остальные синтезируются)
-  const FILES = ['shoot', 'hit', 'crit', 'hurt', 'kill', 'zap', 'skill', 'fire', 'ice', 'heal', 'shield', 'roar', 'death', 'coin', 'chest', 'portal', 'quest', 'gate'];
-  const FVOL = { hurt: 0.6, kill: 0.8, skill: 0.75, fire: 0.85, heal: 0.7, shield: 0.75, coin: 0.6 }; // громкость записанного звука (частые звуки — тише)
+  const FILES = ['shoot', 'hit', 'crit', 'hurt', 'kill', 'zap', 'skill', 'fire', 'ice', 'heal', 'shield', 'roar', 'death', 'coin', 'chest', 'portal', 'quest', 'gate', 'step'];
+  const FVOL = { hurt: 0.6, kill: 0.8, skill: 0.75, fire: 0.85, heal: 0.7, shield: 0.75, coin: 0.6, step: 0.3 }; // громкость записанного звука (частые звуки — тише)
   const buf = {};
   let loading = false;
   function loadFiles() {
     if (loading || !ac) return;
     loading = true;
-    for (const n of FILES) fetch(`assets/sfx/${n}.mp3?v=17`).then((r) => r.arrayBuffer())
+    for (const n of FILES) fetch(`assets/sfx/${n}.mp3?v=18`).then((r) => r.arrayBuffer())
       .then((a) => new Promise((ok, no) => ac.decodeAudioData(a, ok, no))).then((b) => { buf[n] = b; }).catch(() => {});
   }
   function playFile(name, k) {

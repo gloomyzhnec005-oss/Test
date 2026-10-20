@@ -2200,6 +2200,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.checkNear();
     this.revealFog();
     const walking = len > 0 && !me.data.dead && !this.myStats.rooted && !held;
+    // Шаги: по одному на шаг анимации, чередуются чуть разной высотой (левая/правая нога)
+    if (walking && window.Sfx && time - (this.stepAt || 0) > 340 / (this.myStats.haste ? 1.25 : 1)) { this.stepAt = time; this.stepFoot = !this.stepFoot; Sfx.play('step', { pitch: this.stepFoot ? 1.06 : 0.94 }); }
     if (me.e.skinOn) this.animSkin(me.e, walking ? vx : 0, walking ? vy : 0, walking);
     else if (me.e.beast) this.animBeast(me.e, walking ? vx : 0, walking ? vy : 0, walking);
     else {
