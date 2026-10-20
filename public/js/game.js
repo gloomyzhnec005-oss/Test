@@ -1010,6 +1010,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     } else if (f.t === 'chest') {
       // Сундук на месте босса: падает, открывается — добыча вылетает из него
       if (!this.textures.exists('prop_chestClosed')) return;
+      if (window.Sfx) this.time.delayedCall(450, () => Sfx.play('chest'));
       const s = f.big ? 1.25 : 1;
       const img = this.add.image(f.x, f.y - 60, 'prop_chestClosed').setOrigin(0.5, 1).setScale(s).setDepth(10 + f.y).setAlpha(0);
       this.zoneObjs.push(img);

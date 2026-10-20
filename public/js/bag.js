@@ -124,9 +124,9 @@ window.Bag = (() => {
     const acts = [];
     const run = async (op, data) => { const r = await act(op, data); toast(r.error || r.toast || 'Готово'); await refresh(); after(); return !r.error; };
     if (m.mat === 'chestSet') {
-      acts.push(['Открыть: мой класс', () => run('useMat', { mat: m.mat })]);
+      acts.push(['Открыть: мой класс', () => { if (window.Sfx) Sfx.play('chest'); return run('useMat', { mat: m.mat }); }]);
       acts.push(['Выбрать класс…', () => { chooseClass((cls) => run('useMat', { mat: m.mat, cls })); }]);
-    } else if (m.usable) acts.push([m.kind === 'chest' ? 'Открыть' : 'Использовать', () => run('useMat', { mat: m.mat })]);
+    } else if (m.usable) acts.push([m.kind === 'chest' ? 'Открыть' : 'Использовать', () => { if (m.kind === 'chest' && window.Sfx) Sfx.play('chest'); return run('useMat', { mat: m.mat }); }]);
     if (Town.inTown() && m.sell) {
       acts.push([`Продать торговцу · ${m.sell} 💰`, () => run('sellMat', { mat: m.mat, n: 1 }), 'warn']);
       if (m.n > 1) acts.push([`Продать все ×${m.n} · ${m.sell * m.n} 💰`, () => run('sellMat', { mat: m.mat, n: m.n }), 'warn']);
