@@ -371,7 +371,7 @@ module.exports = function createDungeons(d) {
       // Цель далеко или за стеной — подходит ближе, через стену не стреляет
       if (dd > m.range || !seen) { if (m.rootUntil <= now) step(m, target, speed * dt); return true; }
       if (def.kite && dd < m.range * 0.45 && m.rootUntil <= now) step(m, target, -speed * 0.8 * dt);
-      if (now - m.lastAttack > m.cd * (m.phase === 'storm' ? 0.5 : 1)) { m.lastAttack = now; if (target.owner) hit(m, target, 1, now); else shoot(m, target, 1, now); }
+      if (now - m.lastAttack > m.cd * (m.phase === 'storm' ? 0.5 : 1)) { m.lastAttack = now; if (target.owner) melee(m, target, now); else shoot(m, target, 1, now); }
       return true;
     }
     return false;
@@ -383,7 +383,8 @@ module.exports = function createDungeons(d) {
     d.moveEntity(m, (dx / dd) * s, (dy / dd) * s);
   }
   // Ближняя атака (обычная)
-  function melee(m, target, now) { hit(m, target, 1, now); }
+  // Удар вблизи: «замах» уходит на клиент всегда — даже если удар принял щит, питомец или он промахнулся
+  function melee(m, target, now) { if (target) fx({ t: 'mswing', from: m.id, x: target.x }); hit(m, target, 1, now); }
   const meleeRange = (m) => 30 + 10 * (m.size || 1);
 
   // Модификаторы получаемого урона (из damageMonster)

@@ -890,7 +890,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
   playFx(f) {
     this.playSound(f);
     // Умения монстров (круг на земле, призыв, рывок, бафф, лечение) — тоже с кадрами атаки
-    if (f.from && /^(tele|teleHit|msum|mtext|mdash|mheal|mbuff|mrevive)$/.test(f.t)) this.mobSwing(this.monsters.get(f.from), f.t === 'tele' ? f.x : null);
+    if (f.from && /^(mswing|tele|teleHit|msum|mtext|mdash|mheal|mbuff|mrevive)$/.test(f.t)) this.mobSwing(this.monsters.get(f.from), f.t === 'tele' || f.t === 'mswing' ? f.x : null);
     if (f.t === 'hit' && f.kind === 'm') {
       const e = this.monsters.get(f.target);
       const doHit = () => {
