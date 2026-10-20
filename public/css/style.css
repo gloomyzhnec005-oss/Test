@@ -1053,3 +1053,9 @@ canvas.skin { object-fit: contain; }
 #chatBtn { top: calc(102px + env(safe-area-inset-top)); }
 .target, .wave-badge { right: 110px; }
 .wave-badge { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Сетки предметов не шире окна: в Safari кнопка-ячейка распирает колонку 1fr по ширине картинки */
+.it-grid, .tw-slots { grid-template-columns: repeat(6, minmax(0, 1fr)); width: 100%; box-sizing: border-box; }
+.it-grid .it, .tw-slots .it { min-width: 0; width: 100%; overflow: hidden; }
+.it .it-art { max-width: 100%; max-height: 100%; }
+#sheetBody { overflow-x: hidden; }
+#sheetBody > *, #sheetBody .it-grid { max-width: 100%; min-width: 0; }
