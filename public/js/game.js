@@ -135,7 +135,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const th = this.zone.theme, seq = g.state === 'open' ? ['closed', 'half', 'open'] : ['open', 'half', 'closed', 'seal'];
       seq.forEach((st, n) => this.time.delayedCall(n * 280, () => { if (img.active && this.textures.exists(`gate_${th}_${st}`)) img.setTexture(`gate_${th}_${st}`); }));
       this.cameras.main.flash(250, 255, 230, 180);
-      if (window.Sfx) Sfx.play('portal');
+      if (window.Sfx) Sfx.play('gate');
     });
     // Переход в другую зону: новая карта, прежние сущности исчезнут со следующим состоянием
     this.net.on('zone', (d) => {
