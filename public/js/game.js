@@ -629,6 +629,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
           this.monsters.set(m.id, e);
         }
         const ms = !e && this.textures.exists('mskin_' + m.type) && Skins.MOBS[m.type];
+        // Босс появился рядом — рёв (полубосс — выше и тише)
+        if (!e && (m.rk === 'boss' || m.rk === 'world' || m.rk === 'mini') && window.Sfx) Sfx.play('roar', { pitch: m.rk === 'mini' ? 1.2 : 0.9 });
         if (!e) e = this.makeEntity(ms ? 'mskin_' + m.type : 'mon_' + m.type, `${prefix}${m.nm || def.name} · ${m.lv}`, RC[m.rk] || '#ffd9a0', m.id);
         e.c.setPosition(m.x, m.y);
         const sz = (m.sz || 1) * (ms ? ms.scale || 1 : 1);   // нарисованные листы крупнее процедурных — свой масштаб
