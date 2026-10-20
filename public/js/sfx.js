@@ -90,14 +90,14 @@ window.Sfx = (() => {
   // Не чаще, чем раз в N мс (много ударов в одном тике)
   const GAP = { hit: 45, crit: 60, hurt: 250, coin: 80, kill: 60, shoot: 50, skill: 80, click: 30 };
   // Записанные звуки: assets/sfx/<имя>.mp3 — заменяют синтезированный звук с тем же именем (остальные синтезируются)
-  const FILES = ['shoot', 'hit', 'crit', 'hurt'];
-  const FVOL = { hurt: 0.6 }; // громкость записанного звука (частые звуки — тише)
+  const FILES = ['shoot', 'hit', 'crit', 'hurt', 'kill'];
+  const FVOL = { hurt: 0.6, kill: 0.8 }; // громкость записанного звука (частые звуки — тише)
   const buf = {};
   let loading = false;
   function loadFiles() {
     if (loading || !ac) return;
     loading = true;
-    for (const n of FILES) fetch(`assets/sfx/${n}.mp3?v=4`).then((r) => r.arrayBuffer())
+    for (const n of FILES) fetch(`assets/sfx/${n}.mp3?v=5`).then((r) => r.arrayBuffer())
       .then((a) => new Promise((ok, no) => ac.decodeAudioData(a, ok, no))).then((b) => { buf[n] = b; }).catch(() => {});
   }
   function playFile(name, k) {
