@@ -476,53 +476,67 @@ window.Town = (() => {
     open('📖 Зал мастеров', tabs([['Умения', skills], ['Ветка характеристик', tree]]));
   }
 
-  // ---------- Кузница: ковка (улучшение редкости), вещи комплектов, разбор, лавка кузнеца ----------
-  const needList = (c) => Object.entries(c.need).map(([k, n]) => `<span class="${(c.have[k] || 0) >= n ? 'ok' : 'bad'}">${c.names[k]} ${c.have[k] || 0}/${n}</span>`).join(' ');
-  async function forgeBody(itemId) {
-    const inv = await Bag.refresh();
+  // ---------- Кузница: рецепты мира. Слева — что получится, справа — слоты всего нужного: есть — светится, нет — тусклый ----------
+  const WORLD_NAMES = { 1: 'Эльдмир', 2: 'Морграт', 3: 'Аэлион' }, WORLD_IN = { 1: 'Эльдмире', 2: 'Морграте', 3: 'Аэлионе' };
+  async function craftBody(tier, pickId, itemId) {
     const box = document.createElement('div');
-    const reload = async (id) => box.replaceWith(await forgeBody(id));
-    const items = inv.items.filter((i) => i.loc !== 'wh');
-    const it = items.find((i) => i.id === itemId);
-    box.innerHTML = `<p class="sheet-hint">Ковка поднимает редкость предмета на ступень: свиток + материалы мира предмета + золото. Атрибуты выпадают заново.
-      Чертёж превращает эпический (и лучше) предмет в вещь комплекта того же слота. 💰 ${inv.gold}</p>`;
-    if (it) {
-      const r = await Bag.act('craftInfo', { id: it.id });
-      const sec = el(`<div class="forge"><div class="row-it">${Bag.cell(it)}</div><div><b style="color:${it.color}">${it.name}</b><small>${it.rarName} · мир ${ROMAN[it.tier]}</small></div></div>`);
-      sec.querySelector('.row-it').onclick = () => Bag.card(it, []);
-      box.append(sec);
-      if (r.up) {
-        const u = el(`<div class="tw-ev"><div><b>⚒️ Улучшить до: ${inv.rarities[r.up.next].name}</b><small>${needList(r.up)}</small><small>${r.up.gold} 💰</small></div><button class="l2-btn">Ковать</button></div>`).firstElementChild;
-        u.querySelector('button').onclick = async () => { const res = await Bag.act('upgrade', { id: it.id }); toast(res.error || res.toast); if (!res.error) Bag.card(res.result, []); reload(it.id); };
-        box.append(u);
-      } else box.insertAdjacentHTML('beforeend', soon('Мифический предмет — улучшать некуда. Усиливайте его дубликатами.'));
-      for (const st of r.sets) {
-        const u = el(`<div class="tw-ev"><div><b>🗺️ ${st.name}</b><small>${needList(st)}</small><small>${st.gold} 💰</small></div><button class="l2-btn">Создать</button></div>`).firstElementChild;
-        u.querySelector('button').onclick = async () => { const res = await Bag.act('setCraft', { id: it.id, bp: st.bp }); toast(res.error || res.toast); if (!res.error) Bag.card(res.result, []); reload(it.id); };
-        box.append(u);
-      }
-      if (!r.sets.length && !it.set && inv.rarOrder.indexOf(it.rar) >= 2) box.insertAdjacentHTML('beforeend', soon(`Нет чертежей мира ${ROMAN[it.tier]} — они падают с полубоссов и боссов данжей`));
-      if (!Bag.isEquipped(it)) {
-        const sv = el(`<div class="tw-ev"><div><b>♻️ Разобрать</b><small>Получите: ${r.salvage}</small></div><button class="l2-btn warn">Разобрать</button></div>`).firstElementChild;
-        sv.querySelector('button').onclick = async () => { const res = await Bag.act('salvage', { id: it.id }); toast(res.error || res.toast); reload(); };
-        box.append(sv);
-      }
-    }
-    box.insertAdjacentHTML('beforeend', `<div class="ic-sec">${it ? 'Другой предмет' : 'Выберите предмет'}</div>`);
-    box.append(Bag.grid(items.filter((i) => i.cat !== 'rune'), (x) => reload(x.id), { selected: new Set(it ? [it.id] : []), empty: 'Нет предметов' }));
+    await Bag.refresh(); // ячейки предметов рисуются по данным сумки
+    const r = await Bag.act('recipes', { tier });
+    if (r.error) { box.innerHTML = soon(r.error); return box; }
+    const reload = async (rid, iid) => box.replaceWith(await craftBody(r.tier, rid, iid));
+    // Миры: свой — открыт, чужие — посмотреть рецепты
+    const worlds = el(`<div class="cr-worlds">${[1, 2, 3].map((t) => `<button data-t="${t}" class="${t === r.tier ? 'on' : ''}">${ROMAN[t]} · ${WORLD_NAMES[t]}${t === ctx.zone.tier ? ' ✦' : ''}</button>`).join('')}</div>`).firstElementChild;
+    worlds.onclick = async (e) => { const b = e.target.closest('[data-t]'); if (b) box.replaceWith(await craftBody(+b.dataset.t)); };
+    box.append(worlds);
+    box.insertAdjacentHTML('beforeend', `<p class="sheet-hint">${r.title}${r.here ? '' : ` · ковать можно только в ${WORLD_IN[r.tier]}`} · 💰 ${r.gold.toLocaleString('ru-RU')}</p>`);
+    const rec = r.list.find((x) => x.id === pickId) || r.list[0];
+    // Выбранный рецепт: результат → слоты
+    const item = rec.items.find((i) => i.id === itemId) || rec.items[0];
+    const slot = (inner, ok, label, cls = '') => `<div class="cr-slot ${ok ? 'ok' : 'no'} ${cls}"><div class="cr-cell">${inner}</div><small>${label}</small></div>`;
+    const ghost = (cat) => `<img class="it-art slot-ghost" src="assets/items/slot_${cat}.webp" alt="">`;
+    const need = [];
+    if (rec.needItem) need.push(slot(item ? Bag.cell(item) : `<button class="it" style="--rc:${rec.needItem.color}"><span>${ghost(rec.slot)}</span></button>`, !!item,
+      item ? `${item.name}${rec.items.length > 1 ? ` · ещё ${rec.items.length - 1} ⟳` : ''}` : `${rec.slotName} · ${rec.needItem.rarName.toLowerCase()}`, 'item'));
+    for (const m of rec.mats) need.push(slot(Bag.cell({ ...m, n: 1 }), m.have >= m.need, `${m.name} <b>${m.have}/${m.need}</b>`));
+    need.push(slot(`<button class="it" style="--rc:#d4a63c"><span><img class="it-art" src="assets/ui/ic_coin.webp" alt=""></span></button>`, r.gold >= rec.gold, `Золото <b>${rec.gold.toLocaleString('ru-RU')}</b>`));
+    const res = item ? { ...item, rar: rec.rar, color: rec.color, dupes: 0 } : null;
+    const view = el(`<div class="cr-view"><div class="cr-res"><div class="cr-cell big">${res ? Bag.cell(res) : `<button class="it" style="--rc:${rec.color}"><span>${ghost(rec.slot)}</span></button>`}</div>
+        <b style="color:${rec.color}">${rec.kind === 'relic' ? `${rec.slotName} комплекта` : res ? res.name : rec.slotName}</b><small>${rec.rarName}${rec.kind === 'relic' ? ` · класс «${r.clsName || '—'}»` : ' · атрибуты выпадут заново'}</small></div>
+      <div class="cr-arrow">⟵</div><div class="cr-need">${need.join('')}</div></div>
+      <button class="l2-btn cr-go" ${rec.ok && r.here ? '' : 'disabled'}>⚒️ ${r.here ? (rec.ok ? 'Создать' : 'Не хватает того, что тусклое') : `Ковать можно только в ${WORLD_IN[r.tier]}`}</button>`);
+    view.querySelector('.cr-slot.item') && (view.querySelector('.cr-slot.item').onclick = () => { // перебор подходящих вещей
+      if (rec.items.length < 2) return; const i = rec.items.indexOf(item); reload(rec.id, rec.items[(i + 1) % rec.items.length].id); });
+    view.querySelector('.cr-go').onclick = async () => {
+      const out = await Bag.act('craft', { id: rec.id, item: item && item.id });
+      toast(out.error || out.toast); if (out.error) return;
+      if (window.Sfx) Sfx.play('reward');
+      Bag.card(out.result, []); reload(rec.id);
+    };
+    box.append(view);
+    // Список всего, что куётся в этом мире
+    box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Что куётся в ${WORLD_IN[r.tier]}</div>`);
+    const list = el(`<div class="cr-list">${r.list.map((x) => `<button data-r="${x.id}" class="cr-row ${x.id === rec.id ? 'on' : ''} ${x.ok ? 'can' : ''}">
+        <span class="it" style="--rc:${x.color}"><span>${ghost(x.slot)}</span></span><div><b>${x.kind === 'relic' ? '🌟 ' : ''}${x.name}</b>
+        <small>${x.needItem ? `${x.needItem.rarName} → ` : ''}<i style="color:${x.color}">${x.rarName}</i>${x.ok ? ' · ✔ можно создать' : ''}</small></div></button>`).join('')}</div>`).firstElementChild;
+    list.onclick = async (e) => { const b = e.target.closest('[data-r]'); if (!b) return; await reload(b.dataset.r); $('sheetBody').scrollTo({ top: 0, behavior: 'smooth' }); };
+    box.append(list);
+    box.insertAdjacentHTML('beforeend', `<p class="sheet-hint">Руда и эссенция — с монстров этого мира, сердца — с полубоссов и боссов, свитки — в лавке кузнеца и с боссов.</p>`);
     return box;
   }
-  function recipesTab() {
-    const R = [['Обычный → редкий', '📜 Свиток подмастерья · руда ×5 · 150 💰'], ['Редкий → эпический', '📜 Свиток мастера · руда ×12 · эссенция ×5 · 600 💰'],
-      ['Эпический → легендарный', '📜 Свиток грандмастера · руда ×25 · эссенция ×15 · редкий материал ×1 · 2500 💰'],
-      ['Легендарный → мифический', '📜 Свиток легенды · руда ×50 · эссенция ×30 · редкий материал ×3 · 8000 💰'],
-      ['Вещь комплекта', '🗺️ Чертёж · эпический+ предмет того же мира · руда ×15 · эссенция ×10 · редкий материал ×1 · 1500 💰']];
-    return el(`<p class="sheet-hint">Золото — для мира I; в мире II ×2.2, в мире III ×4.5. Материалы — того же мира, что и предмет.</p>`
-      + R.map(([a, b]) => `<div class="tw-ev"><div><b>${a}</b><small>${b}</small></div></div>`).join('')
-      + `<p class="sheet-hint">Где брать: руда и эссенция — с любых монстров мира; редкие материалы — полубоссы, боссы и мировые боссы; свитки мастера — полубоссы и боссы; свитки грандмастера и легенды — боссы миров II–III и мировые боссы; чертежи — только в «своём» данже (каждый данж отвечает за 2 комплекта).</p>`);
+  // Разбор: вещь → материалы её мира
+  async function salvageBody() {
+    const inv = await Bag.refresh();
+    const box = document.createElement('div');
+    box.innerHTML = '<p class="sheet-hint">Нажмите на вещь, чтобы разобрать её на материалы. Надетые вещи не показываются.</p>';
+    box.append(Bag.grid(inv.items.filter((i) => i.loc !== 'wh' && i.cat !== 'rune' && !Bag.isEquipped(i)), (it) => Bag.card(it, [['♻️ Разобрать', async () => {
+      const res = await Bag.act('salvage', { id: it.id }); toast(res.error || res.toast); box.replaceWith(await salvageBody()); }, 'warn']]), { empty: 'Нечего разбирать' }));
+    return box;
   }
   function smithPanel(itemId) {
-    open('🔨 Кузница', tabs([['Ковка', () => forgeBody(itemId)], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Рецепты', recipesTab], ['Лавка кузнеца', () => shopList('smith')]]));
+    // Из карточки вещи «В кузницу» — сразу рецепт для этой вещи
+    const it = itemId && Bag.inv() && Bag.inv().items.find((i) => i.id === itemId);
+    const rid = it && it.cat !== 'rune' ? `w${ctx.zone.tier}_${it.cat}` : null;
+    open('🔨 Кузница', tabs([['Рецепты', () => craftBody(ctx.zone.tier, rid, itemId)], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Разбор', salvageBody], ['Лавка кузнеца', () => shopList('smith')]]));
   }
 
   const PANELS = {

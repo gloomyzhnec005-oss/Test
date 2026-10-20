@@ -60,7 +60,7 @@ window.I18N = (() => {
       if (c !== null) r = a[1] + a[2].replace(a[2].trimEnd(), c);
       else if ((c = core(b[2])) !== null) r = b[1] + c + b[3];
       // составная строка «часть · часть»
-      else if (/ · |, /.test(t)) { const sep = / · /.test(t) ? ' · ' : ', '; const parts = s.split(sep); const tp = parts.map(tr); r = tp.some((x, i) => x !== parts[i]) ? tp.join(sep) : s; }
+      else if (/ · |, |: /.test(t)) { const sep = / · /.test(t) ? ' · ' : /, /.test(t) ? ', ' : ': '; const parts = s.split(sep); const tp = parts.map(tr); r = tp.some((x, i) => x !== parts[i]) ? tp.join(sep) : s; }
       else r = s;
     }
     if (cache.size > 5000) cache.clear();

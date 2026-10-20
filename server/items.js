@@ -478,7 +478,32 @@ function itemView(it) {
   };
 }
 
+// ---------- Рецепты кузницы: у каждого мира свои ----------
+// Заказ на вещь: предмет этого слота + материалы мира + свиток + золото → тот же предмет следующей редкости (атрибуты заново).
+// Реликвия мира: вещь комплекта класса героя (слот на выбор) — только из материалов.
+const WORLD_CRAFT = {
+  1: { title: 'Кузница Эльдмира', from: 'common', to: 'rare', mats: { ore1: 8, ess1: 3, scrollR: 1 }, gold: 200,
+    relic: { rar: 'epic', mats: { ore1: 30, ess1: 15, core1: 2 }, gold: 1500 } },
+  2: { title: 'Горн Морграта', from: 'rare', to: 'epic', mats: { ore2: 12, ess2: 6, scrollE: 1 }, gold: 900,
+    relic: { rar: 'legendary', mats: { ore2: 40, ess2: 20, core2: 3, scrollL: 1 }, gold: 6000 } },
+  3: { title: 'Небесная наковальня Аэлиона', from: 'epic', to: 'legendary', mats: { ore3: 20, ess3: 10, core3: 1, scrollL: 1 }, gold: 4000,
+    relic: { rar: 'mythic', mats: { ore3: 60, ess3: 30, core3: 5, scrollM: 1 }, gold: 20000 } },
+};
+const RECIPE_PREFIX = { 1: 'Эльдмирская ковка', 2: 'Закалка Бездны', 3: 'Небесная ковка' };
+// Все рецепты мира tier: id → { kind, slot, needItem, mats, gold, rar }
+function worldRecipes(tier) {
+  const W = WORLD_CRAFT[tier];
+  if (!W) return [];
+  const list = SLOT_ORDER.map((slot) => ({ id: `w${tier}_${slot}`, tier, kind: 'forge', slot, name: `${RECIPE_PREFIX[tier]}: ${SLOT_NAMES[slot].toLowerCase()}`,
+    needItem: { cat: slot, rar: W.from, tier }, rar: W.to, mats: W.mats, gold: W.gold }));
+  for (const slot of SLOT_ORDER) list.push({ id: `r${tier}_${slot}`, tier, kind: 'relic', slot, name: `Реликвия мира: ${SLOT_NAMES[slot].toLowerCase()}`,
+    needItem: null, rar: W.relic.rar, mats: W.relic.mats, gold: W.relic.gold });
+  return list;
+}
+const findRecipe = (id) => { const t = +String(id).slice(1, 2); return worldRecipes(t).find((r) => r.id === id) || null; };
+
 module.exports = {
+  WORLD_CRAFT, worldRecipes, findRecipe,
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, TIER_MULT, DUPE_MAX, DUPE_STEP,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,

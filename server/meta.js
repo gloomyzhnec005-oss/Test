@@ -206,6 +206,41 @@ module.exports = function createMeta(deps) {
       return { result: I.itemView(r.item), toast: `Соединение: ${I.itemView(r.item).name} (${I.ITEM_RARITIES[r.item.rar].name})` };
     },
 
+    // ---------- Кузница: рецепты мира (что получится и что для этого нужно) ----------
+    recipes(p, d, pr) {
+      const t = [1, 2, 3].includes(+d.tier) ? +d.tier : tierOf(p), here = tierOf(p) === t, cls = I.classOf(p.heroId);
+      const free = (pr.items || []).filter((it) => it.loc !== 'wh' && !equipped(pr, it.id) && it.cat !== 'rune');
+      return { tier: t, here, title: I.WORLD_CRAFT[t].title, gold: pr.gold, cls, clsName: I.CLASSES[cls] && I.CLASSES[cls].name, list: I.worldRecipes(t).map((r) => {
+        // Подходящие вещи: этого слота, нужной редкости и мира, не надеты; первой — самая «простая» (без усиления и рун)
+        const items = r.needItem ? free.filter((it) => it.cat === r.needItem.cat && it.rar === r.needItem.rar && it.tier === r.needItem.tier)
+          .sort((a, b) => (a.dupes || 0) - (b.dupes || 0) || ((a.runes || []).length - (b.runes || []).length)).map(I.itemView) : [];
+        const mats = Object.entries(r.mats).map(([k, n]) => ({ ...I.matView(k, n), need: n, have: (pr.mats || {})[k] || 0 }));
+        const ok = (!r.needItem || items.length > 0) && mats.every((m) => m.have >= m.need) && pr.gold >= r.gold;
+        return { id: r.id, kind: r.kind, slot: r.slot, slotName: I.SLOT_NAMES[r.slot], name: r.name, rar: r.rar, rarName: I.ITEM_RARITIES[r.rar].name, color: I.ITEM_RARITIES[r.rar].color,
+          needItem: r.needItem && { ...r.needItem, rarName: I.ITEM_RARITIES[r.needItem.rar].name, color: I.ITEM_RARITIES[r.needItem.rar].color }, items, mats, gold: r.gold, ok };
+      }) };
+    },
+    craft(p, d, pr) {
+      const r = I.findRecipe(d.id);
+      if (!r) return { error: 'Нет такого рецепта' };
+      if (r.tier !== tierOf(p)) return { error: `Этот рецепт куют только в кузнице своего мира` };
+      let it = null;
+      if (r.needItem) {
+        it = I.findItem(pr, d.item);
+        if (!it || it.cat !== r.needItem.cat || it.rar !== r.needItem.rar || it.tier !== r.needItem.tier || it.loc === 'wh') return { error: `Нужен предмет: ${I.SLOT_NAMES[r.slot]} (${I.ITEM_RARITIES[r.needItem.rar].name.toLowerCase()}) этого мира` };
+        if (equipped(pr, it.id)) return { error: 'Снимите предмет, прежде чем перековать его' };
+      }
+      if (pr.gold < r.gold) return { error: `Нужно ${r.gold} золота` };
+      if (!Object.entries(r.mats).every(([k, n]) => ((pr.mats || {})[k] || 0) >= n)) return { error: 'Не хватает материалов' };
+      I.takeMats(pr, r.mats);
+      pr.gold -= r.gold;
+      let res;
+      if (it) { it.rar = r.rar; it.attrs = I.rollAttrs(r.rar, it.tier); res = it; } // тот же предмет — следующей редкости
+      else { const out = put(pr, I.createSetItem(I.classOf(p.heroId), r.tier, r.rar, r.slot)); if (out.error) return { error: out.error }; res = out.item; }
+      refreshPlayer(p);
+      return { result: I.itemView(res), toast: `⚒️ Создано: ${I.itemView(res).name} (${I.ITEM_RARITIES[res.rar].name})` };
+    },
+
     // ---------- Кузница: улучшение, вещи комплектов, разбор ----------
     craftInfo(p, d, pr) {
       const it = I.findItem(pr, d.id);
@@ -617,7 +652,7 @@ module.exports = function createMeta(deps) {
     const pr = getProfile(p.uid);
     if (p.name && pr.arena) pr.arena.name = p.name;
     const res = fn(p, d, pr) || {};
-    if (!res.error && !['inv', 'market', 'auction', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo'].includes(d.op)) save();
+    if (!res.error && !['inv', 'market', 'auction', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo', 'recipes'].includes(d.op)) save();
     res.gold = pr.gold;
     return res;
   }

@@ -1063,3 +1063,30 @@ canvas.skin { object-fit: contain; }
 .it > i.eq-tag { left: 0; right: 0; bottom: 0; z-index: 3; padding: 1px 0; text-align: center; font-size: 8px; line-height: 10px; color: #0c1a0c; font-weight: bold; background: linear-gradient(180deg, #8af08f, #4ab852); border-radius: 0 0 4px 4px; }
 .inv-eq-note { margin: 6px 0 4px; font-size: 12px; color: #b8a888; }
 .inv-eq-note b { color: #8af08f; }
+
+/* Кузница: рецепты мира */
+.cr-worlds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 6px; }
+.cr-worlds button { padding: 8px 2px; border-radius: 10px; border: 1px solid #5a4830; background: rgba(255,255,255,.05); color: #cdbb94; font-family: inherit; font-size: 13px; }
+.cr-worlds button.on { background: linear-gradient(180deg, #6a4c22, #3a2812); color: #ffe7a8; border-color: #c9a25a; }
+.cr-view { display: flex; gap: 8px; align-items: center; padding: 10px; border-radius: 12px; background: rgba(0,0,0,.4); border: 1px solid #5a4830; }
+.cr-res { flex: 0 0 34%; text-align: center; }
+.cr-res b { display: block; font-size: 14px; margin-top: 4px; }
+.cr-res small { display: block; color: #b8a888; font-size: 11px; }
+.cr-cell .it { width: 100%; }
+.cr-cell.big { width: 86%; margin: 0 auto; }
+.cr-arrow { flex: none; color: #d4a63c; font-size: 22px; }
+.cr-need { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.cr-slot { text-align: center; min-width: 0; }
+.cr-slot small { display: block; font-size: 10px; line-height: 12px; color: #c9b48a; margin-top: 2px; overflow-wrap: anywhere; }
+.cr-slot small b { font-weight: normal; }
+.cr-slot.ok .cr-cell .it { box-shadow: 0 0 0 2px #5fdc6a, 0 0 10px rgba(95,220,106,.6); }
+.cr-slot.ok small b { color: #8af08f; }
+.cr-slot.no .cr-cell { opacity: .45; filter: grayscale(.7); }
+.cr-slot.no small b { color: #ff7a6a; }
+.cr-go { width: 100%; margin: 8px 0 4px; }
+.cr-list { display: flex; flex-direction: column; gap: 5px; }
+.cr-row { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 10px; border: 1px solid #3e3220; background: rgba(255,255,255,.04); color: #e8dcc0; font-family: inherit; text-align: left; }
+.cr-row .it { flex: none; width: 38px; height: 38px; }
+.cr-row div { min-width: 0; } .cr-row b { display: block; font-size: 13px; font-weight: normal; } .cr-row small { font-size: 11px; color: #a8977a; } .cr-row i { font-style: normal; }
+.cr-row.on { border-color: #c9a25a; background: rgba(201,162,90,.14); }
+.cr-row.can { border-left: 3px solid #5fdc6a; }
