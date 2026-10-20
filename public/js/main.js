@@ -217,52 +217,137 @@
     }
   }
 
-  let minimapBase = null;
-  const MM_COLORS = {
-    green: ['#4e9a3a', '#2f6fb5', '#2d6b22', '#c9a66b', '#4e9a3a', '#6e5a44', '#3c3a38', '#a03a2a', '#d8c8a0'],
-    abyss: ['#2a2430', '#07040c', '#3a2a2a', '#4a4250', '#2a2430', '#3a3438', '#15121a', '#6a3a9a', '#3a3448'],
-    sky: ['#e8f0ff', '#7ac8ff', '#ffd84a', '#f4eee0', '#e8f0ff', '#d8e4f4', '#c8d8f0', '#e8c060', '#fffaf0'],
+  // ---------- Навигационная карта ----------
+  // Нарисованная местность (трава с крапинками, вода с бликами, кроны, дорожки, тени у стен) собирается один раз на зону;
+  // поверх каждые 3 кадра — монстры, боссы, порталы, здания, игроки и стрелка героя. Нажатие — большая карта с легендой.
+  let minimapBase = null, mmZone = null, mmBig = false;
+  const MM_PAL = {
+    green: { grass: [86, 142, 58], water: [52, 112, 176], tree: [38, 92, 40], path: [196, 168, 112], flowers: [104, 152, 66], dirt: [132, 108, 76], rock: [86, 84, 82], wall: [120, 60, 46], plaza: [206, 192, 156], deco: [170, 146, 100], edge: [24, 30, 18] },
+    abyss: { grass: [52, 44, 60], water: [24, 14, 38], tree: [66, 40, 52], path: [92, 80, 100], flowers: [64, 50, 74], dirt: [70, 58, 64], rock: [40, 36, 46], wall: [104, 52, 140], plaza: [96, 88, 112], deco: [120, 100, 130], edge: [10, 6, 14] },
+    sky: { grass: [214, 228, 246], water: [110, 186, 238], tree: [232, 196, 96], path: [244, 236, 214], flowers: [224, 232, 248], dirt: [208, 214, 230], rock: [184, 198, 222], wall: [222, 186, 102], plaza: [252, 248, 234], deco: [230, 210, 160], edge: [120, 130, 160] },
+    dungeon: { grass: [92, 86, 78], water: [30, 40, 60], tree: [60, 56, 50], path: [104, 96, 86], flowers: [92, 86, 78], dirt: [84, 76, 66], rock: [26, 24, 26], wall: [22, 20, 22], plaza: [112, 104, 92], deco: [140, 120, 90], edge: [8, 8, 10] },
   };
+  const TKEY = ['grass', 'water', 'tree', 'path', 'flowers', 'dirt', 'rock', 'wall', 'plaza'];
+  const SOLID_T = new Set([1, 2, 6, 7, 16]);
+  const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   function buildMinimap(map) {
-    const colors = MM_COLORS[map.theme] || MM_COLORS.green;
-    const c = document.createElement('canvas');
-    c.width = map.w; c.height = map.h;
-    const ctx = c.getContext('2d');
-    for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
-      const t = map.tiles[y * map.w + x];
-      ctx.fillStyle = t === 16 ? '#a08a60' : colors[t] || '#000'; // 16 — украшение
-      ctx.fillRect(x, y, 1, 1);
+    const S = 4, W = map.w, H = map.h, pal = MM_PAL[map.kind === 'dungeon' ? 'dungeon' : map.theme] || MM_PAL.green;
+    const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
+    const ctx = c.getContext('2d'), img = ctx.createImageData(W * S, H * S), d = img.data;
+    const tAt = (x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 6 : map.tiles[y * W + x]);
+    for (let ty = 0; ty < H; ty++) for (let tx = 0; tx < W; tx++) {
+      const t = tAt(tx, ty), key = t === 16 ? 'deco' : TKEY[t] || 'rock', base = pal[key];
+      const solid = SOLID_T.has(t);
+      for (let py = 0; py < S; py++) for (let px = 0; px < S; px++) {
+        const X = tx * S + px, Y = ty * S + py, n = hash(X, Y);
+        let k = 0.9 + n * 0.2, col = base;
+        if (t === 2) { const dx = px - 1.5, dy = py - 1.5; if (dx * dx + dy * dy > 3.2) col = pal.grass; else k *= 0.8 + (py < 2 ? 0.35 : 0); } // кроны
+        if (t === 1) { k = 0.85 + n * 0.1 + ((X + Y * 2) % 7 === 0 ? 0.35 : 0); } // блики на воде
+        if (t === 4 && n > 0.9) col = [230, 200, 90]; // цветы
+        // тень у края непроходимого (сверху светлее, снизу темнее — объём)
+        if (solid && t !== 1) {
+          if (py === 0 && !SOLID_T.has(tAt(tx, ty - 1))) k *= 1.25;
+          if (py === S - 1 && !SOLID_T.has(tAt(tx, ty + 1))) k *= 0.55;
+        } else if (!solid) {
+          if (py === 0 && SOLID_T.has(tAt(tx, ty - 1)) && tAt(tx, ty - 1) !== 1) k *= 0.7;
+          if ((px === 0 && SOLID_T.has(tAt(tx - 1, ty)) || px === S - 1 && SOLID_T.has(tAt(tx + 1, ty))) && tAt(tx, ty) !== 1) k *= 0.85;
+        }
+        if (t !== 1 && (tAt(tx, ty - 1) === 1 && py === 0 || tAt(tx, ty + 1) === 1 && py === S - 1)) col = [220, 210, 170]; // берег
+        const i = (Y * W * S + X) * 4;
+        d[i] = Math.min(255, col[0] * k); d[i + 1] = Math.min(255, col[1] * k); d[i + 2] = Math.min(255, col[2] * k); d[i + 3] = 255;
+      }
     }
-    minimapBase = c;
+    ctx.putImageData(img, 0, 0);
+    // Виньетка: края темнее, как у старой карты
+    const g = ctx.createRadialGradient(c.width / 2, c.height / 2, c.width * 0.25, c.width / 2, c.height / 2, c.width * 0.72);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(10,6,2,.55)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, c.width, c.height);
+    minimapBase = c; mmZone = map;
+    const lbl = $('mmName'); if (lbl) lbl.textContent = map.name || '';
   }
-  let mmTick = 0;
+  let mmTick = 0, mmLast = null, mmDir = 0;
+  // Значки поверх карты: k — масштаб (1 — мини-карта, больше — большая карта)
+  function mmMarks(ctx, state, myId, tile, map, sx, sy, k, now) {
+    const ox = map.ox || 0, oy = map.oy || 0, P = (o) => [(o.x - ox) / tile * sx, (o.y - oy) / tile * sy];
+    const dot = (x, y, r, fill, line) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = Math.max(1, r * 0.45); ctx.strokeStyle = line || 'rgba(0,0,0,.75)'; ctx.stroke(); };
+    // Здания (золотой ромб) и порталы (пульсирующее фиолетовое кольцо)
+    for (const o of map.objs || []) {
+      const [x, y] = P(o);
+      if (o.kind === 'portal') {
+        const r = (2.6 + Math.sin(now / 300) * 0.5) * k;
+        ctx.beginPath(); ctx.arc(x, y, r + 1.4 * k, 0, 7); ctx.fillStyle = 'rgba(190,120,255,.25)'; ctx.fill();
+        dot(x, y, r, '#b77dff', '#2a0a44');
+        ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, 7); ctx.fillStyle = '#f2e6ff'; ctx.fill();
+      } else if (o.kind === 'place') {
+        const r = 2.4 * k; ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath();
+        ctx.fillStyle = '#ffd36a'; ctx.fill(); ctx.lineWidth = Math.max(1, k * 0.8); ctx.strokeStyle = '#3a2408'; ctx.stroke();
+      }
+    }
+    // На большой карте — подписи зданий и порталов
+    if (k >= 3) {
+      ctx.font = `${Math.round(4.6 * k)}px Georgia, serif`; ctx.textAlign = 'center'; ctx.lineJoin = 'round';
+      for (const o of map.objs || []) {
+        if (o.kind !== 'place' && o.kind !== 'portal' || !o.name) continue;
+        const [x0, y] = P(o), t = o.num ? ['I', 'II', 'III', 'IV', 'V', 'VI'][o.num - 1] : window.I18N ? I18N.tr(o.name) : o.name; // данжи — номером, как на порталах
+        const half = ctx.measureText(t).width / 2 + 2, x = Math.max(half, Math.min(ctx.canvas.width - half, x0));
+        ctx.lineWidth = 1.2 * k; ctx.strokeStyle = 'rgba(10,6,2,.9)'; ctx.strokeText(t, x, y + 7.5 * k);
+        ctx.fillStyle = o.kind === 'portal' ? '#e6ccff' : '#ffe7a8'; ctx.fillText(t, x, y + 7.5 * k);
+      }
+    }
+    // Монстры: обычные — красные точки, полубоссы и боссы — крупнее, с золотой каймой
+    for (const m of state.m) {
+      const [x, y] = P(m), big = m.rk === 'boss' || m.rk === 'world' || m.rk === 'mini';
+      if (big) { dot(x, y, (m.rk === 'mini' ? 2.6 : 3.4) * k, '#ff3a2a', '#ffd36a'); } else dot(x, y, 1.3 * k, '#ff5040', 'rgba(40,0,0,.8)');
+    }
+    // Другие игроки — белые точки, герой — жёлтая стрелка по направлению движения
+    for (const p of state.p) {
+      const [x, y] = P(p);
+      if (p.id !== myId) { dot(x, y, 1.7 * k, '#ffffff', '#1a3050'); continue; }
+      if (mmLast && Math.hypot(p.x - mmLast.x, p.y - mmLast.y) > 2) mmDir = Math.atan2(p.y - mmLast.y, p.x - mmLast.x);
+      mmLast = { x: p.x, y: p.y };
+      ctx.save(); ctx.translate(x, y); ctx.rotate(mmDir + Math.PI / 2);
+      const r = 4 * k;
+      ctx.beginPath(); ctx.arc(0, 0, r * 1.6, 0, 7); ctx.fillStyle = 'rgba(255,230,120,.22)'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(r * 0.75, r * 0.8); ctx.lineTo(0, r * 0.35); ctx.lineTo(-r * 0.75, r * 0.8); ctx.closePath();
+      ctx.fillStyle = '#ffe14a'; ctx.fill(); ctx.lineWidth = Math.max(1, k); ctx.strokeStyle = '#3a2400'; ctx.stroke();
+      ctx.restore();
+    }
+  }
+  function mmFog(ctx, state, map, tile, sx, sy) {
+    const ex = map.fog && window.gameScene && window.gameScene.explored.get(map.id);
+    if (!ex) return state;
+    ctx.fillStyle = '#07080b';
+    for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) if (!ex.has(y * map.w + x)) ctx.fillRect(Math.floor(x * sx), Math.floor(y * sy), Math.ceil(sx) + 1, Math.ceil(sy) + 1);
+    const ox = map.ox || 0, oy = map.oy || 0;
+    return { ...state, m: state.m.filter((m) => ex.has(Math.floor((m.y - oy) / tile) * map.w + Math.floor((m.x - ox) / tile))) };
+  }
   function drawMinimap(state, myId, tile, map) {
     if (++mmTick % 3 || !minimapBase) return;
-    const cnv = $('minimap'), ctx = cnv.getContext('2d');
-    const sx = cnv.width / map.w, sy = cnv.height / map.h;
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(minimapBase, 0, 0, cnv.width, cnv.height);
-    ctx.fillStyle = '#ff4040';
-    const ox = map.ox || 0, oy = map.oy || 0;
-    // В данже мини-карта показывает только разведанное
-    const ex = map.fog && window.gameScene && window.gameScene.explored.get(map.id);
-    if (ex) {
-      ctx.fillStyle = '#050608';
-      const k = Math.ceil(sx) + 1;
-      for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) if (!ex.has(y * map.w + x)) ctx.fillRect(Math.floor(x * sx), Math.floor(y * sy), k, Math.ceil(sy) + 1);
-      ctx.fillStyle = '#ff4040';
-      for (const m of state.m) if (ex.has(Math.floor((m.y - oy) / tile) * map.w + Math.floor((m.x - ox) / tile))) ctx.fillRect((m.x - ox) / tile * sx - 1, (m.y - oy) / tile * sy - 1, 2, 2);
-      state = { ...state, m: [] };
-    }
-    for (const m of state.m) ctx.fillRect((m.x - ox) / tile * sx - 1, (m.y - oy) / tile * sy - 1, 2, 2);
-    ctx.fillStyle = '#c890ff';
-    for (const o of map.objs || []) if (o.kind === 'portal') ctx.fillRect((o.x - ox) / tile * sx - 2, (o.y - oy) / tile * sy - 2, 4, 4);
-    for (const p of state.p) {
-      ctx.fillStyle = p.id === myId ? '#ffff00' : '#ffffff';
-      const s = p.id === myId ? 4 : 3;
-      ctx.fillRect((p.x - ox) / tile * sx - s / 2, (p.y - oy) / tile * sy - s / 2, s, s);
+    const now = performance.now();
+    for (const [id, k] of [['minimap', 1], ...(mmBig ? [['mmBigCnv', 2.2]] : [])]) {
+      const cnv = $(id); if (!cnv) continue;
+      const dpr = Math.min(2, window.devicePixelRatio || 1), cw = Math.round(cnv.clientWidth * dpr), ch = Math.round(cnv.clientHeight * dpr);
+      if (cnv.width !== cw || cnv.height !== ch) { cnv.width = cw; cnv.height = ch; }
+      const ctx = cnv.getContext('2d');
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(minimapBase, 0, 0, cw, ch);
+      const sx = cw / map.w, sy = ch / map.h;
+      mmMarks(ctx, mmFog(ctx, state, map, tile, sx, sy), myId, tile, map, sx, sy, k * dpr, now);
     }
   }
+  // Большая карта по нажатию: вся зона, легенда, закрытие тапом
+  $('mmWrap').onclick = () => {
+    mmBig = true;
+    const box = document.createElement('div'); box.className = 'mm-big';
+    box.innerHTML = `<canvas id="mmBigCnv"></canvas><div class="mm-legend">
+      <span><i class="lg-me"></i>Вы</span><span><i class="lg-pl"></i>Игроки</span><span><i class="lg-mob"></i>Монстры</span>
+      <span><i class="lg-boss"></i>Боссы</span><span><i class="lg-portal"></i>Порталы</span><span><i class="lg-place"></i>Здания</span></div>`;
+    Town.open('🗺️ ' + ((mmZone && mmZone.name) || 'Карта'), box);
+    const cnv = box.querySelector('canvas'), z = mmZone || { w: 1, h: 1 };
+    const side = Math.min(box.clientWidth || 340, innerHeight * 0.62);
+    cnv.style.width = side + 'px'; cnv.style.height = side * z.h / z.w + 'px';
+    const stop = setInterval(() => { if ($('sheet').classList.contains('hidden') || !document.body.contains(cnv)) { mmBig = false; clearInterval(stop); } }, 300);
+  };
 
   const vibrate = (kind) => {
     if (!Settings.get('vibro')) return;
