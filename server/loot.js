@@ -16,6 +16,8 @@ function setSources(sid) {
 
 // Шансы за одно убийство. rank: normal / magic / rare / mini / boss / world
 const RANK_K = { normal: 1, summon: 0.3, magic: 2, rare: 4 };
+// Материалы старших миров падают реже — их приходится фармить: множитель шанса и количества по миру
+const TIER_DROP = { 1: 1, 2: 0.6, 3: 0.35 };
 function rollMats(m, tier, dungeon, luck = 1) {
   const mats = {}, items = [];
   const add = (id, n = 1) => { if (n > 0) mats[id] = (mats[id] || 0) + n; };
@@ -24,40 +26,42 @@ function rollMats(m, tier, dungeon, luck = 1) {
   const big = m.rank === 'mini' || m.rank === 'boss' || m.rank === 'world';
   if (!big) {
     const k = RANK_K[m.rank] || 1;
-    if (chance(0.22 * k)) add(`ore${tier}`, 1);
-    if (chance(0.08 * k)) add(`ess${tier}`, 1);
+    const td = TIER_DROP[tier] || 1;
+    if (chance(0.22 * k * td)) add(`ore${tier}`, 1);
+    if (chance(0.08 * k * td)) add(`ess${tier}`, 1);
     if (chance(0.02 * k)) add('scrollR');
     if (chance([0.003, 0.01, 0.015][tier - 1] * k)) add('scrollE');
-    if (tier === 3 && chance(0.0008 * k)) add('scrollL');
+    if (tier === 3 && chance(0.0005 * k)) add('scrollL');
     if (chance(0.03 * k)) add('potHp');
     if (dungeon && chance(0.0015 * k)) items.push(I.createSetItem(pick(dungeon.sets).slice(0, -1), tier, 'epic'));
     return { mats, items };
   }
+  const td = TIER_DROP[tier] || 1, few = (a, b) => Math.max(1, Math.round(n(a, b) * td)); // количество — меньше в старших мирах
   if (m.rank === 'mini') {
-    add(`ore${tier}`, n(2, 4)); add(`ess${tier}`, n(1, 2));
-    if (chance(0.06)) add(`core${tier}`);
+    add(`ore${tier}`, few(2, 4)); add(`ess${tier}`, few(1, 2));
+    if (chance(0.06 * td)) add(`core${tier}`);
     if (chance(0.25)) add('scrollR');
     if (chance(0.12)) add('scrollE');
-    if (tier >= 2 && chance(tier === 3 ? 0.04 : 0.02)) add('scrollL');
+    if (tier >= 2 && chance(tier === 3 ? 0.025 : 0.012)) add('scrollL');
     if (dungeon && chance(0.05)) add(`bp_${pick(dungeon.sets)}`);
     if (dungeon && chance(0.02)) items.push(I.createSetItem(pick(dungeon.sets).slice(0, -1), tier, 'epic'));
     add('potHp', n(0, 1));
   } else if (m.rank === 'boss') {
-    add(`ore${tier}`, n(5, 8)); add(`ess${tier}`, n(3, 5));
-    if (chance(0.35)) add(`core${tier}`);
+    add(`ore${tier}`, few(5, 8)); add(`ess${tier}`, few(3, 5));
+    if (chance(0.35 * td)) add(`core${tier}`);
     if (chance(0.5)) add('scrollR');
     if (chance(0.3)) add('scrollE');
-    if (tier >= 2 && chance(tier === 3 ? 0.12 : 0.08)) add('scrollL');
-    if (tier === 3 && chance(0.02)) add('scrollM');
+    if (tier >= 2 && chance(tier === 3 ? 0.08 : 0.05)) add('scrollL');
+    if (tier === 3 && chance(0.01)) add('scrollM');
     if (dungeon && chance(0.15)) add(`bp_${pick(dungeon.sets)}`);
     if (dungeon && chance(0.06)) items.push(I.createSetItem(pick(dungeon.sets).slice(0, -1), tier, Math.random() < 0.15 ? 'legendary' : 'epic'));
     add('potHp2', 1);
   } else {
     // Мировой босс — награда каждому участнику (вызывается по вкладу)
-    add(`ore${tier}`, n(10, 15)); add(`ess${tier}`, n(6, 10)); add(`core${tier}`, n(1, 3));
+    add(`ore${tier}`, few(10, 15)); add(`ess${tier}`, few(6, 10)); add(`core${tier}`, few(1, 3));
     add('scrollE', 1);
-    if (chance(0.3)) add('scrollL');
-    if (chance(tier === 3 ? 0.08 : 0.03)) add('scrollM');
+    if (chance(0.2)) add('scrollL');
+    if (chance(tier === 3 ? 0.05 : 0.02)) add('scrollM');
     const sids = Object.keys(I.SETS).filter((s) => I.SETS[s].tier === tier);
     if (chance(0.25)) add(`bp_${pick(sids)}`);
   }

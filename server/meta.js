@@ -129,7 +129,9 @@ module.exports = function createMeta(deps) {
     } else if (kind === 'runes') {
       for (const rar of ['common', 'common', 'common', 'rare', 'rare', 'rare', 'epic']) list.push({ oid: list.length, item: I.createItem('rune', rar, tier), price: price(rar) });
     } else if (kind === 'smith') {
-      matOffer(`ore${tier}`); matOffer(`ess${tier}`); matOffer('scrollR'); matOffer('scrollE');
+      // Руду и эссенцию продают только в Эльдмире: материалы Морграта и Аэлиона — только фармом
+      if (tier === 1) { matOffer('ore1'); matOffer('ess1'); }
+      matOffer('scrollR'); matOffer('scrollE');
     } else {
       for (const m of ['potHp', 'potHp2', 'potRes', 'elxAtk', 'elxDef', 'elxAgi', 'elxMind', 'elxXp', 'elxLuck', 'tpScroll']) matOffer(m);
     }
@@ -217,7 +219,7 @@ module.exports = function createMeta(deps) {
         const mats = Object.entries(r.mats).map(([k, n]) => ({ ...I.matView(k, n), need: n, have: (pr.mats || {})[k] || 0 }));
         const ok = (!r.needItem || items.length > 0) && mats.every((m) => m.have >= m.need) && pr.gold >= r.gold;
         return { id: r.id, kind: r.kind, slot: r.slot, slotName: I.SLOT_NAMES[r.slot], name: r.name, rar: r.rar, rarName: I.ITEM_RARITIES[r.rar].name, color: I.ITEM_RARITIES[r.rar].color,
-          needItem: r.needItem && { ...r.needItem, rarName: I.ITEM_RARITIES[r.needItem.rar].name, color: I.ITEM_RARITIES[r.needItem.rar].color }, items, mats, gold: r.gold, ok };
+          chance: r.chance, needItem: r.needItem && { ...r.needItem, rarName: I.ITEM_RARITIES[r.needItem.rar].name, color: I.ITEM_RARITIES[r.needItem.rar].color }, items, mats, gold: r.gold, ok };
       }) };
     },
     craft(p, d, pr) {
@@ -234,6 +236,8 @@ module.exports = function createMeta(deps) {
       if (!Object.entries(r.mats).every(([k, n]) => ((pr.mats || {})[k] || 0) >= n)) return { error: 'Не хватает материалов' };
       I.takeMats(pr, r.mats);
       pr.gold -= r.gold;
+      // Ковка может не удаться: материалы и золото сгорают, сама вещь остаётся как была
+      if (Math.random() >= r.chance) return { failed: true, toast: `💥 Ковка не удалась (шанс был ${Math.round(r.chance * 100)}%) — материалы и золото сгорели` };
       let res;
       if (it) { it.rar = r.rar; it.attrs = I.rollAttrs(r.rar, it.tier); res = it; } // тот же предмет — следующей редкости
       else { const out = put(pr, I.createSetItem(I.classOf(p.heroId), r.tier, r.rar, r.slot)); if (out.error) return { error: out.error }; res = out.item; }

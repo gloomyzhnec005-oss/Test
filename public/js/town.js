@@ -501,7 +501,8 @@ window.Town = (() => {
     need.push(slot(`<button class="it" style="--rc:#d4a63c"><span><img class="it-art" src="assets/ui/ic_coin.webp" alt=""></span></button>`, r.gold >= rec.gold, `Золото <b>${rec.gold.toLocaleString('ru-RU')}</b>`));
     const res = item ? { ...item, rar: rec.rar, color: rec.color, dupes: 0 } : null;
     const view = el(`<div class="cr-view"><div class="cr-res"><div class="cr-cell big">${res ? Bag.cell(res) : `<button class="it" style="--rc:${rec.color}"><span>${ghost(rec.slot)}</span></button>`}</div>
-        <b style="color:${rec.color}">${rec.kind === 'relic' ? `${rec.slotName} комплекта` : res ? res.name : rec.slotName}</b><small>${rec.rarName}${rec.kind === 'relic' ? ` · класс «${r.clsName || '—'}»` : ' · атрибуты выпадут заново'}</small></div>
+        <b style="color:${rec.color}">${rec.kind === 'relic' ? `${rec.slotName} комплекта` : res ? res.name : rec.slotName}</b><small>${rec.rarName}${rec.kind === 'relic' ? ` · класс «${r.clsName || '—'}»` : ' · атрибуты выпадут заново'}</small>
+        <em class="cr-chance ${rec.chance < 0.5 ? 'low' : ''}">🎲 Шанс успеха ${Math.round(rec.chance * 100)}%</em></div>
       <div class="cr-arrow">⟵</div><div class="cr-need">${need.join('')}</div></div>
       <button class="l2-btn cr-go" ${rec.ok && r.here ? '' : 'disabled'}>⚒️ ${r.here ? (rec.ok ? 'Создать' : 'Не хватает того, что тусклое') : `Ковать можно только в ${WORLD_IN[r.tier]}`}</button>`);
     view.querySelector('.cr-slot.item') && (view.querySelector('.cr-slot.item').onclick = () => { // перебор подходящих вещей
@@ -509,6 +510,7 @@ window.Town = (() => {
     view.querySelector('.cr-go').onclick = async () => {
       const out = await Bag.act('craft', { id: rec.id, item: item && item.id });
       toast(out.error || out.toast); if (out.error) return;
+      if (out.failed) { if (window.Sfx) Sfx.play('error'); return reload(rec.id, item && item.id); }
       if (window.Sfx) Sfx.play('reward');
       Bag.card(out.result, []); reload(rec.id);
     };
@@ -517,10 +519,10 @@ window.Town = (() => {
     box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Что куётся в ${WORLD_IN[r.tier]}</div>`);
     const list = el(`<div class="cr-list">${r.list.map((x) => `<button data-r="${x.id}" class="cr-row ${x.id === rec.id ? 'on' : ''} ${x.ok ? 'can' : ''}">
         <span class="it" style="--rc:${x.color}"><span>${ghost(x.slot)}</span></span><div><b>${x.kind === 'relic' ? '🌟 ' : ''}${x.name}</b>
-        <small>${x.needItem ? `${x.needItem.rarName} → ` : ''}<i style="color:${x.color}">${x.rarName}</i>${x.ok ? ' · ✔ можно создать' : ''}</small></div></button>`).join('')}</div>`).firstElementChild;
+        <small>${x.needItem ? `${x.needItem.rarName} → ` : ''}<i style="color:${x.color}">${x.rarName}</i> · 🎲 ${Math.round(x.chance * 100)}%${x.ok ? ' · ✔ можно создать' : ''}</small></div></button>`).join('')}</div>`).firstElementChild;
     list.onclick = async (e) => { const b = e.target.closest('[data-r]'); if (!b) return; await reload(b.dataset.r); $('sheetBody').scrollTo({ top: 0, behavior: 'smooth' }); };
     box.append(list);
-    box.insertAdjacentHTML('beforeend', `<p class="sheet-hint">Руда и эссенция — с монстров этого мира, сердца — с полубоссов и боссов, свитки — в лавке кузнеца и с боссов.</p>`);
+    box.insertAdjacentHTML('beforeend', `<p class="sheet-hint">Ковка может не удаться — тогда материалы и золото сгорают, а вещь остаётся. Руда и эссенция — с монстров этого мира (в Морграте и Аэлионе падают реже и в лавке не продаются), сердца — с полубоссов и боссов, свитки — в лавке кузнеца и с боссов.</p>`);
     return box;
   }
   // Разбор: вещь → материалы её мира

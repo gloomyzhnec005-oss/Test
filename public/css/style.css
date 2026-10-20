@@ -1090,3 +1090,5 @@ canvas.skin { object-fit: contain; }
 .cr-row div { min-width: 0; } .cr-row b { display: block; font-size: 13px; font-weight: normal; } .cr-row small { font-size: 11px; color: #a8977a; } .cr-row i { font-style: normal; }
 .cr-row.on { border-color: #c9a25a; background: rgba(201,162,90,.14); }
 .cr-row.can { border-left: 3px solid #5fdc6a; }
+.cr-chance { display: block; font-style: normal; font-size: 12px; margin-top: 4px; color: #8af08f; }
+.cr-chance.low { color: #ffb05a; }
