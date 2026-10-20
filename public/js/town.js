@@ -478,6 +478,7 @@ window.Town = (() => {
 
   // ---------- Кузница: рецепты мира. Слева — что получится, справа — слоты всего нужного: есть — светится, нет — тусклый ----------
   const WORLD_NAMES = { 1: 'Эльдмир', 2: 'Морграт', 3: 'Аэлион' }, WORLD_IN = { 1: 'Эльдмире', 2: 'Морграте', 3: 'Аэлионе' };
+  let crStones = 0; // сколько камней удачи положено к ковке
   async function craftBody(tier, pickId, itemId) {
     const box = document.createElement('div');
     await Bag.refresh(); // ячейки предметов рисуются по данным сумки
@@ -499,16 +500,23 @@ window.Town = (() => {
       item ? `${item.name}${rec.items.length > 1 ? ` · ещё ${rec.items.length - 1} ⟳` : ''}` : `${rec.slotName} · ${rec.needItem.rarName.toLowerCase()}`, 'item'));
     for (const m of rec.mats) need.push(slot(Bag.cell({ ...m, n: 1 }), m.have >= m.need, `${m.name} <b>${m.have}/${m.need}</b>`));
     need.push(slot(`<button class="it" style="--rc:#d4a63c"><span><img class="it-art" src="assets/ui/ic_coin.webp" alt=""></span></button>`, r.gold >= rec.gold, `Золото <b>${rec.gold.toLocaleString('ru-RU')}</b>`));
+    crStones = Math.max(0, Math.min(crStones, r.stones, r.stone.max));
+    const chance = Math.min(r.stone.cap, rec.chance + crStones * r.stone.per);
     const res = item ? { ...item, rar: rec.rar, color: rec.color, dupes: 0 } : null;
     const view = el(`<div class="cr-view"><div class="cr-res"><div class="cr-cell big">${res ? Bag.cell(res) : `<button class="it" style="--rc:${rec.color}"><span>${ghost(rec.slot)}</span></button>`}</div>
         <b style="color:${rec.color}">${rec.kind === 'relic' ? `${rec.slotName} комплекта` : res ? res.name : rec.slotName}</b><small>${rec.rarName}${rec.kind === 'relic' ? ` · класс «${r.clsName || '—'}»` : ' · атрибуты выпадут заново'}</small>
-        <em class="cr-chance ${rec.chance < 0.5 ? 'low' : ''}">🎲 Шанс успеха ${Math.round(rec.chance * 100)}%</em></div>
+        <em class="cr-chance ${chance < 0.5 ? 'low' : ''}">🎲 Шанс успеха ${Math.round(chance * 100)}%${crStones ? ` (+${Math.round(crStones * r.stone.per * 100)}%)` : ''}</em></div>
       <div class="cr-arrow">⟵</div><div class="cr-need">${need.join('')}</div></div>
+      <div class="cr-stone ${r.stones ? '' : 'none'}"><div class="cr-cell">${Bag.cell({ ...r.stone, n: 1 })}</div>
+        <div><b>Камень удачи</b><small>${r.stones ? `+${Math.round(r.stone.per * 100)}% за камень, до ${r.stone.max} · у вас ${r.stones}` : 'Нет камней — редко падают с полубоссов и боссов'}</small></div>
+        <button type="button" data-st="-1" ${crStones ? '' : 'disabled'}>−</button><em>${crStones}</em><button type="button" data-st="1" ${crStones < Math.min(r.stones, r.stone.max) ? '' : 'disabled'}>+</button></div>
       <button class="l2-btn cr-go" ${rec.ok && r.here ? '' : 'disabled'}>⚒️ ${r.here ? (rec.ok ? 'Создать' : 'Не хватает того, что тусклое') : `Ковать можно только в ${WORLD_IN[r.tier]}`}</button>`);
     view.querySelector('.cr-slot.item') && (view.querySelector('.cr-slot.item').onclick = () => { // перебор подходящих вещей
       if (rec.items.length < 2) return; const i = rec.items.indexOf(item); reload(rec.id, rec.items[(i + 1) % rec.items.length].id); });
+    view.querySelector('.cr-stone').onclick = (e) => { const b = e.target.closest('[data-st]'); if (!b || b.disabled) return; crStones += +b.dataset.st; reload(rec.id, item && item.id); };
     view.querySelector('.cr-go').onclick = async () => {
-      const out = await Bag.act('craft', { id: rec.id, item: item && item.id });
+      const out = await Bag.act('craft', { id: rec.id, item: item && item.id, stones: crStones });
+      crStones = 0;
       toast(out.error || out.toast); if (out.error) return;
       if (out.failed) { if (window.Sfx) Sfx.play('error'); return reload(rec.id, item && item.id); }
       if (window.Sfx) Sfx.play('reward');

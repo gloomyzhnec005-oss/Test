@@ -212,7 +212,7 @@ module.exports = function createMeta(deps) {
     recipes(p, d, pr) {
       const t = [1, 2, 3].includes(+d.tier) ? +d.tier : tierOf(p), here = tierOf(p) === t, cls = I.classOf(p.heroId);
       const free = (pr.items || []).filter((it) => it.loc !== 'wh' && !equipped(pr, it.id) && it.cat !== 'rune');
-      return { tier: t, here, title: I.WORLD_CRAFT[t].title, gold: pr.gold, cls, clsName: I.CLASSES[cls] && I.CLASSES[cls].name, list: I.worldRecipes(t).map((r) => {
+      return { tier: t, here, title: I.WORLD_CRAFT[t].title, gold: pr.gold, stones: (pr.mats || {}).luckStone || 0, stone: { ...I.LUCK_STONE, ...I.matView('luckStone') }, cls, clsName: I.CLASSES[cls] && I.CLASSES[cls].name, list: I.worldRecipes(t).map((r) => {
         // Подходящие вещи: этого слота, нужной редкости и мира, не надеты; первой — самая «простая» (без усиления и рун)
         const items = r.needItem ? free.filter((it) => it.cat === r.needItem.cat && it.rar === r.needItem.rar && it.tier === r.needItem.tier)
           .sort((a, b) => (a.dupes || 0) - (b.dupes || 0) || ((a.runes || []).length - (b.runes || []).length)).map(I.itemView) : [];
@@ -234,10 +234,12 @@ module.exports = function createMeta(deps) {
       }
       if (pr.gold < r.gold) return { error: `Нужно ${r.gold} золота` };
       if (!Object.entries(r.mats).every(([k, n]) => ((pr.mats || {})[k] || 0) >= n)) return { error: 'Не хватает материалов' };
-      I.takeMats(pr, r.mats);
+      const st = Math.max(0, Math.min(I.LUCK_STONE.max, Math.floor(+d.stones || 0), (pr.mats || {}).luckStone || 0)); // камни удачи
+      const chance = Math.min(I.LUCK_STONE.cap, r.chance + st * I.LUCK_STONE.per);
+      I.takeMats(pr, st ? { ...r.mats, luckStone: st } : r.mats);
       pr.gold -= r.gold;
-      // Ковка может не удаться: материалы и золото сгорают, сама вещь остаётся как была
-      if (Math.random() >= r.chance) return { failed: true, toast: `💥 Ковка не удалась (шанс был ${Math.round(r.chance * 100)}%) — материалы и золото сгорели` };
+      // Ковка может не удаться: материалы, камни и золото сгорают, сама вещь остаётся как была
+      if (Math.random() >= chance) return { failed: true, toast: `💥 Ковка не удалась (шанс был ${Math.round(chance * 100)}%) — материалы и золото сгорели` };
       let res;
       if (it) { it.rar = r.rar; it.attrs = I.rollAttrs(r.rar, it.tier); res = it; } // тот же предмет — следующей редкости
       else { const out = put(pr, I.createSetItem(I.classOf(p.heroId), r.tier, r.rar, r.slot)); if (out.error) return { error: out.error }; res = out.item; }

@@ -14,7 +14,7 @@ module.exports = function startBot({ onPaid, isValidPayload } = {}) {
 
   bot.start((ctx) =>
     ctx.reply(
-      `Добро пожаловать в мир «Telegram Quest»!\n\n` +
+      `Добро пожаловать в мир «Mystic Horizone»!\n\n` +
       `Выбери одного из трёх героев — Воина, Мага или Лучника — ` +
       `и отправляйся охотиться на монстров вместе с другими игроками.`,
       playButton(),

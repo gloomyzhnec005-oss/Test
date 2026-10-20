@@ -223,6 +223,9 @@ for (const [id, s] of Object.entries(SETS)) {
   MATS[`bp_${id}`] = { name: `Чертёж: ${s.short}`, icon: '🗺️', color: '#ffd36a', kind: 'blueprint', set: id, tier: s.tier,
     desc: `Превращает эпический или лучший предмет мира ${TIER_TAG[s.tier]} в вещь «${s.name}» того же слота и редкости.`, price: 0, buy: 400 * TIER_MULT[s.tier] };
 }
+// Камень удачи: +10% к шансу ковки за штуку, до 3 камней на одну ковку (сгорает и при удаче, и при неудаче)
+const LUCK_STONE = { per: 0.1, max: 3, cap: 0.95 };
+MATS.luckStone = { name: 'Камень удачи', icon: '🔷', color: '#5ad8ff', kind: 'mat', desc: 'Кладётся в кузнице к рецепту: +10% к шансу успешной ковки (до 3 камней). Редко падает с полубоссов, боссов и мировых боссов.', price: 0, buy: 500 };
 // Расходники
 Object.assign(MATS, {
   potHp: { name: 'Зелье здоровья', icon: '🧪', color: '#ff6a6a', kind: 'potion', heal: 0.35, desc: 'Сразу восстанавливает 35% здоровья. Раз в 8 с.', price: 30, buy: 6 },
@@ -504,7 +507,7 @@ function worldRecipes(tier) {
 const findRecipe = (id) => { const t = +String(id).slice(1, 2); return worldRecipes(t).find((r) => r.id === id) || null; };
 
 module.exports = {
-  WORLD_CRAFT, worldRecipes, findRecipe,
+  LUCK_STONE, WORLD_CRAFT, worldRecipes, findRecipe,
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, TIER_MULT, DUPE_MAX, DUPE_STEP,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,

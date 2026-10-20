@@ -43,6 +43,7 @@ function rollMats(m, tier, dungeon, luck = 1) {
     if (chance(0.25)) add('scrollR');
     if (chance(0.12)) add('scrollE');
     if (tier >= 2 && chance(tier === 3 ? 0.025 : 0.012)) add('scrollL');
+    if (chance(0.015)) add('luckStone');
     if (dungeon && chance(0.05)) add(`bp_${pick(dungeon.sets)}`);
     if (dungeon && chance(0.02)) items.push(I.createSetItem(pick(dungeon.sets).slice(0, -1), tier, 'epic'));
     add('potHp', n(0, 1));
@@ -53,6 +54,7 @@ function rollMats(m, tier, dungeon, luck = 1) {
     if (chance(0.3)) add('scrollE');
     if (tier >= 2 && chance(tier === 3 ? 0.08 : 0.05)) add('scrollL');
     if (tier === 3 && chance(0.01)) add('scrollM');
+    if (chance(0.05)) add('luckStone');
     if (dungeon && chance(0.15)) add(`bp_${pick(dungeon.sets)}`);
     if (dungeon && chance(0.06)) items.push(I.createSetItem(pick(dungeon.sets).slice(0, -1), tier, Math.random() < 0.15 ? 'legendary' : 'epic'));
     add('potHp2', 1);
@@ -63,6 +65,7 @@ function rollMats(m, tier, dungeon, luck = 1) {
     if (chance(0.2)) add('scrollL');
     if (chance(tier === 3 ? 0.05 : 0.02)) add('scrollM');
     const sids = Object.keys(I.SETS).filter((s) => I.SETS[s].tier === tier);
+    if (chance(0.12)) add('luckStone');
     if (chance(0.25)) add(`bp_${pick(sids)}`);
   }
   return { mats, items };

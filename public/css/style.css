@@ -1092,3 +1092,16 @@ canvas.skin { object-fit: contain; }
 .cr-row.can { border-left: 3px solid #5fdc6a; }
 .cr-chance { display: block; font-style: normal; font-size: 12px; margin-top: 4px; color: #8af08f; }
 .cr-chance.low { color: #ffb05a; }
+.cr-stone { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 8px; border-radius: 10px; background: rgba(90,216,255,.08); border: 1px solid #2f6a80; }
+.cr-stone .cr-cell { flex: none; width: 40px; }
+.cr-stone > div:nth-child(2) { flex: 1; min-width: 0; } .cr-stone b { display: block; font-size: 13px; color: #9fe6ff; font-weight: normal; } .cr-stone small { font-size: 11px; color: #a8c4cc; }
+.cr-stone button { flex: none; width: 32px; height: 32px; border-radius: 8px; border: 1px solid #5ad8ff; background: #10303a; color: #dff6ff; font-size: 18px; }
+.cr-stone button:disabled { opacity: .35; } .cr-stone em { font-style: normal; width: 16px; text-align: center; color: #fff; }
+.cr-stone.none { opacity: .6; } .cr-stone.none button { display: none; }
+/* Текстовый логотип (пока нет нарисованного): золото с тиснением */
+.text-logo { display: flex; flex-direction: column; align-items: center; line-height: .95; text-align: center; font-family: Georgia, 'Times New Roman', serif; }
+.text-logo b { font-size: clamp(26px, 9vw, 38px); letter-spacing: 3px; text-transform: uppercase; font-weight: bold;
+  background: linear-gradient(180deg, #fff6c8 0%, #f0c860 38%, #a8701e 62%, #f6d27a 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: 1px #3a2408; filter: drop-shadow(0 2px 0 #1a1006) drop-shadow(0 0 10px rgba(140,90,255,.55)); }
+.text-logo b + b { font-size: clamp(22px, 7.6vw, 32px); }
+.text-logo i { margin-top: 6px; font: italic 12px Georgia, serif; letter-spacing: 4px; color: #c9b0ff; text-shadow: 0 0 8px rgba(140,90,255,.8); }
