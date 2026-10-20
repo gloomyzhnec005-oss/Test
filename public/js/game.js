@@ -832,7 +832,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     else if (f.t === 'death' && f.by === me) { Sfx.play('kill'); Sfx.play('coin'); }
     else if (f.t === 'levelup' && f.id === me) Sfx.play('levelup');
     else if (f.t === 'loot' && f.to === me) Sfx.play('loot');
-    else if (f.t === 'skill' && f.from === me && !f.quiet) Sfx.play(/lightning|thunder|spark|zap|bolt/i.test(f.s) && !/element/i.test(f.s) ? 'zap' : /flame|fire|blaze|lava|erupt|inciner|flashover|dragonBreath|bomb|ember|igni/i.test(f.s) ? 'fire' : /ice|frost|freez|cryo|glacier/i.test(f.s) ? 'ice' : /burst|quake|eruption|storm|flashover|incinerate|wrath|blast|explo/i.test(f.s) ? 'boom' : 'skill', { pitch: 0.8 + ((f.s.length * 7) % 10) / 20 });
+    else if (f.t === 'skill' && f.from === me && !f.quiet) Sfx.play(/lightning|thunder|spark|zap|bolt/i.test(f.s) && !/element/i.test(f.s) ? 'zap' : /flame|fire|blaze|lava|erupt|inciner|flashover|dragonBreath|bomb|ember|igni/i.test(f.s) ? 'fire' : /ice|frost|freez|cryo|glacier/i.test(f.s) ? 'ice' : /shield|barrier|armor|vowOfProtection/i.test(f.s) ? 'shield' : /burst|quake|eruption|storm|flashover|incinerate|wrath|blast|explo/i.test(f.s) ? 'boom' : 'skill', { pitch: 0.8 + ((f.s.length * 7) % 10) / 20 });
     else if (f.t === 'heal' && f.target === me) Sfx.play('heal');
     else if (f.t === 'pdeath' && f.target === me) Sfx.play('death');
   }
