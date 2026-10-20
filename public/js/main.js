@@ -11,6 +11,14 @@
 
   const $ = (id) => document.getElementById(id);
   document.body.classList.toggle('no-hints', !Settings.get('hints'));
+  // Размер и прозрачность кнопок управления, джойстик справа для левши
+  const applyCtrl = () => {
+    const r = document.documentElement.style;
+    r.setProperty('--cs', Settings.get('ctrlSize') / 100); r.setProperty('--co', Settings.get('ctrlOpacity') / 100);
+    document.body.classList.toggle('lefty', !!Settings.get('leftHand'));
+  };
+  applyCtrl();
+  Settings.on((k) => { if (/^ctrl|^leftHand$/.test(k)) applyCtrl(); });
 
   // ---------- Защита от приближения страницы (iOS Safari игнорирует user-scalable=no) ----------
   const block = (e) => e.preventDefault();
@@ -88,7 +96,7 @@
   function chatLine(msg, full) {
     const div = document.createElement('div');
     const st = !msg.sys && /^\[st:(\w+)\]$/.exec(msg.text || '');
-    div.className = msg.sys ? 'sys' : 'talk';
+    div.className = msg.sys ? 'sys' : 'talk notr'; // текст игроков не переводится
     if (full) { div.dataset.ch = msg.sys ? 'sys' : 'talk'; if (msg.sid && socket && msg.sid === socket.id) div.classList.add('mine'); }
     if (full) { const t = document.createElement('small'); t.textContent = hhmm(msg.t); div.append(t); }
     if (msg.sys) { div.append(msg.text); return div; }
@@ -455,9 +463,9 @@
         const row = (name, desc, ctl) => { const r = document.createElement('div'); r.className = 'set-row'; r.innerHTML = `<div><b>${name}</b>${desc ? `<small>${desc}</small>` : ''}</div>`; r.append(ctl); box.append(r); return r; };
         const toggle = (val, fn) => { const b = document.createElement('button'); b.className = 'set-tg' + (val ? ' on' : ''); b.innerHTML = '<i></i>'; b.onclick = () => { const v = !b.classList.contains('on'); b.classList.toggle('on', v); fn(v); if (window.Sfx) Sfx.play('click'); }; return b; };
         const opt = (key) => toggle(Settings.get(key), (v) => Settings.set(key, v));
-        const slider = (key) => {
+        const slider = (key, min = 0, max = 100) => {
           const w = document.createElement('label'); w.className = 'set-sl';
-          w.innerHTML = `<input type="range" min="0" max="100" step="5" value="${Settings.get(key)}"><span>${Settings.get(key)}%</span>`;
+          w.innerHTML = `<input type="range" min="${min}" max="${max}" step="5" value="${Settings.get(key)}"><span>${Settings.get(key)}%</span>`;
           const inp = w.querySelector('input'), out = w.querySelector('span');
           inp.oninput = () => { out.textContent = inp.value + '%'; Settings.set(key, +inp.value); };
           inp.onchange = () => { if (key === 'sfxVol' && window.Sfx) Sfx.play('coin'); };
@@ -469,6 +477,15 @@
         row('Эффекты', 'Удары, умения, добыча', slider('sfxVol'));
         row('Музыка', 'Фоновая мелодия города и данжей', slider('musicVol'));
         row('Вибрация', tg && tg.HapticFeedback ? 'Отдача при ударах и наградах' : 'Работает в Telegram и на Android', opt('vibro'));
+        sec('🎮 Управление');
+        row('Размер кнопок', 'Джойстик, атака, умения и зелье', slider('ctrlSize', 80, 130));
+        row('Прозрачность кнопок', 'Меньше — лучше видно карту', slider('ctrlOpacity', 40, 100));
+        row('Джойстик справа', 'Для левой руки: атака и умения слева', opt('leftHand'));
+        sec('🌐 Язык');
+        const lg = document.createElement('div'); lg.className = 'set-langs notr';
+        lg.innerHTML = Object.entries(I18N.LANGS).map(([k, n]) => `<button type="button" data-lang="${k}" class="${k === I18N.lang ? 'on' : ''}">${n}</button>`).join('');
+        lg.onclick = (e) => { const b = e.target.closest('[data-lang]'); if (b && b.dataset.lang !== I18N.lang) I18N.set(b.dataset.lang); };
+        box.append(lg);
         sec('🖥️ Экран');
         row('Цифры урона', 'Всплывающий урон над целями', opt('dmgNums'));
         row('Имена над героями', 'Имена игроков и монстров на карте', opt('names'));

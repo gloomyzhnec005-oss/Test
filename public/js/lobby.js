@@ -762,6 +762,9 @@ window.Lobby = (() => {
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) cycle(dx < 0 ? 1 : -1);
     }, { passive: true });
     $('menuAdmin').onclick = () => { location.href = '/admin.html'; };
+    // Язык игры: перезагрузка с переводом
+    $('menuLang').innerHTML = Object.entries(I18N.LANGS).map(([k, n]) => `<option value="${k}"${k === I18N.lang ? ' selected' : ''}>🌐 ${n}</option>`).join('');
+    $('menuLang').onchange = () => I18N.set($('menuLang').value);
     $('sheetClose').onclick = closeSheet;
     $('sheet').onclick = (e) => { if (e.target === $('sheet')) closeSheet(); };
     $('playBtn').onclick = () => (order[0] ? opts.onStart(order[0], playerName()) : openGacha());

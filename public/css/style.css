@@ -994,3 +994,26 @@ canvas.skin { object-fit: contain; }
 .set-sl span { width: 38px; text-align: right; color: #ffe7a8; font-size: 13px; }
 .set-row .l2-btn.small { flex: none; padding: 6px 12px; font-size: 13px; }
 .no-hints .sheet-hint { display: none !important; }
+
+/* Управление: размер (--cs) и прозрачность (--co) из настроек, режим для левши (джойстик справа) */
+:root { --cs: 1; --co: 1; }
+.joystick, .attack, .skills, #potBtn { opacity: var(--co); }
+.joystick { transform: scale(var(--cs)); transform-origin: left bottom; }
+.attack { transform: scale(var(--cs)); transform-origin: right bottom; }
+.attack:active, .attack.pressed { transform: scale(calc(var(--cs) * .93)); }
+.skills { transform: scale(var(--cs)); transform-origin: 100% calc(0px - var(--nav) - env(safe-area-inset-bottom)); }
+#potBtn { transform: scale(var(--cs)); transform-origin: right bottom; }
+.lefty .joystick { left: auto; right: 52px; transform-origin: right bottom; }
+.lefty .attack { right: auto; left: 24px; transform-origin: left bottom; }
+.lefty .skills { right: auto; left: 0; transform-origin: 0 calc(0px - var(--nav) - env(safe-area-inset-bottom)); }
+.lefty .skill.s0 { right: auto; left: 122px; }
+.lefty .skills.n3 .skill.s1 { right: auto; left: 104px; }
+.lefty .skills.n3 .skill.s2 { right: auto; left: 34px; }
+.lefty .skills.n2 .skill.s1 { right: auto; left: 64px; }
+.lefty #potBtn { right: auto; left: 38px; transform-origin: left bottom; }
+.lefty .chat-log { left: auto; right: 8px; align-items: flex-end; }
+.set-langs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.set-langs button { padding: 9px 6px; border-radius: 10px; border: 1px solid #5a4830; background: rgba(255,255,255,.05); color: #e8dcc0; font-family: inherit; font-size: 14px; }
+.set-langs button.on { background: linear-gradient(180deg, #6a4c22, #3a2812); color: #ffe7a8; border-color: #c9a25a; }
+.lang-sel { appearance: none; -webkit-appearance: none; text-align: center; text-align-last: center; }
+.lang-sel option { background: #1a1610; color: #f3e6c6; }
