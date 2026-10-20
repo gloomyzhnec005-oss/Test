@@ -223,6 +223,25 @@ window.Bag = (() => {
     return box;
   }
 
+  // Умения героя: пассивка и три активных — что делают, перезарядка, стоимость, когда откроются
+  function skillsTab() {
+    const box = document.createElement('div');
+    const h = inv.hero, H = Town.heroes()[h.id], U = Town.skillUnlock() || [];
+    const res = H.resource ? H.resource.name : 'Энергия';
+    const sec = (ms) => (ms / 1000).toFixed(ms % 1000 ? 1 : 0).replace('.', ',') + ' с';
+    const card = (icon, name, tag, meta, desc, locked) => `<div class="sk-card${locked ? ' lock' : ''}">
+        <span class="sk-big">${icon}</span><div><b>${name}</b><em>${tag}</em>${meta ? `<small>${meta}</small>` : ''}<p>${desc}</p></div></div>`;
+    box.innerHTML = `<div class="sk-hero"><b>${H.name}</b> · ${H.title}<p>${H.desc || ''}</p></div>`
+      + (H.passive ? card(SkillArt.icon(h.id, 'p', H.passive.icon), H.passive.name, '✨ Пассивное — действует всегда', '', H.passive.desc, false) : '')
+      + H.skills.map((sk, i) => {
+        const open = i < h.unlocked, u = U[i] || {};
+        const meta = [`⏱ Перезарядка ${sec(sk.cooldown)}`, sk.cost ? `💧 ${sk.cost} ${res}` : '', sk.castTime ? `⏳ Подготовка ${sec(sk.castTime)}` : ''].filter(Boolean).map((x) => `<span class="nw">${x}</span>`).join(' · ');
+        const tag = open ? `Умение ${i + 1} · открыто` : `🔒 Откроется: ${u.lvl} уровень или ${u.dup} дубл. (сейчас ${h.level} ур., ${h.dupes} дубл.)`;
+        return card(SkillArt.icon(h.id, i, sk.icon), sk.name, tag, meta, sk.desc, !open);
+      }).join('');
+    return box;
+  }
+
   // ---------- Инвентарь: сетка ячеек, вкладки по типам, золото и вместимость внизу ----------
   const INV_TABS = [
     ['all', 'Все', () => true], ['wpn', '⚔️ Оружие', (c) => c === 'weapon'], ['arm', '🛡️ Броня', (c) => ['helm', 'armor', 'gloves', 'boots'].includes(c)],
@@ -293,9 +312,9 @@ window.Bag = (() => {
     await refresh();
     if (!inv) return;
     const hero = tab === 'hero' || tab === 'equip';
-    const tabsList = hero ? [['Снаряжение', heroTab], ['Характеристики', statsTab]] : [['Предметы', bagTab], ['Соединение 5 → 1', mergeTab]];
+    const tabsList = hero ? [['Снаряжение', heroTab], ['Умения', skillsTab], ['Характеристики', statsTab]] : [['Предметы', bagTab], ['Соединение 5 → 1', mergeTab]];
     const show = (i) => { Town.open(hero ? '🧙 Персонаж' : '🎒 Инвентарь', Town.tabs(tabsList, i), 'tall dark'); rerender = () => show(Town.lastTab()); };
-    show(tab === 'merge' ? 1 : 0);
+    show(tab === 'merge' || tab === 'skills' ? 1 : 0);
   }
 
   // Выбор предмета из сумки (для рынка, аукциона, рун)
