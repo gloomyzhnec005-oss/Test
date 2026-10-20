@@ -1035,12 +1035,11 @@ canvas.skin { object-fit: contain; }
 .sk-card p { margin: 5px 0 0; color: #e8dcc0; font-size: 13px; line-height: 1.35; }
 .sk-card .nw { white-space: nowrap; }
 
-/* Навигационная карта: нарисованная рамка (assets/ui/minimap_frame.webp), карта — в её окне, название зоны — на табличке внизу */
-.mm-wrap { position: relative; flex: none; width: 112px; height: 112px; cursor: pointer; margin: -8px -6px -6px 0; }
-#minimap { position: absolute; left: 12.8%; top: 15%; width: 74.2% !important; height: 70.1% !important; border: none !important; border-radius: 2px !important; background: #0a0806; box-shadow: inset 0 0 8px rgba(0,0,0,.8); }
+/* Навигационная карта: нарисованная тонкая рамка (assets/ui/minimap_frame.webp, tools/minimap_frame_thin.py), карта — в её окне */
+.mm-wrap { position: relative; flex: none; width: 100px; height: 100px; cursor: pointer; margin: -6px -4px -4px 0; }
+#minimap { position: absolute; left: 7.1%; top: 8.3%; width: 85.8% !important; height: 83.5% !important; border: none !important; border-radius: 2px !important; background: #0a0806; box-shadow: inset 0 0 8px rgba(0,0,0,.8); }
 .mm-frame { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; filter: drop-shadow(0 3px 6px rgba(0,0,0,.7)); }
-.mm-name { position: absolute; left: 50%; top: 86.6%; transform: translate(-50%, -50%); max-width: 33%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font: 7px/9px Georgia, serif; color: #ffe7a8; text-shadow: 0 1px 1px #000; z-index: 2; pointer-events: none; }
+.mm-name { display: none; } /* табличка слишком мала для подписи: название зоны — на большой карте */
 .mm-big { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .mm-big canvas { border-radius: 10px; border: 3px solid #b8904a; box-shadow: 0 0 0 1px #1a1006, 0 6px 18px rgba(0,0,0,.7); background: #0a0806; max-width: 100%; }
 .mm-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; font-size: 13px; color: #e8dcc0; }
@@ -1050,5 +1049,6 @@ canvas.skin { object-fit: contain; }
 .lg-pl { background: #fff; } .lg-mob { background: #ff5040; width: 8px !important; height: 8px !important; }
 .lg-boss { background: #ff3a2a; border: 2px solid #ffd36a !important; } .lg-portal { background: #b77dff; box-shadow: 0 0 6px #b77dff; }
 .lg-place { background: #ffd36a; border-radius: 1px !important; transform: rotate(45deg); width: 9px !important; height: 9px !important; }
-#chatBtn { top: calc(110px + env(safe-area-inset-top)); }
-.target, .wave-badge { right: 122px; }
+#chatBtn { top: calc(102px + env(safe-area-inset-top)); }
+.target, .wave-badge { right: 110px; }
+.wave-badge { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
