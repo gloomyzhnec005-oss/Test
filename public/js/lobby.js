@@ -516,43 +516,64 @@ window.Lobby = (() => {
 
   // ---------- Раскрытие печати ----------
   // Печать загорается редкостями по очереди — от обычной до выпавшей, затем трескается и показывает силуэт героя
+  // Раскрытие «Карта Таро»: карта рубашкой вверх падает и парит, искры и рубашка проходят редкости от низшей до выпавшей,
+  // затем карта переворачивается — лицевая рамка своей редкости (assets/gacha/front_<редкость>.webp) с портретом героя
+  const FRONT_WIN = { common: [8.6, 9, 91.4, 82.6], rare: [9.7, 8.1, 90.3, 82.3], epic: [10.6, 8.9, 89.7, 82], legendary: [10.6, 11.2, 89.7, 81.4], mythic: [11.4, 11.6, 88.6, 80.6] };
   function summon(id, dupe, onEnd) {
     const h = heroes[id], rk = h.rarity, steps = RANK().slice(0, rankOf(rk) + 1);
+    const sk = window.Skins && Skins.get(id), win = FRONT_WIN[rk] || FRONT_WIN.common;
     const box = document.createElement('div');
-    box.className = 'sm-overlay';
-    box.innerHTML = `<div class="sm-rays"></div><div class="sm-seal"><i></i><i></i><i></i><span>◈</span></div>
-      <div class="sm-art"></div><div class="sm-text"></div><div class="sm-name"></div><div class="sm-skip">нажмите, чтобы пропустить</div>`;
+    box.className = 'sm-overlay tarot';
+    box.innerHTML = `<div class="sm-rays"></div>
+      <div class="tc-wrap"><div class="tc-card">
+        <div class="tc-back"></div>
+        <div class="tc-front" style="--wl:${win[0]}%;--wt:${win[1]}%;--wr:${100 - win[2]}%;--wb:${100 - win[3]}%">
+          <div class="tc-port"></div><img class="tc-frame" src="assets/gacha/front_${rk}.webp" alt=""><div class="tc-name"></div>
+        </div></div></div>
+      <div class="sm-text"></div><div class="sm-name"></div><div class="sm-skip">нажмите, чтобы пропустить</div>`;
     $('reveal').parentElement.appendChild(box);
-    const art = box.querySelector('.sm-art');
-    art.appendChild(heroCanvas(id, true));
+    const port = box.querySelector('.tc-port');
+    if (sk && sk.portrait) port.innerHTML = `<img src="${sk.portrait}" alt="">`; else port.appendChild(heroCanvas(id, true));
+    box.querySelector('.tc-name').textContent = h.name;
+    const back = box.querySelector('.tc-back');
+    const setBack = (k) => { back.style.backgroundImage = backArt[k] || `url("assets/gacha/back_${k}.webp")`; };
     const text = box.querySelector('.sm-text');
     const timers = [];
     const at = (ms, fn) => timers.push(setTimeout(fn, ms));
-    let t = 200;
+    let t = 700; // карта падает
+    setBack(steps[0]);
     steps.forEach((k, i) => {
       at(t, () => {
         const r = rarities[k];
         box.style.setProperty('--c', r.color);
         box.dataset.rk = k;
+        setBack(k);
         box.classList.remove('pulse'); void box.offsetWidth; box.classList.add('pulse');
         text.innerHTML = `<b>${r.name}${'!'.repeat(Math.max(0, gRank(k) - 1))}</b><small>${STARS(k)}</small>`;
         haptic('impactOccurred', gRank(k) >= 3 ? 'heavy' : gRank(k) >= 2 ? 'medium' : 'light');
       });
       t += i === steps.length - 2 ? 1100 : 750;          // перед последней ступенью — пауза подольше
     });
-    const top = steps.length === RANK().length;
+    const top = steps.length === RANK().length, high = gRank(rk) >= 3;
     at(t, () => {
-      box.classList.add('burst');
+      box.classList.add('flip');
+      if (window.Sfx) Sfx.play(high ? 'reward' : 'open');
       if (top) { box.classList.add('shake'); haptic('notificationOccurred', 'success'); }
-      burst(box, rarities[rk].color, [10, 16, 26, 40, 64][gRank(rk)] || 20);
     });
-    at(t + 500, () => { box.classList.add('shown'); box.querySelector('.sm-name').innerHTML = `${dupe ? `<small>Дубликат ★${dupe}</small>` : '<small>Новый герой</small>'}<b>${h.name}</b><em>«${h.title}»</em>`; });
-    at(t + 1500, () => box.classList.add('lit'));
+    at(t + 450, () => { box.classList.add('burst'); burst(box, rarities[rk].color, [10, 16, 26, 40, 64][gRank(rk)] || 20); });
+    at(t + 800, () => { box.classList.add('shown'); text.innerHTML = ''; box.querySelector('.sm-name').innerHTML = `${dupe ? `<small>Дубликат ★${dupe}</small>` : '<small>Новый герой</small>'}<b>${h.name}</b><em>«${h.title}» · ${rarities[rk].name}</em>`; });
+    at(t + 1800, () => box.classList.add('lit'));
     const end = () => { timers.forEach(clearTimeout); box.remove(); if (onEnd) onEnd(); else showHeroInfo(id, true, dupe); };
-    at(t + 3200, end);
-    box.onclick = () => (box.classList.contains('lit') ? end() : (timers.forEach(clearTimeout), timers.length = 0,
-      box.style.setProperty('--c', rarities[rk].color), box.classList.add('burst', 'shown', 'lit'),
-      box.querySelector('.sm-name').innerHTML = `<b>${h.name}</b><em>«${h.title}»</em>`, text.innerHTML = `<b>${rarities[rk].name}</b>`, at(900, end)));
+    at(t + 3600, end);
+    box.onclick = () => {
+      if (box.classList.contains('lit')) return end();
+      timers.forEach(clearTimeout); timers.length = 0;
+      box.style.setProperty('--c', rarities[rk].color); box.dataset.rk = rk;
+      box.classList.add('flip', 'burst', 'shown', 'lit');
+      text.innerHTML = '';
+      box.querySelector('.sm-name').innerHTML = `<b>${h.name}</b><em>«${h.title}» · ${rarities[rk].name}</em>`;
+      at(1200, end);
+    };
     spinning = false;
   }
   function burst(box, color, n) {
@@ -784,6 +805,7 @@ window.Lobby = (() => {
   }
 
   return {
+    previewSummon: (id, dupe) => summon(id, dupe, () => {}), // для проверки раскрытия
     init,
     setStatus: (t) => { $('status').textContent = t; },
     setBusy: (b) => { $('playBtn').disabled = b; },

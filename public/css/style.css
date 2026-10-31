@@ -1107,3 +1107,30 @@ canvas.skin { object-fit: contain; }
 .text-logo i { margin-top: 6px; font: italic 12px Georgia, serif; letter-spacing: 4px; color: #c9b0ff; text-shadow: 0 0 8px rgba(140,90,255,.8); }
 .reel { -webkit-backface-visibility: hidden; backface-visibility: hidden; transform: translateZ(0); }
 .reel-card.back.has-art::after { display: none; } /* блик-прямоугольник был нужен только картам без картинки */
+
+/* Раскрытие «Карта Таро» */
+.tarot .tc-wrap { position: relative; z-index: 2; width: min(62vw, 250px); aspect-ratio: 360 / 640; perspective: 1200px; animation: tcDrop .7s cubic-bezier(.2,.9,.3,1.2) both; }
+.tarot .tc-card { position: absolute; inset: 0; transform-style: preserve-3d; -webkit-transform-style: preserve-3d; transition: transform .9s cubic-bezier(.45,.05,.3,1); animation: tcFloat 2.4s ease-in-out .7s infinite; }
+.tarot.flip .tc-card { transform: rotateY(180deg); animation: none; }
+.tarot .tc-back, .tarot .tc-front { position: absolute; inset: 0; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+.tarot .tc-back { background: center / contain no-repeat; filter: drop-shadow(0 0 14px var(--c)) drop-shadow(0 10px 18px rgba(0,0,0,.7)); transition: filter .3s; }
+.tarot.pulse .tc-back { animation: tcPulse .5s ease-out; }
+.tarot .tc-front { transform: rotateY(180deg); filter: drop-shadow(0 0 18px var(--c)) drop-shadow(0 10px 18px rgba(0,0,0,.7)); }
+.tarot .tc-port { position: absolute; left: var(--wl); top: var(--wt); right: var(--wr); bottom: var(--wb); overflow: hidden; border-radius: 10% / 6%;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--c) 45%, #1a1410), #0b0807 80%); }
+.tarot .tc-port img, .tarot .tc-port canvas { width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; }
+.tarot .tc-frame { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.tarot .tc-name { position: absolute; left: 18%; right: 18%; top: 83.5%; height: 7%; display: flex; align-items: center; justify-content: center;
+  font: bold clamp(12px, 4.2vw, 17px) Georgia, serif; color: #2a1806; text-shadow: 0 1px 0 rgba(255,240,200,.6); white-space: nowrap; overflow: hidden; }
+.tarot .sm-text { margin-top: 18px; }
+.tarot .sm-name { margin-top: 10px; }
+.tarot.lit .tc-front { animation: tcGlow 1.6s ease-in-out infinite; }
+.tarot[data-rk="legendary"].lit .tc-front, .tarot[data-rk="mythic"].lit .tc-front { animation-duration: .9s; }
+@keyframes tcDrop { from { opacity: 0; transform: translateY(-60vh) rotate(-12deg) scale(.7); } to { opacity: 1; transform: none; } }
+@keyframes tcFloat { 50% { transform: translateY(-10px) rotateY(8deg); } }
+@keyframes tcPulse { 40% { filter: drop-shadow(0 0 34px var(--c)) brightness(1.5); transform: scale(1.04); } }
+@keyframes tcGlow { 50% { filter: drop-shadow(0 0 30px var(--c)) drop-shadow(0 10px 18px rgba(0,0,0,.7)) brightness(1.08); } }
+.tarot .tc-wrap { margin-top: -40px; }
+.tarot .sm-text, .tarot .sm-name { position: static; margin-top: 14px; }
+.tarot.shown .sm-text { display: none; }
+.tarot .sm-name b { font-size: 22px; }
