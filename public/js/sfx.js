@@ -120,7 +120,7 @@ window.Sfx = (() => {
   }
   // Записанная музыка: assets/music/<тема>.mp3 — играет по кругу через шину музыки (ползунок «Музыка»), с плавной сменой.
   // Тема без файла — тишина.
-  const TRACKS = { worldboss: 'assets/music/worldboss.mp3?v=1', eldmir: 'assets/music/eldmir.mp3?v=1', aelion: 'assets/music/aelion.mp3?v=1', lobby: 'assets/music/lobby.mp3?v=1' };
+  const TRACKS = { worldboss: 'assets/music/worldboss.mp3?v=1', eldmir: 'assets/music/eldmir.mp3?v=1', aelion: 'assets/music/aelion.mp3?v=1', morgrath: 'assets/music/morgrath.mp3?v=1', lobby: 'assets/music/lobby.mp3?v=1' };
   const trackEl = {};
   function trackNode(theme) {
     if (!trackEl[theme]) {
