@@ -37,15 +37,18 @@ window.Sfx = (() => {
     playbackSession();
     if (c.state !== 'running') c.resume().catch(() => {});
     loadFiles();
+    if (musicNode && musicNode.el && musicNode.el.paused && on && !document.hidden) musicNode.el.play().then(() => musicNode && musicNode.g.gain.setTargetAtTime(0.35, ac.currentTime, 1.2)).catch(() => {}); // музыку не пустили без касания — запускаем сейчас
     // Короткий пустой буфер: Safari считает звук «включённым пользователем»
     try { const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0); } catch (e) { /* ничего */ }
   };
   ['pointerdown', 'touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach((e) => document.addEventListener(e, unlock, { passive: true, capture: true }));
   // После сворачивания вкладки iPhone «прерывает» звук — возобновляем при возврате
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { if (keep) keep.pause(); return; }
+    const el = musicNode && musicNode.el;
+    if (document.hidden) { if (keep) keep.pause(); if (el) el.pause(); return; }
     if (ac && ac.state !== 'running') ac.resume().catch(() => {});
     if (keep && on) keep.play().catch(() => {});
+    if (el && on) el.play().catch(() => {});
   });
 
   // Тон с огибающей: тип волны, частота от→до, длительность, громкость
@@ -117,11 +120,36 @@ window.Sfx = (() => {
   }
   // Тихий фоновый эмбиент: аккорд из трёх тонов с медленной «волной»
   const CHORDS = { green: [196, 247, 294], abyss: [110, 131, 165], sky: [262, 330, 392], dungeon: [98, 117, 147] };
+  // Записанная музыка: assets/music/<тема>.mp3 — играет по кругу через шину музыки (ползунок «Музыка»), с плавной сменой.
+  // Тема без файла — тихий синтезированный аккорд.
+  const TRACKS = { worldboss: 'assets/music/worldboss.mp3?v=1' };
+  const trackEl = {};
+  function trackNode(theme) {
+    if (!trackEl[theme]) {
+      const a = new Audio(TRACKS[theme]); a.loop = true; a.preload = 'auto'; a.setAttribute('playsinline', ''); a.crossOrigin = 'anonymous';
+      const g = ac.createGain(); g.gain.value = 0.0001; ac.createMediaElementSource(a).connect(g); g.connect(musBus);
+      trackEl[theme] = { a, g };
+    }
+    return trackEl[theme];
+  }
+  function stopMusic() {
+    if (!musicNode) return;
+    const n = musicNode; musicNode = null;
+    n.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.6);
+    setTimeout(() => { if (n.oscs) n.oscs.forEach((o) => o.stop()); if (n.el && musicNode !== n) n.el.pause(); }, 2500);
+  }
   function music(theme) {
     if (musicTheme === theme) return;
     musicTheme = theme;
-    if (musicNode) { const n = musicNode; n.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.6); setTimeout(() => n.oscs.forEach((o) => o.stop()), 2500); musicNode = null; }
+    if (ac) stopMusic();
     if (!on || !theme || !ctx()) return;
+    if (TRACKS[theme]) {
+      const t = trackNode(theme);
+      t.g.gain.cancelScheduledValues(ac.currentTime); t.g.gain.setValueAtTime(0.0001, ac.currentTime);
+      t.a.play().then(() => t.g.gain.setTargetAtTime(0.35, ac.currentTime, 1.2)).catch(() => {});
+      musicNode = { g: t.g, el: t.a };
+      return;
+    }
     const g = ac.createGain(); g.gain.value = 0.0001; g.connect(musBus);
     const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 0.08; lg.gain.value = 0.012; lfo.connect(lg); lg.connect(g.gain); lfo.start();
     const oscs = [lfo, ...(CHORDS[theme] || CHORDS.green).map((f, i) => { const o = ac.createOscillator(); o.type = i ? 'sine' : 'triangle'; o.frequency.value = f; o.detune.value = (i - 1) * 4; o.connect(g); o.start(); return o; })];

@@ -611,7 +611,7 @@
       const ui = {
         onWorld: (s, myId) => drawMinimap(s, myId, w.tile, zone),
         onZone: (z) => {
-          if (window.Sfx) { if (zone && zone.id !== z.id) Sfx.play('portal'); Sfx.music(z.kind === 'town' ? z.theme : 'dungeon'); }
+          if (window.Sfx) { if (zone && zone.id !== z.id) Sfx.play('portal'); Sfx.music(z.kind === 'town' ? z.theme : z.kind === 'worldboss' ? 'worldboss' : 'dungeon'); }
           zone = z;
           buildMinimap(z);
           Town.setContext({ zone: z });
