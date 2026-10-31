@@ -369,6 +369,22 @@ window.Town = (() => {
     }, 1000);
   }
 
+  // ---------- Рейтинг арены (только просмотр; бои — в доме арены) ----------
+  async function rankPanel() {
+    const [{ arena: a }, info] = await Promise.all([Bag.act('arena'), new Promise((res) => ctx.socket.emit('arena', { op: 'info' }, res))]);
+    if (!a) return toast('Рейтинг недоступен');
+    const T = info && info.tour;
+    const rows = (list, val) => list.length ? `<div class="tour-top">${list.map((t, i) => `<div class="top-row"><span>${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><b>${t.name}</b><small>${t.hero}</small><em>${val(t)}</em></div>`).join('')}</div>`
+      : '<p class="sheet-hint">Пока никто не сражался — станьте первым!</p>';
+    const rating = () => el(`<p class="sheet-hint">Ваш рейтинг: <b>${a.rating}</b> · победы ${a.wins} · поражения ${a.losses}. Сражаться — в доме арены в городе.</p>${rows(a.top, (t) => t.rating)}`);
+    const tour = () => {
+      if (!T) return el('<p class="sheet-hint">Турнир недели скоро начнётся</p>');
+      const left = Math.max(0, T.ends - Date.now()), dd = Math.floor(left / 864e5), hh = Math.floor((left % 864e5) / 36e5);
+      return el(`<p class="sheet-hint">🏆 До итогов ${dd ? dd + ' д ' : ''}${hh} ч · ваши очки: <b>${T.my}</b>${T.place ? ` · место ${T.place}` : ''}<br>${T.prizes.map((p) => `${p.title} ${p.gems} 💎 + ${p.gold} 💰`).join(' · ')}</p>${rows(T.top, (t) => t.pts)}`);
+    };
+    open('🏆 Рейтинг арены', tabs([['Рейтинг', rating], ['Турнир недели', tour]]));
+  }
+
   // ---------- PvP-арена ----------
   async function arenaPanel() {
     const { arena: a } = await Bag.act('arena');
@@ -562,6 +578,7 @@ window.Town = (() => {
     gacha: gachaPanel,
     teleport: teleportPanel,
     arena: arenaPanel,
+    arenaRank: rankPanel,
     survival: survivalPanel,
     pass: passPanel,
     store: storePanel,
@@ -570,7 +587,7 @@ window.Town = (() => {
   return {
     setContext: (c) => { ctx = { ...ctx, ...c }; },
     placeImg,
-    openPlace: (id, arg) => PANELS[id] && PANELS[id](arg),
+    openPlace: (id, arg) => { if (!PANELS[id]) return; Promise.resolve().then(() => PANELS[id](arg)).catch((e) => { console.error(id, e); toast('Не удалось открыть — попробуйте ещё раз'); }); },
     open, close, tabs, toast,
     lastTab: () => lastTabIdx,
     heroes: () => ctx.heroes,

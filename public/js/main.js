@@ -594,13 +594,11 @@
         gacha: () => Town.openPlace('gacha'),
         store: () => Town.openPlace('store'),
         play: () => menuSheet('⚔️ Игра', [
-          ['arena', 'Арена', 'PvP со снимками героев других игроков · рейтинг и награды', () => Town.openPlace('arena')],
+          ['arena', 'Рейтинг арены', 'Лучшие игроки и турнир недели · сражаться — в доме арены', () => Town.openPlace('arenaRank')],
           ['pass', 'Боевой пропуск', 'Задания сезона и награды за уровни', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
-          ...(['dungeon', 'worldboss', 'pvp'].includes(zone.kind) && !zone.inst ? [['teleport', 'Телепорт в город', 'Вернуться в город без портала (не в бою)', () => { Town.close(); socket.emit('recall'); }]] : []),
           ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
-          ['survival', 'Данжи и порталы', zone.kind === 'town' ? 'Порталы данжей, выживание и телепорт стоят в городе — подойдите к ним' : 'Вы за порталом: победите босса или вернитесь в город', () => Town.close()],
         ]),
         settings: () => openSettings(),
       };
@@ -609,7 +607,7 @@
       Town.setContext({ onQuests: questBadge });
       socket.on('chat', (m) => { if (m.sys && /^📜 Задание выполнено/.test(m.text)) { const b = document.querySelector('[data-nav="quests"]'); questBadge((+b.dataset.badge || 0) + 1); if (window.Sfx) Sfx.play('quest'); } });
       Bag.act('quests').then((r) => r.quests && questBadge(['daily', 'weekly', 'monthly'].reduce((s, k) => s + r.quests[k].list.filter((q) => q.prog >= q.goal && !q.claimed).length, 0)));
-      $('navBar').onclick = (e) => { const b = e.target.closest('button[data-nav]'); if (b) { vibrate('light'); if (window.Sfx) Sfx.play('click'); NAV[b.dataset.nav](); } };
+      $('navBar').onclick = (e) => { const b = e.target.closest('button[data-nav]'); if (b) { vibrate('light'); if (window.Sfx) Sfx.play('click'); if (b.dataset.exit) { socket.emit('recall'); return; } NAV[b.dataset.nav](); } };
       const ui = {
         onWorld: (s, myId) => drawMinimap(s, myId, w.tile, zone),
         onZone: (z) => {
@@ -618,6 +616,12 @@
           buildMinimap(z);
           Town.setContext({ zone: z });
           Town.close();
+          // Вне города центральная кнопка меню — портал в город (выход из данжа, логова босса, общей арены)
+          const out = ['dungeon', 'worldboss', 'pvp'].includes(z.kind) && !z.inst;
+          const pb = document.querySelector('[data-nav="play"]');
+          pb.dataset.exit = out ? '1' : '';
+          pb.querySelector('img').src = out ? 'assets/ui/place_teleport.webp' : 'assets/ui/nav_play.webp';
+          pb.querySelector('em').textContent = out ? 'В город' : 'Игра';
           if (z.kind !== 'survival' && z.kind !== 'dungeon') $('waveBadge').classList.add('hidden');
           const b = $('zoneBanner');
           b.querySelector('b').textContent = z.name;
