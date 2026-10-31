@@ -611,7 +611,8 @@
       const ui = {
         onWorld: (s, myId) => drawMinimap(s, myId, w.tile, zone),
         onZone: (z) => {
-          if (window.Sfx) { if (zone && zone.id !== z.id) Sfx.play('portal'); Sfx.music(z.kind === 'town' ? z.theme : z.kind === 'worldboss' ? 'worldboss' : 'dungeon'); }
+          // Музыка: логово мирового босса, Эльдмир с его данжами — свои треки, остальное — по теме
+          if (window.Sfx) { if (zone && zone.id !== z.id) Sfx.play('portal'); Sfx.music(z.kind === 'worldboss' ? 'worldboss' : (z.id === 'town1' || (z.kind === 'dungeon' && z.town === 'town1')) ? 'eldmir' : z.kind === 'town' ? z.theme : 'dungeon'); }
           zone = z;
           buildMinimap(z);
           Town.setContext({ zone: z });

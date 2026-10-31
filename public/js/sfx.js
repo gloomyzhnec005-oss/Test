@@ -122,7 +122,7 @@ window.Sfx = (() => {
   const CHORDS = { green: [196, 247, 294], abyss: [110, 131, 165], sky: [262, 330, 392], dungeon: [98, 117, 147] };
   // Записанная музыка: assets/music/<тема>.mp3 — играет по кругу через шину музыки (ползунок «Музыка»), с плавной сменой.
   // Тема без файла — тихий синтезированный аккорд.
-  const TRACKS = { worldboss: 'assets/music/worldboss.mp3?v=1' };
+  const TRACKS = { worldboss: 'assets/music/worldboss.mp3?v=1', eldmir: 'assets/music/eldmir.mp3?v=1' };
   const trackEl = {};
   function trackNode(theme) {
     if (!trackEl[theme]) {
