@@ -1,5 +1,5 @@
 // Звуки игры, синтезированные в браузере (Web Audio) — без звуковых файлов.
-// Sfx.play(имя, {pitch}) · Sfx.toggle() — вкл/выкл (запоминается) · Sfx.music(theme) — тихий эмбиент города/данжа.
+// Sfx.play(имя, {pitch}) · Sfx.toggle() — вкл/выкл (запоминается) · Sfx.music(theme) — музыка из assets/music (лобби, города, логово босса), в остальных местах тишина.
 window.Sfx = (() => {
   let ac = null, master = null, musBus = null, on = true, musicNode = null, musicTheme = null;
   const vol = (k, d) => (window.Settings ? Settings.get(k) : d) / 100;
@@ -118,11 +118,9 @@ window.Sfx = (() => {
     last[name] = now;
     try { if (buf[name]) playFile(name, o.pitch || 1); else SOUNDS[name](o.pitch || 1); } catch (e) { /* звук не обязателен */ }
   }
-  // Тихий фоновый эмбиент: аккорд из трёх тонов с медленной «волной»
-  const CHORDS = { green: [196, 247, 294], abyss: [110, 131, 165], sky: [262, 330, 392], dungeon: [98, 117, 147] };
   // Записанная музыка: assets/music/<тема>.mp3 — играет по кругу через шину музыки (ползунок «Музыка»), с плавной сменой.
-  // Тема без файла — тихий синтезированный аккорд.
-  const TRACKS = { worldboss: 'assets/music/worldboss.mp3?v=1', eldmir: 'assets/music/eldmir.mp3?v=1', aelion: 'assets/music/aelion.mp3?v=1' };
+  // Тема без файла — тишина.
+  const TRACKS = { worldboss: 'assets/music/worldboss.mp3?v=1', eldmir: 'assets/music/eldmir.mp3?v=1', aelion: 'assets/music/aelion.mp3?v=1', lobby: 'assets/music/lobby.mp3?v=1' };
   const trackEl = {};
   function trackNode(theme) {
     if (!trackEl[theme]) {
@@ -150,11 +148,7 @@ window.Sfx = (() => {
       musicNode = { g: t.g, el: t.a };
       return;
     }
-    const g = ac.createGain(); g.gain.value = 0.0001; g.connect(musBus);
-    const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 0.08; lg.gain.value = 0.012; lfo.connect(lg); lg.connect(g.gain); lfo.start();
-    const oscs = [lfo, ...(CHORDS[theme] || CHORDS.green).map((f, i) => { const o = ac.createOscillator(); o.type = i ? 'sine' : 'triangle'; o.frequency.value = f; o.detune.value = (i - 1) * 4; o.connect(g); o.start(); return o; })];
-    g.gain.setTargetAtTime(0.025, ac.currentTime, 2);
-    musicNode = { g, oscs };
+    // Темы без файла — тишина (синтезированный гул убран)
   }
   function toggle() {
     on = !on;

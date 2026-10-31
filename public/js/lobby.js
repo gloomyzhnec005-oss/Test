@@ -740,6 +740,7 @@ window.Lobby = (() => {
 
   // ---------- Инициализация ----------
   async function init(o) {
+    if (window.Sfx) Sfx.music('lobby'); // музыка лобби (заиграет после первого касания, если браузер не даёт раньше)
     opts = o;
     if (!opts.tgUser) $('lpRename').classList.remove('hidden');
     paintBg();
