@@ -617,7 +617,7 @@ canvas.skin { object-fit: contain; }
 @keyframes sealGlow { 50% { text-shadow: 0 0 18px var(--rarity), 0 0 30px var(--rarity); transform: scale(1.12); } }
 @keyframes shine { from { transform: translateX(-60%); } to { transform: translateX(60%); } }
 .reel-card.back.has-art { width: 68px; height: 112px; border: none; border-radius: 0; justify-content: flex-end; padding-bottom: 7px;
-  background: var(--art) center / contain no-repeat; -webkit-mask: var(--art) center / contain no-repeat; mask: var(--art) center / contain no-repeat; }
+  background: var(--art) center / contain no-repeat; } /* без mask: в Safari маска на движущемся барабане прячет карты */
 .reel-card.back.has-art .rc-seal { display: none; }
 .reel-card.back.has-art b { color: #fff6d8; text-shadow: 0 0 4px #000, 0 0 6px var(--rarity); margin: 0; }
 .reel-card.back.has-art small { display: none; }
@@ -1105,3 +1105,5 @@ canvas.skin { object-fit: contain; }
   -webkit-text-stroke: 1px #3a2408; filter: drop-shadow(0 2px 0 #1a1006) drop-shadow(0 0 10px rgba(140,90,255,.55)); }
 .text-logo b + b { font-size: clamp(22px, 7.6vw, 32px); }
 .text-logo i { margin-top: 6px; font: italic 12px Georgia, serif; letter-spacing: 4px; color: #c9b0ff; text-shadow: 0 0 8px rgba(140,90,255,.8); }
+.reel { -webkit-backface-visibility: hidden; backface-visibility: hidden; transform: translateZ(0); }
+.reel-card.back.has-art::after { display: none; } /* блик-прямоугольник был нужен только картам без картинки */
