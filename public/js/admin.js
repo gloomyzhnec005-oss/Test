@@ -75,6 +75,28 @@
     if (t === 'overview') timer = setInterval(drawOverview, 4000);
   }
 
+  // ---------- Сохранения ----------
+  function storageCard(s) {
+    if (!s) return '';
+    const warn = !s.persistent
+      ? '<p style="color:var(--red)"><b>⚠️ Нет постоянного диска: сохранения игроков сотрутся при следующем деплое!</b><br>Railway → сервис → Settings → Volumes → подключить Volume с путём <code>/app/data</code>.</p>'
+      : '';
+    const last = s.lastBackup ? new Date(s.lastBackup).toLocaleString('ru-RU') : 'ещё не было';
+    return `<div class="card"><h3>💾 Сохранения</h3>${warn}
+      <div class="row"><span class="grow"><small class="muted">Папка: ${esc(s.dir)}${s.persistent ? ' · постоянный диск ✅' : ''}<br>
+        Игроки: ${fmtNum(s.sizeKb)} КБ · бэкапов: ${s.backups} из ${s.keep} (раз в ${s.everyMin} мин) · последний: ${esc(last)}</small></span>
+        <button class="btn small primary" data-backup="1">Скачать всё</button></div></div>`;
+  }
+  async function downloadBackup() {
+    const r = await api('backup');
+    if (!r.files) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(r.files)], { type: 'application/json' }));
+    a.download = `saves-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
   // ---------- Обзор ----------
   async function drawOverview() {
     const o = await api('overview');
@@ -89,6 +111,7 @@
         <div class="tile"><b>${o.memMb} МБ</b><span>память</span></div>
         <div class="tile"><b>${dur(o.uptime)}</b><span>работает</span></div>
       </div>
+      ${storageCard(o.storage)}
       ${o.settings.maintenance ? '<div class="card"><b style="color:var(--red)">🔧 Включены технические работы — игроки не могут войти</b></div>' : ''}
       <div class="card"><h3>Мировые боссы</h3>
         ${o.worldBosses.map((w) => `<div class="row"><span class="grow"><b>${esc(w.townName)}</b><br><small class="muted">${w.boss ? `👹 ${esc(w.boss.name)} · ${fmtNum(w.boss.hp)} / ${fmtNum(w.boss.maxHp)}` : `появится ${w.nextAt <= Date.now() ? 'сейчас' : 'через ' + Math.ceil((w.nextAt - Date.now()) / 60000) + ' мин'}`}</small></span>
@@ -107,6 +130,7 @@
       if (it) return openPlayer(it.dataset.uid);
       const wb = e.target.closest('[data-wb]');
       if (wb) { await api('worldBoss', { town: wb.dataset.wb, kill: !!wb.dataset.kill }); setTimeout(drawOverview, 800); }
+      if (e.target.closest('[data-backup]')) return downloadBackup();
       if (e.target.closest('[data-dgboss]')) { await api('dungeonBosses', {}); setTimeout(drawOverview, 800); }
       const cl = e.target.closest('[data-clear]');
       if (cl) { await api('clearZone', { zone: cl.dataset.clear }); drawOverview(); }

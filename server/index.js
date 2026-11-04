@@ -23,16 +23,16 @@ const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const ALLOW_GUESTS = process.env.ALLOW_GUESTS !== 'false';
 const FREE_SPINS = process.env.FREE_SPINS === 'true'; // для тестов: крутки гачи без оплаты
-const DATA_FILE = path.join(__dirname, '..', 'data', 'players.json');
+const store = require('./store');
 
-// ---------- Хранилище прогресса (JSON-файл) ----------
-let profiles = {};
-try { profiles = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch { profiles = {}; }
+// ---------- Хранилище прогресса (server/store.js: атомарная запись, бэкапы, постоянный диск Railway) ----------
+let profiles = store.readJSON('players.json', {});
 function saveProfiles() {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  try { fs.writeFileSync(DATA_FILE, JSON.stringify(profiles)); } catch (e) { console.error('save error', e.message); }
+  try { store.writeJSON('players.json', profiles); } catch (e) { console.error('save error', e.message); }
 }
 setInterval(saveProfiles, 15000);
+// Бэкап раз в час (последние 48): игроки, рынок, турнир, настройки админки
+store.startBackups(['players.json', 'market.json', 'tournament.json', 'admin.json'], saveProfiles);
 
 function getProfile(uid) {
   profiles[uid] ??= {};
@@ -79,7 +79,7 @@ app.use('/vendor/phaser.min.js', (req, res) =>
   res.sendFile(path.join(__dirname, '..', 'node_modules', 'phaser', 'dist', 'phaser.min.js'), { headers: { 'Cache-Control': ASSET_CACHE } }));
 // Админ-панель (server/admin.js): свой разбор JSON с большим лимитом, поэтому подключается раньше общего
 const admin = createAdmin({
-  C, I, MOBX, verifyInitData, dataDir: path.dirname(DATA_FILE), version: () => VERSION,
+  C, I, MOBX, verifyInitData, store, version: () => VERSION,
   get players() { return players; }, get monsters() { return monsters; }, get world() { return world; },
   get D() { return D; }, get meta() { return meta; }, get io() { return io; }, profiles: null,
   getProfile: (uid) => getProfile(uid), getChar: (uid, h) => getChar(uid, h), saveProfiles: () => saveProfiles(),
@@ -201,7 +201,7 @@ function onPaid(payload) {
   saveProfiles();
   return true;
 }
-app.get('/health', (req, res) => res.json({ ok: true, version: VERSION, players: players.size }));
+app.get('/health', (req, res) => res.json({ ok: true, version: VERSION, players: players.size, persistent: store.PERSISTENT }));
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -274,7 +274,7 @@ const Arena = require('./arena')({
   moveToZone: (...a) => moveToZone(...a), getProfile: (uid) => getProfile(uid), partyMembers: (p) => partyMembers(p),
   revive: (p) => revivePlayer(p), addPassXp: (pr, n) => meta.addPassXp(pr, n), quest: (...a) => Q.track(...a),
   statsFor: (...a) => statsFor(...a), profiles: () => profiles,
-  dataDir: path.dirname(DATA_FILE), notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => io.emit('chat', { sys: true, text: t }), save: () => saveProfiles(),
+  store, notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => io.emit('chat', { sys: true, text: t }), save: () => saveProfiles(),
 });
 // Поднять героя с полным здоровьем и ресурсом (возрождение, начало и конец боя на арене)
 function revivePlayer(p) {

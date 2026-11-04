@@ -1,25 +1,20 @@
 // Админ-панель: HTTP API для управления игрой и тестов (страница public/admin.html).
 // Вход: пароль ADMIN_PASSWORD (заголовок x-admin-key) или Telegram-аккаунт из ADMIN_TG_IDS (заголовок x-tg-init).
-// Если ADMIN_PASSWORD не задан, пароль генерируется и сохраняется в data/admin_password.txt.
-const fs = require('fs');
-const path = require('path');
+// Если ADMIN_PASSWORD не задан, пароль генерируется и сохраняется в папке данных (admin_password.txt).
 const crypto = require('crypto');
 const express = require('express');
 
 module.exports = function createAdmin(ctx) {
-  const { C, I, MOBX, dataDir, verifyInitData } = ctx;
-  const SETTINGS_FILE = path.join(dataDir, 'admin.json');
-  const PASS_FILE = path.join(dataDir, 'admin_password.txt');
+  const { C, I, MOBX, store, verifyInitData } = ctx;
   const TG_IDS = String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean);
 
   // ---------- Пароль ----------
   let password = process.env.ADMIN_PASSWORD || '';
   if (!password) {
-    try { password = fs.readFileSync(PASS_FILE, 'utf8').trim(); } catch { /* ещё нет */ }
+    password = (store.readText('admin_password.txt') || '').trim();
     if (!password) {
       password = crypto.randomBytes(9).toString('base64url');
-      fs.mkdirSync(dataDir, { recursive: true });
-      fs.writeFileSync(PASS_FILE, password + '\n');
+      store.writeText('admin_password.txt', password + '\n');
     }
     console.log(`Админ-панель: /admin.html · пароль ${password} (задайте свой в ADMIN_PASSWORD)`);
   }
@@ -27,11 +22,8 @@ module.exports = function createAdmin(ctx) {
   // ---------- Настройки игры, меняются на лету ----------
   const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '' };
   const settings = { ...DEFAULTS };
-  try { Object.assign(settings, JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'))); } catch { /* по умолчанию */ }
-  const saveSettings = () => {
-    fs.mkdirSync(dataDir, { recursive: true });
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
-  };
+  Object.assign(settings, store.readJSON('admin.json', {}));
+  const saveSettings = () => store.writeJSON('admin.json', settings);
 
   // ---------- Журнал ----------
   const journal = [];
@@ -309,6 +301,7 @@ module.exports = function createAdmin(ctx) {
       uptime: Math.round(process.uptime()), memMb: Math.round(process.memoryUsage().rss / 1048576),
       online: ctx.players.size, profiles: Object.keys(ctx.profiles).length, monsters: ctx.monsters.size,
       dungeons: [...ctx.D.halls.values()].filter((h) => h.populated).length, survivals: ctx.D.survivals.size, worldBosses: wb, settings,
+      storage: store.info(),
       zones: [...ctx.world.byId.values()].filter((z) => z.kind === 'town' || zones.has(z.id) || mz.has(z.id))
         .map((z) => ({ id: z.id, name: zoneName(z.id), kind: z.kind, players: zones.get(z.id) || 0, monsters: mz.get(z.id) || 0 })),
       sessions: [...ctx.players.values()].map((p) => ({ uid: p.uid, name: p.name, ...sessionView(p) })),
@@ -344,6 +337,12 @@ module.exports = function createAdmin(ctx) {
 
   r.post('/me', (req, res) => res.json({ ok: true, via: req.admin, version: ctx.version() }));
   r.post('/overview', act(overview));
+  // Все сохранения одним файлом — ручной бэкап (скачивается кнопкой в «Обзоре»)
+  r.post('/backup', act((d, req) => {
+    ctx.saveProfiles();
+    log('admin', `${req.admin}: скачал бэкап сохранений`);
+    return { files: Object.fromEntries(['players.json', 'market.json', 'tournament.json', 'admin.json'].map((f) => [f, store.readJSON(f, null)])) };
+  }));
   r.post('/meta', act(() => ({
     heroes: Object.entries(C.HEROES).map(([id, h]) => ({ id, name: h.name, title: h.title, rarity: h.rarity })),
     mobs: mobList(), ranks: Object.keys(MOBX.RANK),

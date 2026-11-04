@@ -1,11 +1,9 @@
 // Мета-игра: инвентарь и экипировка, соединение (merge), руны, склад, магазины, призыв предметов,
 // рынок и аукцион между игроками (с комиссией), батл-пасс, подписка, реклама, PvP-арена.
 // Все действия приходят по сокету: socket.emit('act', { op, ... }, ack)
-const fs = require('fs');
-const path = require('path');
 const I = require('./items');
+const store = require('./store');
 
-const MARKET_FILE = path.join(__dirname, '..', 'data', 'market.json');
 const DAY = 864e5;
 const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
 
@@ -95,12 +93,12 @@ function simulate(a, b) {
 module.exports = function createMeta(deps) {
   const { C, getProfile, saveProfiles, players, refreshPlayer, notifyUid, profiles } = deps;
   let market = { lots: [], auctions: [], seq: 1 };
-  try { market = { ...market, ...JSON.parse(fs.readFileSync(MARKET_FILE, 'utf8')) }; } catch { /* нет файла */ }
+  market = { ...market, ...store.readJSON('market.json', {}) };
   let saveTm = null;
   const save = () => {
     saveProfiles();
     clearTimeout(saveTm);
-    saveTm = setTimeout(() => { try { fs.mkdirSync(path.dirname(MARKET_FILE), { recursive: true }); fs.writeFileSync(MARKET_FILE, JSON.stringify(market)); } catch (e) { console.error('market save', e.message); } }, 300);
+    saveTm = setTimeout(() => { try { store.writeJSON('market.json', market); } catch (e) { console.error('market save', e.message); } }, 300);
   };
   const tierOf = (p) => p.zoneTier || 1;
   const F = (t) => I.TIER_MULT[t] || 1;

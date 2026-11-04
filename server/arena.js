@@ -23,11 +23,9 @@ const T = 32;
 
 module.exports = function createArena(d) {
   const { C, world, players, monsters } = d;
-  const fs = require('fs'), path = require('path');
-  const TOUR_FILE = path.join(d.dataDir, 'tournament.json');
   let tour = { paid: weekKey(), last: [] };
-  try { tour = { ...tour, ...JSON.parse(fs.readFileSync(TOUR_FILE, 'utf8')) }; } catch { /* первый запуск */ }
-  const saveTour = () => { try { fs.mkdirSync(d.dataDir, { recursive: true }); fs.writeFileSync(TOUR_FILE, JSON.stringify(tour)); } catch (e) { console.error('tournament save', e.message); } };
+  tour = { ...tour, ...d.store.readJSON('tournament.json', {}) };
+  const saveTour = () => { try { d.store.writeJSON('tournament.json', tour); } catch (e) { console.error('tournament save', e.message); } };
   function addPoints(pr, n) {
     const wk = weekKey();
     if (!pr.tour || pr.tour.week !== wk) pr.tour = { week: wk, pts: 0 };
