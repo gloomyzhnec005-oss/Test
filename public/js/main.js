@@ -433,9 +433,9 @@
       if (autoOn !== on) Town.toast(on ? '⚔️ Автобой включён — герой сражается сам' : 'Автобой выключен');
       autoOn = on;
       if (window.gameScene) { window.gameScene.autoFarm = on; if (!on) { window.gameScene.walkTo = null; window.gameScene.autoWalk = null; } }
-      $('autoBtn').classList.toggle('on', on);
+      document.querySelector('[data-nav="play"]').classList.toggle('auto-on', on); // светится, пока идёт автобой
     });
-    socket.on('passTier', (t) => { passTier = t; $('autoBtn').classList.toggle('locked', t < 3); });
+    socket.on('passTier', (t) => { passTier = t; });
     // Офлайн-добыча: показываем, когда мир загрузился
     socket.on('offline', (d) => {
       const show = () => {
@@ -514,13 +514,6 @@
         return r;
       };
       // pointerdown, а не click: на iPhone click не приходит, пока другой палец держит джойстик или атаку
-      // Кнопка автобоя: видна в данжах; без Золотого ордена открывает окно орденов
-      $('autoBtn').classList.toggle('locked', passTier < 3);
-      $('autoBtn').addEventListener('pointerdown', (e) => {
-        e.preventDefault(); e.stopPropagation(); vibrate('light');
-        if (passTier < 3) { Town.toast('Автобой открывается Золотым орденом'); Town.openPlace('pass'); return; }
-        socket.emit('autofarm', !autoOn);
-      });
       $('potBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); vibrate('light'); drinkPotion(false); });
       // Автозелье (Настройки → Управление): здоровья меньше порога — пьём само
       let autoPotNext = 0, noPotWarned = false;
@@ -662,6 +655,17 @@
         row('Сбросить настройки', 'Вернуть всё как было по умолчанию', btn('Сбросить', () => { Settings.reset(); if (window.Sfx && !Sfx.isOn()) Sfx.toggle(); Town.toast('Настройки сброшены'); openSettings(); }, 'ghost'));
         Town.open('⚙️ Настройки', box);
       }
+      // Автобой в меню «Игра»: включается только в данже, нужен Золотой орден
+      const autofarmRow = () => {
+        const inDg = zone && zone.kind === 'dungeon';
+        const desc = passTier < 3 ? '🔒 Открывается Золотым орденом' : !inDg ? 'Включается только в данже' : autoOn ? 'Герой сражается сам · нажмите, чтобы выключить' : 'Герой будет сам искать монстров и сражаться';
+        return ['⚔️', autoOn ? 'Автобой: включён' : 'Автобой: выключен', desc, () => {
+          if (passTier < 3) { Town.toast('Автобой открывается Золотым орденом'); Town.openPlace('pass'); return; }
+          if (!inDg) { Town.toast('Автобой включается только в данже'); return; }
+          Town.close();
+          socket.emit('autofarm', !autoOn);
+        }];
+      };
       const NAV = {
         hero: () => Bag.open('hero'),
         bag: () => Bag.open('bag'),
@@ -669,6 +673,12 @@
         gacha: () => Town.openPlace('gacha'),
         store: () => Town.openPlace('store'),
         play: () => menuSheet('⚔️ Игра', [
+          autofarmRow(),
+          ...(zone && zone.kind === 'dungeon' ? [['teleport', 'В город', 'Выйти из данжа в город', () => {
+            Town.close();
+            if (autoOn) socket.emit('autofarm', false); // иначе герой не выходит из боя, а в бою телепорт запрещён
+            socket.emit('recall');
+          }]] : []),
           ['arena', 'Рейтинг арены', 'Лучшие игроки и турнир недели · сражаться — в доме арены', () => Town.openPlace('arenaRank')],
           ['pass', 'Сезонные ордена', 'Награды сезона, бонусы и автобой', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
@@ -690,12 +700,12 @@
           const TOWN_TRACK = { town1: 'eldmir', town2: 'morgrath', town3: 'aelion' };
           if (window.Sfx) { if (zone && zone.id !== z.id) Sfx.play('portal'); Sfx.music(z.kind === 'worldboss' ? 'worldboss' : z.kind === 'town' ? TOWN_TRACK[z.id] || z.theme : 'dungeon'); }
           zone = z;
-          $('autoBtn').classList.toggle('hidden', z.kind !== 'dungeon');
           buildMinimap(z);
           Town.setContext({ zone: z });
           Town.close();
           // Вне города центральная кнопка меню — портал в город (выход из данжа, логова босса, общей арены)
-          const out = ['dungeon', 'worldboss', 'pvp'].includes(z.kind) && !z.inst;
+          // В данже кнопка открывает меню «Игра» с автобоем и выходом в город, в логове босса и на арене — сразу выход
+          const out = ['worldboss', 'pvp'].includes(z.kind) && !z.inst;
           const pb = document.querySelector('[data-nav="play"]');
           pb.dataset.exit = out ? '1' : '';
           pb.querySelector('img').src = out ? 'assets/ui/place_teleport.webp' : 'assets/ui/nav_play.webp';

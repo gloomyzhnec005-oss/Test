@@ -2348,7 +2348,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         }
       } else { this.autoWalk = null; this.walkTo = null; }
       // Умения: готовые по перезарядке и ресурсу; переключатели облика/стихии/обета не трогаем
-      if (d < range + 60 && time > (this.afSkillAt || 0)) {
+      if (d <= range + 20 && time > (this.afSkillAt || 0) && this.lineOfSight(me.x, me.y, t.c.x, t.c.y)) {
         this.afSkillAt = time + 450;
         const skills = this.heroes[me.data.hero].skills, st = this.myStats || {};
         const sk = skills.find((s, i) => i < (st.unlocked ?? 1) && !(s.cost === 0 && s.costLabel === 'бесплатно')
