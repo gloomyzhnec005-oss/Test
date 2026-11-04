@@ -205,7 +205,7 @@ module.exports = function createAdmin(ctx) {
         const t = Math.round(num(d.value, 0, 4));
         ctx.meta.passOf(pr).tier = t;
         for (const pl of online(d.uid)) pl.socket.emit('passTier', t);
-        return { text: t ? `Выдан: ${ctx.meta.SHOP.passTiers[t - 1].name}` : 'Орден снят' };
+        return { text: t ? `Выдан: ${ctx.meta.SHOP.passTiers[t - 1].name}` : 'Платный орден снят (остался бесплатный)' };
       }
       case 'passXp': ctx.meta.addPassXp(pr, Math.round(num(d.value, 0, 1e6))); return { text: 'Опыт пропуска добавлен' };
       case 'ban': {

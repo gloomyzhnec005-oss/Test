@@ -257,7 +257,7 @@
 
       <div class="card"><h3>⭐ Подписка и пропуск</h3>
         <div class="row"><label>Подписка: ${p.subUntil > Date.now() ? 'до ' + new Date(p.subUntil).toLocaleDateString('ru-RU') : 'нет'}</label><input id="subDays" type="number" value="30"><label>дн.</label><button class="btn" data-a="sub">Выдать</button><button class="btn" data-a="subOff">Снять</button></div>
-        <div class="row"><label>Орден сезона (уровень пропуска ${p.pass.level})</label><select id="passTier">${['нет', '🥉 Бронзовый', '🥈 Серебряный', '🥇 Золотой (автобой)', '👑 Чемпиона'].map((n, i) => `<option value="${i}" ${p.pass.tier === i ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn" data-a="passTier">Выдать</button></div>
+        <div class="row"><label>Орден сезона (уровень пропуска ${p.pass.level})</label><select id="passTier">${['🎖️ Странника (бесплатный)', '🥉 Бронзовый', '🥈 Серебряный', '🥇 Золотой (автобой)', '👑 Чемпиона'].map((n, i) => `<option value="${i}" ${p.pass.tier === i ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn" data-a="passTier">Выдать</button></div>
         <div class="row"><label>Опыт пропуска</label><input id="passXp" type="number" value="100"><button class="btn" data-a="passXp">Добавить</button></div>
       </div>
 

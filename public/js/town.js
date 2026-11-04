@@ -305,10 +305,15 @@ window.Town = (() => {
     const box = el(`<div class="pass-head"><b>Сезон · уровень ${ps.level} / ${ps.rewards.length}</b>
       <div class="tw-prog"><i style="width:${(ps.xp % ps.xpPerLevel) / ps.xpPerLevel * 100}%"></i><em>${ps.xp % ps.xpPerLevel} / ${ps.xpPerLevel} XP пропуска</em></div>
       <small>Опыт пропуска: монстры, боссы, волны выживания, арена, призывы · сезон закончится через ${fmtLeft(ps.ends - Date.now())}</small>
-      ${cur ? `<small class="ok">${cur.icon} ${cur.name} активен</small>` : '<small>Ордена открывают премиум-награды и бонусы на весь сезон. Каждый следующий включает всё из предыдущих.</small>'}</div>
-      <div class="orders">${ps.tiers.map((t) => `<div class="order o-${t.id} ${t.owned ? 'own' : ''}">
+      <small class="ok">${cur ? `${cur.icon} ${cur.name} активен` : `${ps.freeOrder.icon} ${ps.freeOrder.name} активен`}</small>
+      ${cur ? '' : '<small>Платные ордена открывают премиум-награды и бонусы на весь сезон. Каждый следующий включает всё из предыдущих.</small>'}</div>
+      <div class="orders"><div class="order o-free own">
+        <div class="order-h"><span class="order-ic">${ps.freeOrder.icon}</span><b>${ps.freeOrder.name}</b></div>
+        <ul>${ps.freeOrder.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
+        <span class="order-ok">✓ Бесплатно для всех игроков</span>
+      </div>${ps.tiers.map((t) => `<div class="order o-${t.id} ${t.owned ? 'own' : ''}">
         <div class="order-h"><span class="order-ic">${t.icon}</span><b>${t.name}</b></div>
-        <ul>${t.tier > 1 ? `<li class="inc">Всё из «${ps.tiers[t.tier - 2].name}»</li>` : ''}${t.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
+        <ul><li class="inc">Всё из «${t.tier > 1 ? ps.tiers[t.tier - 2].name : ps.freeOrder.name}»</li>${t.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
         ${t.owned ? '<span class="order-ok">✓ Открыт</span>' : `<button class="l2-btn" data-order="${t.tier}">${ps.tier ? 'Улучшить' : 'Открыть'} · ${t.cost} ⭐</button>`}
       </div>`).join('')}</div>`);
     const list = document.createElement('div');

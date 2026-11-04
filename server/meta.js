@@ -18,6 +18,8 @@ const SHOP = {
   gems: { gems1: { gems: 330, amount: 50 }, gems2: { gems: 1090, amount: 150 }, gems3: { gems: 2240, amount: 300 }, gems4: { gems: 6480, amount: 800 } }, // пачки самоцветов за Stars
   pass: { levels: 30, xpPerLevel: 100, days: 30 },
   // Сезонные ордена (Telegram Stars): каждый следующий включает все бонусы предыдущих, доплата — только разница в цене
+  // Бесплатный орден — у всех игроков автоматически
+  passFree: { tier: 0, id: 'free', icon: '🎖️', name: 'Орден Странника', price: 0, perks: ['Бесплатные награды всех 30 уровней сезона', '+5% опыта и золота'] },
   passTiers: [
     { tier: 1, id: 'bronze', icon: '🥉', name: 'Бронзовый орден', price: 149, perks: ['Премиум-награды всех 30 уровней сезона'] },
     { tier: 2, id: 'silver', icon: '🥈', name: 'Серебряный орден', price: 299, perks: ['Опыт пропуска +50%', '+1 бесплатный призыв снаряжения в день'] },
@@ -25,7 +27,7 @@ const SHOP = {
     { tier: 4, id: 'champion', icon: '👑', name: 'Орден Чемпиона', price: 1199, perks: ['Премиум-награды ×2', '+20% опыта и золота'] },
   ],
   autofarmTier: 3, // с какого ордена доступен автобой
-  passXpGold: { 3: 0.1, 4: 0.2 }, // бонус к опыту и золоту в бою по ордену
+  passXpGold: { 0: 0.05, 1: 0.05, 2: 0.05, 3: 0.1, 4: 0.2 }, // бонус к опыту и золоту в бою по ордену (не складывается — берётся свой)
   sub: { price: 250, days: 30, xpBonus: 0.25, goldBonus: 0.25 },
   ads: { perDay: 5, cooldownMs: 30000 },
   arena: { perDay: 5, perDaySub: 8 },
@@ -539,7 +541,7 @@ module.exports = function createMeta(deps) {
       const paid = ps.tier ? SHOP.passTiers[ps.tier - 1].price : 0;
       return { pass: { ...ps, premium: ps.tier >= 1, level: Math.floor(ps.xp / SHOP.pass.xpPerLevel), xpPerLevel: SHOP.pass.xpPerLevel,
         ends: (passSeason() + 1) * SHOP.pass.days * DAY, rewards: PASS_REWARDS,
-        tiers: SHOP.passTiers.map((t) => ({ ...t, cost: Math.max(0, t.price - paid), owned: ps.tier >= t.tier })) } };
+        freeOrder: SHOP.passFree, tiers: SHOP.passTiers.map((t) => ({ ...t, cost: Math.max(0, t.price - paid), owned: ps.tier >= t.tier })) } };
     },
     passClaim(p, d, pr) {
       const ps = passOf(pr), lvl = +d.lvl, track = d.track === 'prem' ? 'prem' : 'free';

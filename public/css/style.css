@@ -1168,6 +1168,7 @@ canvas.skin { object-fit: contain; }
 /* ---------- Сезонные ордена ---------- */
 .orders { display: grid; gap: 8px; margin-bottom: 10px; }
 .order { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--oc, #8a6d3b); background: linear-gradient(135deg, var(--og, rgba(120,80,40,.35)), rgba(10,8,6,.7)); }
+.order.o-free { --oc: #7a9a6a; --og: rgba(70,110,60,.3); }
 .order.o-bronze { --oc: #b07a4a; --og: rgba(150,90,45,.35); }
 .order.o-silver { --oc: #b8c0cc; --og: rgba(150,160,180,.28); }
 .order.o-gold { --oc: #e8c060; --og: rgba(200,150,40,.35); }
