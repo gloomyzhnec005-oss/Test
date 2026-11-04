@@ -301,15 +301,21 @@ window.Town = (() => {
   const rwText = (r) => (r.gold ? `💰 ${r.gold}` : r.gems ? `💎 ${r.gems}` : r.heroSpins ? `🔮 печать призыва ×${r.heroSpins}` : r.itemSpins ? `🎁 печать снаряжения ×${r.itemSpins}` : r.item ? `🎁 ${{ rare: 'редкий', epic: 'эпический', legendary: 'легендарный', mythic: 'мифический' }[r.item]} предмет` : '');
   async function passPanel() {
     const { pass: ps } = await Bag.act('pass');
+    const cur = ps.tiers.find((t) => t.tier === ps.tier);
     const box = el(`<div class="pass-head"><b>Сезон · уровень ${ps.level} / ${ps.rewards.length}</b>
       <div class="tw-prog"><i style="width:${(ps.xp % ps.xpPerLevel) / ps.xpPerLevel * 100}%"></i><em>${ps.xp % ps.xpPerLevel} / ${ps.xpPerLevel} XP пропуска</em></div>
       <small>Опыт пропуска: монстры, боссы, волны выживания, арена, призывы · сезон закончится через ${fmtLeft(ps.ends - Date.now())}</small>
-      ${ps.premium ? '<small class="ok">⭐ Премиум активен</small>' : `<button class="l2-btn" id="buyPass">⭐ Премиум-пропуск · ${ps.price} Stars</button>`}</div>`);
+      ${cur ? `<small class="ok">${cur.icon} ${cur.name} активен</small>` : '<small>Ордена открывают премиум-награды и бонусы на весь сезон. Каждый следующий включает всё из предыдущих.</small>'}</div>
+      <div class="orders">${ps.tiers.map((t) => `<div class="order o-${t.id} ${t.owned ? 'own' : ''}">
+        <div class="order-h"><span class="order-ic">${t.icon}</span><b>${t.name}</b></div>
+        <ul>${t.tier > 1 ? `<li class="inc">Всё из «${ps.tiers[t.tier - 2].name}»</li>` : ''}${t.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
+        ${t.owned ? '<span class="order-ok">✓ Открыт</span>' : `<button class="l2-btn" data-order="${t.tier}">${ps.tier ? 'Улучшить' : 'Открыть'} · ${t.cost} ⭐</button>`}
+      </div>`).join('')}</div>`);
     const list = document.createElement('div');
     for (const r of ps.rewards) {
       const reached = ps.level >= r.lvl;
       const cellBtn = (track, rw) => {
-        const got = ps[track].includes(r.lvl), lockedPrem = track === 'prem' && !ps.premium;
+        const got = ps[track].includes(r.lvl), lockedPrem = track === 'prem' && ps.tier < 1;
         return `<button class="pass-rw ${track} ${got ? 'got' : ''}" data-l="${r.lvl}" data-t="${track}" ${!reached || got || lockedPrem ? 'disabled' : ''}>${got ? '✓ ' : lockedPrem ? '🔒 ' : ''}${rwText(rw)}</button>`;
       };
       list.insertAdjacentHTML('beforeend', `<div class="pass-row ${reached ? 'on' : ''}"><span>${r.lvl}</span>${cellBtn('free', r.free)}${cellBtn('prem', r.prem)}</div>`);
@@ -320,10 +326,9 @@ window.Town = (() => {
       const res = await Bag.act('passClaim', { lvl: +b.dataset.l, track: b.dataset.t });
       toast(res.error || res.toast); passPanel();
     };
-    box.append(el('<div class="pass-cols"><span></span><b>Бесплатно</b><b>⭐ Премиум</b></div>'), list);
-    const bp = box.querySelector('#buyPass');
-    if (bp) bp.onclick = () => buyStars('pass', passPanel);
-    open('🎟️ Батл-пасс', box);
+    box.append(el(`<div class="pass-cols"><span></span><b>Бесплатно</b><b>🏅 Орден${ps.tier >= 4 ? ' ×2' : ''}</b></div>`), list);
+    box.querySelectorAll('[data-order]').forEach((b) => { b.onclick = () => buyStars('pass' + b.dataset.order, passPanel); });
+    open('🎟️ Сезонные ордена', box);
   }
 
   // ---------- Магазин: подписка, крутки, реклама ----------
@@ -341,13 +346,16 @@ window.Town = (() => {
         <div class="btn-row"><button class="l2-btn" data-buy="spin">+1 · 25 ⭐</button><button class="l2-btn" data-buy="spin10">+10 · 225 ⭐</button></div></div>
       <div class="tw-banner items has-art"><img class="tw-art" src="assets/ui/shop/gems3.webp" alt=""><b>🎁 Печати снаряжения</b><small>Гарантированный легендарный предмет каждые 50 круток</small>
         <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · ${s.itemSpin.price} ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · ${s.itemSpin.price10} ⭐</button></div></div>
-      <div class="tw-banner pass has-art"><img class="tw-art" src="assets/ui/shop/pass.webp" alt=""><b>🎟️ Премиум батл-пасс</b><small>Мифический предмет на 30 уровне, легендарные на 20 и 25</small>
-        <button class="l2-btn" data-buy="pass" ${s.premium ? 'disabled' : ''}>${s.premium ? 'Уже куплен' : `${s.passPrice} ⭐`}</button></div>
+      <div class="tw-banner pass has-art"><img class="tw-art" src="assets/ui/shop/pass.webp" alt=""><b>🎟️ Сезонные ордена</b>
+        <small>${s.passTiers.map((t) => `${t.icon} ${t.name} · ${t.price} ⭐`).join('<br>')}<br>Мифический предмет на 30 уровне · автобой с Золотого ордена</small>
+        ${s.passTier ? `<small class="ok">${s.passTiers[s.passTier - 1].icon} ${s.passTiers[s.passTier - 1].name} активен</small>` : ''}
+        <button class="l2-btn" id="openOrders">${s.passTier >= 4 ? 'Награды сезона' : s.passTier ? 'Улучшить орден' : 'Выбрать орден'}</button></div>
       ${(s.chests || []).map((c) => `<div class="tw-banner items ${SHOP_ART[c.id] ? 'has-art' : ''}">${SHOP_ART[c.id] ? `<img class="tw-art" src="assets/ui/shop/${SHOP_ART[c.id]}.webp" alt="">` : ''}<b>${{ kitSmith: '🧰', chestSet: '🎁', chestSet5: '🎁', chestLegend: '👑' }[c.id] || '🎁'} ${c.title}</b><small>${c.desc} · открывается в сумке, награда — мира, где вы его открыли</small>
         <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}
       <div class="tw-banner ad has-art"><img class="tw-art" src="assets/ui/shop/gold2.webp" alt=""><b>📺 Награда за рекламу</b><small>Осталось сегодня: ${s.adsLeft} · золото, каждая 5-я — крутка предмета</small>
         <button class="l2-btn" id="watchAd" ${s.adsLeft > 0 ? '' : 'disabled'}>Смотреть</button></div>`);
     box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, storePanel); });
+    box.querySelector('#openOrders').onclick = () => passPanel();
     box.querySelector('#watchAd').onclick = () => showAd(storePanel);
     open('💎 Магазин', box);
   }

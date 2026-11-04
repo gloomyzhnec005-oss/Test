@@ -594,6 +594,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.autoObj = auto;
     if (!auto || first || this.zoneLoading || (this.me.data && this.me.data.dead)) return;
     if (this.walkTo && this.walkTo.target && this.walkTo.target !== auto) return; // идём по тапу к другому месту — мимо
+    if (this.autoFarm && !(this.walkTo && this.walkTo.target === auto)) return; // автобой не уводит из данжа через портал
     if (this.time.now < (this.autoAt || 0)) return;
     this.autoAt = this.time.now + 1200; // защита от двойного срабатывания
     this.walkTo = null; this.autoWalk = null;
@@ -2318,6 +2319,61 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.net.emit('attack', { targetId: t.data.id });
   }
 
+  autoFarmTick(time) {
+    const me = this.me, range = this.prof().range;
+    const skip = this.afSkip || (this.afSkip = new Map()); // недостижимые цели (за стенами лабиринта): id → до какого времени не брать
+    let t = this.targetId && this.monsters.get(this.targetId);
+    if (t && (t.pvp || t.heroClone || skip.get(t.data.id) > time)) t = null;
+    if (!t) { // ближайший монстр; видимые напрямую — в приоритете
+      let bd = 1e9;
+      for (const e of this.monsters.values()) {
+        if (e.pvp || e.heroClone || skip.get(e.data.id) > time) continue;
+        let d = Math.hypot(e.c.x - me.x, e.c.y - me.y);
+        if (d > 1200) continue;
+        if (!this.lineOfSight(me.x, me.y, e.c.x, e.c.y)) d += 400;
+        if (d < bd) { bd = d; t = e; }
+      }
+      this.targetId = t ? t.data.id : null;
+      if (skip.size > 200) for (const [id, until] of skip) if (until < time) skip.delete(id);
+    }
+    if (t) {
+      const d = Math.hypot(t.c.x - me.x, t.c.y - me.y);
+      if (d > range - 6) {
+        if (this.lineOfSight(me.x, me.y, t.c.x, t.c.y)) { this.walkTo = null; this.autoWalk = t.data.id; }
+        else if (time > (this.afPathAt || 0)) { // за стеной — обходим по пути
+          this.afPathAt = time + 700;
+          const path = this.findPath(me.x, me.y, t.c.x, t.c.y);
+          this.walkTo = path && path.length ? { path, stuck: 0 } : null; this.autoWalk = null;
+          if (!path) { skip.set(t.data.id, time + 20000); this.targetId = null; } // недостижим — возьмём другого
+        }
+      } else { this.autoWalk = null; this.walkTo = null; }
+      // Умения: готовые по перезарядке и ресурсу; переключатели облика/стихии/обета не трогаем
+      if (d < range + 60 && time > (this.afSkillAt || 0)) {
+        this.afSkillAt = time + 450;
+        const skills = this.heroes[me.data.hero].skills, st = this.myStats || {};
+        const sk = skills.find((s, i) => i < (st.unlocked ?? 1) && !(s.cost === 0 && s.costLabel === 'бесплатно')
+          && (st.res === undefined || st.res >= (s.cost || 0)) && this.ui.skillReady && this.ui.skillReady(s.id));
+        if (sk) this.input_.skill = sk.id;
+      }
+      return;
+    }
+    // Монстров рядом нет — идём исследовать: случайная свободная клетка, неразведанные в приоритете
+    if (this.walkTo || time < (this.afWanderAt || 0)) return;
+    this.afWanderAt = time + 3000;
+    const z = this.zone, T = this.T, ex = this.explored.get(z.id);
+    const mx = Math.floor((me.x - z.ox) / T), my = Math.floor((me.y - z.oy) / T);
+    let goal = null;
+    for (let i = 0; i < 60 && !goal; i++) {
+      const x = mx + Math.round((Math.random() - 0.5) * 40), y = my + Math.round((Math.random() - 0.5) * 40);
+      if (x < 1 || y < 1 || x >= z.w - 1 || y >= z.h - 1 || this.solid.has(this.tiles[y * z.w + x])) continue;
+      if (Math.hypot(x - mx, y - my) < 5) continue;
+      if (ex && ex.has(y * z.w + x) && i < 40) continue; // сначала ищем неразведанное
+      goal = { x: z.ox + (x + 0.5) * T, y: z.oy + (y + 0.5) * T };
+    }
+    const path = goal && this.findPath(me.x, me.y, goal.x, goal.y);
+    if (path && path.length) this.walkTo = { path, stuck: 0 };
+  }
+
   update(time, delta) {
     if (this.zoneLoading) return; // догружается новый мир — карта ещё старая, не двигаемся
     const dt = delta / 1000;
@@ -2368,6 +2424,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const me = this.me;
     if (!me) return;
 
+    // Автобой (Золотой орден): сам ищет цель, подходит, бьёт и применяет умения. Джойстик временно перехватывает управление
+    if (this.autoFarm && !this.input_.vec.x && !this.input_.vec.y && !me.data.dead) this.autoFarmTick(time);
     // Управление
     let vx = this.input_.vec.x, vy = this.input_.vec.y;
     const K = this.keys;
@@ -2423,7 +2481,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
     }
 
-    if (this.input_.attack || this.keys.SPACE.isDown || this.autoWalk) this.tryAttack(false);
+    if (this.input_.attack || this.keys.SPACE.isDown || this.autoWalk || this.autoFarm) this.tryAttack(false);
     // Умения: кнопки HUD или клавиши Q / E / R
     const skills = this.heroes[me.data.hero].skills;
     let skillId = this.input_.skill;

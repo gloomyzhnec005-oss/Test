@@ -16,7 +16,16 @@ const SHOP = {
   pity: 50, // гарантированный легендарный предмет каждые 50 круток
   gemsPerWish: 160, // самоцветов за один призыв, если печатей нет
   gems: { gems1: { gems: 330, amount: 50 }, gems2: { gems: 1090, amount: 150 }, gems3: { gems: 2240, amount: 300 }, gems4: { gems: 6480, amount: 800 } }, // пачки самоцветов за Stars
-  pass: { price: 300, levels: 30, xpPerLevel: 100, days: 30 },
+  pass: { levels: 30, xpPerLevel: 100, days: 30 },
+  // Сезонные ордена (Telegram Stars): каждый следующий включает все бонусы предыдущих, доплата — только разница в цене
+  passTiers: [
+    { tier: 1, id: 'bronze', icon: '🥉', name: 'Бронзовый орден', price: 149, perks: ['Премиум-награды всех 30 уровней сезона'] },
+    { tier: 2, id: 'silver', icon: '🥈', name: 'Серебряный орден', price: 299, perks: ['Опыт пропуска +50%', '+1 бесплатный призыв снаряжения в день'] },
+    { tier: 3, id: 'gold', icon: '🥇', name: 'Золотой орден', price: 599, perks: ['Автобой в данжах', 'Офлайн-добыча до 8 часов (60% темпа автобоя)'] },
+    { tier: 4, id: 'champion', icon: '👑', name: 'Орден Чемпиона', price: 1199, perks: ['Премиум-награды ×2', 'Офлайн-добыча до 12 часов (80% темпа автобоя)'] },
+  ],
+  autofarmTier: 3, // с какого ордена доступен автобой
+  offline: { 3: { hours: 8, eff: 0.6 }, 4: { hours: 12, eff: 0.8 } }, // офлайн-добыча по ордену
   sub: { price: 250, days: 30, xpBonus: 0.25, goldBonus: 0.25 },
   ads: { perDay: 5, cooldownMs: 30000 },
   arena: { perDay: 5, perDaySub: 8 },
@@ -44,12 +53,23 @@ const PASS_REWARDS = Array.from({ length: SHOP.pass.levels }, (_, i) => {
 });
 function passOf(pr) {
   const s = passSeason();
-  if (!pr.pass || pr.pass.season !== s) pr.pass = { season: s, xp: 0, premium: false, free: [], prem: [] };
+  if (!pr.pass || pr.pass.season !== s) pr.pass = { season: s, xp: 0, tier: 0, free: [], prem: [] };
+  if (pr.pass.tier === undefined) pr.pass.tier = pr.pass.premium ? 2 : 0; // старый «премиум» за 300 ⭐ = Серебряный орден
   return pr.pass;
 }
+const passTier = (pr) => passOf(pr).tier;
 function addPassXp(pr, n) {
   const ps = passOf(pr);
-  ps.xp = Math.min(SHOP.pass.levels * SHOP.pass.xpPerLevel, ps.xp + n);
+  const k = ps.tier >= 2 ? 1.5 : 1; // Серебряный орден и выше: опыт пропуска +50%
+  ps.xp = Math.min(SHOP.pass.levels * SHOP.pass.xpPerLevel, ps.xp + Math.round(n * k));
+}
+// Счёт на орден: цена — разница с уже купленным в этом сезоне
+function passInvoice(pr, tier) {
+  const t = SHOP.passTiers[tier - 1], cur = passTier(pr);
+  if (!t) return { error: 'Неизвестный орден' };
+  if (cur >= tier) return { error: 'Этот орден уже открыт' };
+  const paid = cur ? SHOP.passTiers[cur - 1].price : 0;
+  return { title: `${t.name} · сезон`, description: cur ? `Улучшение до ордена: ${t.perks.join(', ')}` : `Сезонный орден: ${t.perks.join(', ')}`, amount: t.price - paid };
 }
 
 // ---------- Арена (асинхронное PvP: бой со снимком героя другого игрока) ----------
@@ -152,7 +172,7 @@ module.exports = function createMeta(deps) {
       attrs: I.ATTRS, rarities: I.ITEM_RARITIES, rarOrder: I.RARITY_ORDER, cats: I.CATEGORIES, slots: I.SLOT_ORDER, slotNames: I.SLOT_NAMES,
     };
   }
-  const freeSpinsLeft = (pr) => (pr.freeItemDay === dayKey() ? pr.freeItemLeft || 0 : isSub(pr) ? SHOP.freeItemSpinsSub : SHOP.freeItemSpins);
+  const freeSpinsLeft = (pr) => (pr.freeItemDay === dayKey() ? pr.freeItemLeft || 0 : (isSub(pr) ? SHOP.freeItemSpinsSub : SHOP.freeItemSpins) + (passTier(pr) >= 2 ? 1 : 0)); // Серебряный орден: +1 в день
   const equipped = (pr, id) => Object.values(pr.equip || {}).includes(id);
 
   // Выдать награду (батл-пасс, реклама)
@@ -516,17 +536,20 @@ module.exports = function createMeta(deps) {
     // ---------- Батл-пасс ----------
     pass(p, d, pr) {
       const ps = passOf(pr);
-      return { pass: { ...ps, level: Math.floor(ps.xp / SHOP.pass.xpPerLevel), xpPerLevel: SHOP.pass.xpPerLevel, price: SHOP.pass.price,
-        ends: (passSeason() + 1) * SHOP.pass.days * DAY, rewards: PASS_REWARDS } };
+      const paid = ps.tier ? SHOP.passTiers[ps.tier - 1].price : 0;
+      return { pass: { ...ps, premium: ps.tier >= 1, level: Math.floor(ps.xp / SHOP.pass.xpPerLevel), xpPerLevel: SHOP.pass.xpPerLevel,
+        ends: (passSeason() + 1) * SHOP.pass.days * DAY, rewards: PASS_REWARDS,
+        tiers: SHOP.passTiers.map((t) => ({ ...t, cost: Math.max(0, t.price - paid), owned: ps.tier >= t.tier })) } };
     },
     passClaim(p, d, pr) {
       const ps = passOf(pr), lvl = +d.lvl, track = d.track === 'prem' ? 'prem' : 'free';
       const rw = PASS_REWARDS[lvl - 1];
       if (!rw || Math.floor(ps.xp / SHOP.pass.xpPerLevel) < lvl) return { error: 'Уровень ещё не достигнут' };
-      if (track === 'prem' && !ps.premium) return { error: 'Нужен премиум-пропуск' };
+      if (track === 'prem' && ps.tier < 1) return { error: 'Нужен сезонный орден' };
       if (ps[track].includes(lvl)) return { error: 'Уже получено' };
       ps[track].push(lvl);
-      const msg = reward(pr, rw[track], tierOf(p));
+      let msg = reward(pr, rw[track], tierOf(p));
+      if (track === 'prem' && ps.tier >= 4) msg += ' ×2 · ' + reward(pr, rw[track], tierOf(p)); // Орден Чемпиона: премиум-награды дважды
       refreshPlayer(p);
       return { toast: `Награда: ${msg}` };
     },
@@ -543,7 +566,7 @@ module.exports = function createMeta(deps) {
     },
     shopInfo(p, d, pr) {
       if (pr.adDay !== dayKey()) { pr.adDay = dayKey(); pr.adCount = 0; }
-      return { sub: isSub(pr) ? pr.subUntil : 0, subPrice: SHOP.sub.price, passPrice: SHOP.pass.price, premium: passOf(pr).premium,
+      return { sub: isSub(pr) ? pr.subUntil : 0, subPrice: SHOP.sub.price, passTier: passTier(pr), passTiers: SHOP.passTiers,
         itemSpin: SHOP.itemSpin, gemPacks: Object.entries(SHOP.gems).map(([id, g]) => ({ id, ...g })), gems: pr.gems || 0, adsLeft: SHOP.ads.perDay - pr.adCount, gold: pr.gold,
         chests: Object.entries(CHESTS).map(([k, c]) => ({ id: k, title: c.title, desc: c.description, amount: c.amount })) };
     },
@@ -667,7 +690,8 @@ module.exports = function createMeta(deps) {
     if (kind === 'ispin') pr.itemSpins = (pr.itemSpins || 0) + 1;
     else if (kind === 'ispin10') pr.itemSpins = (pr.itemSpins || 0) + 10;
     else if (SHOP.gems[kind]) pr.gems = (pr.gems || 0) + SHOP.gems[kind].gems;
-    else if (kind === 'pass') passOf(pr).premium = true;
+    else if (kind === 'pass') passOf(pr).tier = Math.max(passOf(pr).tier, 2); // старые счета премиум-пропуска
+    else if (/^pass[1-4]$/.test(kind)) passOf(pr).tier = Math.max(passOf(pr).tier, +kind[4]);
     else if (kind === 'sub') pr.subUntil = Math.max(Date.now(), pr.subUntil || 0) + SHOP.sub.days * DAY;
     else if (CHESTS[kind]) I.addMat(pr, CHESTS[kind].mat || kind, CHESTS[kind].n);
     else return false;
@@ -686,10 +710,9 @@ module.exports = function createMeta(deps) {
     ispin: { title: 'Призыв предмета', description: 'Одна крутка призыва предметов', amount: SHOP.itemSpin.price },
     ispin10: { title: 'Призыв предметов ×10', description: 'Десять круток призыва предметов', amount: SHOP.itemSpin.price10 },
     ...Object.fromEntries(Object.entries(SHOP.gems).map(([k, g]) => [k, { title: `Самоцветы ×${g.gems}`, description: `${g.gems} самоцветов: 160 = один призыв героя или снаряжения`, amount: g.amount }])),
-    pass: { title: 'Премиум батл-пасс', description: 'Премиум-награды текущего сезона', amount: SHOP.pass.price },
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
   };
 
-  return { handle, addPassXp, passOf, isSub, bagSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
+  return { handle, addPassXp, passOf, passTier, passInvoice, isSub, bagSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
 };
 module.exports.simulate = simulate;

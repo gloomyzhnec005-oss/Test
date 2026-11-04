@@ -1164,3 +1164,39 @@ canvas.skin { object-fit: contain; }
 .tarot .sm-text, .tarot .sm-name { position: static; margin-top: 14px; }
 .tarot.shown .sm-text { display: none; }
 .tarot .sm-name b { font-size: 22px; }
+
+/* ---------- Сезонные ордена ---------- */
+.orders { display: grid; gap: 8px; margin-bottom: 10px; }
+.order { padding: 10px 12px; border-radius: 8px; border: 1px solid var(--oc, #8a6d3b); background: linear-gradient(135deg, var(--og, rgba(120,80,40,.35)), rgba(10,8,6,.7)); }
+.order.o-bronze { --oc: #b07a4a; --og: rgba(150,90,45,.35); }
+.order.o-silver { --oc: #b8c0cc; --og: rgba(150,160,180,.28); }
+.order.o-gold { --oc: #e8c060; --og: rgba(200,150,40,.35); }
+.order.o-champion { --oc: #ff7a8a; --og: rgba(170,40,90,.4); box-shadow: 0 0 12px rgba(255,90,120,.18); }
+.order.own { outline: 1px solid var(--oc); outline-offset: 2px; }
+.order-h { display: flex; align-items: center; gap: 8px; }
+.order-h b { font-weight: normal; font-size: 16px; color: #ffe9b0; }
+.order-ic { font-size: 22px; }
+.order ul { margin: 6px 0 8px; padding-left: 18px; color: #e6d8bb; font-size: 12px; line-height: 1.5; }
+.order li.inc { color: #b9a988; list-style: '↳ '; }
+.order .l2-btn { width: 100%; }
+.order-ok { display: block; text-align: center; color: #7dff8a; font-size: 13px; }
+
+/* Кнопка автобоя (в данжах) */
+.auto-btn {
+  position: absolute; right: 38px; bottom: calc(var(--nav) + 254px + env(safe-area-inset-bottom)); width: 50px; height: 50px; z-index: 6;
+  border-radius: 50%; border: 1.5px solid #a8864a; background: radial-gradient(circle at 40% 30%, #3a2c1a, #15100a);
+  color: #e8d3a0; box-shadow: 0 2px 8px rgba(0,0,0,.6); padding: 0; display: flex; align-items: center; justify-content: center;
+  transform: scale(var(--cs, 1)); transform-origin: right bottom; opacity: var(--co, 1);
+}
+.auto-btn b { font: 600 10px/1 Georgia, serif; letter-spacing: .5px; }
+.auto-btn.on { border-color: #ffd36a; color: #fff3c8; background: radial-gradient(circle at 40% 30%, #8a6420, #3a260a); box-shadow: 0 0 14px rgba(255,200,90,.6), 0 2px 8px rgba(0,0,0,.6); animation: autoPulse 1.6s ease-in-out infinite; }
+.auto-btn.locked { filter: grayscale(.7) brightness(.8); }
+.auto-btn.locked::after { content: '🔒'; position: absolute; right: -2px; top: -4px; font-size: 13px; }
+.auto-btn.hidden { display: none; }
+@keyframes autoPulse { 50% { box-shadow: 0 0 22px rgba(255,200,90,.85), 0 2px 8px rgba(0,0,0,.6); } }
+.lefty .auto-btn { right: auto; left: 38px; transform-origin: left bottom; }
+
+/* Офлайн-добыча */
+.offline-rw { display: flex; justify-content: space-between; padding: 8px 10px; margin-bottom: 6px; border-radius: 6px; background: rgba(0,0,0,.35); border: 1px solid #3a2f22; color: #e6d8bb; }
+.offline-rw b { color: #ffe08a; font-weight: normal; }
+.offline-rw.up b { color: #7dff8a; }

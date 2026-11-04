@@ -90,7 +90,7 @@ module.exports = function createAdmin(ctx) {
     return {
       uid, name: pr.name || null, lastSeen: pr.lastSeen || 0, gold: pr.gold, paidSpins: pr.paidSpins, itemSpins: pr.itemSpins || 0,
       freeSpinUsed: !!pr.freeSpinUsed, heroes, items: pr.items.length, itemsByRar: byRar, subUntil: pr.subUntil || 0,
-      pass: { premium: !!pass.premium, xp: pass.xp, level: Math.floor(pass.xp / ctx.meta.SHOP.pass.xpPerLevel) },
+      pass: { tier: ctx.meta.passTier(pr), xp: pass.xp, level: Math.floor(pass.xp / ctx.meta.SHOP.pass.xpPerLevel) },
       arena: pr.arena ? pr.arena.rating : 1000, banned: pr.banned || null, test: pr.test || {},
       sessions: online(uid).map(sessionView),
     };
@@ -200,7 +200,13 @@ module.exports = function createAdmin(ctx) {
         refresh();
         return { text: days > 0 ? `Подписка на ${days} дн.` : 'Подписка снята' };
       }
-      case 'passPremium': ctx.meta.passOf(pr).premium = !!d.value; return { text: d.value ? 'Премиум-пропуск выдан' : 'Премиум-пропуск снят' };
+      case 'passPremium': ctx.meta.passOf(pr).tier = d.value ? 1 : 0; return { text: d.value ? 'Бронзовый орден выдан' : 'Орден снят' };
+      case 'passTier': {
+        const t = Math.round(num(d.value, 0, 4));
+        ctx.meta.passOf(pr).tier = t;
+        for (const pl of online(d.uid)) pl.socket.emit('passTier', t);
+        return { text: t ? `Выдан: ${ctx.meta.SHOP.passTiers[t - 1].name}` : 'Орден снят' };
+      }
       case 'passXp': ctx.meta.addPassXp(pr, Math.round(num(d.value, 0, 1e6))); return { text: 'Опыт пропуска добавлен' };
       case 'ban': {
         pr.banned = { reason: String(d.reason || 'Нарушение правил').slice(0, 200), at: Date.now() };

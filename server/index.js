@@ -160,7 +160,11 @@ app.post('/api/invoice', async (req, res) => {
   if (!who || !who.tg) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   if (!bot) return res.status(503).json({ error: 'Оплата временно недоступна' });
   let invoice;
-  if (meta.INVOICES[item]) {
+  if (/^pass[1-4]$/.test(item)) { // сезонный орден: цена — разница с уже купленным
+    const v = meta.passInvoice(getProfile(who.uid), +item[4]);
+    if (v.error) return res.status(400).json({ error: v.error });
+    invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
+  } else if (meta.INVOICES[item]) {
     const v = meta.INVOICES[item];
     invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
   } else if (item === 'spin' || item === 'spin10') {
@@ -186,7 +190,7 @@ app.post('/api/invoice', async (req, res) => {
 function isValidPayload(payload) {
   const [kind, uid, id] = String(payload).split(':');
   if (!uid) return false;
-  if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind]) return true;
+  if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass[1-4]$/.test(kind)) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
 }
 function onPaid(payload) {
@@ -196,6 +200,12 @@ function onPaid(payload) {
   if (kind === 'spin') pr.paidSpins += 1;
   else if (kind === 'spin10') pr.paidSpins += 10;
   else if (meta.INVOICES[kind]) { meta.onPaid(kind, pr); refreshUid(uid); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
+  else if (kind === 'pass' || /^pass[1-4]$/.test(kind)) {
+    meta.onPaid(kind, pr);
+    const t = meta.SHOP.passTiers[meta.passTier(pr) - 1];
+    notifyUid(uid, `Покупка получена: ${t.icon} ${t.name}`);
+    for (const p of players.values()) if (p.uid === uid) p.socket.emit('passTier', meta.passTier(pr));
+  }
   else if (!pr.bgs.includes(id)) pr.bgs.push(id);
   admin.log('pay', `${pr.name || uid}: оплата ${kind}${id ? ' ' + id : ''}`);
   saveProfiles();
@@ -364,6 +374,7 @@ function moveToZone(p, zoneId, pos) {
   const at = pos || { x: z.spawn.x + (Math.random() - 0.5) * 48, y: z.spawn.y + (Math.random() - 0.5) * 24 };
   p.x = at.x; p.y = at.y; p.lastMove = Date.now();
   p.stealthUntil = 0;
+  if (p.autofarm) setAutofarm(p, z.kind === 'dungeon'); // автобой — только в данжах; в новом данже замер темпа заново
   for (const pet of p.pets || []) { pet.x = p.x + (Math.random() - 0.5) * 40; pet.y = p.y + 16; pet.target = null; }
   p.socket.emit('zone', { zone: world.payload(z), x: p.x, y: p.y });
   markDirty(p);
@@ -407,7 +418,7 @@ function publicPlayer(p) {
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
-  return { level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills,
+  return { level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm,
     gold: getProfile(p.uid).gold, unlocked: p.unlocked, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
@@ -722,6 +733,49 @@ const skillCtx = {
   pushFx: (f) => fx.push(f),
 };
 
+// ---------- Автобой и офлайн-добыча (Золотой орден и выше, server/meta.js → SHOP.passTiers) ----------
+// Пока автобой включён, сервер замеряет, сколько опыта, золота и убийств в минуту добывает герой.
+// Игрок вышел из игры в данже с автобоем — за время отсутствия (до 8/12 ч) начисляется 60/80% этого темпа.
+function setAutofarm(p, on) {
+  const pr = getProfile(p.uid);
+  if (on && meta.passTier(pr) < meta.SHOP.autofarmTier) return 'Автобой открывается Золотым орденом';
+  if (on && (world.byId.get(p.zone) || {}).kind !== 'dungeon') return 'Автобой работает только в данжах';
+  p.autofarm = !!on;
+  p.afkStat = on ? { xp: 0, gold0: pr.gold, kills: 0, since: Date.now() } : null; // золото — по приросту кошелька (с добычей)
+  p.socket.emit('autofarm', p.autofarm);
+  return null;
+}
+function rememberAutofarm(p) {
+  const pr = getProfile(p.uid), st = p.afkStat;
+  if (!p.autofarm || !st || meta.passTier(pr) < meta.SHOP.autofarmTier) { pr.afk = null; return; }
+  const min = (Date.now() - st.since) / 60000;
+  const prev = pr.afk && pr.afk.hero === p.heroId ? pr.afk : null;
+  if (min < 3 && !prev) { pr.afk = null; return; } // слишком короткий замер — не по чему считать
+  const capXp = xpForLevel(p.char.level) / 10; // не больше уровня за 10 минут — защита от «замера» на убийстве босса
+  const rate = min >= 3
+    ? { xpMin: Math.min(capXp, st.xp / min), goldMin: Math.min(Math.max(capXp, 200), Math.max(0, pr.gold - st.gold0) / min), killsMin: Math.min(30, st.kills / min) }
+    : { xpMin: prev.xpMin, goldMin: prev.goldMin, killsMin: prev.killsMin };
+  pr.afk = { at: Date.now(), hero: p.heroId, zone: (world.byId.get(p.zone) || {}).name || '', ...rate };
+}
+function grantOffline(p) {
+  const pr = getProfile(p.uid), a = pr.afk;
+  if (!a) return;
+  pr.afk = null;
+  const off = meta.SHOP.offline[meta.passTier(pr)] || meta.SHOP.offline[4];
+  if (meta.passTier(pr) < meta.SHOP.autofarmTier) return; // орден кончился вместе с сезоном
+  const minutes = Math.min(off.hours * 60, (Date.now() - a.at) / 60000);
+  if (minutes < 5 || !C.HEROES[a.hero]) return;
+  const xp = Math.round(a.xpMin * minutes * off.eff), gold = Math.round(a.goldMin * minutes * off.eff), kills = Math.round(a.killsMin * minutes * off.eff);
+  const ch = getChar(p.uid, a.hero), before = ch.level;
+  ch.xp += xp; ch.gold += gold; ch.kills += kills; pr.gold += gold;
+  while (ch.level < MOBX.MAX_LEVEL && ch.xp >= xpForLevel(ch.level)) { ch.xp -= xpForLevel(ch.level); ch.level += 1; }
+  if (ch.level >= MOBX.MAX_LEVEL) ch.xp = Math.min(ch.xp, xpForLevel(ch.level) - 1);
+  if (p.heroId === a.hero && ch.level !== before) { refreshPlayer(p); p.hp = p.maxHp; }
+  p.socket.emit('offline', { minutes: Math.round(minutes), xp, gold, kills, hero: C.HEROES[a.hero].name, zone: a.zone, levels: ch.level - before, level: ch.level, hours: off.hours, eff: off.eff });
+  admin.log('afk', `${p.name}: офлайн-добыча ${Math.round(minutes)} мин · +${xp} опыта · +${gold} золота`);
+  saveProfiles();
+}
+
 function grantXp(p, amount, gold, shared = false) {
   const pr = getProfile(p.uid), now = Date.now();
   const sub = meta.isSub(pr) ? meta.SHOP.sub.xpBonus : 0;
@@ -730,6 +784,7 @@ function grantXp(p, amount, gold, shared = false) {
   p.char.xp += amount;
   p.char.gold += gold;
   pr.gold += gold; // общий кошелёк аккаунта
+  if (p.autofarm && p.afkStat) { p.afkStat.xp += amount; if (!shared) p.afkStat.kills += 1; } // темп автобоя для офлайн-добычи
   if (!shared) p.char.kills += 1;
   let leveled = false;
   if (p.char.level >= MOBX.MAX_LEVEL) p.char.xp = Math.min(p.char.xp, xpForLevel(p.char.level) - 1);
@@ -889,6 +944,7 @@ io.on('connection', (socket) => {
       monsters: C.MONSTERS,
       stats: privateStats(p),
     });
+    grantOffline(p);
     socket.emit('chatHistory', chatHistory);
     io.emit('chat', { sys: true, text: `${p.name} (${hero.name}, ${hero.title}) вошёл в мир` });
     if (S.motd) socket.emit('chat', { sys: true, text: `📢 ${S.motd}` });
@@ -1099,6 +1155,13 @@ io.on('connection', (socket) => {
     cb(Arena.info(p));
   });
 
+  socket.on('autofarm', (on) => {
+    const p = players.get(socket.id);
+    if (!p) return;
+    const err = setAutofarm(p, !!on);
+    if (err) { socket.emit('skillFail', err); socket.emit('autofarm', false); }
+  });
+
   socket.on('disconnect', () => {
     const p = players.get(socket.id);
     if (!p) return;
@@ -1106,6 +1169,7 @@ io.on('connection', (socket) => {
     leaveParty(p);
     players.delete(socket.id);
     getProfile(p.uid).lastSeen = Date.now();
+    rememberAutofarm(p);
     (p.pets || []).forEach((pet) => pets.delete(pet.id));
     io.emit('chat', { sys: true, text: `${p.name} покинул мир` });
     saveProfiles();

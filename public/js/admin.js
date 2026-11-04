@@ -257,7 +257,7 @@
 
       <div class="card"><h3>⭐ Подписка и пропуск</h3>
         <div class="row"><label>Подписка: ${p.subUntil > Date.now() ? 'до ' + new Date(p.subUntil).toLocaleDateString('ru-RU') : 'нет'}</label><input id="subDays" type="number" value="30"><label>дн.</label><button class="btn" data-a="sub">Выдать</button><button class="btn" data-a="subOff">Снять</button></div>
-        <label class="switch"><input type="checkbox" data-pass ${p.pass.premium ? 'checked' : ''}> Премиум боевой пропуск (уровень ${p.pass.level})</label>
+        <div class="row"><label>Орден сезона (уровень пропуска ${p.pass.level})</label><select id="passTier">${['нет', '🥉 Бронзовый', '🥈 Серебряный', '🥇 Золотой (автобой)', '👑 Чемпиона'].map((n, i) => `<option value="${i}" ${p.pass.tier === i ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn" data-a="passTier">Выдать</button></div>
         <div class="row"><label>Опыт пропуска</label><input id="passXp" type="number" value="100"><button class="btn" data-a="passXp">Добавить</button></div>
       </div>
 
@@ -306,7 +306,7 @@
         fullSet: () => edit('fullSet', { set: v('itSet'), rar: v('itRar'), tier: v('itTier') }),
         giveMat: () => edit('giveMat', { mat: v('matId'), count: v('matN') }),
         clearItems: () => confirm('Удалить все предметы игрока?') && edit('clearItems'),
-        sub: () => edit('sub', { value: v('subDays') }), subOff: () => edit('sub', { value: 0 }), passXp: () => edit('passXp', { value: v('passXp') }),
+        sub: () => edit('sub', { value: v('subDays') }), subOff: () => edit('sub', { value: 0 }), passXp: () => edit('passXp', { value: v('passXp') }), passTier: () => edit('passTier', { value: v('passTier') }),
         ban: () => confirm('Забанить игрока?') && edit('ban', { reason: v('banReason') }), unban: () => edit('unban'), kick: () => edit('kick'),
         reset: () => confirm('Удалить ВЕСЬ прогресс игрока? Это нельзя отменить.') && edit('reset'),
         rawLoad: async () => { const r = await api('raw', { uid: cur.uid }); if (r.json) { $('raw').value = JSON.stringify(r.json, null, 2); $('raw').classList.remove('hidden'); } },

@@ -189,6 +189,7 @@
   // Рамка аватара по уровню героя: бронза, серебро, золото, платина, бриллиант, легенда (50)
   const avaTier = (l) => (l >= 50 ? 'legend' : l >= 40 ? 'diamond' : l >= 30 ? 'platinum' : l >= 20 ? 'gold' : l >= 10 ? 'silver' : 'bronze');
   function setStats(s) {
+    if (s.passTier !== undefined) passTier = s.passTier;
     $('lvl').textContent = s.level;
     const tier = avaTier(s.level);
     if ($('hudAvaFrame').dataset.t !== tier) { $('hudAvaFrame').dataset.t = tier; $('hudAvaFrame').style.backgroundImage = `url(assets/ui/ava/${tier}.webp)`; }
@@ -401,6 +402,7 @@
 
   // ---------- Запуск ----------
   let socket = null, game = null;
+  let passTier = 0, autoOn = false; // орден сезона (0 — нет) и включён ли автобой
   // Советы на экране загрузки мира
   const LOAD_TIPS = [
     'Совет: тапните по монстру — герой сам подойдёт и атакует.',
@@ -426,6 +428,31 @@
     socket.on('chatHistory', (list) => { chatList.innerHTML = ''; for (const m of list || []) addChat(m, true); });
     socket.on('stats', setStats);
     socket.on('skillUsed', ({ id, cooldown }) => startSkillCd(id, cooldown));
+    // ---------- Автобой (Золотой орден и выше) ----------
+    socket.on('autofarm', (on) => {
+      if (autoOn !== on) Town.toast(on ? '⚔️ Автобой включён — герой сражается сам' : 'Автобой выключен');
+      autoOn = on;
+      if (window.gameScene) { window.gameScene.autoFarm = on; if (!on) { window.gameScene.walkTo = null; window.gameScene.autoWalk = null; } }
+      $('autoBtn').classList.toggle('on', on);
+    });
+    socket.on('passTier', (t) => { passTier = t; $('autoBtn').classList.toggle('locked', t < 3); });
+    // Офлайн-добыча: показываем, когда мир загрузился
+    socket.on('offline', (d) => {
+      const show = () => {
+        if (!$('worldLoad').classList.contains('hidden')) return setTimeout(show, 500);
+        const h = Math.floor(d.minutes / 60), m = d.minutes % 60;
+        const box = document.createElement('div');
+        box.className = 'offline-box';
+        box.innerHTML = `<p class="sheet-hint">Герой: ${d.hero} · данж «${d.zone}» · автобой ${h ? `${h} ч ` : ''}${m} мин (не больше ${d.hours} ч, ${Math.round(d.eff * 100)}% темпа).</p>
+          <div class="offline-rw"><span>✨ Опыт</span><b>+${d.xp.toLocaleString('ru-RU')}</b></div>
+          <div class="offline-rw"><span>💰 Золото</span><b>+${d.gold.toLocaleString('ru-RU')}</b></div>
+          <div class="offline-rw"><span>💀 Побеждено монстров</span><b>${d.kills.toLocaleString('ru-RU')}</b></div>
+          ${d.levels ? `<div class="offline-rw up"><span>⬆️ Новый уровень</span><b>${d.level}</b></div>` : ''}`;
+        Town.open('🌙 Пока вас не было', box);
+        if (window.Sfx) Sfx.play('coin');
+      };
+      setTimeout(show, 800);
+    });
     // Сервер сократил перезарядку (убийство Найри) — обновляем таймеры кнопок
     socket.on('skillCds', (cds) => Object.entries(cds).forEach(([id, c]) => startSkillCd(id, c.left, c.total)));
     socket.on('skillFail', hudToast);
@@ -487,6 +514,13 @@
         return r;
       };
       // pointerdown, а не click: на iPhone click не приходит, пока другой палец держит джойстик или атаку
+      // Кнопка автобоя: видна в данжах; без Золотого ордена открывает окно орденов
+      $('autoBtn').classList.toggle('locked', passTier < 3);
+      $('autoBtn').addEventListener('pointerdown', (e) => {
+        e.preventDefault(); e.stopPropagation(); vibrate('light');
+        if (passTier < 3) { Town.toast('Автобой открывается Золотым орденом'); Town.openPlace('pass'); return; }
+        socket.emit('autofarm', !autoOn);
+      });
       $('potBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); vibrate('light'); drinkPotion(false); });
       // Автозелье (Настройки → Управление): здоровья меньше порога — пьём само
       let autoPotNext = 0, noPotWarned = false;
@@ -636,7 +670,7 @@
         store: () => Town.openPlace('store'),
         play: () => menuSheet('⚔️ Игра', [
           ['arena', 'Рейтинг арены', 'Лучшие игроки и турнир недели · сражаться — в доме арены', () => Town.openPlace('arenaRank')],
-          ['pass', 'Боевой пропуск', 'Задания сезона и награды за уровни', () => Town.openPlace('pass')],
+          ['pass', 'Сезонные ордена', 'Награды сезона, бонусы и автобой', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
           ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
@@ -656,6 +690,7 @@
           const TOWN_TRACK = { town1: 'eldmir', town2: 'morgrath', town3: 'aelion' };
           if (window.Sfx) { if (zone && zone.id !== z.id) Sfx.play('portal'); Sfx.music(z.kind === 'worldboss' ? 'worldboss' : z.kind === 'town' ? TOWN_TRACK[z.id] || z.theme : 'dungeon'); }
           zone = z;
+          $('autoBtn').classList.toggle('hidden', z.kind !== 'dungeon');
           buildMinimap(z);
           Town.setContext({ zone: z });
           Town.close();
@@ -675,6 +710,7 @@
         // Кнопки «Войти» больше нет — вход срабатывает сам, когда герой подходит к порталу или двери
         onNear: (o) => { near = o; },
         onActivate: (o) => activate(o),
+        skillReady: (id) => { const b = skillBtns[id]; return !!b && !b.el.classList.contains('cooling') && !b.el.classList.contains('locked'); },
         onTarget: (name, hp, maxHp) => {
           if (!name) { $('target').classList.add('hidden'); return; }
           $('target').classList.remove('hidden');
