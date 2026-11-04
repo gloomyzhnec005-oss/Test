@@ -216,7 +216,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (!this.explored.has(z.id)) this.explored.set(z.id, new Set());
       for (const i of this.explored.get(z.id)) this.fogLayer.removeTileAt(i % z.w, Math.floor(i / z.w));
     }
-    this.cameras.main.setBounds(z.ox, z.oy, z.w * T, z.h * T);
+    // Камера без границ карты: герой всегда в центре экрана, даже у края зоны
+    this.cameras.main.removeBounds();
     // Нарисованные деревья на клетках леса (клетка остаётся непроходимой)
     if (art) {
       for (let y = 0; y < z.h; y++) for (let x = 0; x < z.w; x++) {
@@ -495,7 +496,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.players.set(p.id, e);
         if (isMe) {
           this.me = { x: p.x, y: p.y, e, data: p, dir: 1 };
-          this.cameras.main.startFollow(e.c, true, 0.15, 0.15);
+          this.cameras.main.startFollow(e.c, true, 1, 1); // камера жёстко закреплена на герое, без запаздывания
         }
       }
       e.tx = p.x; e.ty = p.y; e.data = p;
