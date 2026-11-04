@@ -63,16 +63,15 @@
     const r = joy.getBoundingClientRect();
     const R = r.width / 2;
     let dx = t.clientX - (r.left + R), dy = t.clientY - (r.top + R);
-    const d = Math.hypot(dx, dy);
-    if (d > R) { dx = dx / d * R; dy = dy / d * R; }
-    stick.style.transform = `translate(${dx}px, ${dy}px)`;
-    const k = Math.min(1, d / R);
-    input.vec.x = d > 6 ? (dx / R) : 0;
-    input.vec.y = d > 6 ? (dy / R) : 0;
-    if (k < 0.15) input.vec.x = input.vec.y = 0;
+    const d = Math.hypot(dx, dy), M = R * 0.62; // самоцвет не выходит за внутреннее кольцо
+    const sx = d > M ? dx / d * M : dx, sy = d > M ? dy / d * M : dy;
+    stick.style.transform = `translate(${sx}px, ${sy}px)`;
+    // Только направление: вне мёртвой зоны герой всегда идёт на полной скорости
+    if (d < R * 0.15) { input.vec.x = input.vec.y = 0; return; }
+    input.vec.x = dx / d; input.vec.y = dy / d;
   };
-  const joyEnd = () => { joyId = null; input.vec.x = input.vec.y = 0; stick.style.transform = ''; };
-  joy.addEventListener('pointerdown', (e) => { joyId = e.pointerId; joy.setPointerCapture(e.pointerId); joyMove(e); e.preventDefault(); });
+  const joyEnd = () => { joyId = null; input.vec.x = input.vec.y = 0; stick.style.transform = ''; joy.classList.remove('on'); };
+  joy.addEventListener('pointerdown', (e) => { joyId = e.pointerId; joy.setPointerCapture(e.pointerId); joy.classList.add('on'); joyMove(e); e.preventDefault(); });
   joy.addEventListener('pointermove', (e) => { if (e.pointerId === joyId) joyMove(e); });
   joy.addEventListener('pointerup', joyEnd);
   joy.addEventListener('pointercancel', joyEnd);

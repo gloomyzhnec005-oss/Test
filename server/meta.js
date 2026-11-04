@@ -131,7 +131,7 @@ module.exports = function createMeta(deps) {
       if (tier === 1) { matOffer('ore1'); matOffer('ess1'); }
       matOffer('scrollR'); matOffer('scrollE');
     } else {
-      for (const m of ['potHp', 'potHp2', 'potRes', 'elxAtk', 'elxDef', 'elxAgi', 'elxMind', 'elxXp', 'elxLuck', 'tpScroll']) matOffer(m);
+      for (const m of ['potHp', 'potHp2', 'potRes', 'elxAtk', 'elxDef', 'elxAgi', 'elxMind', 'elxXp', 'elxLuck']) matOffer(m); // свиток возвращения убран: в город ведёт кнопка навигации
     }
     shopCache.set(key, list);
     return list;

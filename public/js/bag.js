@@ -151,10 +151,10 @@ window.Bag = (() => {
   const worn = (s) => inv.items.find((i) => i.id === inv.equip[s]);
   const fits = (s) => inv.items.filter((i) => i.cat === s && i.loc !== 'wh' && !isEquipped(i));
   function slotBtn(s) {
-    const it = worn(s), n = fits(s).length;
+    const it = worn(s);
     return `<button class="pd-slot ${it ? 'full fr-' + it.rar : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
       ${it ? `<span>${art(it)}</span>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost"><img class="it-art slot-ghost" src="assets/items/slot_${s}.webp" alt="${SLOT_ICONS[s]}"></span>`}
-      ${n ? `<b>${n}</b>` : ''}<em>${it ? it.name : inv.slotNames[s]}</em></button>`;
+      <em>${it ? it.name : inv.slotNames[s]}</em></button>`;
   }
   function heroTab() {
     const box = document.createElement('div');
