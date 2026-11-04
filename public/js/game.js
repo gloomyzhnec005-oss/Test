@@ -174,6 +174,29 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(zoom);
   }
 
+  // Затемнение по краям карты: полоса от прозрачного к цвету пустоты, сплошной край смотрит наружу
+  edgeFade(z, col) {
+    const key = 'edgefade_' + col.slice(1);
+    if (!this.textures.exists(key)) {
+      const tex = this.textures.createCanvas(key, 4, 64), ctx = tex.getContext();
+      const g = ctx.createLinearGradient(0, 0, 0, 64), c = Phaser.Display.Color.HexStringToColor(col);
+      g.addColorStop(0, `rgba(${c.r},${c.g},${c.b},0)`);
+      g.addColorStop(1, `rgba(${c.r},${c.g},${c.b},1)`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 64);
+      tex.refresh();
+    }
+    const T = this.T, W = z.w * T, H = z.h * T, B = T * 1.5;
+    const sides = [
+      [z.ox + W / 2, z.oy + H, 0, W], // низ
+      [z.ox + W / 2, z.oy, 180, W], // верх
+      [z.ox + W, z.oy + H / 2, -90, H], // право
+      [z.ox, z.oy + H / 2, 90, H], // лево
+    ];
+    for (const [x, y, ang, len] of sides) {
+      this.zoneObjs.push(this.add.image(x, y, key).setOrigin(0.5, 1).setAngle(ang).setDisplaySize(len, B).setDepth(5));
+    }
+  }
+
   // Строит карту зоны: тайлы, здания, порталы, телепорт
   buildZone(z) {
     const T = this.T;
@@ -249,7 +272,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const key = d.k.startsWith('p_') ? `prop_${d.k.slice(2)}` : `deco_${z.theme}_${d.k}`;
       if (this.textures.exists(key)) this.zoneObjs.push(this.add.image(d.x, d.y, key).setOrigin(0.5, 1).setDepth(10 + d.y));
     }
-    this.cameras.main.setBackgroundColor({ green: '#2f6a28', abyss: '#07040c', sky: '#bfe0ff' }[z.theme]);
+    // За краем карты — тёмная «пустота» (в небесном мире — небо), край карты плавно в неё переходит
+    const voidCol = { green: '#0a1208', abyss: '#07040c', sky: '#bfe0ff' }[z.theme] || '#0a0a0a';
+    this.cameras.main.setBackgroundColor(voidCol);
+    this.edgeFade(z, voidCol);
     const keep = (o) => { this.zoneObjs.push(o); return o; };
     const labelStyle = { fontSize: '11px', fontFamily: 'Arial', color: '#fff6d8', stroke: '#000', strokeThickness: 3, resolution: 2 };
     // Подпись здания: нарисованный значок места + название
