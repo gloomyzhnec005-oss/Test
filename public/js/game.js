@@ -492,6 +492,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
     }
     this.nearObj = undefined;
+    this.autoObj = undefined; // undefined — ещё не проверяли: объект рядом с точкой появления сам не срабатывает
     if (this.layer && this.scale) this.resize();
     this.ui.onZone(z);
   }
@@ -531,9 +532,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
   // Тап по зданию/порталу: герой сам идёт к нему (если уже рядом — сразу действие)
   goTo(o) {
     if (!this.me) return;
-    if (this.nearObj === o) { this.ui.onNear(o, this.zone, true); return; }
+    if (this.nearObj === o) { this.ui.onActivate(o, this.zone); return; }
     const path = this.findPath(this.me.x, this.me.y, o.x, o.y + (o.kind === 'portal' ? 20 : 4));
-    this.walkTo = path && path.length ? { path, stuck: 0 } : null;
+    this.walkTo = path && path.length ? { path, stuck: 0, target: o } : null;
     this.autoWalk = null;
   }
 
@@ -579,6 +580,24 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (d < (o.place === 'teleport' ? 56 : bd)) { best = o; bd = d; }
     }
     if (best !== this.nearObj) { this.nearObj = best; this.ui.onNear(best, this.zone); }
+    // Вход без кнопки: шагнул к порталу или к двери здания — сразу телепорт / окно места.
+    // Срабатывает только при входе в радиус (не повторяется, пока стоишь рядом) и не при появлении рядом
+    let auto = null, ad = 1e9;
+    for (const o of this.zone.objs) {
+      const d = Math.hypot(o.x - this.me.x, o.y - this.me.y);
+      // Телепорт стоит посреди города на пути — срабатывает, только если наступить на сам круг
+      const R = o.kind === 'portal' ? 44 : o.place === 'teleport' ? 24 : 40;
+      if (d < R && d < ad) { auto = o; ad = d; }
+    }
+    if (auto === this.autoObj) return;
+    const first = this.autoObj === undefined;
+    this.autoObj = auto;
+    if (!auto || first || this.zoneLoading || (this.me.data && this.me.data.dead)) return;
+    if (this.walkTo && this.walkTo.target && this.walkTo.target !== auto) return; // идём по тапу к другому месту — мимо
+    if (this.time.now < (this.autoAt || 0)) return;
+    this.autoAt = this.time.now + 1200; // защита от двойного срабатывания
+    this.walkTo = null; this.autoWalk = null;
+    this.ui.onActivate(auto, this.zone);
   }
 
   isSolidAt(px, py) {

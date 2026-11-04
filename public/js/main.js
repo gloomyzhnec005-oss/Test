@@ -536,11 +536,14 @@
       });
       // Кнопка действия рядом со зданием, порталом или телепортом
       let near = null;
-      $('actBtn').onclick = () => {
-        if (!near) return;
-        if (near.kind === 'portal') socket.emit('travel', { via: near.id });
-        else Town.openPlace(near.place);
+      // Вход в портал / здание: сам при подходе (game.js checkNear) или тапом по объекту
+      const activate = (o) => {
+        if (!o) return;
+        vibrate('light');
+        if (o.kind === 'portal') socket.emit('travel', { via: o.id });
+        else Town.openPlace(o.place);
       };
+      $('actBtn').onclick = () => activate(near);
       // ---------- Нижнее меню ----------
       const menuRow = (icon, name, desc, fn) => {
         const r = document.createElement('button');
@@ -641,16 +644,9 @@
           b.classList.add('hidden'); void b.offsetWidth; b.classList.remove('hidden');
           clearTimeout(ui.bannerTm); ui.bannerTm = setTimeout(() => b.classList.add('hidden'), 2900);
         },
-        onNear: (o, z, activate) => {
-          if (activate) { $('actBtn').click(); return; }
-          near = o;
-          const btn = $('actBtn');
-          btn.classList.toggle('hidden', !o);
-          if (!o) return;
-          btn.textContent = o.kind === 'portal' ? (o.id === 'back' ? `🏰 ${o.name}` : `🌀 Войти: ${o.name}`) : `${o.icon} ${o.name}`;
-          if (o.place) btn.innerHTML = Town.placeImg(o.place) + btn.textContent.slice(o.icon.length + 1).replace(/[<&]/g, '');
-          vibrate('light');
-        },
+        // Кнопки «Войти» больше нет — вход срабатывает сам, когда герой подходит к порталу или двери
+        onNear: (o) => { near = o; },
+        onActivate: (o) => activate(o),
         onTarget: (name, hp, maxHp) => {
           if (!name) { $('target').classList.add('hidden'); return; }
           $('target').classList.remove('hidden');
