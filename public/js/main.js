@@ -468,12 +468,38 @@
       });
       $('piYes').onclick = () => { socket.emit('party', { op: 'accept', id: inviteId }); $('partyInvite').classList.add('hidden'); };
       $('piNo').onclick = () => $('partyInvite').classList.add('hidden');
-      // Быстрое зелье: сначала большое, потом обычное
-      $('potBtn').onclick = async () => {
-        let r = await Bag.act('useMat', { mat: 'potHp2' });
-        if (r.error === 'Нет такого предмета') r = await Bag.act('useMat', { mat: 'potHp' });
-        Town.toast(r.error === 'Нет такого предмета' ? 'Нет зелий — купите в лавке эликсиров' : r.error || r.toast);
+      // Быстрое зелье: сначала большое, потом обычное. Перезарядка 8 с — кнопка тускнеет
+      const NO_POT = 'Нет такого предмета';
+      let potBusy = false, potCdTm = null;
+      const potCooldown = (ms) => {
+        $('potBtn').classList.add('cooling');
+        clearTimeout(potCdTm);
+        potCdTm = setTimeout(() => $('potBtn').classList.remove('cooling'), ms);
       };
+      const drinkPotion = async (auto) => {
+        if (potBusy) return null;
+        potBusy = true;
+        let r = await Bag.act('useMat', { mat: 'potHp2' });
+        if (r.error === NO_POT) r = await Bag.act('useMat', { mat: 'potHp' });
+        potBusy = false;
+        if (!r.error) potCooldown(8000);
+        if (!auto || !r.error) Town.toast(r.error === NO_POT ? 'Нет зелий — купите в лавке эликсиров' : auto ? `Автозелье: ${r.toast}` : r.error || r.toast);
+        return r;
+      };
+      // pointerdown, а не click: на iPhone click не приходит, пока другой палец держит джойстик или атаку
+      $('potBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); vibrate('light'); drinkPotion(false); });
+      // Автозелье (Настройки → Управление): здоровья меньше порога — пьём само
+      let autoPotNext = 0, noPotWarned = false;
+      setInterval(async () => {
+        const sc = window.gameScene, d = sc && sc.me && sc.me.data;
+        if (!Settings.get('autoPot') || !d || d.dead || !d.maxHp || Date.now() < autoPotNext) return;
+        if (d.hp / d.maxHp * 100 >= Settings.get('autoPotAt')) { noPotWarned = false; return; }
+        autoPotNext = Date.now() + 1000;
+        const r = await drinkPotion(true);
+        if (!r) return;
+        if (!r.error) autoPotNext = Date.now() + 8000;
+        else if (r.error === NO_POT) { autoPotNext = Date.now() + 20000; if (!noPotWarned) { noPotWarned = true; Town.toast('Автозелье: зелья закончились'); } }
+      }, 250);
       const openParty = () => {
         const box = document.createElement('div');
         const me = socket.id;
@@ -579,6 +605,8 @@
         row('Размер кнопок', 'Джойстик, атака, умения и зелье', slider('ctrlSize', 80, 130));
         row('Прозрачность кнопок', 'Меньше — лучше видно карту', slider('ctrlOpacity', 40, 100));
         row('Джойстик справа', 'Для левой руки: атака и умения слева', opt('leftHand'));
+        row('Автозелье', 'Само пьёт зелье здоровья, когда его мало', opt('autoPot'));
+        row('Порог автозелья', 'Пить, когда здоровья меньше, %', slider('autoPotAt', 20, 70));
         sec('🌐 Язык');
         const lg = document.createElement('div'); lg.className = 'set-langs notr';
         lg.innerHTML = Object.entries(I18N.LANGS).map(([k, n]) => `<button type="button" data-lang="${k}" class="${k === I18N.lang ? 'on' : ''}">${n}</button>`).join('');

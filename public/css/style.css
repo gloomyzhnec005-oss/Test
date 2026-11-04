@@ -235,6 +235,9 @@ input, select, textarea { font-size: 16px !important; }
   top: calc(118px + env(safe-area-inset-top));
 }
 #chatBtn { right: 8px; }
+/* Зелье на перезарядке (8 с) */
+#potBtn.cooling { filter: grayscale(.85) brightness(.65); }
+
 /* Джойстик: тонкое золотое кольцо с рунными метками сторон света и самоцвет-стик */
 .joystick {
   position: absolute; left: 24px; bottom: calc(28px + env(safe-area-inset-bottom));

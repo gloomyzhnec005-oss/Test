@@ -302,6 +302,7 @@ module.exports = function createMeta(deps) {
       if (m.kind === 'potion') {
         if (p.dead) return { error: 'Герой повержен' };
         if (now < (p.potionAt || 0)) return { error: `Зелье будет готово через ${Math.ceil((p.potionAt - now) / 1000)} с` };
+        if (m.heal && !m.res && p.hp >= p.maxHp) return { error: 'Здоровье и так полное' }; // не тратим зелье впустую
         p.potionAt = now + 8000;
         if (m.heal) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * m.heal); msg = `${m.icon} +${Math.round(p.maxHp * m.heal)} здоровья`; }
         if (m.res) { p.res = Math.min(p.resMax, p.res + p.resMax * m.res); msg = `${m.icon} ресурс восстановлен`; }
