@@ -60,6 +60,13 @@ input, select, textarea { font-size: 16px !important; }
 .splash-bar i { display: block; height: 100%; width: 0; background: linear-gradient(180deg, #ffe08a, #c08a2a 55%, #8a5a14); box-shadow: 0 0 10px #ffb84a; transition: width .3s; }
 .splash-load p { margin: 8px 0 0; color: #f3e6c6; font-size: 13px; letter-spacing: .5px; text-shadow: 0 1px 3px #000; }
 
+/* Загрузка мира: своя картинка (assets/ui/loading_world.webp), пока её нет — тёмный фон с отсветом */
+.wl { background: radial-gradient(ellipse at 50% 35%, #2a2236 0%, #120e16 60%, #07060a 100%); z-index: 9000; }
+.wl.has-art { background: #0d0b12 url(../assets/ui/loading_world.webp) center / cover no-repeat; }
+.wl.hidden { display: none; }
+.wl-zone { margin-bottom: 10px; color: #ffe2a0; font-size: 17px; letter-spacing: .5px; text-shadow: 0 2px 6px #000, 0 0 12px rgba(255,180,80,.35); }
+.wl-tip { min-height: 2.6em; font-size: 12px !important; color: #cdbf9e !important; opacity: .9; }
+
 /* Логотип игры: под окном героя, над сценой */
 .lobby-logo {
   position: absolute; z-index: 4; left: 50%; top: calc(140px + env(safe-area-inset-top)); transform: translateX(-50%);

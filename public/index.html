@@ -78,6 +78,15 @@
 
   <!-- Игра -->
   <div id="game"></div>
+  <!-- Загрузка мира: вход в игру и переход в другой мир / данж (настоящий прогресс загрузчика Phaser) -->
+  <div id="worldLoad" class="splash wl hidden">
+    <div class="splash-load">
+      <div class="wl-zone" id="wlZone"></div>
+      <div class="splash-bar"><i id="wlFill"></i></div>
+      <p id="wlText">Загрузка… 0%</p>
+      <p class="wl-tip" id="wlTip"></p>
+    </div>
+  </div>
 
   <!-- HUD -->
   <div id="hud" class="hidden">

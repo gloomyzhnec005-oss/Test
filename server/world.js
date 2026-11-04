@@ -445,9 +445,15 @@ function buildWorld() {
     }
     return { ...z.spawn };
   };
+  // Какие монстры водятся в зоне: клиент заранее грузит только их картинки
+  const zoneMobs = (z) => {
+    if (z.kind === 'dungeon' && z.dg) return [...new Set([...z.dg.pool, ...(z.dg.minis || []), z.dg.boss])];
+    if (z.kind === 'worldboss' && WORLD_BOSSES[z.town]) return WORLD_BOSSES[z.town].list;
+    return [];
+  };
   // Данные зоны для клиента
   const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, inst: !!z.inst, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
-    town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon', gates: (z.gates || []).map((g) => ({ i: g.i, x: g.x, y: g.y, w: g.w, side: g.side, state: g.state })) });
+    town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon', mobs: zoneMobs(z), gates: (z.gates || []).map((g) => ({ i: g.i, x: g.x, y: g.y, w: g.w, side: g.side, state: g.state })) });
 
   return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, addPvpInstance, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level, minLevel: w.minLevel || 1 })) };
 }

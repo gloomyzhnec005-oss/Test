@@ -23,21 +23,21 @@ window.GameScene = class GameScene extends Phaser.Scene {
   preload() {
     // Нарисованные значки городских мест для подписей зданий (public/assets/ui/place_*.webp)
     for (const k of ['warehouse', 'equip', 'alchemy', 'smith', 'runes', 'trainer', 'auction', 'market', 'events', 'gacha', 'teleport', 'arena', 'survival']) this.load.image('place_' + k, `assets/ui/place_${k}.webp`);
-    for (const [id, m] of Object.entries(Skins.MOBS)) this.load.spritesheet('mskin_' + id, m.sheet, { frameWidth: m.w, frameHeight: m.h });
     // Нарисованные эффекты монстров (tools/gen_mobs.py): снаряды, вспышка попадания, рунный круг
     this.MOB_PROJ = ['arrow', 'bolt', 'axe', 'feather', 'leaf', 'nature', 'fireball', 'frost', 'spark', 'holy', 'arcane', 'dark', 'necro', 'spirit', 'venom', 'illusion'];
     for (const k of this.MOB_PROJ) this.load.spritesheet('mproj_' + k, `assets/mobfx/proj_${k}.png`, { frameWidth: 28, frameHeight: 14 });
     this.load.spritesheet('mfx_burst', 'assets/mobfx/burst.png', { frameWidth: 40, frameHeight: 40 });
     this.load.image('mfx_rune', 'assets/mobfx/rune.png');
-    for (const [id, sk] of Object.entries(Skins.LIST)) if (sk.turret) this.load.image('turret_' + id, sk.turret);
-    for (const [id, sk] of Object.entries(Skins.LIST)) if (sk.beast) this.load.spritesheet('bskin_' + id, sk.beast.sheet, { frameWidth: sk.beast.w, frameHeight: sk.beast.h });
-    WorldArt.preload(this); // нарисованная графика миров (тайлы, здания, порталы)
-    // Нарисованные скины героев: листы 8 направлений
-    for (const [id, sk] of Object.entries(Skins.LIST)) {
-      if (!this.heroes[id]) continue;
-      this.load.spritesheet('skin_' + id, sk.sheet, { frameWidth: sk.w, frameHeight: sk.h });
-      if (sk.attack) this.load.spritesheet('atk_' + id, sk.attack.sheet, { frameWidth: sk.attack.w, frameHeight: sk.attack.h });
-      if (sk.fx) this.load.spritesheet('fx_' + id, sk.fx.sheet, { frameWidth: sk.fx.size, frameHeight: sk.fx.size });
+    WorldArt.preload(this); // общая графика миров (обстановка, добыча, значки)
+    // Только то, что нужно сразу: свой герой, текущий мир и монстры текущей зоны.
+    // Остальное (чужие герои, другие миры, монстры) догружается по мере появления — см. lazyLoad.
+    this.queueZoneAssets(this.welcome.zone);
+    this.queueHero(this.welcome.myHero);
+    // Экран загрузки с настоящим процентом
+    if (this.ui.onLoading) {
+      this.ui.onLoading(0, this.welcome.zone);
+      this.load.on('progress', (v) => this.ui.onLoading(v));
+      this.load.once('complete', () => { this.load.off('progress'); this.ui.onLoading(null); });
     }
     for (const [k, [w, h]] of Object.entries(Skins.PETS)) this.load.spritesheet('psk_' + k, `assets/pets/${k}.png`, { frameWidth: w, frameHeight: h });
   }
@@ -60,32 +60,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.anims.create({ key: `pwalk_${k}`, frames: this.anims.generateFrameNumbers('psk_' + k, { start: 0, end: 3 }), frameRate: k === 'turret' ? 4 : 9, repeat: -1 });
       this.anims.create({ key: `patk_${k}`, frames: this.anims.generateFrameNumbers('psk_' + k, { start: 4, end: 6 }), frameRate: 12, repeat: 0 });
     }
-    // Звериный облик героя (Талиесин): ходьба и удары
-    for (const [id, sk] of Object.entries(Skins.LIST)) {
-      if (!sk.beast || !this.textures.exists('bskin_' + id)) continue;
-      for (const d of ['down', 'side', 'up']) this.anims.create({ key: `bwalk_${id}_${d}`, frames: sk.beast[d].map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 9, repeat: -1 });
-      this.anims.create({ key: `batk_${id}`, frames: sk.beast.attack.map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 16, repeat: 0 });
-    }
     for (const k of this.MOB_PROJ || []) if (this.textures.exists('mproj_' + k)) this.anims.create({ key: 'mproj_' + k, frames: this.anims.generateFrameNumbers('mproj_' + k, { start: 0, end: 3 }), frameRate: 14, repeat: -1 });
     if (this.textures.exists('mfx_burst')) this.anims.create({ key: 'mfx_burst', frames: this.anims.generateFrameNumbers('mfx_burst', { start: 0, end: 5 }), frameRate: 22, repeat: 0 });
-    for (const [id, m] of Object.entries(Skins.MOBS)) {
-      if (!this.textures.exists('mskin_' + id)) continue;
-      this.anims.create({ key: `mwalk_${id}`, frames: m.walk.map((f) => ({ key: 'mskin_' + id, frame: f })), frameRate: 8, repeat: -1 });
-      this.anims.create({ key: `matk_${id}`, frames: m.attack.map((f) => ({ key: 'mskin_' + id, frame: f })), frameRate: 9, repeat: 0 });
-    }
-    for (const [id, sk] of Object.entries(Skins.LIST)) {
-      if (!this.textures.exists('skin_' + id)) continue;
-      for (let r = 0; r < 8; r++) {
-        this.anims.create({ key: `skin_${id}_${r}`, frames: this.anims.generateFrameNumbers('skin_' + id, { start: r * sk.frames, end: r * sk.frames + sk.frames - 1 }), frameRate: 10, repeat: -1 });
-      }
-      // Кадры атаки и нарисованные эффекты (если есть)
-      if (sk.attack && this.textures.exists('atk_' + id)) {
-        for (let r = 0; r < (sk.attack.rows || 6); r++) this.anims.create({ key: `atk_${id}_${r}`, frames: this.anims.generateFrameNumbers('atk_' + id, { start: r * sk.attack.frames, end: r * sk.attack.frames + sk.attack.frames - 1 }), frameRate: 18, repeat: 0 });
-      }
-      if (sk.fx && this.textures.exists('fx_' + id)) {
-        sk.fx.rows.forEach((name, r) => this.anims.create({ key: `fx_${id}_${name}`, frames: this.anims.generateFrameNumbers('fx_' + id, { start: r * sk.fx.frames, end: r * sk.fx.frames + sk.fx.frames - 1 }), frameRate: 16, repeat: name === 'aura' ? -1 : 0 }));
-      }
-    }
+    for (const id of Object.keys(Skins.MOBS)) this.makeMobAnims(id);
+    for (const id of Object.keys(Skins.LIST)) this.makeHeroAnims(id);
+    // Догрузка по ходу игры: колбэки срабатывают, когда очередь загрузчика опустела
+    this.lazyDone = [];
+    this.load.on('complete', () => { const cbs = this.lazyDone; this.lazyDone = []; cbs.forEach((f) => f()); });
+    this.load.on('loaderror', (f) => console.warn('asset load failed', f.key));
 
     // Текстуры
     const addTex = (key, cnv) => { if (!this.textures.exists(key)) this.textures.addCanvas(key, cnv); };
@@ -139,6 +121,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
     });
     // Переход в другую зону: новая карта, прежние сущности исчезнут со следующим состоянием
     this.net.on('zone', (d) => {
+      // Новый мир / арена / монстры данжа ещё не загружены — экран загрузки, затем карта
+      if (this.queueZoneAssets(d.zone)) {
+        this.zoneLoading = true;
+        this.ui.onLoading && this.ui.onLoading(0, d.zone);
+        this.lazyLoad(() => { this.zoneLoading = false; this.ui.onLoading && this.ui.onLoading(null); this.enterZone(d); });
+      } else this.enterZone(d);
+    });
+    this.load.on('progress', (v) => { if (this.zoneLoading && this.ui.onLoading) this.ui.onLoading(v); });
+    this.enterZone = (d) => {
+      (d.zone.mobs || []).forEach((t) => this.makeMobAnims(t));
       this.buildZone(d.zone);
       for (const [id, e] of this.players) if (id !== this.myId) { e.c.destroy(); this.players.delete(id); }
       for (const e of this.monsters.values()) if (!e.pvp) e.c.destroy();
@@ -146,7 +138,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.targetId = null; this.autoWalk = null;
       if (this.me) { this.me.x = d.x; this.me.y = d.y; this.me.e.c.setPosition(d.x, d.y); }
       this.cameras.main.flash(350, 255, 255, 255);
-    });
+    };
     // Новые объекты зоны (выход из пройденного данжа)
     this.net.on('zoneObjs', (objs) => {
       if (!this.zone) return;
@@ -163,6 +155,96 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
     window.gameScene = this; // для отладки из консоли
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,Q,E,R');
+  }
+
+  // ---------- Загрузка по мере надобности (экономия трафика и видеопамяти на слабых телефонах) ----------
+  // Поставить в очередь лист героя (ходьба, удары, эффекты, турель, звериный облик). true — если что-то добавлено
+  queueHero(id) {
+    const sk = id && Skins.LIST[id], L = this.load, has = (k) => this.textures.exists(k);
+    if (!sk || has('skin_' + id) || (this.heroQueued || (this.heroQueued = new Set())).has(id)) return false;
+    this.heroQueued.add(id);
+    L.spritesheet('skin_' + id, sk.sheet, { frameWidth: sk.w, frameHeight: sk.h });
+    if (sk.attack) L.spritesheet('atk_' + id, sk.attack.sheet, { frameWidth: sk.attack.w, frameHeight: sk.attack.h });
+    if (sk.fx) L.spritesheet('fx_' + id, sk.fx.sheet, { frameWidth: sk.fx.size, frameHeight: sk.fx.size });
+    if (sk.turret && !has('turret_' + id)) L.image('turret_' + id, sk.turret);
+    if (sk.beast && !has('bskin_' + id)) L.spritesheet('bskin_' + id, sk.beast.sheet, { frameWidth: sk.beast.w, frameHeight: sk.beast.h });
+    return true;
+  }
+
+  queueMob(type) {
+    const m = Skins.MOBS[type];
+    if (!m || this.textures.exists('mskin_' + type) || (this.mobQueued || (this.mobQueued = new Set())).has(type)) return false;
+    this.mobQueued.add(type);
+    this.load.spritesheet('mskin_' + type, m.sheet, { frameWidth: m.w, frameHeight: m.h });
+    return true;
+  }
+
+  // Графика мира зоны, её арена и монстры, которые там водятся (список присылает сервер)
+  queueZoneAssets(z) {
+    let any = WorldArt.preloadTheme(this, z.theme);
+    if (z.kind === 'worldboss' || z.kind === 'pvp') any = WorldArt.preloadArena(this, z.theme) || any;
+    for (const t of z.mobs || []) any = this.queueMob(t) || any;
+    return any;
+  }
+
+  // Запустить загрузчик для уже поставленных в очередь файлов; done — когда всё догрузится
+  lazyLoad(done) {
+    if (done) this.lazyDone.push(done);
+    if (!this.load.isLoading()) this.load.start();
+  }
+
+  // Чужой герой появился рядом — догружаем его лист, затем переодеваем всех с этим героем
+  needHero(id) {
+    if (!this.queueHero(id)) return;
+    this.lazyLoad(() => {
+      this.makeHeroAnims(id);
+      for (const e of this.players.values()) if (e.data && e.data.hero === id && !e.form) this.applySkin(e, id);
+      for (const [mid, e] of this.monsters) if (e.heroClone && e.data && e.data.hs === id) { e.c.destroy(); this.monsters.delete(mid); } // пересоздастся со скином
+    });
+  }
+
+  // Новый вид монстра — догружаем; уже стоящих на карте пересоздаём с нарисованным спрайтом
+  needMob(type) {
+    if (!this.queueMob(type)) return;
+    this.lazyLoad(() => this.mobsLoaded([type]));
+  }
+
+  mobsLoaded(types) {
+    const set = new Set(types);
+    types.forEach((t) => this.makeMobAnims(t));
+    for (const [mid, e] of this.monsters) {
+      if (e.pvp || e.heroClone || e.mskin || !e.data || !set.has(e.data.type)) continue;
+      if (this.targetId === mid) continue; // цель не трогаем, чтобы не сбить бой — обновится позже
+      e.c.destroy(); this.monsters.delete(mid);
+    }
+  }
+
+  makeHeroAnims(id) {
+    const sk = Skins.LIST[id], A = this.anims;
+    if (!sk) return;
+    if (sk.beast && this.textures.exists('bskin_' + id) && !A.exists(`batk_${id}`)) { // звериный облик (Талиесин)
+      for (const d of ['down', 'side', 'up']) A.create({ key: `bwalk_${id}_${d}`, frames: sk.beast[d].map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 9, repeat: -1 });
+      A.create({ key: `batk_${id}`, frames: sk.beast.attack.map((f) => ({ key: 'bskin_' + id, frame: f })), frameRate: 16, repeat: 0 });
+    }
+    if (!this.textures.exists('skin_' + id) || A.exists(`skin_${id}_0`)) return;
+    for (let r = 0; r < 8; r++) {
+      A.create({ key: `skin_${id}_${r}`, frames: A.generateFrameNumbers('skin_' + id, { start: r * sk.frames, end: r * sk.frames + sk.frames - 1 }), frameRate: 10, repeat: -1 });
+    }
+    // Кадры атаки и нарисованные эффекты (если есть)
+    if (sk.attack && this.textures.exists('atk_' + id)) {
+      for (let r = 0; r < (sk.attack.rows || 6); r++) A.create({ key: `atk_${id}_${r}`, frames: A.generateFrameNumbers('atk_' + id, { start: r * sk.attack.frames, end: r * sk.attack.frames + sk.attack.frames - 1 }), frameRate: 18, repeat: 0 });
+    }
+    if (sk.fx && this.textures.exists('fx_' + id)) {
+      sk.fx.rows.forEach((name, r) => A.create({ key: `fx_${id}_${name}`, frames: A.generateFrameNumbers('fx_' + id, { start: r * sk.fx.frames, end: r * sk.fx.frames + sk.fx.frames - 1 }), frameRate: 16, repeat: name === 'aura' ? -1 : 0 }));
+    }
+  }
+
+  // Анимации нарисованного монстра: ходьба (по кругу) и удар (один раз)
+  makeMobAnims(id) {
+    const m = Skins.MOBS[id];
+    if (!m || !this.textures.exists('mskin_' + id) || this.anims.exists(`mwalk_${id}`)) return;
+    this.anims.create({ key: `mwalk_${id}`, frames: m.walk.map((f) => ({ key: 'mskin_' + id, frame: f })), frameRate: 8, repeat: -1 });
+    this.anims.create({ key: `matk_${id}`, frames: m.attack.map((f) => ({ key: 'mskin_' + id, frame: f })), frameRate: 9, repeat: 0 });
   }
 
   resize() {
@@ -588,6 +670,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       let e = this.players.get(p.id);
       if (!e) {
         const isMe = p.id === this.myId;
+        this.needHero(p.hero); // чужой герой — догрузить его нарисованный лист
         e = this.makeEntity('hero_' + p.hero, `${p.name} [${p.lvl}]`, isMe ? '#ffcc4d' : '#ffffff');
         e.c.setPosition(p.x, p.y);
         this.applySkin(e, p.hero);
@@ -721,6 +804,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const prefix = { magic: 'Усиленный ', mini: '★ ', boss: '👑 ', world: '👹 ' }[m.rk] || '';
         // Клон героя или тень чемпиона на арене — рисуется героем
         if (m.hs) {
+          this.needHero(m.hs);
           e = this.makeEntity('hero_' + m.hs, `${m.nm} · ${m.lv}`, '#ff9a6a', m.id);
           e.c.setPosition(m.x, m.y);
           this.applySkin(e, m.hs);
@@ -728,6 +812,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
           this.monsters.set(m.id, e);
         }
         const ms = !e && this.textures.exists('mskin_' + m.type) && Skins.MOBS[m.type];
+        if (!e && !ms) this.needMob(m.type); // пока грузится — процедурный спрайт, потом заменится
         // Босс данжа или мировой босс появился рядом — рёв
         if (!e && (m.rk === 'boss' || m.rk === 'world') && window.Sfx) Sfx.play('roar', { pitch: 0.9 });
         if (!e) e = this.makeEntity(ms ? 'mskin_' + m.type : 'mon_' + m.type, `${prefix}${m.nm || def.name} · ${m.lv}`, RC[m.rk] || '#ffd9a0', m.id);
@@ -2215,6 +2300,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    if (this.zoneLoading) return; // догружается новый мир — карта ещё старая, не двигаемся
     const dt = delta / 1000;
     // Подошёл к запечатанным воротам босса — когда они откроются
     if (Settings.get('hints') && this.me && this.gates && this.gates.size && time > (this.gateHintAt || 0)) {

@@ -65,12 +65,18 @@ function getChar(uid, heroId) {
 const app = express();
 // Версия сборки: коммит на Railway (или время запуска) — видна в админке и в /health
 const VERSION = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7) || 'локально ' + new Date().toISOString().slice(0, 16).replace('T', ' ');
-// HTML, скрипты и стили браузер всегда перепроверяет у сервера — после деплоя сразу видна новая версия
+// Сжатие gzip: скрипты, HTML и JSON в 3–5 раз меньше (картинки и музыка уже сжаты — их не трогает)
+app.use(require('compression')());
+// HTML, скрипты и стили браузер всегда перепроверяет у сервера — после деплоя сразу видна новая версия.
+// Картинки, звуки и музыку телефон держит в кеше: сутки без запросов, ещё неделю — показывает из кеша и тихо сверяет
+// в фоне. Повторный запуск игры почти ничего не качает.
+const ASSET_CACHE = 'public, max-age=86400, stale-while-revalidate=604800';
 app.use(express.static(path.join(__dirname, '..', 'public'), {
-  setHeaders: (res, file) => { if (/\.(html|js|css)$/.test(file)) res.setHeader('Cache-Control', 'no-cache'); },
+  setHeaders: (res, file) => res.setHeader('Cache-Control', /\.(html|js|css|json)$/.test(file) ? 'no-cache' : ASSET_CACHE),
 }));
+// Phaser меняется только с обновлением пакета — кешируем на сутки
 app.use('/vendor/phaser.min.js', (req, res) =>
-  res.sendFile(path.join(__dirname, '..', 'node_modules', 'phaser', 'dist', 'phaser.min.js')));
+  res.sendFile(path.join(__dirname, '..', 'node_modules', 'phaser', 'dist', 'phaser.min.js'), { headers: { 'Cache-Control': ASSET_CACHE } }));
 // Админ-панель (server/admin.js): свой разбор JSON с большим лимитом, поэтому подключается раньше общего
 const admin = createAdmin({
   C, I, MOBX, verifyInitData, dataDir: path.dirname(DATA_FILE), version: () => VERSION,

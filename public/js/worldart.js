@@ -30,23 +30,36 @@ window.WorldArt = (() => {
   // Загрузка в Phaser (вызывается из preload сцены)
   // Обстановка данжей и сундуки наград (assets/world/props/): общие для всех миров
   const PROPS = ['barrel', 'crates', 'bones', 'candles', 'brazier', 'brokenPillar', 'statue', 'cage', 'web', 'exitAltar', 'demonAltar', 'crystal', 'sarcophagus', 'chestClosed', 'chestOpen'];
+  // Общее для всех миров (небольшое): обстановка, значки статусов, добыча
   function preload(scene) {
     for (const k of PROPS) scene.load.image('prop_' + k, `assets/world/props/${k}.png`);
     for (const k of ['stun', 'root', 'slow', 'freeze', 'fear', 'taunt', 'weak', 'curse', 'poison', 'burn', 'bleed', 'shield', 'haste', 'rage', 'regen', 'invuln']) scene.load.image('st_' + k, `assets/ui/status/${k}.webp`);
     for (const k of ['coins', 'goldBag', 'scroll', 'potion', 'lootCommon', 'lootRare', 'lootEpic', 'lootLegend']) scene.load.image('loot_' + k, `assets/world/loot/${k}.webp`);
-    // Ворота комнат боссов: закрытые, приоткрытые, открытые и запечатанные магией
-    for (const th of Object.keys(THEMES)) for (const st of ['closed', 'half', 'open', 'seal']) scene.load.image(`gate_${th}_${st}`, `assets/world/gates/${th}_${st}.webp`);
-    // Арены мировых боссов (assets/world/arena/<тема>.webp): одна картинка на всю площадку
-    for (const th of Object.keys(THEMES)) scene.load.image('arena_' + th, `assets/world/arena/${th}.webp`);
-    for (const th of Object.keys(THEMES)) {
-      scene.load.image('tiles_' + th, `${base(th)}/tiles.png`);
-      for (const p of PLACES) scene.load.image(`bld_${th}_${p}`, `${base(th)}/buildings/${p}.png`);
-      for (const o of OBJECTS[th]) scene.load.image(`obj_${th}_${o}`, `${base(th)}/objects/${o}.png`);
-      for (const o of PORTALS) scene.load.image(`ptl_${th}_${o}`, `${base(th)}/portals/${o}.png`);
-      for (const o of DECO[th] || []) scene.load.image(`deco_${th}_${o}`, `${base(th)}/deco/${o}.png`);
-      for (const g of GROUND[th] || []) scene.load.image(`gnd_${th}_${g}`, `${base(th)}/ground/${g}.png`);
-      for (const d of DUN_DECALS) scene.load.image(`dun_${th}_${d}`, `${base(th)}/dungeon/${d}.png`);
-    }
+  }
+  // Графика одного мира — грузится, только когда игрок туда попадает (экономия памяти на слабых телефонах).
+  // Возвращает false, если всё уже загружено.
+  function preloadTheme(scene, th) {
+    if (!THEMES[th] || scene.textures.exists(`gnd_${th}_loaded`)) return false;
+    const L = scene.load, has = (k) => scene.textures.exists(k);
+    const img = (k, url) => { if (!has(k)) L.image(k, url); };
+    // Процедурный тайлсет-заглушку заменяем нарисованным
+    if (has('tiles_' + th)) scene.textures.remove('tiles_' + th);
+    L.image('tiles_' + th, `${base(th)}/tiles.png`);
+    for (const st of ['closed', 'half', 'open', 'seal']) img(`gate_${th}_${st}`, `assets/world/gates/${th}_${st}.webp`);
+    for (const p of PLACES) img(`bld_${th}_${p}`, `${base(th)}/buildings/${p}.png`);
+    for (const o of OBJECTS[th]) img(`obj_${th}_${o}`, `${base(th)}/objects/${o}.png`);
+    for (const o of PORTALS) img(`ptl_${th}_${o}`, `${base(th)}/portals/${o}.png`);
+    for (const o of DECO[th] || []) img(`deco_${th}_${o}`, `${base(th)}/deco/${o}.png`);
+    for (const g of GROUND[th] || []) img(`gnd_${th}_${g}`, `${base(th)}/ground/${g}.png`);
+    for (const d of DUN_DECALS) img(`dun_${th}_${d}`, `${base(th)}/dungeon/${d}.png`);
+    scene.textures.generate(`gnd_${th}_loaded`, { data: ['1'], pixelWidth: 1 }); // метка «мир загружен»
+    return true;
+  }
+  // Арена мирового босса (1254×1254, ~6 МБ видеопамяти) — только при входе на арену
+  function preloadArena(scene, th) {
+    if (!THEMES[th] || scene.textures.exists('arena_' + th)) return false;
+    scene.load.image('arena_' + th, `assets/world/arena/${th}.webp`);
+    return true;
   }
   const has = (th) => !!THEMES[th];
   const hash = (x, y) => (((x * 73856093) ^ (y * 19349663)) >>> 0) % 100;
@@ -168,5 +181,5 @@ window.WorldArt = (() => {
     return out;
   }
 
-  return { has, preload, remap, treeAt, decalAt, hash, lobbyBgs, terrain };
+  return { has, preload, preloadTheme, preloadArena, remap, treeAt, decalAt, hash, lobbyBgs, terrain };
 })();

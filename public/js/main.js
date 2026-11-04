@@ -402,6 +402,17 @@
 
   // ---------- Запуск ----------
   let socket = null, game = null;
+  // Советы на экране загрузки мира
+  const LOAD_TIPS = [
+    'Совет: тапните по монстру — герой сам подойдёт и атакует.',
+    'Совет: в данже карта открывается по мере продвижения — туман скрывает неразведанное.',
+    'Совет: босс данжа приходит по расписанию — ворота его комнаты откроются сами.',
+    'Совет: дубликаты героев делают его сильнее, а лишнее превращается в осколки душ.',
+    'Совет: мировой босс — общая битва, награду получают все участники.',
+    'Совет: если телефон греется, включите в настройках ограничение 30 кадров.',
+  ];
+  // Картинка экрана загрузки мира — если файл есть (без него остаётся тёмный фон)
+  { const im = new Image(); im.onload = () => $('worldLoad').classList.add('has-art'); im.src = 'assets/ui/loading_world.webp'; }
 
   function startGame(selected, name) {
     Lobby.setBusy(true);
@@ -647,6 +658,19 @@
           $('targetName').textContent = `${name} — ${hp}/${maxHp}`;
           $('targetFill').style.width = (100 * hp / maxHp) + '%';
         },
+        // Экран загрузки мира: v — доля 0..1 (null — скрыть), zone — куда идём (название над полоской)
+        onLoading: (v, zone) => {
+          const el = $('worldLoad');
+          if (v === null) { el.classList.add('hidden'); return; }
+          if (el.classList.contains('hidden')) {
+            el.classList.remove('hidden');
+            $('wlZone').textContent = zone ? zone.name || '' : '';
+            $('wlTip').textContent = LOAD_TIPS[Math.floor(Math.random() * LOAD_TIPS.length)];
+          }
+          const pct = Math.round(v * 100);
+          $('wlFill').style.width = pct + '%';
+          $('wlText').textContent = `Загрузка… ${pct}%`;
+        },
         onDeath: () => { $('deathScreen').classList.remove('hidden'); vibrate('heavy'); },
         onRespawn: () => $('deathScreen').classList.add('hidden'),
         vibrate,
@@ -670,6 +694,7 @@
         if (k === 'lowFps') { const L = game.loop; L.sleep(); L.fpsLimit = v ? 30 : 0; L.hasFpsLimit = !!v; L._limitRate = v ? 1000 / 30 : 0; L.wake(true); }
         if (k === 'hints') document.body.classList.toggle('no-hints', !v);
       });
+      w.myHero = selected; // свой герой грузится сразу, остальные — по мере появления
       game.scene.add('Game', window.GameScene, true, { socket, welcome: w, ui, input });
       setTimeout(() => window.Tutorial && Tutorial.start(), 1800); // обучение при первом входе
       let rt = 0;
