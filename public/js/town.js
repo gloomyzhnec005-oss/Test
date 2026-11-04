@@ -69,15 +69,8 @@ window.Town = (() => {
   const slots = (n) => `<div class="tw-slots">${'<i></i>'.repeat(n)}</div>`;
 
   // Покупка за Telegram Stars (в тестовом режиме DEV_PAYMENTS зачисляется сразу)
-  async function buyStars(item, after) {
-    const { ok, data } = await ctx.api('/api/invoice', { item });
-    if (!ok) return toast(data.error || 'Оплата недоступна');
-    if (data.devPaid) { toast('Покупка зачислена (тестовый режим)'); if (after) after(); return; }
-    if (!ctx.tg || !ctx.tg.openInvoice) return toast('Покупки за Stars доступны в Telegram');
-    ctx.tg.openInvoice(data.link, (status) => {
-      if (status === 'paid') { toast('Оплата получена!'); setTimeout(() => after && after(), 1500); }
-    });
-  }
+  // Покупка за Stars или TON (окно выбора — public/js/pay.js)
+  const buyStars = (item, after) => Pay.buy(item, { onPaid: after, toast });
 
   // Строка товара/лота: ячейка предмета + текст + кнопка
   function row(it, title, sub, btnLabel, onBtn, disabled = false) {

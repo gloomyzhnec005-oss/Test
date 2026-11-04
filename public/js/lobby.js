@@ -611,17 +611,14 @@ window.Lobby = (() => {
   async function buySpin(item = 'spin') {
     const tg = opts.tg;
     if (!tg || !opts.tgUser || !tg.openInvoice) { toast('Нет печатей: 💎 самоцветы — за задания и в магазине, печати за Stars — в Telegram'); return; }
-    const { ok, data } = await api('/api/invoice', { item });
-    if (!ok) { toast(data.error || 'Оплата недоступна'); return; }
-    tg.openInvoice(data.link, async (status) => {
-      if (status !== 'paid') return;
+    Pay.buy(item, { toast, onPaid: async () => { // Stars или TON — public/js/pay.js
       for (let i = 0; i < 6 && profile.paidSpins <= 0; i++) {
         await new Promise((res) => setTimeout(res, 800));
         await loadProfile();
       }
       if (profile.paidSpins > 0) openGacha();
       else toast('Оплата получена, печати появятся через несколько секунд');
-    });
+    } });
   }
 
   // Карточка героя: после призыва (isNew) или при просмотре ещё не полученного
@@ -706,17 +703,14 @@ window.Lobby = (() => {
     const tg = opts.tg;
     if (!tg || !opts.tgUser || !tg.openInvoice) { toast('Покупка за Telegram Stars доступна только в Telegram'); return; }
     try {
-      const { ok, data } = await api('/api/invoice', { item: 'bg', bgId: bg.id });
-      if (!ok) { toast(data.error || 'Оплата недоступна'); return; }
-      tg.openInvoice(data.link, async (status) => {
-        if (status !== 'paid') return;
+      Pay.buy('bg', { bgId: bg.id, toast, onPaid: async () => { // Stars или TON — public/js/pay.js
         for (let i = 0; i < 5 && !profile.bgs.includes(bg.id); i++) {
           await new Promise((res) => setTimeout(res, 800));
           await loadProfile();
         }
         if (profile.bgs.includes(bg.id)) { applyBg(bg.id); toast(`Фон «${bg.name}» куплен!`); haptic('notificationOccurred', 'success'); }
         closeSheet();
-      });
+      } });
     } catch {
       toast('Ошибка соединения');
     }

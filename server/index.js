@@ -159,10 +159,22 @@ app.post('/api/invoice', async (req, res) => {
   const who = resolveUid(initData, null);
   if (!who || !who.tg) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   if (!bot) return res.status(503).json({ error: 'Оплата временно недоступна' });
+  const inv = buildInvoice(who, item, bgId);
+  if (inv.error) return res.status(400).json({ error: inv.error });
+  try {
+    const link = await bot.telegram.createInvoiceLink({ ...inv.invoice, provider_token: '', currency: 'XTR' });
+    res.json({ link });
+  } catch (e) {
+    console.error('createInvoiceLink:', e.message);
+    res.status(500).json({ error: 'Не удалось создать счёт' });
+  }
+});
+// Счёт на товар: название, payload для зачисления (onPaid) и цена в Stars. Общий для Stars и TON
+function buildInvoice(who, item, bgId) {
   let invoice;
   if (/^pass[1-4]$/.test(item)) { // сезонный орден: цена — разница с уже купленным
     const v = meta.passInvoice(getProfile(who.uid), +item[4]);
-    if (v.error) return res.status(400).json({ error: v.error });
+    if (v.error) return { error: v.error };
     invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
   } else if (meta.INVOICES[item]) {
     const v = meta.INVOICES[item];
@@ -173,17 +185,48 @@ app.post('/api/invoice', async (req, res) => {
       prices: [{ label: ten ? 'Печати ×10' : 'Печать', amount: ten ? C.GACHA.spin10Price : C.GACHA.spinPrice }] };
   } else {
     const bg = C.LOBBY_BACKGROUNDS.find((b) => b.id === bgId && b.price > 0);
-    if (!bg) return res.status(400).json({ error: 'Неизвестный фон' });
+    if (!bg) return { error: 'Неизвестный фон' };
     invoice = { title: `Фон лобби «${bg.name}»`, description: 'Новый фон для лобби выбора героя',
       payload: `bg:${who.uid}:${bg.id}`, prices: [{ label: bg.name, amount: bg.price }] };
   }
-  try {
-    const link = await bot.telegram.createInvoiceLink({ ...invoice, provider_token: '', currency: 'XTR' });
-    res.json({ link });
-  } catch (e) {
-    console.error('createInvoiceLink:', e.message);
-    res.status(500).json({ error: 'Не удалось создать счёт' });
-  }
+  return { invoice, stars: invoice.prices[0].amount };
+}
+
+// ---------- Оплата в TON (server/ton.js): заказ → перевод из кошелька игрока → проверка в блокчейне ----------
+const ton = require('./ton')({ store, onPaid: (payload) => onPaid(payload), log: (k, t) => admin.log(k, t) });
+app.get('/api/ton/info', (req, res) => res.json(ton.info()));
+// Манифест TON Connect: кошелёк показывает игроку название и значок игры
+app.get('/tonconnect-manifest.json', (req, res) => {
+  const url = (process.env.WEBAPP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  res.json({ url, name: 'Mystic Horizon', iconUrl: `${url}/assets/ui/ton_icon.png` });
+});
+app.use('/vendor/tonconnect-ui.min.js', (req, res) =>
+  res.sendFile(path.join(__dirname, '..', 'node_modules', '@tonconnect', 'ui', 'dist', 'tonconnect-ui.min.js'), { headers: { 'Cache-Control': ASSET_CACHE } }));
+const tonWho = (req) => {
+  const { initData, guestId } = req.body || {};
+  return process.env.DEV_PAYMENTS === 'true' ? resolveUid(initData, guestId) : resolveUid(initData, null);
+};
+app.post('/api/ton/quote', (req, res) => {
+  if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в TON выключена' });
+  const who = tonWho(req);
+  if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
+  const inv = buildInvoice(who, req.body.item, req.body.bgId);
+  if (inv.error) return res.status(400).json({ error: inv.error });
+  res.json({ title: inv.invoice.title, stars: inv.stars, ton: ton.tonPrice(inv.stars) });
+});
+app.post('/api/ton/order', (req, res) => {
+  if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в TON выключена' });
+  const who = tonWho(req);
+  if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
+  const inv = buildInvoice(who, req.body.item, req.body.bgId);
+  if (inv.error) return res.status(400).json({ error: inv.error });
+  res.json(ton.createOrder(who.uid, inv.invoice.payload, inv.stars, inv.invoice.title));
+});
+app.post('/api/ton/status', async (req, res) => {
+  const who = tonWho(req);
+  if (!who) return res.status(403).json({ error: 'Нет игрока' });
+  await ton.poll(); // проверяем блокчейн сразу, не дожидаясь планового опроса
+  res.json(ton.status(String(req.body.id || ''), who.uid));
 });
 
 // Проверка и зачисление оплаты (вызывается ботом)

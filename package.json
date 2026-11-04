@@ -12,6 +12,8 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@ton/core": "^0.63.1",
+    "@tonconnect/ui": "^5.0.2",
     "compression": "^1.8.1",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",

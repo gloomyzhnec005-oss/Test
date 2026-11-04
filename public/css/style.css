@@ -1187,3 +1187,13 @@ canvas.skin { object-fit: contain; }
 [data-nav="play"].auto-on em::after { content: ' ⚔'; color: #ffd36a; }
 @keyframes autoPulse { 50% { box-shadow: 0 0 18px 4px rgba(255,200,90,.8); } }
 
+
+/* Выбор способа оплаты: Stars или TON (public/js/pay.js) */
+.pay-modal { position: fixed; inset: 0; z-index: 12000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.6); }
+.pay-box { width: min(100%, 340px); display: flex; flex-direction: column; gap: 8px; padding: 18px 16px 12px; border-radius: 10px; border: 1px solid #a8864a;
+  background: linear-gradient(180deg, #241b12, #120d09); box-shadow: 0 10px 30px rgba(0,0,0,.7); text-align: center; font-family: Georgia, serif; }
+.pay-title { color: #ffe9b0; font-weight: normal; font-size: 17px; }
+.pay-box small { color: #c9b896; margin-bottom: 4px; }
+.pay-opt { width: 100%; padding: 12px; font-size: 15px; }
+.pay-opt.ton { background: linear-gradient(180deg, #2a8ad8, #1563a8); border-color: #7cc4ff; color: #fff; }
+.pay-cancel { background: none; border: none; color: #b9a988; padding: 8px; font: inherit; cursor: pointer; }
