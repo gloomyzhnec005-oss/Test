@@ -174,33 +174,110 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(zoom);
   }
 
-  // Затемнение по краям карты: полоса от прозрачного к цвету пустоты, сплошной край смотрит наружу
-  edgeFade(z, col) {
-    const key = 'edgefade_' + col.slice(1);
-    if (!this.textures.exists(key)) {
-      const tex = this.textures.createCanvas(key, 4, 64), ctx = tex.getContext();
-      const g = ctx.createLinearGradient(0, 0, 0, 64), c = Phaser.Display.Color.HexStringToColor(col);
-      g.addColorStop(0, `rgba(${c.r},${c.g},${c.b},0)`);
-      g.addColorStop(1, `rgba(${c.r},${c.g},${c.b},1)`);
-      ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 64);
-      tex.refresh();
+  // Туман: неразведанная часть данжа и всё, что за краем карты.
+  // Маска — 1 пиксель на тайл (плюс поля M тайлов вокруг карты), растянута со сглаживанием, поэтому края мягкие.
+  // Поверх маски плывут два слоя клубов дымки (только в WebGL — через маску).
+  buildFog(z) {
+    this.destroyFog();
+    const T = this.T, M = 24, W = z.w + 2 * M, H = z.h + 2 * M;
+    const pal = GameScene.FOG[z.theme] || GameScene.FOG.green;
+    if (this.textures.exists('fogmask')) this.textures.remove('fogmask');
+    const R = 4; // пикселей маски на тайл: маска размывается, край тумана мягкий (~1.5 тайла)
+    const tex = this.textures.createCanvas('fogmask', W * R, H * R), ctx = tex.getContext();
+    const img = ctx.createImageData(W * R, H * R), d = img.data;
+    for (let o = 0; o < d.length; o += 4) { d[o] = pal.base[0]; d[o + 1] = pal.base[1]; d[o + 2] = pal.base[2]; }
+    const grid = new Uint8Array(W * H), ex = z.fog ? this.explored.get(z.id) : null;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const mx = x - M, my = y - M, inside = mx >= 0 && my >= 0 && mx < z.w && my < z.h;
+      grid[y * W + x] = !inside || (ex && !ex.has(my * z.w + mx)) ? 1 : 0;
     }
-    const T = this.T, W = z.w * T, H = z.h * T, B = T * 1.5;
-    const sides = [
-      [z.ox + W / 2, z.oy + H, 0, W], // низ
-      [z.ox + W / 2, z.oy, 180, W], // верх
-      [z.ox + W, z.oy + H / 2, -90, H], // право
-      [z.ox, z.oy + H / 2, 90, H], // лево
-    ];
-    for (const [x, y, ang, len] of sides) {
-      this.zoneObjs.push(this.add.image(x, y, key).setOrigin(0.5, 1).setAngle(ang).setDisplaySize(len, B).setDepth(5));
+    const x0 = z.ox - M * T, y0 = z.oy - M * T;
+    const objs = [this.add.image(x0, y0, 'fogmask').setOrigin(0, 0).setScale(T / R).setDepth(2400)];
+    const clouds = [];
+    if (this.sys.game.renderer.type === Phaser.WEBGL) {
+      const maskImg = this.make.image({ x: x0, y: y0, key: 'fogmask', add: false }).setOrigin(0, 0).setScale(T / R);
+      const mask = maskImg.createBitmapMask();
+      objs.push(maskImg);
+      [[0, 4, 0.75, 9, 3], [1, 2.5, 0.5, -6, 4]].forEach(([seed, sc, a, vx, vy]) => {
+        const key = this.fogClouds(z.theme, seed, pal.cloud);
+        const ts = this.add.tileSprite(x0, y0, W * T / sc, H * T / sc, key).setOrigin(0, 0).setScale(sc)
+          .setAlpha(a).setDepth(2401).setMask(mask);
+        ts.vx = vx; ts.vy = vy;
+        objs.push(ts); clouds.push(ts);
+      });
     }
+    this.fog = { tex, ctx, img, grid, M, W, H, R, objs, clouds, tmp: new Uint8Array(W * R * H * R) };
+    this.paintFog();
+    this.cameras.main.setBackgroundColor(pal.hex); // дальше полей — ровный цвет тумана
+  }
+
+  // Перерисовать маску тумана: тайлы → пиксели, затем размытие по горизонтали и вертикали (скользящее окно)
+  paintFog() {
+    const f = this.fog, { grid, W, R } = f, w = W * R, h = f.H * R, a = f.tmp, d = f.img.data, r = 3, n = 2 * r + 1;
+    for (let y = 0; y < h; y++) {
+      const row = ((y / R) | 0) * W;
+      for (let x = 0; x < w; x++) a[y * w + x] = grid[row + ((x / R) | 0)] * 255;
+    }
+    const line = new Uint16Array(Math.max(w, h));
+    for (let y = 0; y < h; y++) { // по горизонтали
+      let sum = 0;
+      for (let x = -r; x <= r; x++) sum += a[y * w + Math.min(w - 1, Math.max(0, x))];
+      for (let x = 0; x < w; x++) {
+        line[x] = sum / n;
+        sum += a[y * w + Math.min(w - 1, x + r + 1)] - a[y * w + Math.max(0, x - r)];
+      }
+      for (let x = 0; x < w; x++) a[y * w + x] = line[x];
+    }
+    for (let x = 0; x < w; x++) { // по вертикали — сразу в альфу картинки
+      let sum = 0;
+      for (let y = -r; y <= r; y++) sum += a[Math.min(h - 1, Math.max(0, y)) * w + x];
+      for (let y = 0; y < h; y++) {
+        d[(y * w + x) * 4 + 3] = sum / n;
+        sum += a[Math.min(h - 1, y + r + 1) * w + x] - a[Math.max(0, y - r) * w + x];
+      }
+    }
+    f.ctx.putImageData(f.img, 0, 0);
+    f.tex.refresh();
+    f.tex.setFilter(Phaser.Textures.FilterMode.LINEAR); // игра в pixelArt — без этого маска «лесенкой»
+  }
+
+  destroyFog() {
+    if (!this.fog) return;
+    this.fog.objs.forEach((o) => o.destroy());
+    this.fog = null;
+  }
+
+  // Бесшовная текстура клубов тумана (фрактальный шум), 256×256, один раз на мир и слой
+  fogClouds(theme, seed, col) {
+    const key = `fogcloud_${theme}_${seed}`;
+    if (this.textures.exists(key)) return key;
+    const S = 256, c = document.createElement('canvas');
+    c.width = c.height = S;
+    const ctx = c.getContext('2d'), img = ctx.createImageData(S, S), d = img.data;
+    let st = 1234567 + seed * 7919;
+    const rnd = () => ((st = (st * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    const octs = [[4, 0.5], [8, 0.27], [16, 0.15], [32, 0.08]].map(([n, amp]) => ({ n, amp, g: Array.from({ length: n * n }, rnd) }));
+    const sm = (t) => t * t * (3 - 2 * t);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      let v = 0;
+      for (const { n, amp, g } of octs) {
+        const fx = x / S * n, fy = y / S * n, ix = Math.floor(fx), iy = Math.floor(fy), tx = sm(fx - ix), ty = sm(fy - iy);
+        const x1 = (ix + 1) % n, y1 = (iy + 1) % n; // по модулю — текстура бесшовная
+        const a = g[iy * n + ix], b = g[iy * n + x1], c2 = g[y1 * n + ix], e = g[y1 * n + x1];
+        v += amp * ((a + (b - a) * tx) * (1 - ty) + (c2 + (e - c2) * tx) * ty);
+      }
+      const o = (y * S + x) * 4;
+      d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2];
+      d[o + 3] = Math.round(255 * Phaser.Math.Clamp((v - 0.42) * 2.6, 0, 1));
+    }
+    ctx.putImageData(img, 0, 0);
+    this.textures.addCanvas(key, c).setFilter(Phaser.Textures.FilterMode.LINEAR);
+    return key;
   }
 
   // Строит карту зоны: тайлы, здания, порталы, телепорт
   buildZone(z) {
     const T = this.T;
-    if (this.fogLayer) { this.fogLayer.destroy(); this.fogLayer = null; }
     if (this.layer) { this.layer.destroy(); this.tilemap.destroy(); }
     this.zoneObjs.forEach((o) => o.destroy());
     this.zoneObjs = [];
@@ -233,12 +310,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.mapW = z.w; this.mapH = z.h; this.tiles = z.tiles;
     // Туман войны: в данже карта открывается по мере прохождения
     this.fogTile = null;
-    if (z.fog) {
-      this.fogLayer = this.tilemap.createBlankLayer('fog', ts, z.ox, z.oy).setDepth(2400);
-      this.fogLayer.fill(9);
-      if (!this.explored.has(z.id)) this.explored.set(z.id, new Set());
-      for (const i of this.explored.get(z.id)) this.fogLayer.removeTileAt(i % z.w, Math.floor(i / z.w));
-    }
+    if (z.fog && !this.explored.has(z.id)) this.explored.set(z.id, new Set());
+    this.buildFog(z); // туман в данже и за краем карты в любой зоне
     // Камера без границ карты: герой всегда в центре экрана, даже у края зоны
     this.cameras.main.removeBounds();
     // Нарисованные деревья на клетках леса (клетка остаётся непроходимой)
@@ -272,10 +345,6 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const key = d.k.startsWith('p_') ? `prop_${d.k.slice(2)}` : `deco_${z.theme}_${d.k}`;
       if (this.textures.exists(key)) this.zoneObjs.push(this.add.image(d.x, d.y, key).setOrigin(0.5, 1).setDepth(10 + d.y));
     }
-    // За краем карты — тёмная «пустота» (в небесном мире — небо), край карты плавно в неё переходит
-    const voidCol = { green: '#0a1208', abyss: '#07040c', sky: '#bfe0ff' }[z.theme] || '#0a0a0a';
-    this.cameras.main.setBackgroundColor(voidCol);
-    this.edgeFade(z, voidCol);
     const keep = (o) => { this.zoneObjs.push(o); return o; };
     const labelStyle = { fontSize: '11px', fontFamily: 'Arial', color: '#fff6d8', stroke: '#000', strokeThickness: 3, resolution: 2 };
     // Подпись здания: нарисованный значок места + название
@@ -359,19 +428,22 @@ window.GameScene = class GameScene extends Phaser.Scene {
   // Раскрыть туман вокруг героя (радиус 7 тайлов)
   revealFog() {
     const z = this.zone;
-    if (!this.fogLayer || !this.me) return;
+    if (!z || !z.fog || !this.fog || !this.me) return;
     const tx = Math.floor((this.me.x - z.ox) / this.T), ty = Math.floor((this.me.y - z.oy) / this.T);
     const key = tx * 1000 + ty;
     if (key === this.fogTile) return;
     this.fogTile = key;
-    const set = this.explored.get(z.id), R = 7;
+    const set = this.explored.get(z.id), R = 7, f = this.fog;
+    let changed = false;
     for (let y = ty - R; y <= ty + R; y++) for (let x = tx - R; x <= tx + R; x++) {
       if (x < 0 || y < 0 || x >= z.w || y >= z.h || (x - tx) ** 2 + (y - ty) ** 2 > R * R) continue;
       const i = y * z.w + x;
       if (set.has(i)) continue;
       set.add(i);
-      this.fogLayer.removeTileAt(x, y);
+      f.grid[(y + f.M) * f.W + x + f.M] = 0;
+      changed = true;
     }
+    if (changed) this.paintFog();
   }
 
   // Тап по зданию/порталу: герой сам идёт к нему (если уже рядом — сразу действие)
@@ -2226,6 +2298,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     me.e.c.setPosition(me.x, me.y);
     this.checkNear();
     this.revealFog();
+    if (this.fog) for (const c of this.fog.clouds) { c.tilePositionX += c.vx * dt; c.tilePositionY += c.vy * dt; } // туман медленно плывёт
     const walking = len > 0 && !me.data.dead && !this.myStats.rooted && !held;
     // Шаги: по одному на шаг анимации, чередуются чуть разной высотой (левая/правая нога)
     if (walking && window.Sfx && time - (this.stepAt || 0) > 340 / (this.myStats.haste ? 1.25 : 1)) { this.stepAt = time; this.stepFoot = !this.stepFoot; Sfx.play('step', { pitch: this.stepFoot ? 1.06 : 0.94 }); }
@@ -2270,4 +2343,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.ui.onTarget(null);
     }
   }
+};
+// Цвета тумана по мирам: base — плотная дымка (скрывает неразведанное), cloud — светлые клубы поверх
+window.GameScene.FOG = {
+  green: { hex: '#3a4744', base: [58, 71, 68], cloud: [176, 192, 186] },
+  abyss: { hex: '#2a2234', base: [42, 34, 52], cloud: [128, 108, 160] },
+  sky: { hex: '#d6e2ee', base: [214, 226, 238], cloud: [255, 255, 255] },
 };
