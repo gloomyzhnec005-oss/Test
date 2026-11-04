@@ -733,58 +733,25 @@ const skillCtx = {
   pushFx: (f) => fx.push(f),
 };
 
-// ---------- Автобой и офлайн-добыча (Золотой орден и выше, server/meta.js → SHOP.passTiers) ----------
-// Пока автобой включён, сервер замеряет, сколько опыта, золота и убийств в минуту добывает герой.
-// Игрок вышел из игры в данже с автобоем — за время отсутствия (до 8/12 ч) начисляется 60/80% этого темпа.
+// ---------- Автобой (Золотой орден и выше, server/meta.js → SHOP.passTiers) ----------
+// Только онлайн: работает, пока игра открыта; закрыл игру — герой вышел из мира, автобой выключен.
 function setAutofarm(p, on) {
   const pr = getProfile(p.uid);
   if (on && meta.passTier(pr) < meta.SHOP.autofarmTier) return 'Автобой открывается Золотым орденом';
   if (on && (world.byId.get(p.zone) || {}).kind !== 'dungeon') return 'Автобой работает только в данжах';
   p.autofarm = !!on;
-  p.afkStat = on ? { xp: 0, gold0: pr.gold, kills: 0, since: Date.now() } : null; // золото — по приросту кошелька (с добычей)
   p.socket.emit('autofarm', p.autofarm);
   return null;
-}
-function rememberAutofarm(p) {
-  const pr = getProfile(p.uid), st = p.afkStat;
-  if (!p.autofarm || !st || meta.passTier(pr) < meta.SHOP.autofarmTier) { pr.afk = null; return; }
-  const min = (Date.now() - st.since) / 60000;
-  const prev = pr.afk && pr.afk.hero === p.heroId ? pr.afk : null;
-  if (min < 3 && !prev) { pr.afk = null; return; } // слишком короткий замер — не по чему считать
-  const capXp = xpForLevel(p.char.level) / 10; // не больше уровня за 10 минут — защита от «замера» на убийстве босса
-  const rate = min >= 3
-    ? { xpMin: Math.min(capXp, st.xp / min), goldMin: Math.min(Math.max(capXp, 200), Math.max(0, pr.gold - st.gold0) / min), killsMin: Math.min(30, st.kills / min) }
-    : { xpMin: prev.xpMin, goldMin: prev.goldMin, killsMin: prev.killsMin };
-  pr.afk = { at: Date.now(), hero: p.heroId, zone: (world.byId.get(p.zone) || {}).name || '', ...rate };
-}
-function grantOffline(p) {
-  const pr = getProfile(p.uid), a = pr.afk;
-  if (!a) return;
-  pr.afk = null;
-  const off = meta.SHOP.offline[meta.passTier(pr)] || meta.SHOP.offline[4];
-  if (meta.passTier(pr) < meta.SHOP.autofarmTier) return; // орден кончился вместе с сезоном
-  const minutes = Math.min(off.hours * 60, (Date.now() - a.at) / 60000);
-  if (minutes < 5 || !C.HEROES[a.hero]) return;
-  const xp = Math.round(a.xpMin * minutes * off.eff), gold = Math.round(a.goldMin * minutes * off.eff), kills = Math.round(a.killsMin * minutes * off.eff);
-  const ch = getChar(p.uid, a.hero), before = ch.level;
-  ch.xp += xp; ch.gold += gold; ch.kills += kills; pr.gold += gold;
-  while (ch.level < MOBX.MAX_LEVEL && ch.xp >= xpForLevel(ch.level)) { ch.xp -= xpForLevel(ch.level); ch.level += 1; }
-  if (ch.level >= MOBX.MAX_LEVEL) ch.xp = Math.min(ch.xp, xpForLevel(ch.level) - 1);
-  if (p.heroId === a.hero && ch.level !== before) { refreshPlayer(p); p.hp = p.maxHp; }
-  p.socket.emit('offline', { minutes: Math.round(minutes), xp, gold, kills, hero: C.HEROES[a.hero].name, zone: a.zone, levels: ch.level - before, level: ch.level, hours: off.hours, eff: off.eff });
-  admin.log('afk', `${p.name}: офлайн-добыча ${Math.round(minutes)} мин · +${xp} опыта · +${gold} золота`);
-  saveProfiles();
 }
 
 function grantXp(p, amount, gold, shared = false) {
   const pr = getProfile(p.uid), now = Date.now();
-  const sub = meta.isSub(pr) ? meta.SHOP.sub.xpBonus : 0;
+  const sub = (meta.isSub(pr) ? meta.SHOP.sub.xpBonus : 0) + (meta.SHOP.passXpGold[meta.passTier(pr)] || 0); // подписка + Золотой/Чемпиона
   amount = Math.round(amount * (1 + ((p.gear && p.gear.xp) || 0) / 100 + sub + ((pr.buffs || {}).xp > now ? 0.5 : 0)) * S.xpMult);
   gold = Math.round(gold * (1 + ((p.gear && p.gear.gold) || 0) / 100 + sub) * S.goldMult);
   p.char.xp += amount;
   p.char.gold += gold;
   pr.gold += gold; // общий кошелёк аккаунта
-  if (p.autofarm && p.afkStat) { p.afkStat.xp += amount; if (!shared) p.afkStat.kills += 1; } // темп автобоя для офлайн-добычи
   if (!shared) p.char.kills += 1;
   let leveled = false;
   if (p.char.level >= MOBX.MAX_LEVEL) p.char.xp = Math.min(p.char.xp, xpForLevel(p.char.level) - 1);
@@ -944,7 +911,6 @@ io.on('connection', (socket) => {
       monsters: C.MONSTERS,
       stats: privateStats(p),
     });
-    grantOffline(p);
     socket.emit('chatHistory', chatHistory);
     io.emit('chat', { sys: true, text: `${p.name} (${hero.name}, ${hero.title}) вошёл в мир` });
     if (S.motd) socket.emit('chat', { sys: true, text: `📢 ${S.motd}` });
@@ -1169,7 +1135,6 @@ io.on('connection', (socket) => {
     leaveParty(p);
     players.delete(socket.id);
     getProfile(p.uid).lastSeen = Date.now();
-    rememberAutofarm(p);
     (p.pets || []).forEach((pet) => pets.delete(pet.id));
     io.emit('chat', { sys: true, text: `${p.name} покинул мир` });
     saveProfiles();

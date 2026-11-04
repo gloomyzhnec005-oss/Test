@@ -1186,7 +1186,3 @@ canvas.skin { object-fit: contain; }
 [data-nav="play"].auto-on em::after { content: ' ⚔'; color: #ffd36a; }
 @keyframes autoPulse { 50% { box-shadow: 0 0 18px 4px rgba(255,200,90,.8); } }
 
-/* Офлайн-добыча */
-.offline-rw { display: flex; justify-content: space-between; padding: 8px 10px; margin-bottom: 6px; border-radius: 6px; background: rgba(0,0,0,.35); border: 1px solid #3a2f22; color: #e6d8bb; }
-.offline-rw b { color: #ffe08a; font-weight: normal; }
-.offline-rw.up b { color: #7dff8a; }

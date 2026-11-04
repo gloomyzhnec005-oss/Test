@@ -436,23 +436,6 @@
       document.querySelector('[data-nav="play"]').classList.toggle('auto-on', on); // светится, пока идёт автобой
     });
     socket.on('passTier', (t) => { passTier = t; });
-    // Офлайн-добыча: показываем, когда мир загрузился
-    socket.on('offline', (d) => {
-      const show = () => {
-        if (!$('worldLoad').classList.contains('hidden')) return setTimeout(show, 500);
-        const h = Math.floor(d.minutes / 60), m = d.minutes % 60;
-        const box = document.createElement('div');
-        box.className = 'offline-box';
-        box.innerHTML = `<p class="sheet-hint">Герой: ${d.hero} · данж «${d.zone}» · автобой ${h ? `${h} ч ` : ''}${m} мин (не больше ${d.hours} ч, ${Math.round(d.eff * 100)}% темпа).</p>
-          <div class="offline-rw"><span>✨ Опыт</span><b>+${d.xp.toLocaleString('ru-RU')}</b></div>
-          <div class="offline-rw"><span>💰 Золото</span><b>+${d.gold.toLocaleString('ru-RU')}</b></div>
-          <div class="offline-rw"><span>💀 Побеждено монстров</span><b>${d.kills.toLocaleString('ru-RU')}</b></div>
-          ${d.levels ? `<div class="offline-rw up"><span>⬆️ Новый уровень</span><b>${d.level}</b></div>` : ''}`;
-        Town.open('🌙 Пока вас не было', box);
-        if (window.Sfx) Sfx.play('coin');
-      };
-      setTimeout(show, 800);
-    });
     // Сервер сократил перезарядку (убийство Найри) — обновляем таймеры кнопок
     socket.on('skillCds', (cds) => Object.entries(cds).forEach(([id, c]) => startSkillCd(id, c.left, c.total)));
     socket.on('skillFail', hudToast);
