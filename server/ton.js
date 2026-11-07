@@ -61,12 +61,12 @@ module.exports = function createTon({ store, onPaid, log }) {
     const value = BigInt(m.value || '0');
     if (value < BigInt(o.nano)) {
       o.status = 'underpaid'; o.got = value.toString();
-      log('pay', `TON: недоплата по заказу ${o.id} (${o.payload}): ${Number(value) / 1e9} из ${o.ton} TON`);
+      log('pay', `TON: недоплата по заказу ${o.id} (${o.payload}): ${Number(value) / 1e9} из ${o.ton} GRAM`);
       return 'underpaid';
     }
     o.status = 'paid'; o.paidAt = Date.now(); o.tx = hash; o.from = m.source;
     const ok = onPaid(o.payload);
-    log('pay', `TON: оплата ${o.ton} TON · ${o.payload}${ok ? '' : ' — НЕ ЗАЧИСЛЕНО (неизвестный товар)'}`);
+    log('pay', `TON: оплата ${o.ton} GRAM · ${o.payload}${ok ? '' : ' — НЕ ЗАЧИСЛЕНО (неизвестный товар)'}`);
     return ok ? 'paid' : 'error';
   }
 

@@ -207,7 +207,7 @@ const tonWho = (req) => {
   return process.env.DEV_PAYMENTS === 'true' ? resolveUid(initData, guestId) : resolveUid(initData, null);
 };
 app.post('/api/ton/quote', (req, res) => {
-  if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в TON выключена' });
+  if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в GRAM выключена' });
   const who = tonWho(req);
   if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   const inv = buildInvoice(who, req.body.item, req.body.bgId);
@@ -215,7 +215,7 @@ app.post('/api/ton/quote', (req, res) => {
   res.json({ title: inv.invoice.title, stars: inv.stars, ton: ton.tonPrice(inv.stars) });
 });
 app.post('/api/ton/order', (req, res) => {
-  if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в TON выключена' });
+  if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в GRAM выключена' });
   const who = tonWho(req);
   if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   const inv = buildInvoice(who, req.body.item, req.body.bgId);

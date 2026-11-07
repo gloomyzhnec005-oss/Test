@@ -59,7 +59,7 @@ window.Pay = (() => {
     try { ui = await tonConnect(); } catch (e) { return toast(e.message); }
     if (!ui) return toast('Кошелёк не подключён');
     const { ok, data } = await api('/api/ton/order', { item, bgId });
-    if (!ok) return toast(data.error || 'Оплата в TON недоступна');
+    if (!ok) return toast(data.error || 'Оплата в GRAM недоступна');
     try {
       await ui.sendTransaction({ validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: data.address, amount: data.amount, payload: data.payload }] });
     } catch { return toast('Оплата отменена'); }
@@ -68,7 +68,7 @@ window.Pay = (() => {
       await sleep(4000);
       const r = await api('/api/ton/status', { id: data.id });
       const st = r.data && r.data.status;
-      if (st === 'paid') { toast(`Оплата ${data.ton} TON получена!`); if (onPaid) onPaid(); return; }
+      if (st === 'paid') { toast(`Оплата ${data.ton} GRAM получена!`); if (onPaid) onPaid(); return; }
       if (st === 'underpaid') return toast('Пришло меньше нужной суммы — напишите в поддержку');
       if (st === 'error') return toast('Платёж получен, но покупка не зачислена — напишите в поддержку');
     }
@@ -82,7 +82,7 @@ window.Pay = (() => {
       m.className = 'pay-modal';
       m.innerHTML = `<div class="pay-box"><b class="pay-title"></b><small>Выберите способ оплаты</small>
         <button class="l2-btn pay-opt" data-m="stars">⭐ Telegram Stars · ${stars}</button>
-        <button class="l2-btn pay-opt ton" data-m="ton">💎 TON · ${ton}</button>
+        <button class="l2-btn pay-opt ton" data-m="ton">💎 GRAM · ${ton}</button>
         <button class="pay-cancel" data-m="">Отмена</button></div>`;
       m.querySelector('.pay-title').textContent = title;
       m.onclick = (e) => {
