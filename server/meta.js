@@ -216,6 +216,7 @@ module.exports = function createMeta(deps) {
         const names = (I.classesFor(it) || []).map((c) => I.CLASSES[c].name).join(', ');
         return { error: `${C.HEROES[p.heroId].name} не может это надеть — только для: ${names}` };
       }
+      if (p.char.level < I.reqLevel(it)) return { error: `Нужен ${I.reqLevel(it)} уровень героя — у ${C.HEROES[p.heroId].name} сейчас ${p.char.level}` };
       pr.equip ??= {};
       for (const s of Object.keys(pr.equip)) if (pr.equip[s] === it.id) pr.equip[s] = null;
       pr.equip[it.cat] = it.id;

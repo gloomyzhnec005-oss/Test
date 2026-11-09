@@ -811,6 +811,7 @@ function grantXp(p, amount, gold, shared = false) {
     leveled = true;
   }
   if (leveled) {
+    p.gear = I.gearStats(pr, p.heroId); // надетая вещь могла «открыться» новым уровнем
     Object.assign(p, statsFor(p.heroId, p.char.level, pr));
     p.hp = p.maxHp;
     const before = p.unlocked;

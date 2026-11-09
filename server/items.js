@@ -83,6 +83,15 @@ function classesFor(it) {
   return t ? CLASS_ORDER.filter((c) => CLASS_GEAR[c].armor.includes(t)) : null;
 }
 const canWear = (it, heroId) => { const l = classesFor(it); return !l || l.includes(classOf(heroId)); };
+// ---------- Требуемый уровень героя: мир вещи + редкость ----------
+// Мир I — с 1 ур., II — с 15, III — с 30; редкость добавляет: редкий +2, эпический +5, легендарный +8, мифический +12.
+// Руны требований не имеют. Надетая раньше вещь выше уровня героя остаётся в слоте, но статов не даёт.
+const TIER_LEVEL = { 1: 1, 2: 15, 3: 30 };
+const RARITY_LEVEL = { common: 0, rare: 2, epic: 5, legendary: 8, mythic: 12 };
+const reqLevel = (it) => (!it || it.cat === 'rune' ? 1 : (TIER_LEVEL[it.tier] || 1) + (RARITY_LEVEL[it.rar] || 0));
+const heroLevel = (pr, heroId) => (pr && pr.chars && pr.chars[heroId] && pr.chars[heroId].level) || 1;
+// Может ли герой носить вещь: класс и уровень (pr нужен для уровня)
+const usable = (it, heroId, pr) => canWear(it, heroId) && (!pr || heroLevel(pr, heroId) >= reqLevel(it));
 // Шаблоны категории, подходящие классу (для добычи и магазина)
 const tplsForClass = (cat, cls) => Object.keys(TEMPLATES[cat] || {}).filter((k) => !TEMPLATES[cat][k].setCls && (!cls || canWearTpl(cat, k, cls)));
 const canWearTpl = (cat, tpl, cls) => { const l = classesFor({ cat, tpl }); return !l || l.includes(cls); };
@@ -373,7 +382,7 @@ function setState(pr, heroId) {
   const counts = {};
   for (const slot of SLOT_ORDER) {
     const it = findItem(pr, pr.equip?.[slot]);
-    const sid = it && canWear(it, heroId) && setIdOf(it);
+    const sid = it && usable(it, heroId, pr) && setIdOf(it);
     if (sid) counts[sid] = (counts[sid] || 0) + 1;
   }
   const active = [];
@@ -390,7 +399,7 @@ function gearStats(pr, heroId = null) {
   const add = (st) => { for (const [k, v] of Object.entries(st)) total[k] = (total[k] || 0) + v; };
   for (const slot of SLOT_ORDER) {
     const it = findItem(pr, pr.equip?.[slot]);
-    if (!it || (heroId && !canWear(it, heroId))) continue; // вещь не для класса этого героя — без статов
+    if (!it || (heroId && !usable(it, heroId, pr))) continue; // не для класса или уровня этого героя — без статов
     add(itemStats(it));
     for (const r of it.runes || []) add(itemStats(r));
   }
@@ -514,6 +523,7 @@ function itemView(it) {
     name: t.name + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.dupes ? ` +${it.dupes}` : ''), icon: t.icon, color: R.color, rarName: R.name,
     attrs: it.attrs, stats: itemStats(it), sockets: it.cat === 'weapon' ? R.sockets : 0, set,
     classes: classesFor(it), // какие классы могут носить (null — все)
+    reqLevel: reqLevel(it), // с какого уровня героя можно надеть
     armor: ARMOR_TYPE[it.cat] && ARMOR_TYPE[it.cat][it.tpl] ? ARMOR_NAMES[ARMOR_TYPE[it.cat][it.tpl]] : null,
     runes: (it.runes || []).map(itemView), sell: Math.round(R.sell * TIER_MULT[it.tier] * (1 + 0.2 * (it.dupes || 0)) * (set ? 1.5 : 1)),
   };
@@ -549,5 +559,5 @@ module.exports = {
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, TIER_MULT, DUPE_MAX, DUPE_STEP,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
-  upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls, classesFor, canWear, CLASS_GEAR,
+  upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable,
 };
