@@ -339,7 +339,7 @@ window.Town = (() => {
   // ---------- Магазин: подписка, крутки, реклама ----------
   // Нарисованные значки товаров магазина (assets/ui/shop/)
   const SHOP_ART = { chestSet: 'chestSet', chestSet5: 'chestSet5', chestLegend: 'chestLegend' };
-  const shopArt = (c) => (c.bag ? '../../items/slot_bag' : SHOP_ART[c.id]); // сумки — картинка сумки
+  const shopArt = (c) => (c.bag ? `../../items/bag_${{ bagEpic: 'epic', bagLegend: 'legendary' }[c.id] || 'rare'}` : SHOP_ART[c.id]); // сумки — картинка сумки
   async function storePanel() {
     const s = await Bag.act('shopInfo');
     const box = el(`<div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/sub.webp" alt=""><b>👑 Подписка «Покровитель» · 30 дней</b>
