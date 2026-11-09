@@ -156,8 +156,8 @@ module.exports = function createMeta(deps) {
       // По обычному и редкому предмету на каждый слот и два эпических на день
       // Только то, что может надеть класс героя
       const mk = (cat, rar) => { const fit = I.TEMPLATES[cat] && Object.keys(I.TEMPLATES[cat]).filter((t) => !I.TEMPLATES[cat][t].setCls && (!cls || I.canWear({ cat, tpl: t }, I.CLASSES[cls].heroes[0]))); return I.createItem(cat, rar, tier, fit && fit.length ? fit[Math.floor(Math.random() * fit.length)] : null); };
-      for (const cat of I.SLOT_ORDER) for (const rar of ['common', 'rare']) list.push({ oid: list.length, item: mk(cat, rar), price: price(rar) });
-      for (let i = 0; i < 2; i++) list.push({ oid: list.length, item: mk(I.SLOT_ORDER[Math.floor(Math.random() * 7)], 'epic'), price: price('epic') });
+      for (const cat of I.WEAR_CATS) for (const rar of ['common', 'rare']) list.push({ oid: list.length, item: mk(cat, rar), price: price(rar) });
+      for (let i = 0; i < 2; i++) list.push({ oid: list.length, item: mk(I.WEAR_CATS[Math.floor(Math.random() * I.WEAR_CATS.length)], 'epic'), price: price('epic') });
       list.push({ oid: list.length, item: I.createBag('rare', tier), price: Math.round(15000 * F(tier)) }); // сумка — дорогое удовольствие
     } else if (kind === 'runes') {
       for (const rar of ['common', 'common', 'common', 'rare', 'rare', 'rare', 'epic']) list.push({ oid: list.length, item: I.createItem('rune', rar, tier), price: price(rar) });
@@ -232,8 +232,11 @@ module.exports = function createMeta(deps) {
         if (inBagCount(pr) > cap) return { error: `В эту сумку не поместится: освободите ${inBagCount(pr) - cap} ячеек (перенесите на склад)` };
       }
       pr.equip ??= {};
+      // Слот: для кольца — указанный (ring / ring2) или первый свободный из двух
+      let slot = it.cat;
+      if (it.cat === 'ring') slot = d.slot === 'ring2' || d.slot === 'ring' ? d.slot : !pr.equip.ring ? 'ring' : !pr.equip.ring2 ? 'ring2' : 'ring';
       for (const s of Object.keys(pr.equip)) if (pr.equip[s] === it.id) pr.equip[s] = null;
-      pr.equip[it.cat] = it.id;
+      pr.equip[slot] = it.id;
       it.loc = 'bag';
       refreshPlayer(p);
       return { toast: `Надето: ${I.itemView(it).name}` };

@@ -1221,3 +1221,12 @@ canvas.skin { object-fit: contain; }
 .ic-cls.ok { color: #8fe08a; }
 .ic-cls.bad { color: #ff7a7a; }
 .ward-warn { color: #ff9a7a; font-size: 12px; margin: 6px 0; }
+
+/* Кукла героя: 6 слотов в колонке (плащ, пояс, серьги, второе кольцо) — ячейки компактнее */
+.pd { grid-template-columns: 56px 1fr 56px; }
+.pd-slot { width: 56px; height: 56px; }
+.pd-slot span { height: 40px; font-size: 22px; }
+.pd-slot span .it-art { max-width: 40px; max-height: 40px; }
+.ward-cur .slot-ghost { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; }
+.ward-cur .slot-ghost img { width: 28px; height: 28px; }
+.pd-slot span.ghost { filter: grayscale(1) brightness(.45); } /* эмодзи-заглушки новых слотов — тусклые, как силуэты */

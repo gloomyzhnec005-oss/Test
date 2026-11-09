@@ -189,7 +189,7 @@ module.exports = function createAdmin(ctx) {
         const cls = I.CLASSES[d.set] ? d.set : null;
         if (!cls) return { error: 'Выберите класс комплекта' };
         const tier = Math.round(num(d.tier, 1, 3, 1)), rar = I.ITEM_RARITIES[d.rar] ? d.rar : 'epic';
-        for (const slot of I.SLOT_ORDER) ctx.meta.grant(pr, I.createSetItem(cls, tier, rar, slot));
+        for (const slot of I.SET_SLOTS) ctx.meta.grant(pr, I.createSetItem(cls, tier, rar, slot));
         refresh();
         return { text: `Выдан полный комплект: ${I.SETS[cls + tier].name}` };
       }

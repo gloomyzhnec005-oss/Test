@@ -71,6 +71,7 @@ const ARMOR_TYPE = {
   armor: { leather: 'light', chain: 'heavy', plate: 'heavy', robe: 'cloth', cloak: 'light', scale: 'heavy', brigandine: 'heavy', studded: 'light', vestment: 'cloth' },
   gloves: { bracers: 'heavy', grips: 'light', gauntlet: 'heavy', silk: 'cloth', leatherGl: 'light', runeGl: 'cloth' },
   boots: { boots: 'light', greaves: 'heavy', sandals: 'cloth', stalker: 'light', ironBoots: 'heavy', slippers: 'cloth' },
+  belt: { warBelt: 'heavy', leatherBelt: 'light', pouchBelt: 'light', sash: 'cloth' },
 };
 const ARMOR_NAMES = { heavy: 'тяжёлая броня', light: 'лёгкая броня', cloth: 'ткань' };
 // Классы, которым подходит вещь (null — всем)
@@ -97,10 +98,17 @@ const tplsForClass = (cat, cls) => Object.keys(TEMPLATES[cat] || {}).filter((k) 
 const canWearTpl = (cat, tpl, cls) => { const l = classesFor({ cat, tpl }); return !l || l.includes(cls); };
 
 // ---------- Слоты и обычные шаблоны ----------
-const SLOT_ORDER = ['weapon', 'helm', 'armor', 'gloves', 'boots', 'ring', 'amulet'];
+// Слоты комплектов (у каждого класса — вещь на каждый из них)
+const SET_SLOTS = ['weapon', 'helm', 'armor', 'gloves', 'boots', 'ring', 'amulet'];
+// Категории надеваемых вещей: + плащ, пояс, серьги (без вещей комплектов)
+const WEAR_CATS = [...SET_SLOTS, 'cloak', 'belt', 'earring'];
+// Слоты на герое: категории + второе кольцо (в него идёт вещь категории «кольцо»)
+const SLOT_ORDER = ['weapon', 'helm', 'armor', 'cloak', 'gloves', 'belt', 'boots', 'ring', 'ring2', 'amulet', 'earring'];
+const slotCat = (slot) => (slot === 'ring2' ? 'ring' : slot);
 // Сумка — отдельный слот: в SLOT_ORDER не входит (не даёт статов, не падает обычной добычей, не продаётся в лавке как обычная вещь)
-const SLOTS = Object.fromEntries([...SLOT_ORDER, 'bag'].map((s) => [s, s]));
-const SLOT_NAMES = { weapon: 'Оружие', helm: 'Шлем', armor: 'Доспех', gloves: 'Перчатки', boots: 'Сапоги', ring: 'Кольцо', amulet: 'Амулет', bag: 'Сумка' };
+const SLOTS = Object.fromEntries([...WEAR_CATS, 'bag'].map((s) => [s, s]));
+const SLOT_NAMES = { weapon: 'Оружие', helm: 'Шлем', armor: 'Доспех', cloak: 'Плащ', gloves: 'Перчатки', belt: 'Пояс', boots: 'Сапоги',
+  ring: 'Кольцо', ring2: 'Второе кольцо', amulet: 'Амулет', earring: 'Серьги', bag: 'Сумка' };
 const BAG_SLOTS = { common: 5, rare: 10, epic: 20, legendary: 35, mythic: 50 }; // +ячеек инвентаря от надетой сумки
 const CATEGORIES = { ...SLOT_NAMES, rune: 'Руна' };
 
@@ -180,6 +188,25 @@ const TEMPLATES = {
     amuGuard:{ name: 'Оберег стража', icon: '📿', base: { hp: 15, def: 2 }, art: 'amulet_amuLife' },
     amuStar: { name: 'Звёздный кулон', icon: '📿', base: { critDmg: 6, xp: 3 }, art: 'amulet_amuMind' },
     amuGold: { name: 'Кулон торговца', icon: '🪙', base: { gold: 6, hp: 8 }, art: 'amulet_amuLife' },
+  },
+  // Плащ (всем классам), пояс (по типу брони), серьги (всем)
+  cloak: {
+    travelCloak: { name: 'Дорожный плащ', icon: '🧥', base: { hp: 12, ms: 2 } },
+    battleCloak: { name: 'Боевой плащ', icon: '🧥', base: { hp: 16, def: 1.5 } },
+    duskCloak:   { name: 'Плащ сумерек', icon: '🧥', base: { hp: 9, crit: 1.5, aspd: 1.5 } },
+    mageCloak:   { name: 'Плащ чародея', icon: '🧥', base: { hp: 8, skill: 3 } },
+  },
+  belt: {
+    warBelt:     { name: 'Боевой пояс', icon: '🎗️', base: { hp: 14, def: 1 } },
+    leatherBelt: { name: 'Кожаный пояс', icon: '🎗️', base: { hp: 10, aspd: 1.5 } },
+    pouchBelt:   { name: 'Пояс с подсумками', icon: '🎗️', base: { hp: 9, ms: 1.5, gold: 2 } },
+    sash:        { name: 'Кушак мага', icon: '🎗️', base: { hp: 8, skill: 2.5 } },
+  },
+  earring: {
+    earRuby:  { name: 'Серьги с рубином', icon: '💎', base: { atk: 1.5, critDmg: 3 } },
+    earPearl: { name: 'Жемчужные серьги', icon: '💎', base: { hp: 10, cdr: 1 } },
+    earMoon:  { name: 'Лунные серьги', icon: '💎', base: { skill: 2, crit: 1 } },
+    earWind:  { name: 'Серьги ветра', icon: '💎', base: { ms: 1.5, aspd: 1.5 } },
   },
   // Сумка: не даёт статов, добавляет места в инвентаре (BAG_SLOTS по редкости). Редкая и дорогая
   bag: {
@@ -263,7 +290,7 @@ for (const cls of CLASS_ORDER) {
       bonus: kit.bonus.map(([n, st]) => [n, Object.fromEntries(Object.entries(st).map(([k, v]) => [k, Math.round(v * SET_TIER_K[tier] * 10) / 10]))]) };
   }
   // Шаблоны предметов комплекта (по одному на слот и класс; мир задаёт предмет, а не шаблон)
-  for (const slot of SLOT_ORDER) {
+  for (const slot of SET_SLOTS) {
     const [name, icon, base] = kit.pieces[slot];
     TEMPLATES[slot][`set_${cls}`] = { name, icon, base, setCls: cls };
   }
@@ -383,7 +410,7 @@ function createItem(cat, rar, tier = 1, tpl = null, cls = null) {
 // Вещь комплекта: класс (или случайный), слот (или случайный)
 function createSetItem(cls, tier, rar = 'epic', slot = null) {
   cls = cls || pick(CLASS_ORDER);
-  return createItem(slot || pick(SLOT_ORDER), rar, tier, `set_${cls}`);
+  return createItem(slot || pick(SET_SLOTS), rar, tier, `set_${cls}`);
 }
 
 // Случайная категория и редкость по весам
@@ -392,7 +419,7 @@ function rollRarity(weights) {
   for (const k of RARITY_ORDER) { if (weights[k] && (r -= weights[k]) <= 0) return k; }
   return 'common';
 }
-const DROP_CATS = [...SLOT_ORDER, 'weapon', 'armor', 'rune']; // оружие и доспехи падают чаще
+const DROP_CATS = [...WEAR_CATS, 'weapon', 'armor', 'rune']; // оружие и доспехи падают чаще
 const createBag = (rar, tier = 1) => createItem('bag', rar, tier, 'bag');
 function rollItem(tier, weights, cat = null, heroId = null) {
   return createItem(cat || pick(DROP_CATS), rollRarity(weights), tier, null, heroId ? classOf(heroId) : null);
@@ -558,7 +585,8 @@ function itemView(it) {
   return {
     id: it.id, cat: it.cat, tpl: it.tpl, rar: it.rar, tier: it.tier, dupes: it.dupes || 0, loc: it.loc || 'bag',
     name: ((t.rarNames && t.rarNames[it.rar]) || t.name) + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.dupes ? ` +${it.dupes}` : ''), icon: t.icon, color: R.color, rarName: R.name,
-    art: t.art || null, bagSlots: it.cat === 'bag' ? BAG_SLOTS[it.rar] : 0,
+    art: it.cat === 'bag' ? `bag_${it.rar}` : t.art || null, artFallback: it.cat === 'bag' ? 'slot_bag' : null, // своя иконка сумки по редкости, пока нет — общая
+    bagSlots: it.cat === 'bag' ? BAG_SLOTS[it.rar] : 0,
     attrs: it.attrs, stats: itemStats(it), sockets: it.cat === 'weapon' ? R.sockets : 0, set,
     classes: classesFor(it), // какие классы могут носить (null — все)
     reqLevel: reqLevel(it), // с какого уровня героя можно надеть
@@ -584,9 +612,9 @@ const RECIPE_PREFIX = { 1: 'Эльдмирская ковка', 2: 'Закалк
 function worldRecipes(tier) {
   const W = WORLD_CRAFT[tier];
   if (!W) return [];
-  const list = SLOT_ORDER.map((slot) => ({ id: `w${tier}_${slot}`, tier, kind: 'forge', slot, name: `${RECIPE_PREFIX[tier]}: ${SLOT_NAMES[slot].toLowerCase()}`,
+  const list = SET_SLOTS.map((slot) => ({ id: `w${tier}_${slot}`, tier, kind: 'forge', slot, name: `${RECIPE_PREFIX[tier]}: ${SLOT_NAMES[slot].toLowerCase()}`,
     needItem: { cat: slot, rar: W.from, tier }, rar: W.to, mats: W.mats, gold: W.gold, chance: W.chance }));
-  for (const slot of SLOT_ORDER) list.push({ id: `r${tier}_${slot}`, tier, kind: 'relic', slot, name: `Реликвия мира: ${SLOT_NAMES[slot].toLowerCase()}`,
+  for (const slot of SET_SLOTS) list.push({ id: `r${tier}_${slot}`, tier, kind: 'relic', slot, name: `Реликвия мира: ${SLOT_NAMES[slot].toLowerCase()}`,
     needItem: null, rar: W.relic.rar, mats: W.relic.mats, gold: W.relic.gold, chance: W.relic.chance });
   return list;
 }
@@ -594,7 +622,7 @@ const findRecipe = (id) => { const t = +String(id).slice(1, 2); return worldReci
 
 module.exports = {
   LUCK_STONE, WORLD_CRAFT, worldRecipes, findRecipe,
-  RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, TIER_MULT, DUPE_MAX, DUPE_STEP,
+  RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, SET_SLOTS, WEAR_CATS, slotCat, TIER_MULT, DUPE_MAX, DUPE_STEP,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
   upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,

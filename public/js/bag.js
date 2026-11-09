@@ -4,14 +4,19 @@ window.Bag = (() => {
   const $ = (id) => document.getElementById(id);
   let socket = null, inv = null, onChange = () => {};
   const ROMAN = ['', 'I', 'II', 'III'];
-  const SLOT_ICONS = { weapon: '🗡️', helm: '⛑️', armor: '🛡️', gloves: '🧤', boots: '🥾', ring: '💍', amulet: '📿', bag: '🎒' };
+  const SLOT_ICONS = { weapon: '🗡️', helm: '⛑️', armor: '🛡️', gloves: '🧤', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', bag: '🎒', cloak: '🧥', belt: '🎗️', earring: '💎' };
+  const slotCat = (s) => (s === 'ring2' ? 'ring' : s); // во второе кольцо идёт вещь категории «кольцо»
+  // Силуэт пустого слота: своя картинка, у второго кольца — как у первого, нет картинки — эмодзи
+  const SLOT_ART = new Set(['weapon', 'helm', 'armor', 'gloves', 'boots', 'ring', 'amulet', 'bag', ...(window.SLOT_ART_EXTRA || [])]); // нарисованные силуэты слотов
+  const ghost = (s) => { const k = SLOT_ART.has(s) ? 'slot_' + s : s === 'ring2' ? 'slot_ring' : null; return k ? `<img class="it-art slot-ghost" src="assets/items/${k}.webp" alt="${SLOT_ICONS[s]}">` : SLOT_ICONS[s] || '▫️'; };
   const ART = new Set(window.ITEM_ART || []);
   // Картинка предмета или эмодзи, если её ещё не нарисовали
   const art = (it) => {
-    const k = it.cat === 'mat' ? 'mat_' + (String(it.mat).startsWith('bp_') ? 'bp' : it.mat) : ART.has(it.cat + '_' + it.tpl) ? it.cat + '_' + it.tpl : it.art || it.cat + '_' + it.tpl; // все чертежи — одна картинка; новые виды — картинка похожего
+    // все чертежи — одна картинка; новые виды — своя картинка, иначе картинка похожего вида (art), иначе запасная (artFallback)
+    const k = it.cat === 'mat' ? 'mat_' + (String(it.mat).startsWith('bp_') ? 'bp' : it.mat) : [it.cat + '_' + it.tpl, it.art, it.artFallback].find((x) => x && ART.has(x)) || it.cat + '_' + it.tpl;
     return ART.has(k) ? `<img class="it-art" src="assets/items/${k}.webp" alt="" draggable="false">` : it.icon;
   };
-  const mini = (it) => { const k = ART.has(it.cat + '_' + it.tpl) ? it.cat + '_' + it.tpl : it.art; return k && ART.has(k) ? `<img class="it-mini" src="assets/items/${k}.webp" alt="">` : it.icon; };
+  const mini = (it) => { const k = [it.cat + '_' + it.tpl, it.art, it.artFallback].find((x) => x && ART.has(x)); return k ? `<img class="it-mini" src="assets/items/${k}.webp" alt="">` : it.icon; };
   const crest = (cls) => (ART.has('crest_' + cls) ? `<img class="it-mini" src="assets/items/crest_${cls}.webp" alt="">` : '◆');
   const ic = (k) => `<img class="ui-ic" src="assets/ui/ic_${k}.webp" alt="">`;
   const SOCKET = '<img class="it-mini" src="assets/items/ui_socket.webp" alt="">';
@@ -120,7 +125,7 @@ window.Bag = (() => {
       if (isEquipped(it)) acts.push(['Снять', () => run('unequip', { slot: slotOf(it) }, ctx.after)]);
       else if (!fitsClass(it)) acts.push([`🔒 Только для: ${clsNames(it)}`, () => toast('Эту вещь может носить только другой класс')]);
       else if (!fitsLevel(it)) acts.push([`🔒 Нужен ${it.reqLevel} уровень`, () => toast(`Вещь откроется на ${it.reqLevel} уровне героя`)]);
-      else acts.push(['Надеть', () => run('equip', { id: it.id }, ctx.after)]);
+      else acts.push(['Надеть', () => run('equip', { id: it.id, slot: ctx.slot }, ctx.after)]);
     }
     if (ctx.town && !isEquipped(it)) {
       acts.push([`Продать торговцу · ${it.sell} 💰`, () => run('sell', { id: it.id }, ctx.after), 'warn']);
@@ -156,15 +161,15 @@ window.Bag = (() => {
   }
 
   // ---------- Персонаж: кукла героя с ячейками по бокам и гардероб ----------
-  const SIDE = { left: ['helm', 'armor', 'gloves', 'boots'], right: ['weapon', 'amulet', 'ring'] };
+  const SIDE = { left: ['helm', 'armor', 'cloak', 'gloves', 'belt', 'boots'], right: ['weapon', 'amulet', 'earring', 'ring', 'ring2'] };
   let heroSel = null;
   const worn = (s) => inv.items.find((i) => i.id === inv.equip[s]);
-  const fits = (s) => inv.items.filter((i) => i.cat === s && i.loc !== 'wh' && !isEquipped(i) && fitsHero(i)); // только своего класса
-  const unfit = (s) => inv.items.filter((i) => i.cat === s && i.loc !== 'wh' && !isEquipped(i) && !fitsHero(i)).length;
+  const fits = (s) => inv.items.filter((i) => i.cat === slotCat(s) && i.loc !== 'wh' && !isEquipped(i) && fitsHero(i)); // только своего класса
+  const unfit = (s) => inv.items.filter((i) => i.cat === slotCat(s) && i.loc !== 'wh' && !isEquipped(i) && !fitsHero(i)).length;
   function slotBtn(s) {
     const it = worn(s);
     return `<button class="pd-slot ${it ? 'full fr-' + it.rar : ''} ${it && !fitsHero(it) ? 'nofit' : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
-      ${it ? `<span>${art(it)}</span>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost"><img class="it-art slot-ghost" src="assets/items/slot_${s}.webp" alt="${SLOT_ICONS[s]}"></span>`}
+      ${it ? `<span>${art(it)}</span>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost">${ghost(s)}</span>`}
       <em>${it ? it.name : inv.slotNames[s]}</em></button>`;
   }
   function heroTab() {
@@ -195,10 +200,10 @@ window.Bag = (() => {
       ward.innerHTML = `<div class="ward-head"><b>👘 Гардероб · ${inv.slotNames[s]}</b><small>${list.length ? `в сумке ${list.length}` : 'в сумке нет'}</small></div>
         ${cur ? `<div class="ward-cur" style="--rc:${cur.color}">${cell(cur, 'eq')}<div><b style="color:${cur.color}">${cur.name}</b>
           <small>${Object.entries(cur.stats).map(([k, v]) => statLine(k, v)).join(' · ')}</small></div><button class="l2-btn" data-a="info">ⓘ</button><button class="l2-btn" data-a="off">Снять</button></div>`
-        : `<div class="ward-cur none"><img class="it-mini slot-ghost" src="assets/items/slot_${s}.webp" alt=""> Ячейка пуста — выберите вещь ниже</div>`}
+        : `<div class="ward-cur none"><span class="it-mini slot-ghost">${ghost(s)}</span> Ячейка пуста — выберите вещь ниже</div>`}
         ${cur && !fitsClass(cur) ? '<p class="ward-warn">⚠️ Эта вещь не для класса вашего героя — она не даёт статов. Снимите её и наденьте подходящую.</p>' : ''}
         ${cur && fitsClass(cur) && !fitsLevel(cur) ? `<p class="ward-warn">⚠️ Нужен ${cur.reqLevel} уровень — пока герой не дорастёт, вещь не даёт статов.</p>` : ''}`;
-      ward.append(grid(list, (it) => card(it, itemActions(it, { town: Town.inTown(), after: rerender }), cur), {
+      ward.append(grid(list, (it) => card(it, itemActions(it, { town: Town.inTown(), after: rerender, slot: s }), cur), {
         fill: Math.max(6, Math.ceil(list.length / 6) * 6), empty: '' }));
       if (!list.length) ward.insertAdjacentHTML('beforeend', s === 'bag'
         ? '<p class="sheet-hint">Сумки — редкость: дорожная продаётся в лавке оружия и доспехов, эпические падают с боссов данжей, легендарные и мифические — с мировых боссов. Ещё — в магазине.</p>'
@@ -261,8 +266,8 @@ window.Bag = (() => {
 
   // ---------- Инвентарь: сетка ячеек, вкладки по типам, золото и вместимость внизу ----------
   const INV_TABS = [
-    ['all', 'Все', () => true], ['wpn', '⚔️ Оружие', (c) => c === 'weapon'], ['arm', '🛡️ Броня', (c) => ['helm', 'armor', 'gloves', 'boots'].includes(c)],
-    ['acc', '💍 Бижутерия и сумки', (c) => c === 'ring' || c === 'amulet' || c === 'bag'], ['rune', '🔮 Руны', (c) => c === 'rune'], ['mat', '🧪 Ресурсы', null],
+    ['all', 'Все', () => true], ['wpn', '⚔️ Оружие', (c) => c === 'weapon'], ['arm', '🛡️ Броня', (c) => ['helm', 'armor', 'cloak', 'gloves', 'belt', 'boots'].includes(c)],
+    ['acc', '💍 Бижутерия и сумки', (c) => ['ring', 'amulet', 'earring', 'bag'].includes(c)], ['rune', '🔮 Руны', (c) => c === 'rune'], ['mat', '🧪 Ресурсы', null],
   ];
   const SORTS = [['rar', 'по редкости'], ['type', 'по типу'], ['new', 'новые']];
   let invCat = 'all', invSort = 0;
