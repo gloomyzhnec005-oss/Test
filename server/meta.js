@@ -41,7 +41,16 @@ const gearBanner = (t = Date.now()) => {
 const ITEM_GACHA = { rare: 62, epic: 29, legendary: 7.5, mythic: 1.5 };
 
 const isSub = (pr) => (pr.subUntil || 0) > Date.now();
-const bagSize = (pr) => (isSub(pr) ? SHOP.bagSub : SHOP.bag);
+// Размер инвентаря: база (подписка — больше) + надетая сумка
+const bagBonus = (pr) => { const b = pr.equip && pr.equip.bag && I.findItem(pr, pr.equip.bag); return b ? I.BAG_SLOTS[b.rar] || 0 : 0; };
+const bagSize = (pr) => (isSub(pr) ? SHOP.bagSub : SHOP.bag) + bagBonus(pr);
+// Склад: улучшается за золото (и самоцветы на последних уровнях)
+const WH_UPGRADES = [
+  { slots: 50, gold: 10000 }, { slots: 50, gold: 30000 }, { slots: 50, gold: 75000 },
+  { slots: 50, gold: 150000, gems: 300 }, { slots: 50, gold: 300000, gems: 800 },
+];
+const whSize = (pr) => SHOP.wh + WH_UPGRADES.slice(0, pr.whLvl || 0).reduce((s, u) => s + u.slots, 0);
+const inBagCount = (pr) => (pr.items || []).filter((i) => i.loc !== 'wh').length;
 
 // ---------- Батл-пасс ----------
 const passSeason = () => Math.floor(Date.now() / (SHOP.pass.days * DAY));
@@ -149,6 +158,7 @@ module.exports = function createMeta(deps) {
       const mk = (cat, rar) => { const fit = I.TEMPLATES[cat] && Object.keys(I.TEMPLATES[cat]).filter((t) => !I.TEMPLATES[cat][t].setCls && (!cls || I.canWear({ cat, tpl: t }, I.CLASSES[cls].heroes[0]))); return I.createItem(cat, rar, tier, fit && fit.length ? fit[Math.floor(Math.random() * fit.length)] : null); };
       for (const cat of I.SLOT_ORDER) for (const rar of ['common', 'rare']) list.push({ oid: list.length, item: mk(cat, rar), price: price(rar) });
       for (let i = 0; i < 2; i++) list.push({ oid: list.length, item: mk(I.SLOT_ORDER[Math.floor(Math.random() * 7)], 'epic'), price: price('epic') });
+      list.push({ oid: list.length, item: I.createBag('rare', tier), price: Math.round(15000 * F(tier)) }); // сумка — дорогое удовольствие
     } else if (kind === 'runes') {
       for (const rar of ['common', 'common', 'common', 'rare', 'rare', 'rare', 'epic']) list.push({ oid: list.length, item: I.createItem('rune', rar, tier), price: price(rar) });
     } else if (kind === 'smith') {
@@ -170,7 +180,7 @@ module.exports = function createMeta(deps) {
       items: (pr.items || []).map(I.itemView), equip: pr.equip, gear: I.gearStats(pr, p.heroId), gold: pr.gold,
       mats: Object.entries(pr.mats || {}).filter(([id, n]) => n > 0 && I.MATS[id]).map(([id, n]) => I.matView(id, n, tierOf(p))),
       sets: { counts: st.counts, active: st.active, cls: st.cls, clsName: st.cls ? I.CLASSES[st.cls].name : null },
-      bagSize: bagSize(pr), whSize: SHOP.wh, sub: isSub(pr) ? pr.subUntil : 0, buffs: pr.buffs || {}, tier: tierOf(p),
+      bagSize: bagSize(pr), bagBase: isSub(pr) ? SHOP.bagSub : SHOP.bag, whSize: whSize(pr), whLvl: pr.whLvl || 0, whNext: WH_UPGRADES[pr.whLvl || 0] || null, whMax: WH_UPGRADES.length, sub: isSub(pr) ? pr.subUntil : 0, buffs: pr.buffs || {}, tier: tierOf(p),
       hero: { id: p.heroId, level: p.char.level, dupes: (pr.heroDupes || {})[p.heroId] || 0, unlocked: deps.unlockedSkills(pr, p.heroId), cls: I.classOf(p.heroId) },
       classNames: Object.fromEntries(Object.entries(I.CLASSES).map(([k, c]) => [k, `${c.icon} ${c.name}`])),
       power: (({ hp, dmg, crit, power }) => ({ hp, dmg: Math.round(dmg), crit: Math.round(crit * 100), power }))(fighter(deps, pr, p.heroId, '')),
@@ -217,6 +227,10 @@ module.exports = function createMeta(deps) {
         return { error: `${C.HEROES[p.heroId].name} не может это надеть — только для: ${names}` };
       }
       if (p.char.level < I.reqLevel(it)) return { error: `Нужен ${I.reqLevel(it)} уровень героя — у ${C.HEROES[p.heroId].name} сейчас ${p.char.level}` };
+      if (it.cat === 'bag') { // меньшая сумка: вещи должны поместиться
+        const cap = bagSize(pr) - bagBonus(pr) + (I.BAG_SLOTS[it.rar] || 0);
+        if (inBagCount(pr) > cap) return { error: `В эту сумку не поместится: освободите ${inBagCount(pr) - cap} ячеек (перенесите на склад)` };
+      }
       pr.equip ??= {};
       for (const s of Object.keys(pr.equip)) if (pr.equip[s] === it.id) pr.equip[s] = null;
       pr.equip[it.cat] = it.id;
@@ -226,6 +240,9 @@ module.exports = function createMeta(deps) {
     },
     unequip(p, d, pr) {
       if (!pr.equip?.[d.slot]) return { error: 'Слот пуст' };
+      if (d.slot === 'bag' && inBagCount(pr) > bagSize(pr) - bagBonus(pr)) {
+        return { error: `Без сумки вещи не поместятся: освободите ${inBagCount(pr) - (bagSize(pr) - bagBonus(pr))} ячеек` };
+      }
       pr.equip[d.slot] = null;
       refreshPlayer(p);
       return {};
@@ -384,12 +401,23 @@ module.exports = function createMeta(deps) {
       refreshPlayer(p);
       return { toast: `Руна извлечена (−${cost} 💰)` };
     },
+    // Улучшение склада: +50 ячеек за уровень, до 5 уровней
+    whUpgrade(p, d, pr) {
+      const lvl = pr.whLvl || 0, u = WH_UPGRADES[lvl];
+      if (!u) return { error: 'Склад уже улучшен до максимума' };
+      if ((pr.gold || 0) < u.gold) return { error: `Нужно ${u.gold.toLocaleString('ru-RU')} 💰` };
+      if (u.gems && (pr.gems || 0) < u.gems) return { error: `Нужно ${u.gems} 💎` };
+      pr.gold -= u.gold;
+      if (u.gems) pr.gems -= u.gems;
+      pr.whLvl = lvl + 1;
+      return { toast: `Склад улучшен: ${whSize(pr)} ячеек` };
+    },
     store(p, d, pr) {
       const it = I.findItem(pr, d.id);
       if (!it || equipped(pr, it.id)) return { error: 'Снимите предмет перед переносом' };
       const toWh = it.loc !== 'wh';
       const count = pr.items.filter((i) => (i.loc === 'wh') === toWh).length;
-      if (count >= (toWh ? SHOP.wh : bagSize(pr))) return { error: toWh ? 'Склад полон' : 'Сумка полна' };
+      if (count >= (toWh ? whSize(pr) : bagSize(pr))) return { error: toWh ? 'Склад полон — улучшите его' : 'Сумка полна' };
       it.loc = toWh ? 'wh' : 'bag';
       return { toast: toWh ? 'Перенесено на склад' : 'Перенесено в сумку' };
     },
@@ -598,7 +626,7 @@ module.exports = function createMeta(deps) {
       if (pr.adDay !== dayKey()) { pr.adDay = dayKey(); pr.adCount = 0; }
       return { sub: isSub(pr) ? pr.subUntil : 0, subPrice: SHOP.sub.price, passTier: passTier(pr), passTiers: SHOP.passTiers,
         itemSpin: SHOP.itemSpin, gemPacks: Object.entries(SHOP.gems).map(([id, g]) => ({ id, ...g })), gems: pr.gems || 0, adsLeft: SHOP.ads.perDay - pr.adCount, gold: pr.gold,
-        chests: Object.entries(CHESTS).map(([k, c]) => ({ id: k, title: c.title, desc: c.description, amount: c.amount })) };
+        chests: Object.entries(CHESTS).map(([k, c]) => ({ id: k, title: c.title, desc: c.description, amount: c.amount, bag: !!c.bag })) };
     },
 
     // ---------- PvP-арена ----------
@@ -723,12 +751,15 @@ module.exports = function createMeta(deps) {
     else if (kind === 'pass') passOf(pr).tier = Math.max(passOf(pr).tier, 2); // старые счета премиум-пропуска
     else if (/^pass[1-4]$/.test(kind)) passOf(pr).tier = Math.max(passOf(pr).tier, +kind[4]);
     else if (kind === 'sub') pr.subUntil = Math.max(Date.now(), pr.subUntil || 0) + SHOP.sub.days * DAY;
+    else if (CHESTS[kind] && CHESTS[kind].bag) grant(pr, I.createBag(CHESTS[kind].bag, 1)); // сумка за Stars — сразу в инвентарь
     else if (CHESTS[kind]) I.addMat(pr, CHESTS[kind].mat || kind, CHESTS[kind].n);
     else return false;
     return true;
   }
   // Ларцы за Stars: попадают в сумку, открываются там (мир — по месту открытия)
   const CHESTS = {
+    bagEpic: { n: 1, amount: 199, bag: 'epic', title: 'Рюкзак искателя', description: 'Эпическая сумка: +20 ячеек инвентаря' },
+    bagLegend: { n: 1, amount: 499, bag: 'legendary', title: 'Сума гномьего торговца', description: 'Легендарная сумка: +35 ячеек инвентаря' },
     kitSmith: { n: 1, amount: 49, title: 'Сундук кузнеца', description: '30 руды, 15 эссенции и 2 свитка мастера' },
     chestSet: { n: 1, amount: 99, title: 'Ларец комплекта', description: 'Вещь комплекта вашего класса: эпическая, 15% легендарная, 2% мифическая' },
     chestSet5: { n: 5, amount: 449, title: 'Ларцы комплекта ×5', description: 'Пять ларцов комплекта со скидкой 10%' },
@@ -743,6 +774,6 @@ module.exports = function createMeta(deps) {
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
   };
 
-  return { handle, addPassXp, passOf, passTier, passInvoice, isSub, bagSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
+  return { handle, addPassXp, passOf, passTier, passInvoice, isSub, bagSize, whSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
 };
 module.exports.simulate = simulate;

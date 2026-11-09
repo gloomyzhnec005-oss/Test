@@ -305,7 +305,7 @@ const D = createDungeons({
   quest: (...a) => Q.track(...a),
   giveLoot: (...a) => giveLoot(...a),
   giveMats: (...a) => giveMats(...a), rollMats: (...a) => Loot.rollMats(...a),
-  rollItem: (...a) => I.rollItem(...a),
+  rollItem: (...a) => I.rollItem(...a), createBag: (...a) => I.createBag(...a),
   corpses: () => corpses,
   removeCorpse: (c) => { corpses = corpses.filter((x) => x !== c); },
   broadcast: (text) => io.emit('chat', { sys: true, text }),
@@ -872,6 +872,8 @@ function dropLoot(killer, m) {
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
     const rolls = m.rank === 'boss' ? 2 : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult ? 1 : 0;
     for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, boss ? C.DROPS.boss[tier] : C.DROPS.weights[tier], null, o.heroId), m); // 75% — под класс героя
+    // Сумки — редкость: босс 3% (эпическая), полубосс 1% (редкая, 20% — эпическая)
+    if (boss && Math.random() < (m.rank === 'boss' ? 0.03 : 0.01) * luck) giveLoot(o, pr, I.createBag(m.rank === 'boss' || Math.random() < 0.2 ? 'epic' : 'rare', tier), m);
     // Материалы, свитки, чертежи и вещи комплектов данжа (server/loot.js)
     const z = world.byId.get(m.zone);
     const dungeon = z && z.kind === 'dungeon' ? { sets: Loot.dungeonSets(z.tier, z.dgIndex) } : null;

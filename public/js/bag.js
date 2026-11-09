@@ -4,14 +4,14 @@ window.Bag = (() => {
   const $ = (id) => document.getElementById(id);
   let socket = null, inv = null, onChange = () => {};
   const ROMAN = ['', 'I', 'II', 'III'];
-  const SLOT_ICONS = { weapon: '🗡️', helm: '⛑️', armor: '🛡️', gloves: '🧤', boots: '🥾', ring: '💍', amulet: '📿' };
+  const SLOT_ICONS = { weapon: '🗡️', helm: '⛑️', armor: '🛡️', gloves: '🧤', boots: '🥾', ring: '💍', amulet: '📿', bag: '🎒' };
   const ART = new Set(window.ITEM_ART || []);
   // Картинка предмета или эмодзи, если её ещё не нарисовали
   const art = (it) => {
-    const k = it.cat === 'mat' ? 'mat_' + (String(it.mat).startsWith('bp_') ? 'bp' : it.mat) : it.cat + '_' + it.tpl; // все чертежи — одна картинка
+    const k = it.cat === 'mat' ? 'mat_' + (String(it.mat).startsWith('bp_') ? 'bp' : it.mat) : ART.has(it.cat + '_' + it.tpl) ? it.cat + '_' + it.tpl : it.art || it.cat + '_' + it.tpl; // все чертежи — одна картинка; новые виды — картинка похожего
     return ART.has(k) ? `<img class="it-art" src="assets/items/${k}.webp" alt="" draggable="false">` : it.icon;
   };
-  const mini = (it) => (ART.has(it.cat + '_' + it.tpl) ? `<img class="it-mini" src="assets/items/${it.cat}_${it.tpl}.webp" alt="">` : it.icon);
+  const mini = (it) => { const k = ART.has(it.cat + '_' + it.tpl) ? it.cat + '_' + it.tpl : it.art; return k && ART.has(k) ? `<img class="it-mini" src="assets/items/${k}.webp" alt="">` : it.icon; };
   const crest = (cls) => (ART.has('crest_' + cls) ? `<img class="it-mini" src="assets/items/crest_${cls}.webp" alt="">` : '◆');
   const ic = (k) => `<img class="ui-ic" src="assets/ui/ic_${k}.webp" alt="">`;
   const SOCKET = '<img class="it-mini" src="assets/items/ui_socket.webp" alt="">';
@@ -99,6 +99,7 @@ window.Bag = (() => {
       ${it.classes ? `<div class="ic-cls ${fitsClass(it) ? 'ok' : 'bad'}">${fitsClass(it) ? '✓' : '✕'} Для классов: ${clsNames(it)}${it.armor ? ` · ${it.armor}` : ''}</div>` : ''}
       ${it.reqLevel > 1 ? `<div class="ic-cls ${fitsLevel(it) ? 'ok' : 'bad'}">${fitsLevel(it) ? '✓' : '✕'} Требуемый уровень: ${it.reqLevel}${fitsLevel(it) ? '' : ` (у героя ${inv.hero.level})`}</div>` : ''}
       ${setBlock(it)}
+      ${it.cat === 'bag' ? `<div class="ic-sec">Сумка</div><div class="ic-stat">🎒 Вместимость инвентаря +${it.bagSlots} ячеек</div>` : ''}
       <div class="ic-sec">Итоговые статы</div>
       ${Object.entries(it.stats).map(([k, v]) => `<div class="ic-stat">${statLine(k, v)}${cmp ? diff(v - ((cmp.stats || {})[k] || 0)) : ''}</div>`).join('')}
       ${cmp ? `<div class="ic-attr">Сравнение с надетым: ${cmp.name}</div>` : ''}
@@ -174,7 +175,7 @@ window.Bag = (() => {
         <div class="pd-col">${SIDE.left.map(slotBtn).join('')}</div>
         <div class="pd-stage"><i class="pd-glow"></i><div class="pd-art"></div><i class="pd-ped"></i>
           <div class="pd-name"><b>${H.name}</b><small>${inv.classNames && h.cls ? `${inv.classNames[h.cls]} · ` : ''}ур. ${h.level} · ${'★'.repeat(Math.min(h.dupes, 5)) || '☆'}${h.dupes > 5 ? '+' + (h.dupes - 5) : ''}</small></div></div>
-        <div class="pd-col">${SIDE.right.map(slotBtn).join('')}<button class="pd-slot pd-bag" data-go="bag"><span><img class="it-art" src="assets/items/slot_bag.webp" alt="🎒"></span><em>Сумка</em></button></div>
+        <div class="pd-col">${SIDE.right.map(slotBtn).join('')}${slotBtn('bag')}</div>
       </div>
       <div class="pd-power"><span class="pw">${ic('crown')}Сила <b>${P.power || '—'}</b></span><span>${ic('hp')}${P.hp || '—'}</span><span>${ic('atk')}${P.dmg || '—'}</span><span>${ic('crit')}${P.crit || 0}%</span></div>
       <div class="pd-ward"></div>`;
@@ -199,7 +200,9 @@ window.Bag = (() => {
         ${cur && fitsClass(cur) && !fitsLevel(cur) ? `<p class="ward-warn">⚠️ Нужен ${cur.reqLevel} уровень — пока герой не дорастёт, вещь не даёт статов.</p>` : ''}`;
       ward.append(grid(list, (it) => card(it, itemActions(it, { town: Town.inTown(), after: rerender }), cur), {
         fill: Math.max(6, Math.ceil(list.length / 6) * 6), empty: '' }));
-      if (!list.length) ward.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Вещи этого типа падают с монстров и продаются в лавке оружия и доспехов</p>');
+      if (!list.length) ward.insertAdjacentHTML('beforeend', s === 'bag'
+        ? '<p class="sheet-hint">Сумки — редкость: дорожная продаётся в лавке оружия и доспехов, эпические падают с боссов данжей, легендарные и мифические — с мировых боссов. Ещё — в магазине.</p>'
+        : '<p class="sheet-hint">Вещи этого типа падают с монстров и продаются в лавке оружия и доспехов</p>');
       const nf = unfit(s);
       if (nf) ward.insertAdjacentHTML('beforeend', `<p class="sheet-hint">Ещё ${nf} в сумке — не по классу или уровню героя (видны в сумке затемнёнными)</p>`);
       const ab = (a) => ward.querySelector(`[data-a="${a}"]`);
@@ -259,7 +262,7 @@ window.Bag = (() => {
   // ---------- Инвентарь: сетка ячеек, вкладки по типам, золото и вместимость внизу ----------
   const INV_TABS = [
     ['all', 'Все', () => true], ['wpn', '⚔️ Оружие', (c) => c === 'weapon'], ['arm', '🛡️ Броня', (c) => ['helm', 'armor', 'gloves', 'boots'].includes(c)],
-    ['acc', '💍 Бижутерия', (c) => c === 'ring' || c === 'amulet'], ['rune', '🔮 Руны', (c) => c === 'rune'], ['mat', '🧪 Ресурсы', null],
+    ['acc', '💍 Бижутерия и сумки', (c) => c === 'ring' || c === 'amulet' || c === 'bag'], ['rune', '🔮 Руны', (c) => c === 'rune'], ['mat', '🧪 Ресурсы', null],
   ];
   const SORTS = [['rar', 'по редкости'], ['type', 'по типу'], ['new', 'новые']];
   let invCat = 'all', invSort = 0;

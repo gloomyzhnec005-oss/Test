@@ -57,20 +57,20 @@ const classOf = (heroId) => CLASS_ORDER.find((c) => CLASSES[c].heroes.includes(h
 // Оружие — по виду; шлем, доспех, перчатки и сапоги — по типу брони (тяжёлая / лёгкая / ткань); кольца и амулеты — все.
 // Вещи комплектов — только свой класс. Неподходящая вещь не надевается, а надетая раньше — не даёт статов этому герою.
 const CLASS_GEAR = {
-  warrior:   { weapon: ['axe', 'hammer', 'sword', 'spear'], armor: ['heavy'] },
-  knight:    { weapon: ['sword', 'hammer', 'spear'], armor: ['heavy'] },
-  rogue:     { weapon: ['daggers', 'sword'], armor: ['light'] },
-  hunter:    { weapon: ['bow', 'spear'], armor: ['light'] },
-  elemental: { weapon: ['staff', 'wand'], armor: ['cloth'] },
-  dark:      { weapon: ['wand', 'staff'], armor: ['cloth'] },
-  nature:    { weapon: ['staff', 'wand', 'spear'], armor: ['light', 'cloth'] },
-  holy:      { weapon: ['staff', 'wand', 'hammer'], armor: ['cloth'] },
+  warrior:   { weapon: ['axe', 'hammer', 'sword', 'spear', 'greatsword', 'mace'], armor: ['heavy'] },
+  knight:    { weapon: ['sword', 'hammer', 'spear', 'greatsword', 'mace'], armor: ['heavy'] },
+  rogue:     { weapon: ['daggers', 'sword', 'claws'], armor: ['light'] },
+  hunter:    { weapon: ['bow', 'spear', 'crossbow'], armor: ['light'] },
+  elemental: { weapon: ['staff', 'wand', 'orb'], armor: ['cloth'] },
+  dark:      { weapon: ['wand', 'staff', 'orb', 'scythe'], armor: ['cloth'] },
+  nature:    { weapon: ['staff', 'wand', 'spear', 'claws'], armor: ['light', 'cloth'] },
+  holy:      { weapon: ['staff', 'wand', 'hammer', 'mace', 'scepter'], armor: ['cloth'] },
 };
 const ARMOR_TYPE = {
-  helm: { cap: 'light', helmet: 'heavy', circlet: 'cloth', hood: 'light' },
-  armor: { leather: 'light', chain: 'heavy', plate: 'heavy', robe: 'cloth', cloak: 'light', scale: 'heavy' },
-  gloves: { bracers: 'heavy', grips: 'light', gauntlet: 'heavy', silk: 'cloth' },
-  boots: { boots: 'light', greaves: 'heavy', sandals: 'cloth' },
+  helm: { cap: 'light', helmet: 'heavy', circlet: 'cloth', hood: 'light', horned: 'heavy', bandana: 'light', crown: 'cloth' },
+  armor: { leather: 'light', chain: 'heavy', plate: 'heavy', robe: 'cloth', cloak: 'light', scale: 'heavy', brigandine: 'heavy', studded: 'light', vestment: 'cloth' },
+  gloves: { bracers: 'heavy', grips: 'light', gauntlet: 'heavy', silk: 'cloth', leatherGl: 'light', runeGl: 'cloth' },
+  boots: { boots: 'light', greaves: 'heavy', sandals: 'cloth', stalker: 'light', ironBoots: 'heavy', slippers: 'cloth' },
 };
 const ARMOR_NAMES = { heavy: 'тяжёлая броня', light: 'лёгкая броня', cloth: 'ткань' };
 // Классы, которым подходит вещь (null — всем)
@@ -98,8 +98,10 @@ const canWearTpl = (cat, tpl, cls) => { const l = classesFor({ cat, tpl }); retu
 
 // ---------- Слоты и обычные шаблоны ----------
 const SLOT_ORDER = ['weapon', 'helm', 'armor', 'gloves', 'boots', 'ring', 'amulet'];
-const SLOTS = Object.fromEntries(SLOT_ORDER.map((s) => [s, s]));
-const SLOT_NAMES = { weapon: 'Оружие', helm: 'Шлем', armor: 'Доспех', gloves: 'Перчатки', boots: 'Сапоги', ring: 'Кольцо', amulet: 'Амулет' };
+// Сумка — отдельный слот: в SLOT_ORDER не входит (не даёт статов, не падает обычной добычей, не продаётся в лавке как обычная вещь)
+const SLOTS = Object.fromEntries([...SLOT_ORDER, 'bag'].map((s) => [s, s]));
+const SLOT_NAMES = { weapon: 'Оружие', helm: 'Шлем', armor: 'Доспех', gloves: 'Перчатки', boots: 'Сапоги', ring: 'Кольцо', amulet: 'Амулет', bag: 'Сумка' };
+const BAG_SLOTS = { common: 5, rare: 10, epic: 20, legendary: 35, mythic: 50 }; // +ячеек инвентаря от надетой сумки
 const CATEGORIES = { ...SLOT_NAMES, rune: 'Руна' };
 
 // base — статы обычного предмета первого мира. atk/hp растут с редкостью сильнее, проценты — мягче.
@@ -113,12 +115,23 @@ const TEMPLATES = {
     hammer: { name: 'Молот', icon: '🔨', base: { atk: 8 } },
     spear:  { name: 'Копьё', icon: '🔱', base: { atk: 6, ls: 0.5 } },
     wand:   { name: 'Жезл', icon: '✨', base: { atk: 4, cdr: 2 } },
+    // Новые виды (art — картинка похожего вида, пока нет своей)
+    greatsword: { name: 'Двуручный меч', icon: '⚔️', base: { atk: 8, critDmg: 3 }, art: 'weapon_sword' },
+    mace:   { name: 'Булава', icon: '🔨', base: { atk: 6, def: 1 }, art: 'weapon_hammer' },
+    crossbow: { name: 'Арбалет', icon: '🏹', base: { atk: 6, critDmg: 4 }, art: 'weapon_bow' },
+    claws:  { name: 'Когти', icon: '🐾', base: { atk: 4, aspd: 3, ls: 0.5 }, art: 'weapon_daggers' },
+    orb:    { name: 'Сфера', icon: '🔮', base: { atk: 4, skill: 5 }, art: 'weapon_wand' },
+    scythe: { name: 'Коса', icon: '☠️', base: { atk: 6, ls: 1 }, art: 'weapon_spear' },
+    scepter:{ name: 'Скипетр', icon: '🔱', base: { atk: 4, skill: 3, cdr: 1 }, art: 'weapon_wand' },
   },
   helm: {
     cap:    { name: 'Кожаный капюшон', icon: '🎩', base: { hp: 10, ms: 1 } },
     helmet: { name: 'Железный шлем', icon: '⛑️', base: { hp: 14, def: 1.5 } },
     circlet:{ name: 'Обруч мага', icon: '👑', base: { hp: 8, skill: 2.5 } },
     hood:   { name: 'Капюшон тени', icon: '🥷', base: { hp: 9, crit: 1.5 } },
+    horned: { name: 'Рогатый шлем', icon: '⛑️', base: { hp: 12, critDmg: 3 }, art: 'helm_helmet' },
+    bandana:{ name: 'Повязка следопыта', icon: '🎩', base: { hp: 9, aspd: 1.5 }, art: 'helm_cap' },
+    crown:  { name: 'Венец мудреца', icon: '👑', base: { hp: 7, cdr: 1.5 }, art: 'helm_circlet' },
   },
   armor: {
     leather:{ name: 'Кожаная куртка', icon: '🦺', base: { hp: 25, def: 2 } },
@@ -127,28 +140,51 @@ const TEMPLATES = {
     robe:   { name: 'Мантия', icon: '🥻', base: { hp: 20, skill: 3 } },
     cloak:  { name: 'Плащ теней', icon: '🧥', base: { hp: 20, ms: 2 } },
     scale:  { name: 'Чешуйчатый доспех', icon: '🐉', base: { hp: 35, def: 3 } },
+    brigandine: { name: 'Бригантина', icon: '🛡️', base: { hp: 34, def: 2.5, atkP: 1 }, art: 'armor_chain' },
+    studded:{ name: 'Клёпаная кожа', icon: '🦺', base: { hp: 24, crit: 1.5 }, art: 'armor_leather' },
+    vestment: { name: 'Риза', icon: '🥻', base: { hp: 22, cdr: 1.5 }, art: 'armor_robe' },
   },
   gloves: {
     bracers:{ name: 'Наручи', icon: '🧤', base: { atk: 2, def: 1 } },
     grips:  { name: 'Перчатки ловкача', icon: '🧤', base: { atk: 1.5, aspd: 2.5 } },
     gauntlet:{ name: 'Латные рукавицы', icon: '🥊', base: { atk: 2.5, critDmg: 3 } },
     silk:   { name: 'Шёлковые перчатки', icon: '🧤', base: { atk: 1, cdr: 1.5 } },
+    leatherGl: { name: 'Кожаные перчатки', icon: '🧤', base: { atk: 2, crit: 1 }, art: 'gloves_grips' },
+    runeGl: { name: 'Рунные перчатки', icon: '🧤', base: { atk: 1, skill: 2 }, art: 'gloves_silk' },
   },
   boots: {
     boots:  { name: 'Походные сапоги', icon: '🥾', base: { hp: 10, ms: 3 } },
     greaves:{ name: 'Латные поножи', icon: '🦿', base: { hp: 16, def: 1.5 } },
     sandals:{ name: 'Сандалии странника', icon: '🩴', base: { hp: 8, ms: 2, cdr: 1 } },
+    stalker:{ name: 'Сапоги следопыта', icon: '🥾', base: { hp: 9, ms: 2, aspd: 1 }, art: 'boots_boots' },
+    ironBoots: { name: 'Железные сапоги', icon: '🦿', base: { hp: 18, ms: 1 }, art: 'boots_greaves' },
+    slippers: { name: 'Туфли чародея', icon: '🩴', base: { hp: 7, skill: 2 }, art: 'boots_sandals' },
   },
   ring: {
     ringPow:{ name: 'Кольцо силы', icon: '💍', base: { atk: 2, critDmg: 3 } },
     ringAgi:{ name: 'Кольцо ловкости', icon: '💍', base: { crit: 2, aspd: 2 } },
     ringWind:{ name: 'Кольцо ветра', icon: '💍', base: { ms: 2, aspd: 2 } },
     bracer: { name: 'Браслет удачи', icon: '🧿', base: { gold: 4, xp: 4 } },
+    ringLife: { name: 'Кольцо жизни', icon: '💍', base: { hp: 12, hpP: 1.5 }, art: 'ring_ringPow' },
+    ringMind: { name: 'Перстень мудреца', icon: '💍', base: { skill: 3, cdr: 1 }, art: 'ring_ringWind' },
+    ringBlood:{ name: 'Кольцо вампира', icon: '💍', base: { atk: 1.5, ls: 1 }, art: 'ring_ringAgi' },
+    ringGuard:{ name: 'Кольцо стража', icon: '💍', base: { hp: 8, def: 1.5 }, art: 'ring_ringPow' },
+    ringStar: { name: 'Звёздный перстень', icon: '💍', base: { crit: 1.5, critDmg: 4 }, art: 'ring_ringAgi' },
   },
   amulet: {
     amuLife:{ name: 'Амулет жизни', icon: '📿', base: { hp: 20 } },
     amuMind:{ name: 'Амулет мудрости', icon: '📿', base: { skill: 3, cdr: 1 } },
     amuBlood:{ name: 'Амулет крови', icon: '🩸', base: { hp: 10, ls: 1 } },
+    amuFury: { name: 'Амулет ярости', icon: '📿', base: { atk: 2, crit: 1.5 }, art: 'amulet_amuBlood' },
+    amuWind: { name: 'Амулет ветра', icon: '📿', base: { ms: 2, aspd: 2 }, art: 'amulet_amuMind' },
+    amuGuard:{ name: 'Оберег стража', icon: '📿', base: { hp: 15, def: 2 }, art: 'amulet_amuLife' },
+    amuStar: { name: 'Звёздный кулон', icon: '📿', base: { critDmg: 6, xp: 3 }, art: 'amulet_amuMind' },
+    amuGold: { name: 'Кулон торговца', icon: '🪙', base: { gold: 6, hp: 8 }, art: 'amulet_amuLife' },
+  },
+  // Сумка: не даёт статов, добавляет места в инвентаре (BAG_SLOTS по редкости). Редкая и дорогая
+  bag: {
+    bag: { name: 'Сумка', icon: '🎒', base: {}, art: 'slot_bag',
+      rarNames: { common: 'Холщовая котомка', rare: 'Дорожная сумка', epic: 'Рюкзак искателя', legendary: 'Сума гномьего торговца', mythic: 'Бездонная сума' } },
   },
   rune: {
     fury:   { name: 'Руна ярости', icon: '🔴', base: { atkP: 3 } },
@@ -340,7 +376,7 @@ const rollAttrs = (rar, tier) => {
 function createItem(cat, rar, tier = 1, tpl = null, cls = null) {
   const fit = cls && !tpl && tplsForClass(cat, cls);
   tpl = tpl || (fit && fit.length && Math.random() < 0.75 ? pick(fit) : pick(plainTpls(cat)));
-  const item = { id: newId(), cat, tpl, rar, tier, attrs: rollAttrs(rar, tier), dupes: 0 };
+  const item = { id: newId(), cat, tpl, rar, tier, attrs: cat === 'bag' ? [] : rollAttrs(rar, tier), dupes: 0 };
   if (cat === 'weapon') item.runes = [];
   return item;
 }
@@ -357,6 +393,7 @@ function rollRarity(weights) {
   return 'common';
 }
 const DROP_CATS = [...SLOT_ORDER, 'weapon', 'armor', 'rune']; // оружие и доспехи падают чаще
+const createBag = (rar, tier = 1) => createItem('bag', rar, tier, 'bag');
 function rollItem(tier, weights, cat = null, heroId = null) {
   return createItem(cat || pick(DROP_CATS), rollRarity(weights), tier, null, heroId ? classOf(heroId) : null);
 }
@@ -419,7 +456,7 @@ function findItem(pr, id) {
 // Добавить предмет: дубликат усиливает оригинал, иначе — в сумку (если сумка полна — на склад)
 function addItem(pr, item, bagSize, allowDupe = true) {
   pr.items ??= [];
-  const orig = allowDupe && pr.items.find((i) => i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < DUPE_MAX);
+  const orig = allowDupe && item.cat !== 'bag' && pr.items.find((i) => i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < DUPE_MAX);
   if (orig) { orig.dupes = (orig.dupes || 0) + 1; return { dupe: true, item: orig }; }
   const inBag = pr.items.filter((i) => i.loc !== 'wh').length;
   item.loc = inBag < bagSize ? 'bag' : 'wh';
@@ -520,12 +557,13 @@ function itemView(it) {
   const set = sid ? { id: sid, name: SETS[sid].name, cls: SETS[sid].cls, clsName: CLASSES[SETS[sid].cls].name, heroes: CLASSES[SETS[sid].cls].heroes, bonus: SETS[sid].bonus } : null;
   return {
     id: it.id, cat: it.cat, tpl: it.tpl, rar: it.rar, tier: it.tier, dupes: it.dupes || 0, loc: it.loc || 'bag',
-    name: t.name + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.dupes ? ` +${it.dupes}` : ''), icon: t.icon, color: R.color, rarName: R.name,
+    name: ((t.rarNames && t.rarNames[it.rar]) || t.name) + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.dupes ? ` +${it.dupes}` : ''), icon: t.icon, color: R.color, rarName: R.name,
+    art: t.art || null, bagSlots: it.cat === 'bag' ? BAG_SLOTS[it.rar] : 0,
     attrs: it.attrs, stats: itemStats(it), sockets: it.cat === 'weapon' ? R.sockets : 0, set,
     classes: classesFor(it), // какие классы могут носить (null — все)
     reqLevel: reqLevel(it), // с какого уровня героя можно надеть
     armor: ARMOR_TYPE[it.cat] && ARMOR_TYPE[it.cat][it.tpl] ? ARMOR_NAMES[ARMOR_TYPE[it.cat][it.tpl]] : null,
-    runes: (it.runes || []).map(itemView), sell: Math.round(R.sell * TIER_MULT[it.tier] * (1 + 0.2 * (it.dupes || 0)) * (set ? 1.5 : 1)),
+    runes: (it.runes || []).map(itemView), sell: Math.round(R.sell * TIER_MULT[it.tier] * (1 + 0.2 * (it.dupes || 0)) * (set ? 1.5 : 1) * (it.cat === 'bag' ? 4 : 1)),
   };
 }
 
@@ -559,5 +597,5 @@ module.exports = {
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, TIER_MULT, DUPE_MAX, DUPE_STEP,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
-  upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable,
+  upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
 };
