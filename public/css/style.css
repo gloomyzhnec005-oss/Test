@@ -1200,3 +1200,16 @@ canvas.skin { object-fit: contain; }
 .pay-wallet { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 2px 0; font-size: 12px; color: #c9b896; }
 .pay-wallet.hidden { display: none; }
 .pay-wallet button { background: none; border: 1px solid #5a7aa8; border-radius: 6px; color: #9fd0ff; padding: 5px 8px; font: inherit; cursor: pointer; white-space: nowrap; }
+
+/* Профиль другого игрока */
+.pp-head { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
+.pp-art { width: 96px; height: 120px; flex: none; display: flex; align-items: flex-end; justify-content: center; border-radius: 8px; background: radial-gradient(ellipse at 50% 70%, rgba(255,200,120,.18), rgba(0,0,0,.35)); overflow: hidden; }
+.pp-art canvas, .pp-art img { max-width: 100%; max-height: 100%; }
+.pp-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pp-name { font-weight: normal; font-size: 18px; color: #ffe9b0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-info small { color: #d8c8a8; }
+.pp-gear { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 6px 0 12px; }
+.pp-slot { display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; }
+.pp-slot em { font-style: normal; font-size: 10px; color: #b9a988; text-align: center; }
+.pp-empty { display: block; width: 52px; height: 52px; border-radius: 6px; border: 1px dashed #4a3c28; background: rgba(0,0,0,.3); }
+.tw-link { cursor: pointer; }

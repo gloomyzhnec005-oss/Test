@@ -98,6 +98,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Тап по монстру — выбрать цель
     this.input.on('gameobjectdown', (pointer, obj) => {
       if (this.uiBlocked(pointer)) return;
+      if (obj.getData('playerId')) { if (this.ui.onPlayer) this.ui.onPlayer(obj.getData('playerId')); return; }
       if (obj.getData('monsterId')) {
         this.targetId = obj.getData('monsterId');
         this.tryAttack(true);
@@ -692,6 +693,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const isMe = p.id === this.myId;
         this.needHero(p.hero); // чужой герой — догрузить его нарисованный лист
         e = this.makeEntity('hero_' + p.hero, `${p.name} [${p.lvl}]`, isMe ? '#ffcc4d' : '#ffffff');
+        if (!isMe) { // тап по чужому герою — его профиль (снаряжение, сила, приглашение в группу)
+          e.sprite.setInteractive(new Phaser.Geom.Rectangle(-10, -10, e.sprite.width + 20, e.sprite.height + 20), Phaser.Geom.Rectangle.Contains);
+          e.sprite.setData('playerId', p.id);
+        }
         e.c.setPosition(p.x, p.y);
         this.applySkin(e, p.hero);
         this.players.set(p.id, e);

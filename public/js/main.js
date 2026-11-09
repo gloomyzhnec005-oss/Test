@@ -510,6 +510,31 @@
         if (!r.error) autoPotNext = Date.now() + 8000;
         else if (r.error === NO_POT) { autoPotNext = Date.now() + 20000; if (!noPotWarned) { noPotWarned = true; Town.toast('Автозелье: зелья закончились'); } }
       }, 250);
+      // Профиль другого игрока: герой, сила, надетое снаряжение (тап — карточка вещи), приглашение в группу
+      const openPlayer = async (id) => {
+        if (!Bag.inv()) await Bag.refresh(); // справочники для карточек вещей
+        const r = await Bag.act('inspect', { id });
+        if (r.error || !r.player) { Town.toast(r.error || 'Не удалось открыть профиль'); return; }
+        const pl = r.player, H = w.heroes[pl.hero] || {}, P = pl.power;
+        const box = document.createElement('div');
+        box.className = 'pp';
+        const bySlot = Object.fromEntries(pl.worn.map((it) => [it.slot, it]));
+        const inMyParty = pl.party && pl.party === pl.myParty;
+        box.innerHTML = `<div class="pp-head"><div class="pp-art"></div><div class="pp-info">
+            <b class="pp-name"></b><small>${H.name || pl.hero}${H.title ? ` · ${H.title}` : ''}</small>
+            <small>Уровень ${pl.level} · ${'★'.repeat(Math.min(pl.dupes, 5)) || '☆'}${pl.dupes > 5 ? '+' + (pl.dupes - 5) : ''}${pl.rating ? ` · 🏟️ ${pl.rating}` : ''}</small></div></div>
+          <div class="pd-power"><span class="pw">Сила <b>${P.power}</b></span><span>❤️ ${P.hp}</span><span>⚔️ ${P.dmg}</span><span>🎯 ${P.crit}%</span></div>
+          <div class="ic-sec">Снаряжение</div>
+          <div class="pp-gear">${pl.slots.map((s) => `<div class="pp-slot" data-s="${s}">${bySlot[s] ? Bag.cell(bySlot[s]) : '<span class="pp-empty"></span>'}<em>${pl.slotNames[s]}</em></div>`).join('')}</div>
+          ${pl.me ? '' : `<button class="l2-btn wide" id="ppInvite" ${pl.party ? 'disabled' : ''}>${inMyParty ? '✓ В вашей группе' : pl.party ? 'Уже в другой группе' : '👥 Пригласить в группу'}</button>`}`;
+        box.querySelector('.pp-name').textContent = pl.name;
+        const art = window.Lobby && Lobby.heroCanvas(pl.hero, true);
+        if (art) box.querySelector('.pp-art').append(art);
+        box.querySelector('.pp-gear').onclick = (e) => { const s = e.target.closest('.pp-slot'); if (s && bySlot[s.dataset.s]) Bag.card(bySlot[s.dataset.s]); };
+        const inv = box.querySelector('#ppInvite');
+        if (inv) inv.onclick = () => { socket.emit('party', { op: 'invite', target: pl.id }); inv.disabled = true; inv.textContent = 'Приглашение отправлено'; };
+        Town.open(`👤 ${pl.name}`, box);
+      };
       const openParty = () => {
         const box = document.createElement('div');
         const me = socket.id;
@@ -523,8 +548,9 @@
           const inParty = party && party.members.some((m) => m.id === d.id);
           const row = document.createElement('div');
           row.className = 'tw-ev';
-          row.innerHTML = `<div><b>${d.name}</b><small>${w.heroes[d.hero].name} · ур. ${d.lvl}</small></div><button class="l2-btn" ${inParty ? 'disabled' : ''}>${inParty ? 'В группе' : 'Пригласить'}</button>`;
+          row.innerHTML = `<div class="tw-link"><b>${d.name}</b><small>${w.heroes[d.hero].name} · ур. ${d.lvl} · профиль ›</small></div><button class="l2-btn" ${inParty ? 'disabled' : ''}>${inParty ? 'В группе' : 'Пригласить'}</button>`;
           row.querySelector('button').onclick = () => { socket.emit('party', { op: 'invite', target: d.id }); Town.close(); };
+          row.querySelector('.tw-link').onclick = () => openPlayer(d.id);
           box.append(row);
         }
         const lv = box.querySelector('#pLeave');
@@ -703,6 +729,7 @@
         // Кнопки «Войти» больше нет — вход срабатывает сам, когда герой подходит к порталу или двери
         onNear: (o) => { near = o; },
         onActivate: (o) => activate(o),
+        onPlayer: (id) => openPlayer(id),
         skillReady: (id) => { const b = skillBtns[id]; return !!b && !b.el.classList.contains('cooling') && !b.el.classList.contains('locked'); },
         onTarget: (name, hp, maxHp) => {
           if (!name) { $('target').classList.add('hidden'); return; }

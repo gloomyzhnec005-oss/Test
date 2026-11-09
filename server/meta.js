@@ -535,6 +535,25 @@ module.exports = function createMeta(deps) {
       return { toast: 'Лот снят' };
     },
 
+    // ---------- Профиль другого игрока (тап по персонажу на карте) ----------
+    inspect(p, d) {
+      const t = players.get(String(d.id || ''));
+      if (!t) return { error: 'Игрок уже вышел из игры' };
+      const pr = getProfile(t.uid), items = pr.items || [];
+      const worn = Object.entries(pr.equip || {}).map(([slot, id]) => {
+        const it = items.find((i) => i.id === id);
+        return it ? { ...I.itemView(it), slot } : null;
+      }).filter(Boolean);
+      const f = fighter(deps, pr, t.heroId, '');
+      const a = pr.arena || {};
+      return { player: {
+        id: t.id, name: t.name, hero: t.heroId, level: t.char.level, dupes: (pr.heroDupes || {})[t.heroId] || 0,
+        power: { hp: f.hp, dmg: Math.round(f.dmg), crit: Math.round(f.crit * 100), power: f.power },
+        worn, slots: I.SLOT_ORDER, slotNames: I.SLOT_NAMES, rating: a.hero ? a.rating : null,
+        heroes: (pr.heroes || []).length, me: t.id === p.id, party: t.party || null, myParty: p.party || null,
+      } };
+    },
+
     // ---------- Батл-пасс ----------
     pass(p, d, pr) {
       const ps = passOf(pr);
@@ -682,7 +701,7 @@ module.exports = function createMeta(deps) {
     const pr = getProfile(p.uid);
     if (p.name && pr.arena) pr.arena.name = p.name;
     const res = fn(p, d, pr) || {};
-    if (!res.error && !['inv', 'market', 'auction', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo', 'recipes'].includes(d.op)) save();
+    if (!res.error && !['inv', 'inspect', 'market', 'auction', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo', 'recipes'].includes(d.op)) save();
     res.gold = pr.gold;
     return res;
   }
