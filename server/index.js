@@ -72,7 +72,10 @@ app.use(require('compression')());
 // в фоне. Повторный запуск игры почти ничего не качает.
 const ASSET_CACHE = 'public, max-age=86400, stale-while-revalidate=604800';
 app.use(express.static(path.join(__dirname, '..', 'public'), {
-  setHeaders: (res, file) => res.setHeader('Cache-Control', /\.(html|js|css|json)$/.test(file) ? 'no-cache' : ASSET_CACHE),
+  setHeaders: (res, file) => {
+    res.setHeader('Cache-Control', /\.(html|js|css|json)$/.test(file) ? 'no-cache' : ASSET_CACHE);
+    if (/\.(png|webp|jpg)$/.test(file)) res.setHeader('Access-Control-Allow-Origin', '*'); // значок игры для кошелька TON
+  },
 }));
 // Phaser меняется только с обновлением пакета — кешируем на сутки
 app.use('/vendor/phaser.min.js', (req, res) =>
@@ -196,8 +199,12 @@ function buildInvoice(who, item, bgId) {
 const ton = require('./ton')({ store, onPaid: (payload) => onPaid(payload), log: (k, t) => admin.log(k, t) });
 app.get('/api/ton/info', (req, res) => res.json(ton.info()));
 // Манифест TON Connect: кошелёк показывает игроку название и значок игры
+// Кошелёк скачивает его до подключения: нужен CORS (иначе вечная загрузка «Продолжите в Telegram…»),
+// а url — ровно адрес, с которого открыта игра (Railway всегда https; WEBAPP_URL — только запасной вариант)
 app.get('/tonconnect-manifest.json', (req, res) => {
-  const url = (process.env.WEBAPP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  const host = req.get('x-forwarded-host') || req.get('host');
+  const url = (host && !/^localhost|^127\./.test(host) ? `https://${host}` : (process.env.WEBAPP_URL || `${req.protocol}://${host}`)).replace(/\/$/, '');
+  res.set({ 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
   res.json({ url, name: 'Mystic Horizon', iconUrl: `${url}/assets/ui/ton_icon.png` });
 });
 app.use('/vendor/tonconnect-ui.min.js', (req, res) =>
