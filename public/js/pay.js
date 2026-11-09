@@ -33,7 +33,8 @@ window.Pay = (() => {
       document.head.append(s);
     });
   }
-  async function tonConnect() {
+  // Создать TON Connect (без окна) и восстановить прошлое подключение кошелька
+  async function tonInit() {
     await loadTonConnect();
     if (!tc) {
       const ret = (await tonInfo()).returnUrl; // куда кошелёк вернёт игрока после подтверждения (ссылка на мини-приложение)
@@ -44,6 +45,18 @@ window.Pay = (() => {
       });
       await tc.connectionRestored;
     }
+    return tc;
+  }
+  // Название и короткий адрес подключённого кошелька: «Tonkeeper · UQCy…Bwdk»
+  function walletLabel() {
+    if (!tc || !tc.connected || !tc.wallet) return '';
+    const name = tc.wallet.name || (tc.wallet.device && tc.wallet.device.appName) || 'Кошелёк';
+    let a = '';
+    try { a = TON_CONNECT_UI.toUserFriendlyAddress(tc.wallet.account.address); a = `${a.slice(0, 4)}…${a.slice(-4)}`; } catch { /* без адреса */ }
+    return a ? `${name} · ${a}` : name;
+  }
+  async function tonConnect() {
+    await tonInit();
     if (tc.connected) return tc;
     // Нет кошелька — показываем окно выбора кошелька и ждём подключения или закрытия
     const ok = await new Promise((res) => {
@@ -83,8 +96,16 @@ window.Pay = (() => {
       m.innerHTML = `<div class="pay-box"><b class="pay-title"></b><small>Выберите способ оплаты</small>
         <button class="l2-btn pay-opt" data-m="stars">⭐ Telegram Stars · ${stars}</button>
         <button class="l2-btn pay-opt ton" data-m="ton">💎 GRAM · ${ton}</button>
+        <div class="pay-wallet hidden"><span></span><button data-m="switch">Сменить кошелёк</button></div>
         <button class="pay-cancel" data-m="">Отмена</button></div>`;
       m.querySelector('.pay-title').textContent = title;
+      // Уже подключённый кошелёк: показываем, каким будет оплата, и даём сменить (иначе TON Connect всегда берёт прошлый)
+      tonInit().then(() => {
+        const w = walletLabel();
+        if (!w || !m.isConnected) return;
+        m.querySelector('.pay-wallet span').textContent = `Кошелёк: ${w}`;
+        m.querySelector('.pay-wallet').classList.remove('hidden');
+      }).catch(() => {});
       m.onclick = (e) => {
         const b = e.target.closest('[data-m]');
         if (!b && e.target !== m) return;
@@ -103,6 +124,10 @@ window.Pay = (() => {
     const how = await choose(q.data.title, q.data.stars, q.data.ton);
     if (how === 'stars') return payStars(item, bgId, onPaid, toast);
     if (how === 'ton') return payTon(item, bgId, onPaid, toast);
+    if (how === 'switch') { // отключить прошлый кошелёк и сразу оплатить новым
+      try { await tonInit(); if (tc.connected) await tc.disconnect(); } catch { /* уже отключён */ }
+      return payTon(item, bgId, onPaid, toast);
+    }
   }
 
   return { buy, tonInfo };
