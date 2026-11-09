@@ -870,7 +870,7 @@ function dropLoot(killer, m) {
     const luck = (pr.buffs || {}).luck > Date.now() ? 1.3 : 1;
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
     const rolls = m.rank === 'boss' ? 2 : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult ? 1 : 0;
-    for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, boss ? C.DROPS.boss[tier] : C.DROPS.weights[tier]), m);
+    for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, boss ? C.DROPS.boss[tier] : C.DROPS.weights[tier], null, o.heroId), m); // 75% — под класс героя
     // Материалы, свитки, чертежи и вещи комплектов данжа (server/loot.js)
     const z = world.byId.get(m.zone);
     const dungeon = z && z.kind === 'dungeon' ? { sets: Loot.dungeonSets(z.tier, z.dgIndex) } : null;

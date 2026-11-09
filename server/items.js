@@ -53,6 +53,40 @@ const CLASSES = {
 const CLASS_ORDER = Object.keys(CLASSES);
 const classOf = (heroId) => CLASS_ORDER.find((c) => CLASSES[c].heroes.includes(heroId)) || null;
 
+// ---------- Что может носить класс ----------
+// Оружие — по виду; шлем, доспех, перчатки и сапоги — по типу брони (тяжёлая / лёгкая / ткань); кольца и амулеты — все.
+// Вещи комплектов — только свой класс. Неподходящая вещь не надевается, а надетая раньше — не даёт статов этому герою.
+const CLASS_GEAR = {
+  warrior:   { weapon: ['axe', 'hammer', 'sword', 'spear'], armor: ['heavy'] },
+  knight:    { weapon: ['sword', 'hammer', 'spear'], armor: ['heavy'] },
+  rogue:     { weapon: ['daggers', 'sword'], armor: ['light'] },
+  hunter:    { weapon: ['bow', 'spear'], armor: ['light'] },
+  elemental: { weapon: ['staff', 'wand'], armor: ['cloth'] },
+  dark:      { weapon: ['wand', 'staff'], armor: ['cloth'] },
+  nature:    { weapon: ['staff', 'wand', 'spear'], armor: ['light', 'cloth'] },
+  holy:      { weapon: ['staff', 'wand', 'hammer'], armor: ['cloth'] },
+};
+const ARMOR_TYPE = {
+  helm: { cap: 'light', helmet: 'heavy', circlet: 'cloth', hood: 'light' },
+  armor: { leather: 'light', chain: 'heavy', plate: 'heavy', robe: 'cloth', cloak: 'light', scale: 'heavy' },
+  gloves: { bracers: 'heavy', grips: 'light', gauntlet: 'heavy', silk: 'cloth' },
+  boots: { boots: 'light', greaves: 'heavy', sandals: 'cloth' },
+};
+const ARMOR_NAMES = { heavy: 'тяжёлая броня', light: 'лёгкая броня', cloth: 'ткань' };
+// Классы, которым подходит вещь (null — всем)
+function classesFor(it) {
+  if (!it) return null;
+  const sc = it.tpl && it.tpl.startsWith('set_') ? it.tpl.slice(4) : null;
+  if (sc && CLASSES[sc]) return [sc];
+  if (it.cat === 'weapon') return CLASS_ORDER.filter((c) => CLASS_GEAR[c].weapon.includes(it.tpl));
+  const t = ARMOR_TYPE[it.cat] && ARMOR_TYPE[it.cat][it.tpl];
+  return t ? CLASS_ORDER.filter((c) => CLASS_GEAR[c].armor.includes(t)) : null;
+}
+const canWear = (it, heroId) => { const l = classesFor(it); return !l || l.includes(classOf(heroId)); };
+// Шаблоны категории, подходящие классу (для добычи и магазина)
+const tplsForClass = (cat, cls) => Object.keys(TEMPLATES[cat] || {}).filter((k) => !TEMPLATES[cat][k].setCls && (!cls || canWearTpl(cat, k, cls)));
+const canWearTpl = (cat, tpl, cls) => { const l = classesFor({ cat, tpl }); return !l || l.includes(cls); };
+
 // ---------- Слоты и обычные шаблоны ----------
 const SLOT_ORDER = ['weapon', 'helm', 'armor', 'gloves', 'boots', 'ring', 'amulet'];
 const SLOTS = Object.fromEntries(SLOT_ORDER.map((s) => [s, s]));
@@ -293,8 +327,10 @@ const rollAttrs = (rar, tier) => {
   return attrs;
 };
 
-function createItem(cat, rar, tier = 1, tpl = null) {
-  tpl = tpl || pick(plainTpls(cat));
+// cls — класс героя: 75% вещей — подходящего ему вида (чтобы добыча не была бесполезной)
+function createItem(cat, rar, tier = 1, tpl = null, cls = null) {
+  const fit = cls && !tpl && tplsForClass(cat, cls);
+  tpl = tpl || (fit && fit.length && Math.random() < 0.75 ? pick(fit) : pick(plainTpls(cat)));
   const item = { id: newId(), cat, tpl, rar, tier, attrs: rollAttrs(rar, tier), dupes: 0 };
   if (cat === 'weapon') item.runes = [];
   return item;
@@ -312,8 +348,8 @@ function rollRarity(weights) {
   return 'common';
 }
 const DROP_CATS = [...SLOT_ORDER, 'weapon', 'armor', 'rune']; // оружие и доспехи падают чаще
-function rollItem(tier, weights, cat = null) {
-  return createItem(cat || pick(DROP_CATS), rollRarity(weights), tier);
+function rollItem(tier, weights, cat = null, heroId = null) {
+  return createItem(cat || pick(DROP_CATS), rollRarity(weights), tier, null, heroId ? classOf(heroId) : null);
 }
 
 // Итоговые статы одного предмета (база × редкость × мир + атрибуты, всё × бонус дубликатов)
@@ -337,7 +373,7 @@ function setState(pr, heroId) {
   const counts = {};
   for (const slot of SLOT_ORDER) {
     const it = findItem(pr, pr.equip?.[slot]);
-    const sid = it && setIdOf(it);
+    const sid = it && canWear(it, heroId) && setIdOf(it);
     if (sid) counts[sid] = (counts[sid] || 0) + 1;
   }
   const active = [];
@@ -354,7 +390,7 @@ function gearStats(pr, heroId = null) {
   const add = (st) => { for (const [k, v] of Object.entries(st)) total[k] = (total[k] || 0) + v; };
   for (const slot of SLOT_ORDER) {
     const it = findItem(pr, pr.equip?.[slot]);
-    if (!it) continue;
+    if (!it || (heroId && !canWear(it, heroId))) continue; // вещь не для класса этого героя — без статов
     add(itemStats(it));
     for (const r of it.runes || []) add(itemStats(r));
   }
@@ -477,6 +513,8 @@ function itemView(it) {
     id: it.id, cat: it.cat, tpl: it.tpl, rar: it.rar, tier: it.tier, dupes: it.dupes || 0, loc: it.loc || 'bag',
     name: t.name + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.dupes ? ` +${it.dupes}` : ''), icon: t.icon, color: R.color, rarName: R.name,
     attrs: it.attrs, stats: itemStats(it), sockets: it.cat === 'weapon' ? R.sockets : 0, set,
+    classes: classesFor(it), // какие классы могут носить (null — все)
+    armor: ARMOR_TYPE[it.cat] && ARMOR_TYPE[it.cat][it.tpl] ? ARMOR_NAMES[ARMOR_TYPE[it.cat][it.tpl]] : null,
     runes: (it.runes || []).map(itemView), sell: Math.round(R.sell * TIER_MULT[it.tier] * (1 + 0.2 * (it.dupes || 0)) * (set ? 1.5 : 1)),
   };
 }
@@ -511,5 +549,5 @@ module.exports = {
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, TIER_MULT, DUPE_MAX, DUPE_STEP,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
-  upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls,
+  upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls, classesFor, canWear, CLASS_GEAR,
 };

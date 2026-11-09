@@ -1213,3 +1213,11 @@ canvas.skin { object-fit: contain; }
 .pp-slot em { font-style: normal; font-size: 10px; color: #b9a988; text-align: center; }
 .pp-empty { display: block; width: 52px; height: 52px; border-radius: 6px; border: 1px dashed #4a3c28; background: rgba(0,0,0,.3); }
 .tw-link { cursor: pointer; }
+
+/* Классы героев и снаряжения */
+.it.nofit, .pd-slot.nofit { filter: grayscale(.85) brightness(.6); }
+.pd-slot.nofit::after { content: '✕'; position: absolute; right: 4px; top: 2px; color: #ff6a6a; font-size: 13px; text-shadow: 0 0 3px #000; }
+.ic-cls { margin: 6px 0 2px; font-size: 12px; }
+.ic-cls.ok { color: #8fe08a; }
+.ic-cls.bad { color: #ff7a7a; }
+.ward-warn { color: #ff9a7a; font-size: 12px; margin: 6px 0; }

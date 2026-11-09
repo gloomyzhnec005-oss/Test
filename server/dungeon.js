@@ -629,8 +629,8 @@ module.exports = function createDungeons(d) {
       const first = boss && !pr.dungeonClears[key];
       if (boss) pr.dungeonClears[key] = (pr.dungeonClears[key] || 0) + 1;
       p.socket.emit('chat', { sys: true, text: `${boss ? '🏆 Босс' : '⭐ Полубосс'} «${m.name || MOBS[m.type].name}» повержен! Ваш вклад ${Math.round(part * 100)}% · +${gold} 💰${first ? ' · первая победа над боссом данжа' : ''}` });
-      if (boss) d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier]), m);
-      if (first) { d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier]), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первая победа над боссом данжа: +160 самоцветов' }); }
+      if (boss) d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId), m);
+      if (first) { d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первая победа над боссом данжа: +160 самоцветов' }); }
       d.markDirty(p);
     }
     if (boss) d.broadcast(`🏆 Босс «${m.name || MOBS[m.type].name}» в данже «${h.dg.name}» повержен! Следующий — завтра в ${hhmm(nextBossAt(Date.now() + 60000))}.`);
@@ -680,7 +680,7 @@ module.exports = function createDungeons(d) {
       pr.survivalBest = Math.max(pr.survivalBest || 0, s.wave);
       d.quest(o.uid, 'survival', s.wave);
       o.socket.emit('chat', { sys: true, text: `Волна ${s.wave} пройдена! +${gold} 💰 · рекорд: ${pr.survivalBest}` });
-      if (s.wave % 5 === 0 || Math.random() < 0.25) d.giveLoot(o, pr, d.rollItem(z.tier, s.wave % 5 === 0 ? C.DROPS.boss[z.tier] : C.DROPS.weights[z.tier]), o);
+      if (s.wave % 5 === 0 || Math.random() < 0.25) d.giveLoot(o, pr, d.rollItem(z.tier, s.wave % 5 === 0 ? C.DROPS.boss[z.tier] : C.DROPS.weights[z.tier], null, o.heroId), o);
       d.markDirty(o);
     }
   }
@@ -710,7 +710,7 @@ module.exports = function createDungeons(d) {
       pr.gold += gold;
       d.addPassXp(pr, 40);
       p.socket.emit('chat', { sys: true, text: `👹 Мировой босс повержен! Ваш вклад ${Math.round((m.contrib[p.uid] / total) * 100)}% · +${gold} 💰` });
-      for (let i = 0; i < 2 + (part > 0.15 ? 1 : 0); i++) d.giveLoot(p, pr, d.rollItem(m.tier, C.DROPS.boss[m.tier]), m);
+      for (let i = 0; i < 2 + (part > 0.15 ? 1 : 0); i++) d.giveLoot(p, pr, d.rollItem(m.tier, C.DROPS.boss[m.tier], null, p.heroId), m);
       d.giveMats(p, pr, d.rollMats({ rank: 'world' }, m.tier, null).mats, m); // материалы, свитки и чертёж
       d.markDirty(p);
     }

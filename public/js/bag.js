@@ -32,7 +32,10 @@ window.Bag = (() => {
   const statName = (k) => (BASE_NAMES[k] || (inv && inv.attrs[k]) || [k, ''])[0];
   const statUnit = (k) => { const u = (BASE_NAMES[k] || (inv && inv.attrs[k]) || ['', ''])[1]; return u === '−%' ? '%' : u; };
   const statLine = (k, v) => `${statName(k)} ${(inv && inv.attrs[k] && inv.attrs[k][1] === '−%') ? '−' : '+'}${v}${statUnit(k)}`;
-  const cell = (it, extra = '') => `<button class="it ${extra} ${it.set ? 'set' : ''} ${it.rar ? 'fr-' + it.rar : ''}" data-id="${it.id}" style="--rc:${it.color}">
+  // Подходит ли вещь классу текущего героя (кольца и амулеты — всем)
+  const fitsHero = (it) => !it.classes || !inv || !inv.hero || !inv.hero.cls || it.classes.includes(inv.hero.cls);
+  const clsNames = (it) => (it.classes || []).map((c) => (inv && inv.classNames && inv.classNames[c]) || c).join(', ');
+  const cell = (it, extra = '') => `<button class="it ${extra} ${!/other/.test(extra) && !fitsHero(it) ? 'nofit' : ''} ${it.set ? 'set' : ''} ${it.rar ? 'fr-' + it.rar : ''}" data-id="${it.id}" style="--rc:${it.color}">
       <span>${art(it)}</span>${it.dupes ? `<em title="Усилен дубликатами: +${it.dupes * 5}% к статам">★${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}${isEquipped(it) ? '<i class="eq-tag">✔ надето</i>' : ''}${it.runes && it.runes.length ? `<b>${it.runes.map(mini).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}</button>`;
   function grid(items, onTap, opts = {}) {
     const box = document.createElement('div');
@@ -91,6 +94,7 @@ window.Bag = (() => {
     c.style.setProperty('--rc', it.color);
     c.innerHTML = `<div class="ic-head"><span class="ic-icon">${art(it)}</span><div><b>${it.name}</b>
         <small>${it.rarName} · ${inv.cats[it.cat]} · мир ${ROMAN[it.tier]}${it.dupes ? ` · дубликаты +${it.dupes * 5}%` : ''}</small></div></div>
+      ${it.classes ? `<div class="ic-cls ${fitsHero(it) ? 'ok' : 'bad'}">${fitsHero(it) ? '✓' : '✕'} Для классов: ${clsNames(it)}${it.armor ? ` · ${it.armor}` : ''}</div>` : ''}
       ${setBlock(it)}
       <div class="ic-sec">Итоговые статы</div>
       ${Object.entries(it.stats).map(([k, v]) => `<div class="ic-stat">${statLine(k, v)}${cmp ? diff(v - ((cmp.stats || {})[k] || 0)) : ''}</div>`).join('')}
@@ -110,6 +114,7 @@ window.Bag = (() => {
     const run = async (op, data, after) => { const r = await act(op, data); toast(r.error || r.toast || 'Готово'); await refresh(); if (after) after(r); return !r.error; };
     if (it.cat !== 'rune') {
       if (isEquipped(it)) acts.push(['Снять', () => run('unequip', { slot: slotOf(it) }, ctx.after)]);
+      else if (!fitsHero(it)) acts.push([`🔒 Только для: ${clsNames(it)}`, () => toast('Эту вещь может носить только другой класс')]);
       else acts.push(['Надеть', () => run('equip', { id: it.id }, ctx.after)]);
     }
     if (ctx.town && !isEquipped(it)) {
@@ -149,10 +154,11 @@ window.Bag = (() => {
   const SIDE = { left: ['helm', 'armor', 'gloves', 'boots'], right: ['weapon', 'amulet', 'ring'] };
   let heroSel = null;
   const worn = (s) => inv.items.find((i) => i.id === inv.equip[s]);
-  const fits = (s) => inv.items.filter((i) => i.cat === s && i.loc !== 'wh' && !isEquipped(i));
+  const fits = (s) => inv.items.filter((i) => i.cat === s && i.loc !== 'wh' && !isEquipped(i) && fitsHero(i)); // только своего класса
+  const unfit = (s) => inv.items.filter((i) => i.cat === s && i.loc !== 'wh' && !isEquipped(i) && !fitsHero(i)).length;
   function slotBtn(s) {
     const it = worn(s);
-    return `<button class="pd-slot ${it ? 'full fr-' + it.rar : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
+    return `<button class="pd-slot ${it ? 'full fr-' + it.rar : ''} ${it && !fitsHero(it) ? 'nofit' : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
       ${it ? `<span>${art(it)}</span>${it.set ? '<s>◆</s>' : ''}` : `<span class="ghost"><img class="it-art slot-ghost" src="assets/items/slot_${s}.webp" alt="${SLOT_ICONS[s]}"></span>`}
       <em>${it ? it.name : inv.slotNames[s]}</em></button>`;
   }
@@ -163,7 +169,7 @@ window.Bag = (() => {
     box.innerHTML = `<div class="pd">
         <div class="pd-col">${SIDE.left.map(slotBtn).join('')}</div>
         <div class="pd-stage"><i class="pd-glow"></i><div class="pd-art"></div><i class="pd-ped"></i>
-          <div class="pd-name"><b>${H.name}</b><small>ур. ${h.level} · ${'★'.repeat(Math.min(h.dupes, 5)) || '☆'}${h.dupes > 5 ? '+' + (h.dupes - 5) : ''}</small></div></div>
+          <div class="pd-name"><b>${H.name}</b><small>${inv.classNames && h.cls ? `${inv.classNames[h.cls]} · ` : ''}ур. ${h.level} · ${'★'.repeat(Math.min(h.dupes, 5)) || '☆'}${h.dupes > 5 ? '+' + (h.dupes - 5) : ''}</small></div></div>
         <div class="pd-col">${SIDE.right.map(slotBtn).join('')}<button class="pd-slot pd-bag" data-go="bag"><span><img class="it-art" src="assets/items/slot_bag.webp" alt="🎒"></span><em>Сумка</em></button></div>
       </div>
       <div class="pd-power"><span class="pw">${ic('crown')}Сила <b>${P.power || '—'}</b></span><span>${ic('hp')}${P.hp || '—'}</span><span>${ic('atk')}${P.dmg || '—'}</span><span>${ic('crit')}${P.crit || 0}%</span></div>
@@ -184,10 +190,13 @@ window.Bag = (() => {
       ward.innerHTML = `<div class="ward-head"><b>👘 Гардероб · ${inv.slotNames[s]}</b><small>${list.length ? `в сумке ${list.length}` : 'в сумке нет'}</small></div>
         ${cur ? `<div class="ward-cur" style="--rc:${cur.color}">${cell(cur, 'eq')}<div><b style="color:${cur.color}">${cur.name}</b>
           <small>${Object.entries(cur.stats).map(([k, v]) => statLine(k, v)).join(' · ')}</small></div><button class="l2-btn" data-a="info">ⓘ</button><button class="l2-btn" data-a="off">Снять</button></div>`
-        : `<div class="ward-cur none"><img class="it-mini slot-ghost" src="assets/items/slot_${s}.webp" alt=""> Ячейка пуста — выберите вещь ниже</div>`}`;
+        : `<div class="ward-cur none"><img class="it-mini slot-ghost" src="assets/items/slot_${s}.webp" alt=""> Ячейка пуста — выберите вещь ниже</div>`}
+        ${cur && !fitsHero(cur) ? '<p class="ward-warn">⚠️ Эта вещь не для класса вашего героя — она не даёт статов. Снимите её и наденьте подходящую.</p>' : ''}`;
       ward.append(grid(list, (it) => card(it, itemActions(it, { town: Town.inTown(), after: rerender }), cur), {
         fill: Math.max(6, Math.ceil(list.length / 6) * 6), empty: '' }));
       if (!list.length) ward.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Вещи этого типа падают с монстров и продаются в лавке оружия и доспехов</p>');
+      const nf = unfit(s);
+      if (nf) ward.insertAdjacentHTML('beforeend', `<p class="sheet-hint">Ещё ${nf} в сумке — не для вашего класса (видны в сумке затемнёнными)</p>`);
       const ab = (a) => ward.querySelector(`[data-a="${a}"]`);
       if (cur) {
         ab('info').onclick = () => card(cur, itemActions(cur, { after: rerender }));

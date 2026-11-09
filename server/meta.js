@@ -136,16 +136,19 @@ module.exports = function createMeta(deps) {
   // ---------- Витрины магазинов (обновляются раз в день, свои в каждом мире) ----------
   const shopCache = new Map();
   const ITEM_PRICE = { common: 120, rare: 450, epic: 2200 };
-  function offers(kind, tier) {
-    const key = `${dayKey()}:${kind}:${tier}`;
+  function offers(kind, tier, cls = null) {
+    if (kind !== 'equip') cls = null; // снаряжение — под класс героя, остальное одинаково для всех
+    const key = `${dayKey()}:${kind}:${tier}:${cls || ''}`;
     if (shopCache.has(key)) return shopCache.get(key);
     const list = [];
     const price = (rar) => Math.round(ITEM_PRICE[rar] * F(tier));
     const matOffer = (mat, limit = 0) => list.push({ oid: list.length, mat, price: shopPrice(mat, tier), limit: limit || I.MATS[mat].limit || 0 });
     if (kind === 'equip') {
       // По обычному и редкому предмету на каждый слот и два эпических на день
-      for (const cat of I.SLOT_ORDER) for (const rar of ['common', 'rare']) list.push({ oid: list.length, item: I.createItem(cat, rar, tier), price: price(rar) });
-      for (let i = 0; i < 2; i++) list.push({ oid: list.length, item: I.createItem(I.SLOT_ORDER[Math.floor(Math.random() * 7)], 'epic', tier), price: price('epic') });
+      // Только то, что может надеть класс героя
+      const mk = (cat, rar) => { const fit = I.TEMPLATES[cat] && Object.keys(I.TEMPLATES[cat]).filter((t) => !I.TEMPLATES[cat][t].setCls && (!cls || I.canWear({ cat, tpl: t }, I.CLASSES[cls].heroes[0]))); return I.createItem(cat, rar, tier, fit && fit.length ? fit[Math.floor(Math.random() * fit.length)] : null); };
+      for (const cat of I.SLOT_ORDER) for (const rar of ['common', 'rare']) list.push({ oid: list.length, item: mk(cat, rar), price: price(rar) });
+      for (let i = 0; i < 2; i++) list.push({ oid: list.length, item: mk(I.SLOT_ORDER[Math.floor(Math.random() * 7)], 'epic'), price: price('epic') });
     } else if (kind === 'runes') {
       for (const rar of ['common', 'common', 'common', 'rare', 'rare', 'rare', 'epic']) list.push({ oid: list.length, item: I.createItem('rune', rar, tier), price: price(rar) });
     } else if (kind === 'smith') {
@@ -168,7 +171,8 @@ module.exports = function createMeta(deps) {
       mats: Object.entries(pr.mats || {}).filter(([id, n]) => n > 0 && I.MATS[id]).map(([id, n]) => I.matView(id, n, tierOf(p))),
       sets: { counts: st.counts, active: st.active, cls: st.cls, clsName: st.cls ? I.CLASSES[st.cls].name : null },
       bagSize: bagSize(pr), whSize: SHOP.wh, sub: isSub(pr) ? pr.subUntil : 0, buffs: pr.buffs || {}, tier: tierOf(p),
-      hero: { id: p.heroId, level: p.char.level, dupes: (pr.heroDupes || {})[p.heroId] || 0, unlocked: deps.unlockedSkills(pr, p.heroId) },
+      hero: { id: p.heroId, level: p.char.level, dupes: (pr.heroDupes || {})[p.heroId] || 0, unlocked: deps.unlockedSkills(pr, p.heroId), cls: I.classOf(p.heroId) },
+      classNames: Object.fromEntries(Object.entries(I.CLASSES).map(([k, c]) => [k, `${c.icon} ${c.name}`])),
       power: (({ hp, dmg, crit, power }) => ({ hp, dmg: Math.round(dmg), crit: Math.round(crit * 100), power }))(fighter(deps, pr, p.heroId, '')),
       itemSpins: pr.itemSpins || 0, freeItemSpins: freeSpinsLeft(pr), pity: typeof pr.pity === 'number' ? pr.pity : 0, pityMax: SHOP.pity, pityE: pr.pityE || 0, gems: pr.gems || 0, glitter: pr.glitter || 0, gemsPerWish: SHOP.gemsPerWish, gearBanner: gearBanner(),
       attrs: I.ATTRS, rarities: I.ITEM_RARITIES, rarOrder: I.RARITY_ORDER, cats: I.CATEGORIES, slots: I.SLOT_ORDER, slotNames: I.SLOT_NAMES,
@@ -208,6 +212,10 @@ module.exports = function createMeta(deps) {
     equip(p, d, pr) {
       const it = I.findItem(pr, d.id);
       if (!it || !I.SLOTS[it.cat]) return { error: 'Этот предмет нельзя надеть' };
+      if (!I.canWear(it, p.heroId)) { // класс героя: «Лучник не носит посох»
+        const names = (I.classesFor(it) || []).map((c) => I.CLASSES[c].name).join(', ');
+        return { error: `${C.HEROES[p.heroId].name} не может это надеть — только для: ${names}` };
+      }
       pr.equip ??= {};
       for (const s of Object.keys(pr.equip)) if (pr.equip[s] === it.id) pr.equip[s] = null;
       pr.equip[it.cat] = it.id;
@@ -397,7 +405,7 @@ module.exports = function createMeta(deps) {
     // ---------- Магазины ----------
     shop(p, d, pr) {
       const kind = SHOP_KINDS.includes(d.kind) ? d.kind : 'equip';
-      const list = offers(kind, tierOf(p));
+      const list = offers(kind, tierOf(p), I.classOf(p.heroId));
       const bought = pr.shopDay === dayKey() ? pr.shopBought || [] : [];
       const cnt = (o) => bought.filter((k) => k === `${kind}:${tierOf(p)}:${o.oid}`).length;
       return { offers: list.map((o) => ({ oid: o.oid, price: o.price, sold: o.item ? cnt(o) > 0 : o.limit ? cnt(o) >= o.limit : false,
@@ -405,7 +413,7 @@ module.exports = function createMeta(deps) {
     },
     buy(p, d, pr) {
       const kind = SHOP_KINDS.includes(d.kind) ? d.kind : 'equip';
-      const o = offers(kind, tierOf(p)).find((x) => x.oid === d.oid);
+      const o = offers(kind, tierOf(p), I.classOf(p.heroId)).find((x) => x.oid === d.oid);
       if (!o) return { error: 'Товар не найден' };
       if (pr.shopDay !== dayKey()) { pr.shopDay = dayKey(); pr.shopBought = []; }
       const key = `${kind}:${tierOf(p)}:${o.oid}`;
@@ -454,7 +462,7 @@ module.exports = function createMeta(deps) {
         const hi = I.RARITY_ORDER.indexOf(rar) >= 3;
         const setPiece = hi ? Math.random() < 0.5 : I.RARITY_ORDER.indexOf(rar) >= 2 && Math.random() < 0.25;
         const cls = hi ? feat.cls : Math.random() < 0.5 ? I.classOf(p.heroId) : null;
-        const res = grant(pr, setPiece ? I.createSetItem(cls, tierOf(p), rar) : I.rollItem(tierOf(p), { [rar]: 1 }));
+        const res = grant(pr, setPiece ? I.createSetItem(cls, tierOf(p), rar) : I.rollItem(tierOf(p), { [rar]: 1 }, null, p.heroId));
         results.push({ ...I.itemView(res.item), dupe: res.dupe });
       }
       addPassXp(pr, 5 * n);

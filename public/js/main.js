@@ -525,7 +525,7 @@
             <small>Уровень ${pl.level} · ${'★'.repeat(Math.min(pl.dupes, 5)) || '☆'}${pl.dupes > 5 ? '+' + (pl.dupes - 5) : ''}${pl.rating ? ` · 🏟️ ${pl.rating}` : ''}</small></div></div>
           <div class="pd-power"><span class="pw">Сила <b>${P.power}</b></span><span>❤️ ${P.hp}</span><span>⚔️ ${P.dmg}</span><span>🎯 ${P.crit}%</span></div>
           <div class="ic-sec">Снаряжение</div>
-          <div class="pp-gear">${pl.slots.map((s) => `<div class="pp-slot" data-s="${s}">${bySlot[s] ? Bag.cell(bySlot[s]) : '<span class="pp-empty"></span>'}<em>${pl.slotNames[s]}</em></div>`).join('')}</div>
+          <div class="pp-gear">${pl.slots.map((s) => `<div class="pp-slot" data-s="${s}">${bySlot[s] ? Bag.cell(bySlot[s], 'other') : '<span class="pp-empty"></span>'}<em>${pl.slotNames[s]}</em></div>`).join('')}</div>
           ${pl.me ? '' : `<button class="l2-btn wide" id="ppInvite" ${pl.party ? 'disabled' : ''}>${inMyParty ? '✓ В вашей группе' : pl.party ? 'Уже в другой группе' : '👥 Пригласить в группу'}</button>`}`;
         box.querySelector('.pp-name').textContent = pl.name;
         const art = window.Lobby && Lobby.heroCanvas(pl.hero, true);
