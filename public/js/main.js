@@ -978,7 +978,9 @@
         vibrate,
       };
       // Рисуем в физических пикселях экрана (до ×2), иначе на телефоне картинка и текст растягиваются и мылятся
-      const DPR = window.GAME_DPR = Math.min(2, window.devicePixelRatio || 1);
+      // Холст — в настоящих пикселях экрана (раньше не больше 2×: на экранах 2,6–3× браузер растягивал картинку — мыло).
+      // В режиме экономии батареи — до 2×
+      const DPR = window.GAME_DPR = Math.min(Settings.get('lowFps') ? 2 : 3, window.devicePixelRatio || 1);
       game = new Phaser.Game({
         type: Phaser.AUTO,
         parent: 'game',

@@ -1334,3 +1334,6 @@ canvas.skin { object-fit: contain; }
 .net-badge.hidden { display: none; }
 @keyframes netPulse { 50% { opacity: .55; } }
 .boss-bar.task small { color: #ffe08a; font-size: 10px; font-weight: bold; }
+
+/* Игровой холст: если браузер всё же масштабирует — без размытия */
+#game canvas { image-rendering: pixelated; image-rendering: crisp-edges; }

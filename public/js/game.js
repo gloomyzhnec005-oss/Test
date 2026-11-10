@@ -262,7 +262,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // На телефоне показываем примерно 11-13 тайлов по короткой стороне
     const town = this.zone && this.zone.kind === 'town';
     const dpr = window.GAME_DPR || 1; // холст в физических пикселях — зум умножается на плотность экрана
-    const zoom = Phaser.Math.Clamp(Math.min(w, h) / ((town ? 15 : 12) * this.T), (town ? 0.8 : 1) * dpr, 3 * dpr); // в городе обзор шире
+    const raw = Phaser.Math.Clamp(Math.min(w, h) / ((town ? 15 : 12) * this.T), (town ? 0.8 : 1) * dpr, 3 * dpr); // в городе обзор шире
+    // Целый масштаб: каждый пиксель рисунка — ровно N пикселей экрана. При дробном (1,7) пиксели героев и плиток
+    // разной ширины и «плывут» в движении — картинка кажется размытой
+    let zoom = raw >= 1 ? Math.round(raw) : raw;
+    if (zoom > 1 && Math.min(w, h) / (zoom * this.T) < (town ? 11 : 9)) zoom -= 1; // не слишком близко
     this.cameras.main.setZoom(zoom);
   }
 
