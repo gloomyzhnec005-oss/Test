@@ -1253,3 +1253,20 @@ canvas.skin { object-fit: contain; }
 .fx-tip-h b { display: block; color: #ffe9b0; font-weight: normal; font-size: 13px; }
 .fx-tip-h small { color: #b9a988; font-size: 10px; }
 .fx-tip p { margin: 6px 0 0; }
+
+/* Скидка на первую покупку */
+.first-buy { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #ffd36a;
+  background: linear-gradient(135deg, rgba(200,140,30,.45), rgba(60,30,10,.7)); box-shadow: 0 0 14px rgba(255,200,90,.35); animation: autoPulse 2s ease-in-out infinite; }
+.first-buy b { color: #fff3c8; font-weight: normal; font-size: 16px; }
+.first-buy small { color: #f0dcb0; font-size: 12px; }
+/* Светящаяся точка: есть награды пропуска */
+.nav-dot::after, [data-nav].pass-ready span::after { content: ''; position: absolute; right: 2px; top: 2px; width: 10px; height: 10px; border-radius: 50%;
+  background: #7dff8a; box-shadow: 0 0 6px #7dff8a, 0 0 12px #7dff8a; animation: dotPulse 1.4s ease-in-out infinite; }
+[data-nav].pass-ready span { position: relative; }
+.nav-row.nav-dot { position: relative; }
+.nav-row.nav-dot::after { right: 34px; top: 50%; margin-top: -5px; }
+@keyframes dotPulse { 50% { opacity: .45; transform: scale(.8); } }
+
+.hero-sw.on { outline: 1px solid #ffd36a; }
+.hs-ava { width: 44px; height: 44px; flex: none; border-radius: 6px; overflow: hidden; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.hs-ava img { width: 100%; height: 100%; object-fit: cover; object-position: top; }

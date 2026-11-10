@@ -192,8 +192,16 @@ function buildInvoice(who, item, bgId) {
     invoice = { title: `Фон лобби «${bg.name}»`, description: 'Новый фон для лобби выбора героя',
       payload: `bg:${who.uid}:${bg.id}`, prices: [{ label: bg.name, amount: bg.price }] };
   }
+  // Первая покупка аккаунта (Stars или GRAM) — скидка 50%
+  const pr = getProfile(who.uid);
+  if (!pr.paidOnce) {
+    const full = invoice.prices[0].amount, cut = Math.max(1, Math.ceil(full * (1 - FIRST_BUY_OFF)));
+    invoice = { ...invoice, title: `${invoice.title} · −50%`, description: `Скидка на первую покупку: ${cut} ⭐ вместо ${full} ⭐. ${invoice.description}`.slice(0, 255),
+      prices: [{ label: invoice.prices[0].label, amount: cut }] };
+  }
   return { invoice, stars: invoice.prices[0].amount };
 }
+const FIRST_BUY_OFF = 0.5;
 
 // ---------- Оплата в TON (server/ton.js): заказ → перевод из кошелька игрока → проверка в блокчейне ----------
 const ton = require('./ton')({ store, onPaid: (payload) => onPaid(payload), log: (k, t) => admin.log(k, t) });
@@ -247,6 +255,7 @@ function onPaid(payload) {
   if (!isValidPayload(payload)) return false;
   const [kind, uid, id] = String(payload).split(':');
   const pr = getProfile(uid);
+  pr.paidOnce = true; // скидка на первую покупку израсходована
   if (kind === 'spin') pr.paidSpins += 1;
   else if (kind === 'spin10') pr.paidSpins += 10;
   else if (meta.INVOICES[kind]) { meta.onPaid(kind, pr); refreshUid(uid); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
@@ -514,7 +523,7 @@ function publicPlayer(p) {
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
-  return { fx: playerEffects(p), level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm,
+  return { fx: playerEffects(p), passReady: meta.passReady(getProfile(p.uid)), level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm,
     gold: getProfile(p.uid).gold, unlocked: p.unlocked, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,

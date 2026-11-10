@@ -362,7 +362,7 @@ window.Town = (() => {
   const shopArt = (c) => (c.bag ? `../../items/bag_${{ bagEpic: 'epic', bagLegend: 'legendary' }[c.id] || 'rare'}` : SHOP_ART[c.id]); // сумки — картинка сумки
   async function storePanel() {
     const s = await Bag.act('shopInfo');
-    const box = el(`<div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/sub.webp" alt=""><b>👑 Подписка «Покровитель» · 30 дней</b>
+    const box = el(`${s.firstBuy ? '<div class="first-buy">🎁 <b>−50% на первую покупку</b><small>Любой товар за ⭐ Stars или 💎 GRAM — за полцены. Скидка действует один раз.</small></div>' : ''}<div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/sub.webp" alt=""><b>👑 Подписка «Покровитель» · 30 дней</b>
         <small>+25% опыта и золота · 2 бесплатных призыва предметов в день · комиссия рынка 5% вместо 10% · сумка 80 ячеек · 8 боёв на арене в день</small>
         ${s.sub ? `<small class="ok">Активна до ${new Date(s.sub).toLocaleDateString('ru-RU')}</small>` : ''}
         <button class="l2-btn" data-buy="sub">${s.sub ? 'Продлить' : 'Оформить'} · ${s.subPrice} ⭐</button></div>

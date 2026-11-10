@@ -168,7 +168,7 @@ window.Lobby = (() => {
     box.classList.toggle('hidden', list.length < 2);
     $('heroPrev').classList.toggle('hidden', list.length < 2);
     $('heroNext').classList.toggle('hidden', list.length < 2);
-    $('menuRoster').classList.toggle('hidden', list.length < 2);
+    $('menuRoster').classList.toggle('hidden', list.length < 1); // кнопка выбора героя видна всегда
     $('menuRoster').textContent = `👥 Герои · ${list.length}`;
     box.innerHTML = '';
     list.forEach((id) => box.appendChild(chip(id)));
@@ -761,6 +761,8 @@ window.Lobby = (() => {
     buildStage();
     $('playBtn').disabled = false;
     window.splashDone?.();
+    // Смена героя из игры (меню «Игра» → «Сменить героя»): сразу входим выбранным
+    if (opts.store.get('autoStart') === '1') { opts.store.set('autoStart', ''); if (order[0]) setTimeout(() => opts.onStart(order[0], playerName()), 300); }
 
     $('menuHeroes').onclick = openGacha;
     $('menuBg').onclick = () => openSheet('Фон лобби', bgSheet());

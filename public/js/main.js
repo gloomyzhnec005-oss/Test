@@ -211,7 +211,9 @@
     box.className = 'fx-tip ' + (e.b ? 'buff' : 'debuff');
     clearTimeout(box.tm); box.tm = setTimeout(() => box.classList.add('hidden'), 3500);
   });
+  let passReadyN = 0; // сколько наград сезона можно забрать
   function setStats(s) {
+    if (s.passReady !== undefined) { passReadyN = s.passReady; const pb = document.querySelector('[data-nav="play"]'); if (pb) pb.classList.toggle('pass-ready', passReadyN > 0); }
     if (s.fx) { const now = Date.now(); fxList = s.fx.map((e) => ({ ...e, end: e.l > 0 ? now + e.l * 1000 : 0 })); drawFx(); }
     if (s.passTier !== undefined) passTier = s.passTier;
     $('lvl').textContent = s.level;
@@ -636,6 +638,7 @@
         r.className = 'nav-row';
         r.innerHTML = `<span>${/^[a-z]+$/.test(icon) ? `<img class="place-ic big" src="assets/ui/${icon === "chat" ? "nav_chat" : "place_" + icon}.webp" alt="">` : icon}</span><div><b>${name}</b><small>${desc}</small></div><i>›</i>`;
         r.onclick = fn;
+        if (icon === 'pass' && passReadyN > 0) r.classList.add('nav-dot'); // есть награды пропуска
         return r;
       };
       const menuSheet = (title, rows) => { const box = document.createElement('div'); box.className = 'nav-menu'; rows.forEach((r) => box.append(menuRow(...r))); Town.open(title, box); };
@@ -699,6 +702,22 @@
           socket.emit('autofarm', !autoOn);
         }];
       };
+      // Смена героя прямо из игры: список своих героев → перезапуск с выбранным
+      const openHeroSwitch = () => {
+        const pr = Lobby.profile() || {}, list = (pr.heroes || []).filter((id) => w.heroes[id]);
+        const box = document.createElement('div');
+        box.innerHTML = '<p class="sheet-hint">Выберите героя — игра перезапустится с ним. Снаряжение и золото общие на аккаунт.</p>';
+        const lv = (id) => ((pr.chars || {})[id] || {}).level || 1;
+        for (const id of list.sort((a, b) => lv(b) - lv(a))) {
+          const H = w.heroes[id], sk = window.Skins && Skins.get(id), cur = id === selected;
+          const r = document.createElement('div'); r.className = 'tw-ev hero-sw' + (cur ? ' on' : '');
+          r.innerHTML = `<span class="hs-ava">${sk && sk.portrait ? `<img src="${sk.portrait}" alt="">` : H.icon || '🧙'}</span><div><b></b><small>${H.title || ''} · ур. ${lv(id)}</small></div><button class="l2-btn" ${cur ? 'disabled' : ''}>${cur ? 'Сейчас' : 'Играть'}</button>`;
+          r.querySelector('b').textContent = H.name;
+          r.querySelector('button').onclick = () => { store.set('lastHero', id); store.set('autoStart', '1'); location.reload(); };
+          box.append(r);
+        }
+        Town.open('👥 Сменить героя', box);
+      };
       const NAV = {
         hero: () => Bag.open('hero'),
         bag: () => Bag.open('bag'),
@@ -712,6 +731,7 @@
             if (autoOn) socket.emit('autofarm', false); // иначе герой не выходит из боя, а в бою телепорт запрещён
             socket.emit('recall');
           }]] : []),
+          ['party', 'Сменить героя', 'Выбрать другого героя — без выхода через настройки', openHeroSwitch],
           ['arena', 'Рейтинг арены', 'Лучшие игроки и турнир недели · сражаться — в доме арены', () => Town.openPlace('arenaRank')],
           ['pass', 'Сезонные ордена', 'Награды сезона, бонусы и автобой', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],

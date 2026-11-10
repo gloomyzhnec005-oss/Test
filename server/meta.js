@@ -69,6 +69,13 @@ function passOf(pr) {
   return pr.pass;
 }
 const passTier = (pr) => passOf(pr).tier;
+// Сколько наград сезона уже можно забрать (светящаяся точка в меню)
+const passReady = (pr) => {
+  const ps = passOf(pr), lvl = Math.floor(ps.xp / SHOP.pass.xpPerLevel);
+  let n = 0;
+  for (let l = 1; l <= Math.min(lvl, SHOP.pass.levels); l++) { if (!ps.free.includes(l)) n++; if (ps.tier >= 1 && !ps.prem.includes(l)) n++; }
+  return n;
+};
 function addPassXp(pr, n) {
   const ps = passOf(pr);
   const k = ps.tier >= 2 ? 1.5 : 1; // Серебряный орден и выше: опыт пропуска +50%
@@ -661,7 +668,7 @@ module.exports = function createMeta(deps) {
     },
     shopInfo(p, d, pr) {
       if (pr.adDay !== dayKey()) { pr.adDay = dayKey(); pr.adCount = 0; }
-      return { sub: isSub(pr) ? pr.subUntil : 0, subPrice: SHOP.sub.price, passTier: passTier(pr), passTiers: SHOP.passTiers,
+      return { firstBuy: !pr.paidOnce, sub: isSub(pr) ? pr.subUntil : 0, subPrice: SHOP.sub.price, passTier: passTier(pr), passTiers: SHOP.passTiers,
         itemSpin: SHOP.itemSpin, gemPacks: Object.entries(SHOP.gems).map(([id, g]) => ({ id, ...g })), gems: pr.gems || 0, adsLeft: SHOP.ads.perDay - pr.adCount, gold: pr.gold,
         chests: Object.entries(CHESTS).map(([k, c]) => ({ id: k, title: c.title, desc: c.description, amount: c.amount, bag: !!c.bag })) };
     },
@@ -811,6 +818,6 @@ module.exports = function createMeta(deps) {
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
   };
 
-  return { handle, addPassXp, passOf, passTier, passInvoice, isSub, bagSize, whSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
+  return { handle, addPassXp, passOf, passTier, passReady, passInvoice, isSub, bagSize, whSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
 };
 module.exports.simulate = simulate;
