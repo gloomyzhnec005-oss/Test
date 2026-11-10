@@ -7,7 +7,7 @@ window.Bag = (() => {
   const SLOT_ICONS = { weapon: '🗡️', helm: '⛑️', armor: '🛡️', gloves: '🧤', boots: '🥾', ring: '💍', ring2: '💍', amulet: '📿', bag: '🎒', cloak: '🧥', belt: '🎗️', earring: '💎' };
   const slotCat = (s) => (s === 'ring2' ? 'ring' : s); // во второе кольцо идёт вещь категории «кольцо»
   // Силуэт пустого слота: своя картинка, у второго кольца — как у первого, нет картинки — эмодзи
-  const SLOT_ART = new Set(['weapon', 'helm', 'armor', 'gloves', 'boots', 'ring', 'amulet', 'bag', ...(window.SLOT_ART_EXTRA || [])]); // нарисованные силуэты слотов
+  const SLOT_ART = new Set(['weapon', 'helm', 'armor', 'gloves', 'boots', 'ring', 'amulet', 'bag', 'cloak', 'belt', 'earring', ...(window.SLOT_ART_EXTRA || [])]); // нарисованные силуэты слотов
   const ghost = (s) => { const k = SLOT_ART.has(s) ? 'slot_' + s : s === 'ring2' ? 'slot_ring' : null; return k ? `<img class="it-art slot-ghost" src="assets/items/${k}.webp" alt="${SLOT_ICONS[s]}">` : SLOT_ICONS[s] || '▫️'; };
   const ART = new Set(window.ITEM_ART || []);
   // Картинка предмета или эмодзи, если её ещё не нарисовали
