@@ -113,7 +113,10 @@ mob('darkPriest', 'Тёмный жрец', 'support', { ab: { type: 'buff', stat
 mob('skeletonBanner', 'Скелет-знаменосец', 'support', { undead: true, range: 0, aura: { atk: 1.15, r: 220 }, look: { b: 'hum', skin: '#ece6cc', cloth: '#ece6cc', head: 'skull', wpn: 'banner', bones: true } });
 mob('demonHerald', 'Демон-герольд', 'support', { fire: true, ab: { type: 'buff', stat: 'spd', mult: 1.3, r: 240, ms: 8000, cd: 10000 }, look: { b: 'hum', skin: '#c04a2a', cloth: '#2a0a0a', head: 'horns', wpn: 'horn' } });
 // Кристалл силы мирового босса: стоит на месте и держит щит босса, пока его не разобьют
-mob('wbCrystal', 'Кристалл силы', 'tank', { hpK: 1, still: true, look: { b: 'golem', col: '#3a8ad8', glow: '#bfe8ff', sz: 0.9 } });
+mob('wbBanner', 'Знамя легиона', 'tank', { hpK: 1, still: true, undead: true, look: { b: 'ghost', col: '#2a3a2a', eye: '#5fffb0', sz: 0.9 } });
+mob('wbTentacle', 'Щупальце глубин', 'tank', { hpK: 1, still: true, look: { b: 'kraken', col: '#3a0a2a', sz: 0.6 } });
+mob('wbEgg', 'Драконье яйцо', 'tank', { hpK: 1, still: true, look: { b: 'blob', col: '#bfe8ff', glow: '#ffffff', sz: 0.7 } });
+mob('wbRift', 'Разлом хаоса', 'tank', { hpK: 1, still: true, look: { b: 'ghost', col: '#4a1a5a', eye: '#ff6ad8', sz: 1 } });
 mob('crystalGuardian', 'Кристальный страж', 'support', { hpK: 5, ab: { type: 'shieldAlly', frac: 0.3, r: 220, cd: 9000 }, look: { b: 'golem', col: '#b08ae0', glow: '#e0c0ff' } });
 // ---------- ПОЛУБОССЫ ----------
 mob('orcChief', 'Орк-вождь', 'melee', { rank: 'mini', enrage: { below: 0.4, mult: 1.5 }, ab: { type: 'stunHit', mult: 1.8, ms: TURN / 2, cd: 8000 }, look: { b: 'hum', skin: '#4f7a28', cloth: '#7a2a1a', head: 'tusksHelm', wpn: 'axe', sz: 1.2 } });

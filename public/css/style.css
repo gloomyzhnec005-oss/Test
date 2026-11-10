@@ -1328,3 +1328,9 @@ canvas.skin { object-fit: contain; }
 .boss-bar.shield .bb-track { border-color: #5ad8ff; box-shadow: 0 0 10px #5ad8ff; }
 .boss-bar.shield small { color: #9fe8ff; }
 .boss-bar.vuln .bb-track { border-color: #ffd36a; box-shadow: 0 0 10px #ffd36a; }
+
+.net-badge { position: absolute; left: 50%; transform: translateX(-50%); top: calc(6px + env(safe-area-inset-top)); z-index: 30; padding: 4px 12px; border-radius: 12px;
+  background: rgba(60,30,10,.88); border: 1px solid #ffb340; color: #ffd9a0; font-size: 11px; pointer-events: none !important; animation: netPulse 1.2s ease-in-out infinite; }
+.net-badge.hidden { display: none; }
+@keyframes netPulse { 50% { opacity: .55; } }
+.boss-bar.task small { color: #ffe08a; font-size: 10px; font-weight: bold; }

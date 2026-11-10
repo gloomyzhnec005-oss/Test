@@ -106,7 +106,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
     });
 
     // Сеть
-    this.net.on('state', (s) => this.onState(s));
+    // Кадры состояния применяем раз в кадр отрисовки: если после задержки сети пришло несколько сразу — берём последний,
+    // эффекты (удары, лечение) складываем, чтобы ничего не потерять и не тормозить на пачке старых кадров
+    this.net.on('state', (s) => {
+      if (this.pendingState) { const fx = this.pendingState.fx.concat(s.fx); s.fx = fx.length > 150 ? fx.slice(-150) : fx; }
+      this.pendingState = s;
+      if (this.zoneLoading || document.hidden) return;
+    });
     // Позиции героев между тиками сервера
     this.net.on('pp', (list) => { for (const [id, x, y, dir] of list) { if (id === this.myId) continue; const e = this.players.get(id); if (e) { this.trackPos(e, x, y); if (e.data) e.data.dir = dir; } } });
     this.net.on('stats', (st) => { const now = Date.now(); this.myStats = { ...st, ccEnd: st.cc ? now + (st.ccMs || 0) : 0, rootEnd: st.rooted ? now + (st.rootMs || 0) : 0 }; });
@@ -883,6 +889,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       e.stone = !!m.sn;
       this.statusRow(e, status);
       e.tx = m.x; e.ty = m.y; e.data = m;
+      if (m.rk === 'world') e.sprite.setAlpha(m.ai ? 0.35 : 1); // дракон в небе — полупрозрачный
       this.setBar(e, m.hp, m.maxHp);
       e.c.setAlpha(m.inv ? 0.18 : 1); // тень в невидимости
       if (!!m.sh !== !!e.shRing) { if (m.sh) { e.shRing = this.add.circle(0, 2, 15 * (m.sz || 1)).setStrokeStyle(2, 0xbfe8ff, 0.9); e.c.add(e.shRing); } else { e.shRing.destroy(); e.shRing = null; } }
@@ -2402,7 +2409,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
     e.tx = x; e.ty = y;
   }
   update(time, delta) {
-    if (this.zoneLoading) return; // догружается новый мир — карта ещё старая, не двигаемся
+    if (this.zoneLoading) return;
+    if (this.pendingState) { const s = this.pendingState; this.pendingState = null; this.onState(s); } // догружается новый мир — карта ещё старая, не двигаемся
     const dt = delta / 1000;
     // Подошёл к запечатанным воротам босса — когда они откроются
     if (Settings.get('hints') && this.me && this.gates && this.gates.size && time > (this.gateHintAt || 0)) {
@@ -2515,7 +2523,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.lastSend = time;
       if (me.sentX !== me.x || me.sentY !== me.y) {
         me.sentX = me.x; me.sentY = me.y;
-        this.net.emit('move', { x: Math.round(me.x * 10) / 10, y: Math.round(me.y * 10) / 10, dir: me.dir });
+        // volatile: без связи шаги не копятся (иначе после восстановления сервер получил бы пачку старых шагов и «откатил» героя)
+        this.net.volatile.emit('move', { x: Math.round(me.x * 10) / 10, y: Math.round(me.y * 10) / 10, dir: me.dir });
       }
     }
 

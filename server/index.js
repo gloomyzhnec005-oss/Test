@@ -273,7 +273,15 @@ function onPaid(payload) {
 app.get('/health', (req, res) => res.json({ ok: true, version: VERSION, players: players.size, persistent: store.PERSISTENT }));
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+// Плохая связь: короткий обрыв (до 2 минут) не выкидывает из мира — socket.io восстанавливает сессию с тем же id,
+// пакеты сжимаются, связь проверяется чаще (обрыв замечаем за ~15 с, а не за 45)
+const io = new Server(server, {
+  cors: { origin: '*' },
+  connectionStateRecovery: { maxDisconnectionDuration: 2 * 60000, skipMiddlewares: true },
+  perMessageDeflate: { threshold: 1024 },
+  pingInterval: 8000, pingTimeout: 7000,
+});
+const GRACE_MS = 2 * 60000; // столько герой ждёт в мире после обрыва связи
 
 // ---------- Мир ----------
 const world = buildWorld(); // города и охотничьи земли за порталами (server/world.js)
@@ -1128,6 +1136,15 @@ function giveLoot(o, pr, item, at) {
 
 // ---------- Сокеты ----------
 io.on('connection', (socket) => {
+  // Связь восстановлена: тот же герой, то же место, те же перезарядки — без перезахода
+  if (socket.recovered && players.has(socket.id)) {
+    const p = players.get(socket.id);
+    clearTimeout(p.graceTimer); p.graceTimer = null; p.offline = false;
+    p.socket = socket; p.lastMove = Date.now();
+    socket.join('z:' + p.zone);
+    socket.emit('resumed', { x: p.x, y: p.y, zone: p.zone });
+    p.lastStats = 0; markDirty(p);
+  }
   socket.on('join', (data = {}) => {
     if (players.has(socket.id)) return;
     const who = resolveUid(data.initData, data.guestId || socket.id);
@@ -1136,6 +1153,8 @@ io.on('connection', (socket) => {
       return;
     }
     const uid = who.uid;
+    // Сессию после обрыва восстановить не удалось — убираем «ожидающего» героя этого игрока
+    for (const o of [...players.values()]) if (o.uid === uid && o.offline) { clearTimeout(o.graceTimer); removePlayer(o.socket, o); }
     const heroId = String(data.hero || '');
     const prj = getProfile(uid);
     if (prj.banned) return socket.emit('error_msg', `Вы заблокированы: ${prj.banned.reason}`);
@@ -1448,9 +1467,19 @@ io.on('connection', (socket) => {
     if (err) { socket.emit('skillFail', err); socket.emit('autofarm', false); }
   });
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
     const p = players.get(socket.id);
-    if (!p) return;
+    if (!p || p.socket !== socket) return;
+    // Обрыв связи (не выход из игры): герой ждёт в мире, пока игрок не переподключится
+    if (reason !== 'client namespace disconnect' && reason !== 'server namespace disconnect' && !p.match) {
+      p.offline = true; p.autofarm = false;
+      clearTimeout(p.graceTimer);
+      p.graceTimer = setTimeout(() => { if (players.get(socket.id) === p && p.offline) removePlayer(socket, p); }, GRACE_MS);
+      return;
+    }
+    removePlayer(socket, p);
+  });
+  function removePlayer(socket, p) {
     Arena.leave(p);
     leaveParty(p);
     players.delete(socket.id);
@@ -1458,7 +1487,7 @@ io.on('connection', (socket) => {
     (p.pets || []).forEach((pet) => pets.delete(pet.id));
     io.emit('chat', { sys: true, text: `${p.name} покинул мир` });
     saveProfiles();
-  });
+  }
 });
 
 // ---------- Игровой цикл ----------
@@ -1671,13 +1700,14 @@ setInterval(() => {
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
       bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
-      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, ds: m.darkSealUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0, ch: m.charmUntil > now ? 1 : 0, cu: m.curseUntil > now ? 1 : 0, fs: m.frost > 0 ? Math.round(m.frost) : 0, sn: m.stoneUntil > now ? 1 : 0, wsh: m.wbShield ? 1 : 0, vu: m.vulnUntil > now ? 1 : 0, pf: m.petrify > 0 ? Math.round(m.petrify) : 0 }))),
+      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, ds: m.darkSealUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0, ch: m.charmUntil > now ? 1 : 0, cu: m.curseUntil > now ? 1 : 0, fs: m.frost > 0 ? Math.round(m.frost) : 0, sn: m.stoneUntil > now ? 1 : 0, wsh: m.wbShield || m.wbImmune ? 1 : 0, ai: m.wbAir ? 1 : 0, vu: m.vulnUntil > now ? 1 : 0, pf: m.petrify > 0 ? Math.round(m.petrify) : 0 }))),
     pt: Z.pt.map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, drowned: pet.drowned ? 1 : 0, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: Z.t.map((t) => ({ id: t.id, kind: t.kind, sub: t.sub || null, ang: t.ang ?? null, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
     fx: Z.fx,
   };
-  for (const p of Z.p) p.socket.emit('state', state);
+  // volatile: если связь медленная и прошлый кадр ещё не ушёл — этот пропускаем, а не копим очередь (иначе игра «догоняет» с задержкой)
+  for (const p of Z.p) if (!p.offline) p.socket.volatile.emit('state', state);
   }
   fx = [];
 }, C.TICK_MS);

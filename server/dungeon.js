@@ -398,7 +398,8 @@ module.exports = function createDungeons(d) {
     if (def.magicImmune && !opt.basic && !opt.pet) k *= def.magicImmune;
     if (m.form === 'beast') k *= 1.2;
     if (m.phase === 'stone') k *= 0.4;
-    if (m.wbShield) k *= 0.1; // щит кристаллов мирового босса
+    if (m.wbShield) k *= 0.1; // щит задания мирового босса
+    if (m.wbImmune) k = 0; // дракон в небе
     if (m.vulnUntil > now) k *= 1.5; // щит разбит — босс уязвим
     return k;
   }
@@ -738,34 +739,159 @@ module.exports = function createDungeons(d) {
   const wbHpMult = (n) => Math.max(1, 1 + 0.08 * (n - 10));
   const WB_PHASES = [0.75, 0.5, 0.25];
   const zmsg = (zid, text) => { for (const o of inZone(zid)) o.socket.emit('chat', { sys: true, text }); };
-  // Механики боя: щит из кристаллов на 75/50/25%, метка смерти, ярость на последних 20%
+  const secLeft = (t, now) => Math.max(0, Math.ceil((t - now) / 1000));
+  const adds = (b) => [...monsters.values()].filter((o) => o.wbOf === b.id);
+  // Объекты задания вокруг центра логова (кристаллы, знамёна, щупальца, яйца, разломы): стоят на месте
+  function spawnObjs(b, type, n, hpFrac, rx = 190, ry = 130) {
+    const z = world.byId.get(b.zone), c = z.abs(20, 17), out = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + Math.PI / 4;
+      const o = create(z, type, { x: c.x + Math.cos(a) * rx, y: c.y + Math.sin(a) * ry }, b.level, { rank: 'normal', lootMult: 0 });
+      o.hp = o.maxHp = Math.round(b.maxHp * hpFrac); o.wbOf = b.id; o.still = true; o.xp = 1;
+      out.push(o);
+    }
+    return out;
+  }
+  // Задание выполнено: босс оглушён и уязвим
+  function taskDone(b, now, text) {
+    b.wbTask = null; b.wbShield = false; b.wbImmune = false; b.still = false; b.vulnUntil = now + 10000; b.stunUntil = now + 3000;
+    zmsg(b.zone, text || '✨ Задание выполнено! Босс оглушён и 10 секунд получает +50% урона — бейте!');
+  }
+  // Задание провалено: босс лечится и бьёт всех
+  function taskFail(b, now, heal, mult, text) {
+    b.wbTask = null; b.wbShield = false; b.wbImmune = false; b.still = false;
+    for (const o of adds(b)) monsters.delete(o.id);
+    b.hp = Math.min(b.maxHp, b.hp + b.maxHp * heal);
+    fx({ t: 'teleHit', x: b.x, y: b.y, r: 600, color: 0xff5a3a });
+    for (const p of inZone(b.zone)) if (!p.dead) hit(b, p, mult, now);
+    zmsg(b.zone, text);
+  }
+  // Свои задания у каждого мирового босса (фазы на 75/50/25% здоровья) + общие: метка смерти и ярость
+  const WB_TASKS = {
+    // Проклятый легион: знамёна поднимают мертвецов и защищают легион
+    legion: {
+      start(b, now) {
+        spawnObjs(b, 'wbBanner', 3, 0.025);
+        b.wbShield = true; b.wbTask = { kind: 'banners', end: now + 35000, raiseAt: now + 6000 };
+        zmsg(b.zone, '🚩 Легион поднял 3 знамени: урон по нему −90%, каждые 6 с из знамён встают скелеты. Сломайте знамёна за 35 секунд!');
+      },
+      tick(b, now, t) {
+        const left = adds(b).filter((o) => o.type === 'wbBanner');
+        if (!left.length) return taskDone(b, now, '🚩 Знамёна пали! Легион оглушён и 10 секунд получает +50% урона!');
+        if (now >= t.raiseAt) {
+          t.raiseAt = now + 6000;
+          const z = world.byId.get(b.zone);
+          for (const o of left) if ([...monsters.values()].filter((m) => m.zone === b.zone && m.type === 'skeletonSword').length < 12) {
+            const sk = create(z, 'skeletonSword', { x: o.x + 20, y: o.y + 20 }, b.level, { rank: 'magic', lootMult: 0 }); sk.target = null;
+          }
+        }
+        if (now >= t.end) return taskFail(b, now, 0.05 * left.length, 1.5 * left.length, `💥 Знамёна устояли (${left.length}): легион восстановил ${5 * left.length}% здоровья и ударил всех`);
+        b.taskText = `🚩 Знамёна: осталось ${left.length} из 3 · ${secLeft(t.end, now)} с`;
+      },
+    },
+    // Пожиратель миров: щупальца кормят его здоровьем, воронка затягивает героев к пасти
+    devourer: {
+      start(b, now) {
+        spawnObjs(b, 'wbTentacle', 4, 0.02, 210, 140);
+        b.wbTask = { kind: 'tentacles', end: now + 40000, healAt: now + 1000 };
+        zmsg(b.zone, '🦑 Из глубин поднялись 4 щупальца: каждое кормит Пожирателя здоровьем. Отрубите их за 40 секунд!');
+      },
+      tick(b, now, t) {
+        const left = adds(b).filter((o) => o.type === 'wbTentacle');
+        if (!left.length) return taskDone(b, now, '🦑 Щупальца отрублены! Пожиратель оглушён и 10 секунд получает +50% урона!');
+        if (now >= t.healAt) { t.healAt = now + 1000; b.hp = Math.min(b.maxHp, b.hp + b.maxHp * 0.004 * left.length); }
+        if (now >= t.end) return taskFail(b, now, 0.03 * left.length, 1.5 * left.length, `💥 Щупальца утащили добычу (${left.length}): Пожиратель восстановил силы и ударил всех`);
+        b.taskText = `🦑 Щупальца: ${left.length} из 4 лечат босса · ${secLeft(t.end, now)} с`;
+      },
+      // Голодная воронка: всех тянет к пасти, через 2,5 с — удар вокруг босса (надо выбежать)
+      extra(b, now) {
+        if (now < (b.vortexAt ??= now + 25000)) return;
+        b.vortexAt = now + 25000;
+        for (const p of inZone(b.zone)) {
+          if (p.dead) continue;
+          const dx = b.x - p.x, dy = b.y - p.y, dd = Math.hypot(dx, dy) || 1, k = Math.min(0.6, Math.max(0, (dd - 90) / dd));
+          const nx = p.x + dx * k, ny = p.y + dy * k;
+          if (!world.isSolidAt(nx, ny)) { p.x = nx; p.y = ny; p.socket.emit('correct', { x: p.x, y: p.y }); }
+        }
+        telegraph(b, b.x, b.y, 210, 2500, 0x8a2a5a, (p) => hit(b, p, 3, Date.now()), 'Голодная воронка');
+        zmsg(b.zone, '🌀 Пожиратель затягивает всех к пасти — выбегайте из круга!');
+      },
+    },
+    // Аватар бездны: печати — четверо героев должны одновременно стоять на всех 4 печатях
+    abyssAvatar: {
+      start(b, now) {
+        const z = world.byId.get(b.zone), c = z.abs(20, 17);
+        const seals = [0, 1, 2, 3].map((i) => { const a = i * Math.PI / 2 + Math.PI / 4; return { x: c.x + Math.cos(a) * 200, y: c.y + Math.sin(a) * 140 }; });
+        for (const sl of seals) fx({ t: 'tele', from: b.id, x: sl.x, y: sl.y, r: 45, ms: 30000, color: 0xb06aff, label: 'Печать' });
+        b.wbShield = true; b.wbTask = { kind: 'seals', end: now + 30000, seals, held: 0, last: now };
+        zmsg(b.zone, '🔮 Аватар закрылся щитом Бездны (урон −90%)! Встаньте одновременно на все 4 печати и продержитесь 3 секунды — за 30 секунд');
+      },
+      tick(b, now, t) {
+        const alive = inZone(b.zone).filter((p) => !p.dead);
+        const on = t.seals.filter((sl) => alive.some((p) => Math.hypot(p.x - sl.x, p.y - sl.y) <= 50)).length;
+        const dt = now - t.last; t.last = now;
+        t.held = on === 4 ? t.held + dt : Math.max(0, t.held - dt / 2);
+        if (t.held >= 3000) return taskDone(b, now, '🔮 Печати замкнуты! Щит Бездны разбит — Аватар оглушён и 10 секунд получает +50% урона!');
+        if (now >= t.end) return taskFail(b, now, 0.1, 3, '💥 Печати не удержаны: Бездна вырвалась — Аватар восстановил 10% здоровья и ударил всех');
+        b.taskText = `🔮 Печати: занято ${on} из 4 · удержание ${(t.held / 1000).toFixed(1)}/3 с · ${secLeft(t.end, now)} с`;
+      },
+    },
+    // Вечный дракон: взлетает (неуязвим), огненный дождь, яйца — если не разбить, вылупятся драконы
+    eternalDragon: {
+      start(b, now) {
+        spawnObjs(b, 'wbEgg', 5, 0.012, 200, 140);
+        b.wbImmune = true; b.still = true; b.wbAir = true;
+        b.wbTask = { kind: 'flight', end: now + 22000, rainAt: now + 1500 };
+        zmsg(b.zone, '🐉 Вечный дракон взлетел — его не достать! Уворачивайтесь от огненного дождя и разбейте 5 яиц, пока он не приземлился (22 с)');
+      },
+      tick(b, now, t) {
+        const left = adds(b).filter((o) => o.type === 'wbEgg');
+        if (now >= t.rainAt) {
+          t.rainAt = now + 1300;
+          const alive = inZone(b.zone).filter((p) => !p.dead);
+          for (let i = 0; i < Math.min(3, alive.length); i++) {
+            const p = alive[Math.floor(Math.random() * alive.length)];
+            telegraph(b, p.x, p.y, 85, 1400, 0xff7a2a, (o) => hit(b, o, 1.8, Date.now()), 'Огненный дождь');
+          }
+        }
+        if (now < t.end) { b.taskText = `🥚 Яйца: осталось ${left.length} из 5 · дракон приземлится через ${secLeft(t.end, now)} с`; return; }
+        b.wbAir = false;
+        if (!left.length) return taskDone(b, now, '🐉 Дракон приземлился, а кладка уничтожена! Он оглушён и 10 секунд получает +50% урона!');
+        const z = world.byId.get(b.zone);
+        for (const o of left) { monsters.delete(o.id); create(z, 'dragonWhelp', { x: o.x, y: o.y }, b.level, { rank: 'mini', lootMult: 0, hpMult: 0.6 }); }
+        b.wbTask = null; b.wbImmune = false; b.still = false;
+        zmsg(b.zone, `🐲 Из яиц вылупились драконы (${left.length})! Дракон приземлился — бейте его`);
+      },
+    },
+    // Титан хаоса: разломы с каждой секундой делают его сильнее и бьют тех, кто рядом
+    chaosTitan: {
+      start(b, now) {
+        spawnObjs(b, 'wbRift', 3, 0.03, 200, 140);
+        b.wbTask = { kind: 'rifts', end: now + 30000, stackAt: now + 5000, pulseAt: now + 4000, baseDmg: b.dmg, stacks: 0 };
+        zmsg(b.zone, '🌌 Открылись 3 разлома хаоса: каждые 5 с Титан сильнее на 15%, разломы бьют всех рядом. Закройте их за 30 секунд!');
+      },
+      tick(b, now, t) {
+        const left = adds(b).filter((o) => o.type === 'wbRift');
+        const reset = () => { b.dmg = t.baseDmg; };
+        if (!left.length) { reset(); return taskDone(b, now, '🌌 Разломы закрыты! Титан оглушён и 10 секунд получает +50% урона!'); }
+        if (now >= t.stackAt) { t.stackAt = now + 5000; t.stacks++; b.dmg = Math.round(t.baseDmg * (1 + 0.15 * t.stacks)); }
+        if (now >= t.pulseAt) {
+          t.pulseAt = now + 4000;
+          for (const o of left) for (const p of inZone(b.zone)) if (!p.dead && Math.hypot(p.x - o.x, p.y - o.y) <= 110) hit(b, p, 0.8, now);
+          for (const o of left) fx({ t: 'teleHit', x: o.x, y: o.y, r: 110, color: 0xff6ad8 });
+        }
+        if (now >= t.end) { reset(); return taskFail(b, now, 0.05, 3, `💥 Коллапс хаоса! Разломы (${left.length}) взорвались — Титан восстановил 5% здоровья и ударил всех`); }
+        b.taskText = `🌌 Разломы: ${left.length} из 3 · сила Титана +${15 * t.stacks}% · ${secLeft(t.end, now)} с`;
+      },
+    },
+  };
   function wbMechanics(b, now) {
-    const z = world.byId.get(b.zone), frac = b.hp / b.maxHp;
-    if (!b.wbShield && b.wbPhase < WB_PHASES.length && frac <= WB_PHASES[b.wbPhase]) {
-      b.wbPhase++; b.wbShield = true; b.shieldEnd = now + 30000;
-      const c = z.abs(20, 17), N = 4;
-      for (let i = 0; i < N; i++) {
-        const a = (i / N) * Math.PI * 2 + Math.PI / 4;
-        const cr = create(z, 'wbCrystal', { x: c.x + Math.cos(a) * 190, y: c.y + Math.sin(a) * 130 }, b.level, { rank: 'normal', lootMult: 0 });
-        cr.hp = cr.maxHp = Math.round(b.maxHp * 0.02); cr.wbOf = b.id; cr.still = true; cr.xp = 1;
-      }
-      fx({ t: 'tele', from: b.id, x: b.x, y: b.y, r: 120, ms: 1200, color: 0x5ad8ff, label: 'Щит кристаллов' });
-      zmsg(b.zone, `💎 ${MOBS[b.type].name} под щитом (урон −90%)! Разбейте 4 кристалла силы за 30 секунд — иначе босс восстановит здоровье и ударит всех`);
-    }
-    if (b.wbShield) {
-      const left = [...monsters.values()].filter((o) => o.wbOf === b.id);
-      if (!left.length) {
-        b.wbShield = false; b.vulnUntil = now + 10000; b.stunUntil = now + 3000;
-        zmsg(b.zone, '✨ Кристаллы разбиты! Босс оглушён и 10 секунд получает +50% урона — бейте!');
-      } else if (now >= b.shieldEnd) {
-        b.wbShield = false;
-        for (const o of left) monsters.delete(o.id);
-        b.hp = Math.min(b.maxHp, b.hp + b.maxHp * 0.05 * left.length);
-        fx({ t: 'teleHit', x: b.x, y: b.y, r: 600, color: 0x5ad8ff });
-        for (const p of inZone(b.zone)) if (!p.dead) hit(b, p, 2 * left.length, now);
-        zmsg(b.zone, `💥 Не успели! Кристаллов осталось ${left.length}: босс восстановил ${5 * left.length}% здоровья и ударил всех`);
-      }
-    }
+    const T = WB_TASKS[b.type], frac = b.hp / b.maxHp;
+    if (!T) return;
+    b.taskText = '';
+    if (!b.wbTask && b.wbPhase < WB_PHASES.length && frac <= WB_PHASES[b.wbPhase]) { b.wbPhase++; T.start(b, now); }
+    if (b.wbTask) T.tick(b, now, b.wbTask);
+    if (T.extra) T.extra(b, now);
     // Метка смерти: под случайным героем через 4 с взрыв — он должен отбежать от группы
     if (now >= b.markAt) {
       b.markAt = now + 18000 + Math.random() * 6000;
@@ -855,7 +981,7 @@ module.exports = function createDungeons(d) {
         const top = list.slice(0, 10).map(([uid, v]) => ({ uid, name: d.getProfile(uid).name || 'Герой', dmg: Math.round(v), pct: Math.round(v / tot * 100) }));
         for (const o of inZone(b.zone)) {
           const i = list.findIndex(([uid]) => uid === o.uid);
-          o.socket.emit('wbRank', { boss: MOBS[b.type].name, hp: Math.round(b.hp / b.maxHp * 100), top: top.map((t) => ({ ...t, me: t.uid === o.uid, uid: undefined })), me: i >= 0 ? { place: i + 1, dmg: Math.round(list[i][1]), pct: Math.round(list[i][1] / tot * 100) } : null });
+          o.socket.emit('wbRank', { boss: MOBS[b.type].name, hp: Math.round(b.hp / b.maxHp * 100), top: top.map((t) => ({ ...t, me: t.uid === o.uid, uid: undefined })), me: i >= 0 ? { place: i + 1, dmg: Math.round(list[i][1]), pct: Math.round(list[i][1] / tot * 100) } : null, task: b.taskText || '' });
         }
       }
       // Здоровье мирового босса растёт, если пришло больше 10 игроков

@@ -473,8 +473,10 @@
     Lobby.setBusy(true);
     Lobby.setStatus('Подключение...');
 
-    socket = io({ transports: ['websocket', 'polling'] });
+    socket = io({ transports: ['websocket', 'polling'], reconnectionDelay: 400, reconnectionDelayMax: 2000 });
     socket.on('connect', () => {
+      $('netBadge').classList.add('hidden');
+      if (socket.recovered) return; // связь вернулась, сессия цела — герой там же, заново входить не нужно
       socket.emit('join', { hero: selected, initData: tg ? tg.initData : '', guestId, guestName: name });
     });
     socket.on('error_msg', (m) => { Lobby.setStatus(m); Lobby.setBusy(false); socket.disconnect(); });
@@ -493,7 +495,9 @@
     // Сервер сократил перезарядку (убийство Найри) — обновляем таймеры кнопок
     socket.on('skillCds', (cds) => Object.entries(cds).forEach(([id, c]) => startSkillCd(id, c.left, c.total)));
     socket.on('skillFail', hudToast);
-    socket.on('disconnect', () => { if (game) addChat({ sys: true, text: 'Связь потеряна, переподключение...' }); });
+    // Обрыв связи: игра не останавливается, сверху — значок; через 2 минуты без связи сервер отпустит героя
+    socket.on('disconnect', () => { if (game) $('netBadge').classList.remove('hidden'); });
+    socket.on('resumed', (d) => { $('netBadge').classList.add('hidden'); if (window.gameScene && window.gameScene.me) { window.gameScene.me.x = d.x; window.gameScene.me.y = d.y; } });
     socket.on('welcome', (w) => {
       if (game) { location.reload(); return; } // переподключение после обрыва — начинаем заново
       Lobby.hide();
@@ -706,7 +710,7 @@
       // Прогресс данжа-лабиринта
       // Мировой босс: рейтинг урона (топ-10 получат редкие ресурсы); тап — свернуть/развернуть
       // Полоска здоровья мирового босса: 10 слоёв разного цвета (как в больших MMO), ×N — сколько слоёв осталось
-      let wbBossName = '';
+      let wbBossName = '', wbTask = '';
       const BB_COL = ['#7a7f88', '#d81b60', '#8e24aa', '#3949ab', '#1e88e5', '#00acc1', '#43a047', '#c0ca33', '#fdd835', '#fb8c00', '#e53935'];
       socket.on('state', (s) => {
         const bar = $('bossBar');
@@ -720,12 +724,13 @@
         bar.querySelector('.bb-cur').style.cssText = `width:${(fill * 100).toFixed(1)}%;background:${BB_COL[L]}`;
         bar.querySelector('.bb-next').style.background = BB_COL[L - 1];
         bar.querySelector('em').textContent = `×${L}`;
-        bar.querySelector('small').textContent = b.wsh ? '💎 Щит: разбейте кристаллы силы!' : b.vu ? '✨ Босс уязвим: +50% урона' : `${Math.ceil(b.hp).toLocaleString('ru-RU')} / ${b.maxHp.toLocaleString('ru-RU')}`;
+        bar.classList.toggle('task', !!wbTask);
+        bar.querySelector('small').textContent = wbTask ? wbTask : b.ai ? '🐉 Босс в небе — его не достать' : b.wsh ? '💎 Босс под щитом — выполните задание!' : b.vu ? '✨ Босс уязвим: +50% урона' : `${Math.ceil(b.hp).toLocaleString('ru-RU')} / ${b.maxHp.toLocaleString('ru-RU')}`;
       });
       let wbOpen = true;
       $('wbRank').onclick = () => { wbOpen = !wbOpen; $('wbRank').classList.toggle('mini', !wbOpen); };
       socket.on('wbRank', (r) => {
-        wbBossName = r.boss || wbBossName;
+        wbBossName = r.boss || wbBossName; wbTask = r.task || '';
         const box = $('wbRank');
         if (!zone || zone.kind !== 'worldboss') { box.classList.add('hidden'); return; }
         const fmt = (n) => (n >= 10000 ? Math.round(n / 1000) + 'k' : n);
