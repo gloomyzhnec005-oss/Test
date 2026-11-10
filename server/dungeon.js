@@ -2,6 +2,7 @@
 // призыв, ауры, лечение, воскрешение, контроль героев), прохождение данжей-лабиринтов, данж выживания и мировые боссы.
 const X = require('./mobs');
 const { MOBS, AFFIXES, TURN } = X;
+const I = require('./items');
 
 module.exports = function createDungeons(d) {
   const { C, world, monsters, players, pets } = d;
@@ -608,9 +609,14 @@ module.exports = function createDungeons(d) {
     const h = hallOf(z);
     const need = Math.max(1, dg.lv[0] - 2);
     const all = d.partyMembers(p).filter((o) => o.zone === p.zone && !o.dead);
-    // Уровень у каждого героя свой: участник группы с героем ниже порога остаётся у портала
-    for (const o of all) if (o !== p && o.char.level < need) o.socket.emit('skillFail', `${dg.name}: нужен ${need} уровень — ваш герой ${o.char.level} ур., группа ушла без вас`);
-    const group = all.filter((o) => o.char.level >= need);
+    // Группа входит, только если подходит самый слабый участник: уровень считается по минимальному в группе
+    const low = all.filter((o) => o.char.level < need);
+    if (low.length) {
+      const msg = `${dg.name}: нужен ${need} уровень у всей группы — не подходит: ${low.map((o) => `${o.name} (${o.char.level} ур.)`).join(', ')}`;
+      for (const o of all) o.socket.emit('skillFail', msg);
+      return;
+    }
+    const group = all;
     for (const o of group) {
       d.moveToZone(o, z.id);
       o.socket.emit('chat', { sys: true, text: `${dg.name} (ур. ${dg.lv[0]}–${dg.lv[1]}): общий зал — здесь охотятся все игроки. Монстры возрождаются, полубоссы — каждый час, босс — каждый день в ${hhmm(nextBossAt(Date.now()))}.` });
@@ -730,6 +736,19 @@ module.exports = function createDungeons(d) {
     const st = wbState[town];
     if (st) { st.bossId = null; st.nextAt = Date.now() + X.WORLD_BOSS_RESPAWN; }
     const total = Object.values(m.contrib).reduce((s, v) => s + v, 0) || 1;
+    // Топ-10 по урону: редкие ресурсы (ядра мира, свитки грандмастера/легенды, камень удачи)
+    const top = Object.entries(m.contrib).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([uid]) => uid);
+    const core = `core${m.tier}`;
+    const TOP_MATS = (place) => (place === 1 ? { [core]: 4, scrollM: 1, luckStone: 2 } : place <= 3 ? { [core]: 3, scrollL: 1, luckStone: 1 } : { [core]: 2, scrollL: place <= 5 ? 1 : 0, luckStone: 1 });
+    for (const p of players.values()) {
+      const place = top.indexOf(p.uid) + 1;
+      if (place) {
+        const mats = Object.fromEntries(Object.entries(TOP_MATS(place)).filter(([k, n]) => n > 0 && I.MATS[k]));
+        d.giveMats(p, d.getProfile(p.uid), mats, m);
+        p.socket.emit('chat', { sys: true, text: `🏆 ${place} место по урону по мировому боссу! Редкие ресурсы: ${Object.entries(mats).map(([k, n]) => `${I.MATS[k].icon} ${I.MATS[k].name}${n > 1 ? ' ×' + n : ''}`).join(', ')}` });
+      }
+    }
+    if (top.length) d.broadcast(`🏆 Лучшие по урону: ${top.slice(0, 3).map((uid, i) => `${['🥇', '🥈', '🥉'][i]} ${d.getProfile(uid).name || 'Герой'}`).join(' · ')}`);
     for (const p of players.values()) {
       const part = (m.contrib[p.uid] || 0) / m.maxHp;
       if (part < 0.01) continue;
@@ -781,6 +800,17 @@ module.exports = function createDungeons(d) {
         for (const o of inZone(`wb_${town}`)) { if (!o.dead) { d.moveToZone(o, town); o.socket.emit('chat', { sys: true, text: '🏰 Логово опустело — вы вернулись в город' }); } }
       }
       if (!st.bossId && now >= st.nextAt) spawnWorldBoss(town, now);
+      // Рейтинг урона — каждому в логове раз в секунду
+      if (b && now - (st.rankAt || 0) > 1000) {
+        st.rankAt = now;
+        const list = Object.entries(b.contrib || {}).sort((x, y) => y[1] - x[1]);
+        const tot = list.reduce((s2, [, v]) => s2 + v, 0) || 1;
+        const top = list.slice(0, 10).map(([uid, v]) => ({ uid, name: d.getProfile(uid).name || 'Герой', dmg: Math.round(v), pct: Math.round(v / tot * 100) }));
+        for (const o of inZone(b.zone)) {
+          const i = list.findIndex(([uid]) => uid === o.uid);
+          o.socket.emit('wbRank', { boss: MOBS[b.type].name, hp: Math.round(b.hp / b.maxHp * 100), top: top.map((t) => ({ ...t, me: t.uid === o.uid, uid: undefined })), me: i >= 0 ? { place: i + 1, dmg: Math.round(list[i][1]), pct: Math.round(list[i][1] / tot * 100) } : null });
+        }
+      }
       // Здоровье мирового босса растёт, если пришли новые игроки
       if (b) {
         const n = Math.max(1, inZone(b.zone).length);

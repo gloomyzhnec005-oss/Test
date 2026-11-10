@@ -32,6 +32,30 @@ const DEFS = {
     ['m_heroes', '🧙', 'Коллекционер', 'Соберите 15 разных героев', 'heroes', 15, null, { gold: 2000, gems: 400, itemSpins: 2, passXp: 120 }],
   ],
 };
+// ---------- Сюжет: цепочка шагов, ведущая по игре ----------
+// [id, глава, иконка, название, подсказка (что сделать и где), тип, цель, награда]
+// Типы: события (как у заданий) + dungeonEnter, equip, buy, socket, arena; level и town — по значению (уровень героя, номер мира)
+const STORY = [
+  ['s1', 1, '🌀', 'Путь в подземелье', 'Порталы в данжи стоят на севере Эльдмира. Подойдите к «Гоблинской опушке» — вход сработает сам.', 'dungeonEnter', 1, { gold: 100, gems: 20 }],
+  ['s2', 1, '🗡️', 'Первая охота', 'Победите 10 монстров в данже. Тап по монстру — герой сам подойдёт и ударит.', 'kill', 10, { gold: 150, mats: { potHp: 3 } }],
+  ['s3', 1, '🛡️', 'Снаряжение героя', 'Откройте «Герой» → тап по ячейке → наденьте подходящую вещь из гардероба.', 'equip', 1, { gold: 150, gems: 20 }],
+  ['s4', 1, '🧪', 'Лавка эликсиров', 'Купите любой товар в лавке эликсиров в городе — зелья лечат в бою.', 'buy', 1, { gold: 200 }],
+  ['s5', 1, '⬆️', 'Растущая сила', 'Достигните 5 уровня героя — охотьтесь в данжах.', 'level', 5, { gold: 300, gems: 40 }],
+  ['s6', 1, '🎰', 'Алтарь призыва', 'Сделайте призыв героя или снаряжения («Призыв» внизу экрана).', 'summon', 1, { gems: 80 }],
+  ['s7', 1, '⭐', 'Сильные противники', 'Победите 3 усиленных или редких монстра (синие и жёлтые имена).', 'elite', 3, { gold: 300, mats: { ess1: 3 } }],
+  ['s8', 1, '💠', 'Сила рун', 'Вставьте руну в оружие: карточка руны → «Вставить», руны продаются в рунной мастерской.', 'socket', 1, { gold: 300, gems: 40 }],
+  ['s9', 1, '🏟️', 'Испытание арены', 'Проведите бой на PvP-арене — например, с клоном (дом арены в городе).', 'arena', 1, { gold: 400, gems: 40 }],
+  ['s10', 1, '⭐', 'Страж лабиринта', 'Победите полубосса в данже — они появляются каждый час.', 'dungeon', 1, { gold: 500, gems: 60, mats: { ore1: 10 } }],
+  ['s11', 1, '⬆️', 'Закалённый боец', 'Достигните 10 уровня.', 'level', 10, { gold: 600, itemSpins: 1 }],
+  ['s12', 1, '👑', 'Хозяин подземелья', 'Победите босса данжа — он приходит раз в день, ворота его комнаты откроются.', 'boss', 1, { gold: 800, gems: 100 }],
+  ['s13', 2, '⬆️', 'Готов к Бездне', 'Достигните 15 уровня — откроется путь в Морграт.', 'level', 15, { gold: 1000, gems: 80 }],
+  ['s14', 2, '🏰', 'Город над Бездной', 'Телепорт в центре Эльдмира → Морграт.', 'town', 2, { gold: 1500, gems: 100, mats: { core2: 1 } }],
+  ['s15', 2, '👹', 'Победитель исполина', 'Победите мирового босса вместе с другими игроками (портал «Мировой босс» в городе).', 'world', 1, { gold: 2000, gems: 160, itemSpins: 1 }],
+  ['s16', 2, '⬆️', 'Путь к небесам', 'Достигните 30 уровня.', 'level', 30, { gold: 3000, gems: 160 }],
+  ['s17', 3, '☁️', 'Небесная цитадель', 'Телепорт → Аэлион.', 'town', 3, { gold: 4000, gems: 200, mats: { core3: 1 } }],
+  ['s18', 3, '🌟', 'Легенда Аэлиона', 'Достигните 40 уровня и станьте легендой мира.', 'level', 40, { gold: 8000, gems: 400, itemSpins: 3 }],
+].map(([id, ch, icon, name, desc, type, goal, reward]) => ({ id, ch, icon, name, desc, type, goal, reward }));
+const CHAPTERS = { 1: 'Глава I · Солнечная долина', 2: 'Глава II · Город над Бездной', 3: 'Глава III · Небесная цитадель' };
 const BY_ID = {};
 for (const per of PERIODS) for (const d of DEFS[per]) BY_ID[d[0]] = { per, id: d[0], icon: d[1], name: d[2], desc: d[3], type: d[4], goal: d[5], tier: d[6], reward: d[7] };
 
@@ -59,12 +83,47 @@ module.exports = function createQuests(deps) {
     if (!pr.quests[per] || pr.quests[per].key !== key) pr.quests[per] = { key, prog: {}, claimed: {} };
     return pr.quests[per];
   }
+  // Сюжет: pr.story = { i — номер текущего шага, prog, done — шаг выполнен, награда ждёт }
+  const storyOf = (pr) => (pr.story ??= { i: 0, prog: 0 });
+  const maxLevel = (pr) => Math.max(1, ...Object.values(pr.chars || {}).map((c) => c.level || 1));
+  function storyProg(pr) {
+    const s = storyOf(pr), q = STORY[s.i];
+    if (!q) return 0;
+    if (q.type === 'level') return Math.min(q.goal, maxLevel(pr));
+    if (q.type === 'town') return (pr.townMax || 1) >= q.goal ? q.goal : 0;
+    return Math.min(q.goal, s.prog);
+  }
+  function storyTrack(uid, pr, type, n) {
+    const s = storyOf(pr), q = STORY[s.i];
+    if (!q || q.type !== type || type === 'level' || type === 'town' || s.prog >= q.goal) return;
+    s.prog = Math.min(q.goal, s.prog + n);
+    if (s.prog >= q.goal) deps.notifyUid(uid, `📜 Сюжет: «${q.name}» выполнено — заберите награду в «Квестах»`);
+  }
+  function storyView(pr, tier) {
+    const s = storyOf(pr), q = STORY[s.i];
+    return { step: s.i, total: STORY.length, chapter: q ? CHAPTERS[q.ch] : 'Сюжет пройден',
+      cur: q ? { id: q.id, icon: q.icon, name: q.name, desc: q.desc, goal: q.goal, prog: storyProg(pr), reward: rewardText(q.reward, tier) } : null,
+      done: STORY.slice(0, s.i).map((x) => ({ icon: x.icon, name: x.name })) };
+  }
+  function storyClaim(pr, tier) {
+    const s = storyOf(pr), q = STORY[s.i];
+    if (!q) return { error: 'Сюжет пройден' };
+    if (storyProg(pr) < q.goal) return { error: 'Шаг ещё не выполнен' };
+    const msg = deps.reward(pr, { gold: q.reward.gold, gems: q.reward.gems, itemSpins: q.reward.itemSpins, mats: q.reward.mats }, tier);
+    s.i += 1; s.prog = 0;
+    deps.save();
+    const nx = STORY[s.i];
+    return { toast: `📖 ${q.name}: ${msg}${nx ? ` · дальше: «${nx.name}»` : ' · сюжет пройден!'}` };
+  }
   const progOf = (pr, q) => (q.type === 'heroes' ? (pr.heroes || []).length : state(pr, q.per).prog[q.id] || 0);
 
   // Засчитать действие; n — количество (для survival — номер волны, берётся максимум)
   function track(uid, type, n = 1, info = {}) {
     const pr = deps.getProfile(uid);
     if (!pr) return;
+    if (type === 'town') pr.townMax = Math.max(pr.townMax || 1, n);
+    storyTrack(uid, pr, type, type === 'town' ? 0 : n);
+    if (type === 'level' || type === 'town') { const q = STORY[storyOf(pr).i]; if (q && q.type === type && storyProg(pr) >= q.goal && !storyOf(pr).told) { storyOf(pr).told = q.id; deps.notifyUid(uid, `📜 Сюжет: «${q.name}» выполнено — заберите награду в «Квестах»`); } }
     const done = [];
     for (const q of Object.values(BY_ID)) {
       if (q.type !== type || (q.tier && q.tier !== info.tier)) continue;
@@ -123,15 +182,20 @@ module.exports = function createQuests(deps) {
   // Операции окна: quests — список, questClaim — забрать награду
   function handle(p, d) {
     const pr = deps.getProfile(p.uid), tier = p.zoneTier || 1;
-    if (d.op === 'questClaim') { const r = claim(pr, String(d.id || ''), tier); return { ...r, quests: view(pr, tier) }; }
-    return { quests: view(pr, tier) };
+    if (d.op === 'questClaim') { const r = claim(pr, String(d.id || ''), tier); return { ...r, quests: view(pr, tier), story: storyView(pr, tier) }; }
+    if (d.op === 'storyClaim') { const r = storyClaim(pr, tier); return { ...r, quests: view(pr, tier), story: storyView(pr, tier) }; }
+    return { quests: view(pr, tier), story: storyView(pr, tier) };
   }
   // Сколько наград ждёт (для значка на кнопке «Квесты»)
   function ready(pr, tier) {
     let n = 0;
     for (const per of PERIODS) for (const q of view(pr, tier)[per].list) if (q.prog >= q.goal && !q.claimed) n++;
+    const sc = STORY[storyOf(pr).i];
+    if (sc && storyProg(pr) >= sc.goal) n++;
     return n;
   }
 
-  return { track, handle, ready, DEFS: BY_ID };
+  // Текущий шаг сюжета — для подсказки на экране
+  const storyNow = (pr, tier) => storyView(pr, tier).cur;
+  return { track, handle, ready, storyNow, DEFS: BY_ID };
 };

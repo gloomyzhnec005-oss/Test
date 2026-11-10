@@ -475,6 +475,7 @@ module.exports = function createMeta(deps) {
       }
       // Каждый предмет витрины можно купить раз в день
       if (done) return { error: 'Уже куплено сегодня — витрина обновится завтра' };
+      if (pr.items.filter((i) => i.loc !== 'wh').length >= bagSize(pr)) return { error: 'Сумка полна — освободите место или перенесите вещи на склад' };
       if (pr.gold < o.price) return { error: 'Не хватает золота' };
       pr.gold -= o.price;
       pr.shopBought.push(key);
@@ -782,6 +783,7 @@ module.exports = function createMeta(deps) {
     const pr = getProfile(p.uid);
     if (p.name && pr.arena) pr.arena.name = p.name;
     const res = fn(p, d, pr) || {};
+    if (!res.error && ['equip', 'buy', 'socket'].includes(d.op)) deps.quest(p.uid, d.op); // шаги сюжета
     if (!res.error && !['inv', 'inspect', 'buys', 'market', 'auction', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo', 'recipes'].includes(d.op)) save();
     res.gold = pr.gold;
     return res;

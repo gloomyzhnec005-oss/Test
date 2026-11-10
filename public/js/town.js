@@ -490,10 +490,35 @@ window.Town = (() => {
       }
       return box;
     };
+    // Сюжет: один текущий шаг, пройденные — списком
+    const S = r.story, sReady = S && S.cur && S.cur.prog >= S.cur.goal ? 1 : 0;
+    const story = () => {
+      const box = document.createElement('div');
+      if (!S) return box;
+      box.innerHTML = `<p class="sheet-hint">${S.chapter} · шаг ${Math.min(S.step + 1, S.total)} из ${S.total} — сюжет ведёт по всем местам игры</p>`;
+      if (S.cur) {
+        const q = S.cur;
+        const row = el(`<div class="tw-ev quest story ${sReady ? 'ready' : ''}"><span class="tw-ev-i q-ic">${q.icon}</span><div><b>${q.name}</b><small>${q.desc}</small>
+          <div class="tw-prog"><i style="width:${Math.round((100 * q.prog) / q.goal)}%"></i><em>${q.prog} / ${q.goal}</em></div>
+          <small class="q-rew">${q.reward}</small></div>
+          <button class="l2-btn" ${sReady ? '' : 'disabled'}>🎁</button></div>`).firstElementChild;
+        row.querySelector('button').onclick = async () => {
+          const res = await Bag.act('storyClaim');
+          toast(res.error || res.toast);
+          if (window.Sfx) Sfx.play(res.error ? 'error' : 'reward');
+          if (ctx.onStory) ctx.onStory(res.story);
+          questTab = 0; eventsPanel(res);
+        };
+        box.append(row);
+      } else box.insertAdjacentHTML('beforeend', '<small>🌟 Вы прошли весь сюжет! Новые главы появятся с новыми мирами.</small>');
+      if (S.done.length) box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Пройдено</div><small>${S.done.map((x) => `${x.icon} ${x.name}`).join(' · ')}</small>`);
+      return box;
+    };
     const cnt = (per) => Q[per].list.filter((q) => q.prog >= q.goal && !q.claimed).length;
-    if (ctx.onQuests) ctx.onQuests(cnt('daily') + cnt('weekly') + cnt('monthly'));
+    if (ctx.onQuests) ctx.onQuests(sReady + cnt('daily') + cnt('weekly') + cnt('monthly'));
+    if (ctx.onStory) ctx.onStory(S);
     const lbl = (n, per) => n + (cnt(per) ? ` (${cnt(per)})` : '');
-    open('📜 Квесты', tabs([[lbl('Ежедневные', 'daily'), page('daily')], [lbl('Еженедельные', 'weekly'), page('weekly')], [lbl('Ежемесячные', 'monthly'), page('monthly')]], questTab));
+    open('📜 Квесты', tabs([['Сюжет' + (sReady ? ' (1)' : ''), story], [lbl('Ежедневные', 'daily'), page('daily')], [lbl('Еженедельные', 'weekly'), page('weekly')], [lbl('Ежемесячные', 'monthly'), page('monthly')]], questTab));
     questTab = 0;
   }
 

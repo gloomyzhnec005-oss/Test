@@ -485,8 +485,9 @@ function addItem(pr, item, bagSize, allowDupe = true) {
   pr.items ??= [];
   const orig = allowDupe && item.cat !== 'bag' && pr.items.find((i) => i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < DUPE_MAX);
   if (orig) { orig.dupes = (orig.dupes || 0) + 1; return { dupe: true, item: orig }; }
-  const inBag = pr.items.filter((i) => i.loc !== 'wh').length;
-  item.loc = inBag < bagSize ? 'bag' : 'wh';
+  // Всегда в сумку — на склад вещи переносит только сам игрок. Полная сумка проверяется до вызова (добыча продаётся,
+  // покупка в лавке не проходит); награды и покупки за Stars кладутся сверх лимита, чтобы не пропасть
+  item.loc = 'bag';
   pr.items.push(item);
   return { dupe: false, item };
 }
@@ -509,6 +510,8 @@ function mergeItems(pr, ids) {
   if (items.some((i) => i.cat !== cat || i.rar !== rar)) return { error: 'Все 5 предметов должны быть одной категории и редкости' };
   const next = RARITY_ORDER[RARITY_ORDER.indexOf(rar) + 1];
   if (!next) return { error: 'Мифические предметы нельзя соединить' };
+  // Мифик соединением не получить — только с мировых боссов, из ларцов и призыва (редкость должна оставаться редкостью)
+  if (next === 'mythic') return { error: 'Легендарные предметы не соединяются в мифический — мифики выпадают с мировых боссов, из ларцов и призыва' };
   for (const it of items) detach(pr, it);
   // 3 случайных атрибута из всех атрибутов пяти предметов
   const pool = items.flatMap((i) => i.attrs).sort(() => Math.random() - 0.5);

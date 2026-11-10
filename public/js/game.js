@@ -715,7 +715,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         }
       }
       e.tx = p.x; e.ty = p.y; e.data = p;
-      e.label.setText(`${p.name} [${p.lvl}]`);
+      e.label.setText(`${p.tag ? `[${p.tag}] ` : ''}${p.name} [${p.lvl}]`); // тег клана перед именем
       this.setBar(e, p.hp, p.maxHp);
       e.c.setAlpha(p.dead ? 0.35 : 1);
       // Аура усиления (рёв ярости, кровавое безумие)

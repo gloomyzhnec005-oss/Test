@@ -318,10 +318,10 @@ window.Bag = (() => {
     const sel = new Set();
     const draw = () => {
       const first = inv.items.find((i) => sel.has(i.id));
-      const items = inv.items.filter((i) => i.rar !== 'mythic' && !isEquipped(i) && (!first || (i.cat === first.cat && i.rar === first.rar))); // надетое не соединяется
+      const items = inv.items.filter((i) => i.rar !== 'mythic' && i.rar !== 'legendary' && i.cat !== 'bag' && !isEquipped(i) && (!first || (i.cat === first.cat && i.rar === first.rar))); // надетое и легендарное не соединяется
       const R = inv.rarities, RO = inv.rarOrder;
       box.innerHTML = `<p class="sheet-hint">Выберите 5 предметов одной категории и редкости → 1 предмет следующей редкости.
-        Из всех атрибутов пяти предметов случайно останутся 3, остальные пропадут. Базовые статы — по новой редкости (не суммируются). Надетые вещи здесь не показываются — сначала снимите их.</p>
+        Из всех атрибутов пяти предметов случайно останутся 3, остальные пропадут. Базовые статы — по новой редкости (не суммируются). Надетые вещи здесь не показываются — сначала снимите их. Легендарные в мифик не соединяются — мифики только с мировых боссов, из ларцов и призыва.</p>
         <div class="merge-slots">${[0, 1, 2, 3, 4].map((i) => { const it = inv.items.find((x) => x.id === [...sel][i]); return it ? cell(it) : '<button class="it empty"><span>·</span></button>'; }).join('')}
         <span class="arrow">→</span><button class="it empty res" ${first ? `style="--rc:${R[RO[RO.indexOf(first.rar) + 1]].color}"` : ''}><span>${first ? '?' : '·'}</span></button></div>
         <button class="l2-btn merge-go" ${sel.size === 5 ? '' : 'disabled'}>⚒️ Соединить (${sel.size}/5)${first ? ' → ' + R[RO[RO.indexOf(first.rar) + 1]].name : ''}</button>`;

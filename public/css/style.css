@@ -1288,3 +1288,25 @@ canvas.skin { object-fit: contain; }
 #chatForm.hidden, #stickerBar.hidden { display: none; }
 .clan-form { display: flex; flex-direction: column; gap: 6px; }
 .clan-form input { padding: 10px; border-radius: 6px; border: 1px solid #8a6d3b; background: #1a140e; color: #ffe9b0; font: inherit; }
+
+/* Мировой босс: рейтинг урона */
+.wb-rank { position: absolute; right: 6px; top: calc(196px + env(safe-area-inset-top)); z-index: 5; width: 168px; padding: 6px 8px; border-radius: 8px;
+  background: rgba(14,10,8,.82); border: 1px solid #8a6d3b; font-size: 10px; color: #e6d8bb; pointer-events: auto; }
+.wb-rank.hidden { display: none; }
+.wb-rank b { display: block; color: #ffd36a; font-weight: normal; font-size: 11px; }
+.wb-rank small { display: block; color: #b9a988; font-size: 9px; margin-bottom: 3px; }
+.wb-rank div { display: flex; gap: 4px; align-items: center; line-height: 1.5; }
+.wb-rank div i { width: 14px; font-style: normal; color: #ffd36a; text-align: right; }
+.wb-rank div span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.wb-rank div em { font-style: normal; color: #c8b890; }
+.wb-rank div.me { color: #7dff8a; }
+.wb-rank.mini div, .wb-rank.mini small { display: none; }
+
+/* Подсказка шага сюжета под миникартой */
+.story-hint { position: absolute; right: 6px; top: calc(196px + env(safe-area-inset-top)); z-index: 4; width: 168px; padding: 5px 8px; text-align: left;
+  border-radius: 8px; background: rgba(14,12,8,.78); border: 1px solid #6a5530; color: #e8dcc0; font-family: Georgia, serif; }
+.story-hint.hidden { display: none; }
+.story-hint b { display: block; font-weight: normal; font-size: 11px; color: #ffd36a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.story-hint small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 9px; color: #c8b890; line-height: 1.3; }
+.story-hint em { display: block; font-style: normal; font-size: 10px; color: #9fe08a; }
+.story-hint.ready { border-color: #7dff8a; box-shadow: 0 0 8px rgba(125,255,138,.45); }

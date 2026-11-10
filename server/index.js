@@ -289,6 +289,7 @@ const Q = createQuests({
   getProfile: (uid) => getProfile(uid), notifyUid: (uid, t) => notifyUid(uid, t),
   reward: (...a) => meta.reward(...a), addPassXp: (pr, n) => meta.addPassXp(pr, n), save: () => saveProfiles(),
 });
+{ const track = Q.track; Q.track = (uid, type, n = 1, info) => { track(uid, type, n, info); clanTrack(uid, type, n); }; } // + клановые задания
 // Мета-игра: предметы, рынок, аукцион, батл-пасс, подписка, арена (server/meta.js)
 const meta = createMeta({
   quest: (...a) => Q.track(...a),
@@ -346,21 +347,98 @@ const Arena = require('./arena')({
   store, notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => io.emit('chat', { sys: true, text: t }), save: () => saveProfiles(),
 });
 // ---------- Кланы (data/clans.json): название, тег, глава, участники, история кланового чата ----------
-const CLAN = { price: 10000, max: 30 };
+const CLAN = { price: 10000, max: 30, vault: 50, takesPerDay: 3 };
+// Клановые задания недели: общий прогресс всех участников; награду забирает каждый, кто внёс вклад
+const CLAN_QUESTS = [
+  { id: 'ck', icon: '⚔️', name: 'Охота клана', desc: 'Победите монстров всем кланом', type: 'kill', goal: 3000, reward: { gold: 2000, gems: 30 } },
+  { id: 'cd', icon: '⭐', name: 'Гроза подземелий', desc: 'Победите полубоссов и боссов данжей', type: 'dungeon', goal: 40, reward: { gold: 3000, gems: 50, mats: { luckStone: 1 } } },
+  { id: 'cw', icon: '👹', name: 'Против исполинов', desc: 'Победите мировых боссов', type: 'world', goal: 10, reward: { gold: 4000, gems: 80, itemSpins: 1 } },
+  { id: 'ca', icon: '🏟️', name: 'Слава арены', desc: 'Проведите бои на арене', type: 'arena', goal: 30, reward: { gold: 2500, gems: 50 } },
+  { id: 'cs', icon: '🎰', name: 'Зов алтаря', desc: 'Сделайте призывы', type: 'summon', goal: 50, reward: { gems: 100 } },
+];
+const weekNo = () => Math.floor((Date.now() - Date.UTC(2024, 0, 1)) / (7 * 864e5));
+const clanWeek = (c) => { if (!c.cq || c.cq.week !== weekNo()) c.cq = { week: weekNo(), prog: {}, by: {}, claimed: {} }; return c.cq; };
+function clanTrack(uid, type, n = 1) {
+  const c = clanOf(uid);
+  if (!c || !CLAN_QUESTS.some((q) => q.type === type)) return;
+  const cq = clanWeek(c);
+  for (const q of CLAN_QUESTS) {
+    if (q.type !== type) continue;
+    const before = cq.prog[q.id] || 0;
+    if (before >= q.goal) continue;
+    cq.prog[q.id] = Math.min(q.goal, before + n);
+    (cq.by[uid] ??= {})[q.id] = (cq.by[uid][q.id] || 0) + n;
+    if (cq.prog[q.id] >= q.goal) clanNotify(c, `🛡️ Клановое задание «${q.name}» выполнено! Заберите награду: «Игра» → «Клан»`);
+  }
+  saveClans();
+}
+// Тег клана над именем героя
+const setClanTag = (uid) => { const c = clanOf(uid); for (const o of players.values()) if (o.uid === uid) { o.clanTag = c ? c.tag : null; markDirty(o); } };
 const clans = store.readJSON('clans.json', {});
 let clanSaveTm = null;
-const saveClans = () => { clearTimeout(clanSaveTm); clanSaveTm = setTimeout(() => { try { store.writeJSON('clans.json', clans); } catch (e) { console.error('clans save', e.message); } }, 500); };
+const saveClans = () => { if (clanSaveTm) return; clanSaveTm = setTimeout(() => { clanSaveTm = null; try { store.writeJSON('clans.json', clans); } catch (e) { console.error('clans save', e.message); } }, 500); };
 const clanOf = (uid) => { const id = getProfile(uid).clan; const c = id && clans[id]; return c && c.members.includes(uid) ? c : null; };
 const clanNotify = (c, text) => { for (const o of players.values()) if (c.members.includes(o.uid)) o.socket.emit('chat', { sys: true, ch: 'clan', text }); };
 function clanView(c) {
   const online = new Set([...players.values()].map((o) => o.uid));
   return { id: c.id, name: c.name, tag: c.tag, leader: c.leader, max: CLAN.max,
     members: c.members.map((uid) => { const pr = getProfile(uid); return { uid, name: pr.name || 'Герой', online: online.has(uid), leader: uid === c.leader }; }),
-    log: (c.log || []).slice(-30) };
+    log: (c.log || []).slice(-30), vault: (c.vault || []).map((it) => ({ ...I.itemView(it), by: it.clanBy || '' })), vaultMax: CLAN.vault };
 }
+function clanQuestView(c, uid) {
+  const cq = clanWeek(c), ends = (weekNo() + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - Date.now();
+  return { endsIn: ends, list: CLAN_QUESTS.map((q) => ({ id: q.id, icon: q.icon, name: q.name, desc: q.desc, goal: q.goal, prog: cq.prog[q.id] || 0,
+    mine: (cq.by[uid] || {})[q.id] || 0, claimed: (cq.claimed[q.id] || []).includes(uid), reward: rewardLabel(q.reward) })) };
+}
+const rewardLabel = (r) => [r.gold && `💰 ${r.gold}`, r.gems && `💎 ${r.gems}`, r.itemSpins && `🎁 печать ×${r.itemSpins}`, r.mats && Object.entries(r.mats).map(([k, n]) => `${(I.MATS[k] || {}).name || k} ×${n}`).join(', ')].filter(Boolean).join(' · ');
 function clanAct(p, d) {
   const pr = getProfile(p.uid), mine = clanOf(p.uid);
-  if (d.op === 'info') return { clan: mine ? clanView(mine) : null, price: CLAN.price };
+  if (d.op === 'info') return { clan: mine ? clanView(mine) : null, quests: mine ? clanQuestView(mine, p.uid) : null, price: CLAN.price };
+  // Клановое хранилище: вложить вещь из сумки / забрать (участник — до 3 вещей в день, глава — без лимита)
+  if (d.op === 'vaultPut') {
+    if (!mine) return { error: 'Вы не в клане' };
+    const it = I.findItem(pr, String(d.id || ''));
+    if (!it) return { error: 'Предмет не найден' };
+    if (Object.values(pr.equip || {}).includes(it.id)) return { error: 'Сначала снимите предмет' };
+    if (it.cat === 'bag') return { error: 'Сумки в хранилище не кладут' };
+    mine.vault ??= [];
+    if (mine.vault.length >= CLAN.vault) return { error: `Хранилище клана заполнено (${CLAN.vault})` };
+    I.detach(pr, it);
+    pr.items = pr.items.filter((i) => i !== it);
+    it.loc = 'clan'; it.clanBy = p.name;
+    mine.vault.push(it);
+    clanNotify(mine, `📦 ${p.name} положил в хранилище: ${I.itemView(it).name}`);
+    saveClans(); saveProfiles();
+    return { toast: 'Предмет в хранилище клана', clan: clanView(mine) };
+  }
+  if (d.op === 'vaultTake') {
+    if (!mine) return { error: 'Вы не в клане' };
+    const it = (mine.vault || []).find((x) => x.id === String(d.id || ''));
+    if (!it) return { error: 'Предмета уже нет' };
+    if ((pr.items || []).filter((i) => i.loc !== 'wh').length >= meta.bagSize(pr)) return { error: 'Сумка полна — освободите место' };
+    const day = new Date().toISOString().slice(0, 10);
+    if (pr.clanTakeDay !== day) { pr.clanTakeDay = day; pr.clanTakes = 0; }
+    if (mine.leader !== p.uid && pr.clanTakes >= CLAN.takesPerDay) return { error: `Сегодня уже взято ${CLAN.takesPerDay} вещи — завтра снова` };
+    mine.vault = mine.vault.filter((x) => x !== it);
+    delete it.clanBy; it.loc = 'bag';
+    (pr.items ??= []).push(it);
+    pr.clanTakes += 1;
+    clanNotify(mine, `📦 ${p.name} взял из хранилища: ${I.itemView(it).name}`);
+    saveClans(); saveProfiles();
+    return { toast: 'Предмет в сумке', clan: clanView(mine) };
+  }
+  if (d.op === 'questClaim') {
+    if (!mine) return { error: 'Вы не в клане' };
+    const q = CLAN_QUESTS.find((x) => x.id === d.id), cq = clanWeek(mine);
+    if (!q) return { error: 'Нет такого задания' };
+    if ((cq.prog[q.id] || 0) < q.goal) return { error: 'Задание ещё не выполнено' };
+    if (!((cq.by[p.uid] || {})[q.id] > 0)) return { error: 'Награду получают участники, которые внесли вклад' };
+    if ((cq.claimed[q.id] ??= []).includes(p.uid)) return { error: 'Награда уже получена' };
+    cq.claimed[q.id].push(p.uid);
+    const msg = meta.reward(pr, q.reward, p.zoneTier || 1);
+    saveClans(); saveProfiles();
+    return { toast: `🛡️ ${q.name}: ${msg}`, clan: clanView(mine), quests: clanQuestView(mine, p.uid) };
+  }
   if (d.op === 'create') {
     if (mine) return { error: 'Вы уже в клане' };
     const name = String(d.name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 20), tag = String(d.tag || '').replace(/[^A-Za-zА-Яа-яЁё0-9]/g, '').slice(0, 4).toUpperCase();
@@ -371,7 +449,7 @@ function clanAct(p, d) {
     pr.gold -= CLAN.price;
     const id = 'c' + Date.now().toString(36);
     clans[id] = { id, name, tag, leader: p.uid, members: [p.uid], created: Date.now(), log: [] };
-    pr.clan = id; saveClans(); saveProfiles();
+    pr.clan = id; saveClans(); saveProfiles(); setClanTag(p.uid);
     return { toast: `Клан «${name}» [${tag}] создан`, clan: clanView(clans[id]) };
   }
   if (d.op === 'invite') {
@@ -390,7 +468,7 @@ function clanAct(p, d) {
     if (mine) return { error: 'Сначала выйдите из своего клана' };
     if (c.members.length >= CLAN.max) return { error: 'В клане нет мест' };
     c.invited = c.invited.filter((u) => u !== p.uid);
-    c.members.push(p.uid); pr.clan = c.id; saveClans(); saveProfiles();
+    c.members.push(p.uid); pr.clan = c.id; saveClans(); saveProfiles(); setClanTag(p.uid);
     clanNotify(c, `🛡️ ${p.name} вступил в клан`);
     return { toast: `Вы вступили в клан «${c.name}»`, clan: clanView(c) };
   }
@@ -399,7 +477,8 @@ function clanAct(p, d) {
     mine.members = mine.members.filter((u) => u !== p.uid); pr.clan = null;
     if (!mine.members.length) delete clans[mine.id];
     else { if (mine.leader === p.uid) mine.leader = mine.members[0]; clanNotify(mine, `🛡️ ${p.name} покинул клан`); }
-    saveClans(); saveProfiles();
+    if (!mine.members.length) for (const it of mine.vault || []) { delete it.clanBy; it.loc = 'wh'; pr.items.push(it); } // последний забирает хранилище на склад
+    saveClans(); saveProfiles(); setClanTag(p.uid);
     return { toast: 'Вы покинули клан' };
   }
   if (d.op === 'kick') {
@@ -408,7 +487,7 @@ function clanAct(p, d) {
     if (uid === p.uid || !mine.members.includes(uid)) return { error: 'Нет такого участника' };
     mine.members = mine.members.filter((u) => u !== uid); getProfile(uid).clan = null;
     clanNotify(mine, `🛡️ ${getProfile(uid).name || 'Игрок'} исключён из клана`); notifyUid(uid, `🛡️ Вас исключили из клана «${mine.name}»`);
-    saveClans(); saveProfiles();
+    saveClans(); saveProfiles(); setClanTag(uid);
     return { toast: 'Участник исключён', clan: clanView(mine) };
   }
   return { error: 'Неизвестное действие' };
@@ -480,7 +559,10 @@ function deathPenalty(p) {
   const lost = Math.min(p.char.xp, Math.round(need * DEATH.xpLoss)); // уровень не теряется
   p.char.xp -= lost;
   p.deathUntil = pr.deathUntil = Date.now() + DEATH.ms; // сохраняется в профиле — перезаход не снимает
-  p.socket.emit('chat', { sys: true, text: `💀 Вы погибли: −${lost} опыта. Слабость на 2 минуты: урон −20%, получаемый опыт −20%` });
+  const lostElx = Object.values(pr.buffs || {}).some((t) => t > Date.now());
+  pr.buffs = {}; // эликсиры сгорают при гибели
+  p.gear = I.gearStats(pr, p.heroId); p.buffSig = '';
+  p.socket.emit('chat', { sys: true, text: `💀 Вы погибли: −${lost} опыта${lostElx ? ', действие эликсиров закончилось' : ''}. Слабость на 2 минуты: урон −20%, получаемый опыт −20%` });
   p.lastStats = 0;
 }
 // ---------- Эффекты на герое: значки под полоской здоровья (тап — описание) ----------
@@ -548,6 +630,8 @@ function moveToZone(p, zoneId, pos) {
   const at = pos || { x: z.spawn.x + (Math.random() - 0.5) * 48, y: z.spawn.y + (Math.random() - 0.5) * 24 };
   p.x = at.x; p.y = at.y; p.lastMove = Date.now();
   p.stealthUntil = 0;
+  if (z.kind === 'dungeon') Q.track(p.uid, 'dungeonEnter');
+  if (z.kind === 'town') Q.track(p.uid, 'town', z.tier);
   if (p.autofarm) setAutofarm(p, z.kind === 'dungeon'); // автобой — только в данжах; в новом данже замер темпа заново
   for (const pet of p.pets || []) { pet.x = p.x + (Math.random() - 0.5) * 40; pet.y = p.y + 16; pet.target = null; }
   p.socket.emit('zone', { zone: world.payload(z), x: p.x, y: p.y });
@@ -584,7 +668,7 @@ function moveEntity(e, dx, dy) {
 
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
-    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
+    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, tag: p.clanTag || null, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
     pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, phase: p.hero.phases ? p.form : null, heat: Math.round(p.heat || 0), abyss: p.abyssUntil > Date.now(), mt: p.match ? `${p.match}:${p.team}` : null, pcc: D.ccActive(p), pdot: (p.pdots || []).filter((x) => x.until > Date.now()).map((x) => x.kind)[0] || null, pslow: p.slowUntil > Date.now(), pweak: p.weakUntil > Date.now(), flame: p.hero.flames ? p.form : null, ash: p.ashArmorUntil > Date.now(), rootSelf: p.rootSelfUntil > Date.now(), cry: p.crystals && p.crystals.length ? p.crystals : null, wrune: p.weaponRuneUntil > Date.now() ? p.weaponRuneType : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
@@ -936,6 +1020,7 @@ function grantXp(p, amount, gold, shared = false) {
     p.char.level += 1;
     leveled = true;
   }
+  if (leveled) Q.track(p.uid, 'level', p.char.level);
   if (leveled) {
     p.gear = I.gearStats(pr, p.heroId); // надетая вещь могла «открыться» новым уровнем
     Object.assign(p, statsFor(p.heroId, p.char.level, pr));
@@ -1020,6 +1105,16 @@ function giveMats(o, pr, mats, at) {
   if (names.length && at) fx.push({ t: 'loot', x: at.x, y: at.y + 12, to: o.id, name: names.join(' '), color: '#e8d49a' });
 }
 function giveLoot(o, pr, item, at) {
+  // Сумка полна и это не дубликат (дубликат усиливает вещь, места не занимает) — вещь продаётся торговцу сама
+  const full = pr.items.filter((i) => i.loc !== 'wh').length >= meta.bagSize(pr);
+  const dupe = pr.items.some((i) => i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < I.DUPE_MAX);
+  if (full && !dupe && item.cat !== 'bag') {
+    const v0 = I.itemView(item);
+    pr.gold += v0.sell;
+    if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `💰 +${v0.sell}`, color: '#ffd36a' });
+    o.socket.emit('chat', { sys: true, text: `🎒 Сумка полна: ${v0.icon} ${v0.name} продан за ${v0.sell} 💰 — освободите место или перенесите вещи на склад` });
+    return v0;
+  }
   const res = meta.grant(pr, item);
   const v = I.itemView(res.item);
   if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}${res.dupe ? ' ⇧' : ''}`, color: v.color });
@@ -1080,6 +1175,7 @@ io.on('connection', (socket) => {
     p.x = start.spawn.x + (Math.random() - 0.5) * 64; p.y = start.spawn.y + (Math.random() - 0.5) * 32;
     for (const pet of p.pets || []) { pet.x = p.x; pet.y = p.y + 16; }
     players.set(socket.id, p);
+    p.clanTag = (clanOf(uid) || {}).tag || null;
 
     socket.emit('welcome', {
       id: socket.id,
@@ -1254,7 +1350,7 @@ io.on('connection', (socket) => {
   socket.on('act', (d, cb) => {
     const p = players.get(socket.id);
     if (!p || typeof cb !== 'function') return;
-    try { cb(d && /^quest/.test(d.op) ? Q.handle(p, d) : meta.handle(p, d || {})); markDirty(p); } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
+    try { cb(d && /^(quest|story)/.test(d.op) ? Q.handle(p, d) : meta.handle(p, d || {})); markDirty(p); } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
   });
 
   // Группа: приглашение игрока из своей зоны, до 4 человек

@@ -606,20 +606,71 @@
           Town.open('🛡️ Клан', box); return;
         }
         const c = r.clan, me = Lobby.profile() && Lobby.profile().uid, lead = c.leader === me;
-        box.innerHTML = `<div class="pass-head"><b>🛡️ ${c.name} [${c.tag}]</b><small>Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length}</small>
-          <button class="l2-btn" id="clChat">💬 Клановый чат</button></div><div class="ic-sec">Участники</div>`;
-        for (const m of c.members.sort((a, b) => b.online - a.online)) {
-          const row = document.createElement('div'); row.className = 'tw-ev';
-          row.innerHTML = `<div><b></b><small>${m.leader ? '👑 глава · ' : ''}${m.online ? '🟢 в сети' : '⚫ не в сети'}</small></div>${lead && !m.leader ? '<button class="l2-btn ghost">Исключить</button>' : ''}`;
-          row.querySelector('b').textContent = m.name;
-          const k = row.querySelector('button');
-          if (k) k.onclick = async () => { const x = await clanAct({ op: 'kick', uid: m.uid }); Town.toast(x.error || x.toast); openClan(); };
-          box.append(row);
-        }
-        box.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Пригласить: откройте профиль игрока (тап по герою на карте) → «В клан».</p><button class="l2-btn wide ghost" id="clLeave">Покинуть клан</button>');
-        box.querySelector('#clChat').onclick = () => { Town.close(); openChat(); setTab('clan'); };
-        box.querySelector('#clLeave').onclick = async () => { const x = await clanAct({ op: 'leave' }); Town.toast(x.error || x.toast); Town.close(); };
-        Town.open('🛡️ Клан', box);
+        const fmtT = (ms) => { const h = Math.max(0, Math.floor(ms / 3600e3)); return h >= 24 ? `${Math.floor(h / 24)} д ${h % 24} ч` : `${h} ч`; };
+        const tabIdx = openClan.tab || 0; openClan.tab = 0;
+        const reopen = (i) => { openClan.tab = i; openClan(); };
+        const members = () => {
+          const box = document.createElement('div');
+          box.innerHTML = `<div class="pass-head"><b>🛡️ ${c.name} [${c.tag}]</b><small>Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length} · тег [${c.tag}] виден над именами героев</small>
+            <button class="l2-btn" id="clChat">💬 Клановый чат</button></div><div class="ic-sec">Участники</div>`;
+          for (const m of c.members.sort((a, b) => b.online - a.online)) {
+            const row = document.createElement('div'); row.className = 'tw-ev';
+            row.innerHTML = `<div><b></b><small>${m.leader ? '👑 глава · ' : ''}${m.online ? '🟢 в сети' : '⚫ не в сети'}</small></div>${lead && !m.leader ? '<button class="l2-btn ghost">Исключить</button>' : ''}`;
+            row.querySelector('b').textContent = m.name;
+            const k = row.querySelector('button');
+            if (k) k.onclick = async () => { const x = await clanAct({ op: 'kick', uid: m.uid }); Town.toast(x.error || x.toast); reopen(0); };
+            box.append(row);
+          }
+          box.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Пригласить: откройте профиль игрока (тап по герою на карте) → «В клан».</p><button class="l2-btn wide ghost" id="clLeave">Покинуть клан</button>');
+          box.querySelector('#clChat').onclick = () => { Town.close(); openChat(); setTab('clan'); };
+          box.querySelector('#clLeave').onclick = async () => { const x = await clanAct({ op: 'leave' }); Town.toast(x.error || x.toast); Town.close(); };
+          return box;
+        };
+        const quests = () => {
+          const box = document.createElement('div'), Q = r.quests;
+          box.innerHTML = `<p class="sheet-hint">Общий прогресс всего клана · обновятся через ${fmtT(Q.endsIn)}. Награду получает каждый, кто внёс вклад.</p>`;
+          for (const q of Q.list) {
+            const done = q.prog >= q.goal;
+            const row = document.createElement('div'); row.className = `tw-ev quest ${q.claimed ? 'claimed' : done && q.mine ? 'ready' : ''}`;
+            row.innerHTML = `<span class="tw-ev-i q-ic">${q.icon}</span><div><b>${q.name}</b><small>${q.desc} · ваш вклад: ${q.mine}</small>
+              <div class="tw-prog"><i style="width:${Math.round((100 * q.prog) / q.goal)}%"></i><em>${q.prog} / ${q.goal}</em></div><small class="q-rew">${q.reward}</small></div>
+              <button class="l2-btn" ${done && q.mine && !q.claimed ? '' : 'disabled'}>${q.claimed ? '✔' : '🎁'}</button>`;
+            row.querySelector('button').onclick = async () => { const x = await clanAct({ op: 'questClaim', id: q.id }); Town.toast(x.error || x.toast); if (window.Sfx) Sfx.play(x.error ? 'error' : 'reward'); reopen(1); };
+            box.append(row);
+          }
+          return box;
+        };
+        const vault = () => {
+          const box = document.createElement('div');
+          box.innerHTML = `<p class="sheet-hint">Хранилище клана: ${c.vault.length} / ${c.vaultMax}. Положите ненужную вещь — соклановцы смогут её взять (до 3 в день, глава — без лимита).</p>
+            <button class="l2-btn wide" id="clPut">📥 Положить из сумки</button><div class="ic-sec">Предметы</div>`;
+          if (!c.vault.length) box.insertAdjacentHTML('beforeend', '<small>Пока пусто</small>');
+          for (const it of c.vault) {
+            const row = document.createElement('div'); row.className = 'tw-ev';
+            row.innerHTML = `<span class="tw-ev-i">${Bag.art(it)}</span><div><b style="color:${it.color}"></b><small>${it.rarName} · положил ${it.by || '—'}</small></div><button class="l2-btn">Взять</button>`;
+            row.querySelector('b').textContent = it.name;
+            row.querySelector('button').onclick = async () => { const x = await clanAct({ op: 'vaultTake', id: it.id }); Town.toast(x.error || x.toast); if (!x.error) Bag.refresh(); reopen(2); };
+            box.append(row);
+          }
+          box.querySelector('#clPut').onclick = async () => {
+            const inv = await Bag.refresh();
+            const list = (inv && inv.items || []).filter((it) => it.loc !== 'wh' && it.cat !== 'bag' && !Bag.isEquipped(it));
+            const pick = document.createElement('div');
+            pick.innerHTML = '<p class="sheet-hint">Выберите вещь из сумки — она перейдёт в хранилище клана.</p>';
+            if (!list.length) pick.insertAdjacentHTML('beforeend', '<small>В сумке нет подходящих вещей (надетые сначала снимите)</small>');
+            for (const it of list) {
+              const row = document.createElement('div'); row.className = 'tw-ev';
+              row.innerHTML = `<span class="tw-ev-i">${Bag.art(it)}</span><div><b style="color:${it.color}"></b><small>${it.rarName}</small></div><button class="l2-btn">Положить</button>`;
+              row.querySelector('b').textContent = it.name;
+              row.querySelector('button').onclick = async () => { const x = await clanAct({ op: 'vaultPut', id: it.id }); Town.toast(x.error || x.toast); if (!x.error) Bag.refresh(); reopen(2); };
+              pick.append(row);
+            }
+            Town.open('📥 В хранилище клана', pick);
+          };
+          return box;
+        };
+        const ready = r.quests ? r.quests.list.filter((q) => q.prog >= q.goal && q.mine && !q.claimed).length : 0;
+        Town.open('🛡️ Клан', Town.tabs([['Участники', members], ['Задания' + (ready ? ` (${ready})` : ''), quests], [`Хранилище (${c.vault.length})`, vault]], tabIdx));
       };
       socket.on('clanInvite', (d) => {
         const box = $('partyInvite');
@@ -653,6 +704,19 @@
       };
       // ---------- Данж выживания: номер волны ----------
       // Прогресс данжа-лабиринта
+      // Мировой босс: рейтинг урона (топ-10 получат редкие ресурсы); тап — свернуть/развернуть
+      let wbOpen = true;
+      $('wbRank').onclick = () => { wbOpen = !wbOpen; $('wbRank').classList.toggle('mini', !wbOpen); };
+      socket.on('wbRank', (r) => {
+        const box = $('wbRank');
+        if (!zone || zone.kind !== 'worldboss') { box.classList.add('hidden'); return; }
+        const fmt = (n) => (n >= 10000 ? Math.round(n / 1000) + 'k' : n);
+        box.innerHTML = `<b>⚔️ Урон по боссу · ${r.hp}%</b><small>Топ-10 получат редкие ресурсы</small>`
+          + r.top.map((t, i) => `<div class="${t.me ? 'me' : ''} ${i < 10 ? 'top' : ''}"><i>${i + 1}</i><span></span><em>${fmt(t.dmg)} · ${t.pct}%</em></div>`).join('')
+          + (r.me && r.me.place > 10 ? `<div class="me"><i>${r.me.place}</i><span>Вы</span><em>${fmt(r.me.dmg)} · ${r.me.pct}%</em></div>` : '');
+        [...box.querySelectorAll('div span')].forEach((s, i) => { if (r.top[i]) s.textContent = r.top[i].name; });
+        box.classList.remove('hidden');
+      });
       socket.on('dungeon', (d) => {
         window.hallInfo = d; // для подсказки у запечатанных ворот босса
         const b = $('waveBadge');
@@ -804,7 +868,7 @@
           ['arena', 'Рейтинг арены', 'Лучшие игроки и турнир недели · сражаться — в доме арены', () => Town.openPlace('arenaRank')],
           ['pass', 'Сезонные ордена', 'Награды сезона, бонусы и автобой', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
-          ['events', 'Клан', 'Свой клан: участники, клановый чат, приглашения', openClan],
+          ['events', 'Клан', 'Свой клан: участники, задания, хранилище, чат', openClan],
           ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
         ]),
@@ -812,9 +876,29 @@
       };
       // Значок готовых наград на кнопке «Квесты»
       const questBadge = (n) => { const b = document.querySelector('[data-nav="quests"]'); b.dataset.badge = n > 0 ? n : ''; };
-      Town.setContext({ onQuests: questBadge });
-      socket.on('chat', (m) => { if (m.sys && /^📜 Задание выполнено/.test(m.text)) { const b = document.querySelector('[data-nav="quests"]'); questBadge((+b.dataset.badge || 0) + 1); if (window.Sfx) Sfx.play('quest'); } });
-      Bag.act('quests').then((r) => r.quests && questBadge(['daily', 'weekly', 'monthly'].reduce((s, k) => s + r.quests[k].list.filter((q) => q.prog >= q.goal && !q.claimed).length, 0)));
+      // Подсказка текущего шага сюжета на экране: тап — открыть «Квесты»
+      let storyCur = null;
+      const showStory = (S) => {
+        const h = $('storyHint'); storyCur = S && S.cur;
+        if (!storyCur || (zone && (zone.kind === 'worldboss' || zone.kind === 'pvp'))) { h.classList.add('hidden'); return; }
+        const q = storyCur, ok = q.prog >= q.goal;
+        h.classList.toggle('ready', ok);
+        h.innerHTML = `<b>📖 ${q.icon} ${q.name}</b><small>${ok ? '🎁 Выполнено — заберите награду' : q.desc}</small>${q.goal > 1 && !ok ? `<em>${q.prog} / ${q.goal}</em>` : ''}`;
+        h.classList.remove('hidden');
+      };
+      const storyRefresh = () => Bag.act('quests').then((r) => { if (!r.quests) return; showStory(r.story);
+        questBadge((r.story && r.story.cur && r.story.cur.prog >= r.story.cur.goal ? 1 : 0) + ['daily', 'weekly', 'monthly'].reduce((s, k) => s + r.quests[k].list.filter((q) => q.prog >= q.goal && !q.claimed).length, 0)); });
+      let storyT = 0;
+      const storyLater = () => { clearTimeout(storyT); storyT = setTimeout(storyRefresh, 600); };
+      $('storyHint').onclick = () => NAV.quests();
+      Town.setContext({ onQuests: questBadge, onStory: showStory });
+      socket.on('chat', (m) => {
+        if (m.sys && /^📜 Задание выполнено/.test(m.text)) { const b = document.querySelector('[data-nav="quests"]'); questBadge((+b.dataset.badge || 0) + 1); if (window.Sfx) Sfx.play('quest'); }
+        if (m.sys && /^📜 Сюжет/.test(m.text)) { storyLater(); if (window.Sfx) Sfx.play('quest'); }
+      });
+      // Шаги «убить N» обновляем по ходу боя — не чаще раза в 5 с
+      setInterval(() => { if (storyCur && storyCur.goal > 1 && storyCur.prog < storyCur.goal && document.visibilityState === 'visible') storyRefresh(); }, 5000);
+      storyRefresh();
       $('navBar').onclick = (e) => { const b = e.target.closest('button[data-nav]'); if (b) { vibrate('light'); if (window.Sfx) Sfx.play('click'); if (b.dataset.exit) { socket.emit('recall'); return; } NAV[b.dataset.nav](); } };
       const ui = {
         onWorld: (s, myId) => drawMinimap(s, myId, w.tile, zone),
@@ -823,6 +907,8 @@
           const TOWN_TRACK = { town1: 'eldmir', town2: 'morgrath', town3: 'aelion' };
           if (window.Sfx) { if (zone && zone.id !== z.id) Sfx.play('portal'); Sfx.music(z.kind === 'worldboss' ? 'worldboss' : z.kind === 'town' ? TOWN_TRACK[z.id] || z.theme : 'dungeon'); }
           zone = z;
+          if (z.kind !== 'worldboss') $('wbRank').classList.add('hidden');
+          if (typeof storyLater === 'function') storyLater();
           buildMinimap(z);
           Town.setContext({ zone: z });
           Town.close();
