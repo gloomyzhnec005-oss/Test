@@ -8,6 +8,7 @@ window.ITEM_ART = [
   'ring_ringLife', 'ring_ringMind', 'ring_ringBlood', 'ring_ringGuard', 'ring_ringStar',
   'amulet_amuFury', 'amulet_amuWind', 'amulet_amuGuard', 'amulet_amuStar', 'amulet_amuGold',
   'bag_common', 'bag_rare', 'bag_epic', 'bag_legendary', 'bag_mythic',
+  'earring_earRuby', 'earring_earPearl', 'earring_earMoon', 'earring_earWind',
   'weapon_sword', 'weapon_axe', 'weapon_staff', 'weapon_bow', 'weapon_daggers', 'weapon_hammer', 'weapon_spear', 'weapon_wand',
   'helm_cap', 'helm_helmet', 'helm_circlet', 'helm_hood', 'gloves_bracers', 'gloves_grips', 'gloves_gauntlet', 'gloves_silk',
   'ring_ringPow', 'ring_ringAgi', 'ring_ringWind', 'ring_bracer', 'amulet_amuLife', 'amulet_amuMind', 'amulet_amuBlood',
