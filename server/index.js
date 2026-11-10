@@ -405,6 +405,41 @@ function deathPenalty(p) {
   p.socket.emit('chat', { sys: true, text: `💀 Вы погибли: −${lost} опыта. Слабость на 2 минуты: урон −20%, получаемый опыт −20%` });
   p.lastStats = 0;
 }
+// ---------- Эффекты на герое: значки под полоской здоровья (тап — описание) ----------
+// [поле, бафф?, значок (assets/ui/status/<…>.webp или items/<…>), название, описание]
+const FX_TIMED = [
+  ['roarUntil', 1, 'rage', 'Рёв ярости', 'Урон +40%'], ['frenzyUntil', 1, 'rage', 'Безумие', 'Урон +50%'],
+  ['linkUntil', 1, 'rage', 'Связь душ', 'Урон +30%'], ['blessUntil', 1, 'rage', 'Благословение', 'Урон +20%'],
+  ['cryUntil', 1, 'rage', 'Клич валькирии', 'Урон +20%'], ['songUntil', 1, 'rage', 'Песнь вдохновения', 'Урон увеличен'],
+  ['pactUntil', 1, 'rage', 'Пакт', 'Сила пакта действует'], ['mightUntil', 1, 'rage', 'Мощь', 'Сила атак увеличена'],
+  ['atkBuffUntil', 1, 'rage', 'Усиление атаки', 'Урон увеличен'], ['empoweredUntil', 1, 'rage', 'Усиленный удар', 'Следующая атака сильнее'],
+  ['nextCritUntil', 1, 'rage', 'Верный удар', 'Следующая атака — критическая'], ['weaponRuneUntil', 1, 'rage', 'Руна оружия', 'Оружие заряжено силой руны'],
+  ['elemBuffUntil', 1, 'rage', 'Сила стихии', 'Бонус выбранной стихии'], ['shiftBuffUntil', 1, 'rage', 'Сила облика', 'Бонус после смены облика'],
+  ['runeBuffUntil', 1, 'rage', 'Сила руны', 'Бонус выбранной руны'], ['abyssUntil', 1, 'rage', 'Бездна', 'Сила Бездны усиливает атаки'],
+  ['hasteUntil', 1, 'haste', 'Ускорение', 'Скорость увеличена'], ['spdBuffUntil', 1, 'haste', 'Быстрота', 'Скорость атаки увеличена'],
+  ['flyUntil', 1, 'haste', 'Полёт', 'Монстры не могут достать'], ['stealthUntil', 1, 'invuln', 'Невидимость', 'Монстры вас не замечают'],
+  ['dodgeUntil', 1, 'invuln', 'Уклонение', 'Атаки проходят мимо'], ['defUntil', 1, 'shield', 'Защита', 'Получаемый урон снижен'],
+  ['stoneArmorUntil', 1, 'shield', 'Каменная броня', 'Получаемый урон снижен'], ['ashArmorUntil', 1, 'shield', 'Пепельная броня', 'Получаемый урон снижен'],
+  ['reflectShieldUntil', 1, 'shield', 'Отражение', 'Часть урона возвращается врагу'], ['shieldUntil', 1, 'shield', 'Щит', 'Поглощает урон'],
+  ['regenUntil', 1, 'regen', 'Регенерация', 'Здоровье восстанавливается'], ['feralLeechUntil', 1, 'regen', 'Звериная жажда', 'Удары лечат героя'],
+  ['slowUntil', 0, 'slow', 'Замедление', 'Скорость снижена'], ['weakUntil', 0, 'weak', 'Проклятие слабости', 'Урон −30%'],
+  ['deathUntil', 0, 'curse', 'Слабость после гибели', 'Урон −20%, получаемый опыт −20%'],
+];
+const FX_CC = { stun: ['stun', 'Оглушение', 'Нельзя действовать'], freeze: ['freeze', 'Заморозка', 'Нельзя действовать'],
+  fear: ['fear', 'Страх', 'Герой бежит и не слушается'], root: ['root', 'Корни', 'Нельзя двигаться'], taunt: ['taunt', 'Провокация', 'Атакуете только провокатора'],
+  charm: ['curse', 'Очарование', 'Герой под чужой волей'], blind: ['weak', 'Ослепление', 'Атаки промахиваются'] };
+const FX_DOT = { poison: ['poison', 'Яд', 'Урон каждую секунду'], burn: ['burn', 'Горение', 'Урон огнём каждую секунду'], bleed: ['bleed', 'Кровотечение', 'Урон каждую секунду'] };
+const FX_ELX = { atk: 'elxAtk', def: 'elxDef', agi: 'elxAgi', mind: 'elxMind', xp: 'elxXp', luck: 'elxLuck' };
+function playerEffects(p, now = Date.now()) {
+  const out = [], left = (t) => Math.ceil((t - now) / 1000);
+  for (const [k, buff, icon, name, desc] of FX_TIMED) if (p[k] > now) out.push({ k, b: buff, i: icon, n: name, d: desc, l: left(p[k]) });
+  if (p.shieldHp > 0 && !(p.shieldUntil > now)) out.push({ k: 'shieldHp', b: 1, i: 'shield', n: 'Щит', d: `Поглотит ещё ${Math.round(p.shieldHp)} урона`, l: 0 });
+  if (p.cc && p.cc.until > now && FX_CC[p.cc.type]) { const [i, n, d] = FX_CC[p.cc.type]; out.push({ k: 'cc', b: 0, i, n, d, l: left(p.cc.until) }); }
+  for (const x of p.pdots || []) if (x.until > now && FX_DOT[x.kind]) { const [i, n, d] = FX_DOT[x.kind]; out.push({ k: 'dot_' + x.kind, b: 0, i, n, d, l: left(x.until) }); }
+  const pr = getProfile(p.uid);
+  for (const [buff, until] of Object.entries(pr.buffs || {})) if (until > now && FX_ELX[buff]) { const m = I.MATS[FX_ELX[buff]]; out.push({ k: 'elx_' + buff, b: 1, art: 'mat_' + FX_ELX[buff], n: m.name, d: m.desc, l: left(until) }); }
+  return out;
+}
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
   return (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1) * (p.linkUntil > now ? 1.3 : 1)
@@ -479,7 +514,7 @@ function publicPlayer(p) {
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
-  return { level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm,
+  return { fx: playerEffects(p), level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm,
     gold: getProfile(p.uid).gold, unlocked: p.unlocked, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
@@ -1370,7 +1405,12 @@ setInterval(() => {
     const ps = passiveOf(p);
     if (ps && ps.onTick) ps.onTick(p, now, skillCtx);
     if (ps && ps.dmgMult && p.hp < p.maxHp) markDirty(p); // бонус зависит от здоровья
-    if (p.deathUntil && (p.deathUntil > now || p.deathUntil > now - 1500) && now - p.lastStats >= 1000) markDirty(p); // отсчёт слабости после гибели
+    // Набор эффектов изменился (появился или закончился) — отправить HUD; отсчёт идёт на клиенте
+    if (now - (p.fxCheck || 0) > 400) {
+      p.fxCheck = now;
+      const sig = playerEffects(p, now).map((e) => `${e.k}:${Math.round(now / 1000 + e.l)}`).join(); // + момент окончания: продление тоже обновит
+      if (sig !== p.fxSig) { p.fxSig = sig; markDirty(p); }
+    }
     if (p.dirty && now - p.lastStats >= 250) {
       p.dirty = false;
       p.lastStats = now;

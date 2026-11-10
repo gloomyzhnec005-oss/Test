@@ -188,7 +188,31 @@
   let passiveDef = null;
   // Рамка аватара по уровню героя: бронза, серебро, золото, платина, бриллиант, легенда (50)
   const avaTier = (l) => (l >= 50 ? 'legend' : l >= 40 ? 'diamond' : l >= 30 ? 'platinum' : l >= 20 ? 'gold' : l >= 10 ? 'silver' : 'bronze');
+  // ---------- Баффы и дебаффы под полоской здоровья: значок + секунды, тап — описание ----------
+  let fxList = [];
+  const fxIcon = (e) => `<img src="assets/${e.art ? 'items/' + e.art : 'ui/status/' + e.i}.webp" alt="">`;
+  const fxLeft = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)} мин ${sec % 60} с` : `${sec} с`);
+  const fxTime = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : `${sec}`);
+  function drawFx() {
+    const now = Date.now();
+    fxList = fxList.filter((e) => !e.end || e.end > now);
+    $('fxBar').innerHTML = fxList.map((e, i) => `<button class="fx ${e.b ? 'buff' : 'debuff'}" data-i="${i}">${fxIcon(e)}${e.end ? `<em>${fxTime(Math.ceil((e.end - now) / 1000))}</em>` : ''}</button>`).join('');
+  }
+  setInterval(() => { if (fxList.length) drawFx(); }, 1000);
+  $('fxBar').addEventListener('pointerdown', (ev) => {
+    const b = ev.target.closest('.fx');
+    if (!b) return;
+    ev.preventDefault(); ev.stopPropagation();
+    const e = fxList[+b.dataset.i];
+    if (!e) return;
+    const box = $('fxTip');
+    box.innerHTML = `<div class="fx-tip-h">${fxIcon(e)}<div><b></b><small>${e.b ? 'Положительный эффект' : 'Отрицательный эффект'}${e.end ? ` · ещё ${fxLeft(Math.ceil((e.end - Date.now()) / 1000))}` : ''}</small></div></div><p></p>`;
+    box.querySelector('b').textContent = e.n; box.querySelector('p').textContent = e.d;
+    box.className = 'fx-tip ' + (e.b ? 'buff' : 'debuff');
+    clearTimeout(box.tm); box.tm = setTimeout(() => box.classList.add('hidden'), 3500);
+  });
   function setStats(s) {
+    if (s.fx) { const now = Date.now(); fxList = s.fx.map((e) => ({ ...e, end: e.l > 0 ? now + e.l * 1000 : 0 })); drawFx(); }
     if (s.passTier !== undefined) passTier = s.passTier;
     $('lvl').textContent = s.level;
     const tier = avaTier(s.level);
@@ -213,7 +237,6 @@
       if (s.bonusDmg) parts.push(`${sg(s.bonusDmg)}% урона`);
       if (s.bonusSpd) parts.push(`${sg(s.bonusSpd)}% скор.`);
       if (s.passiveNote) parts.push(s.passiveNote);
-      if (s.deathLeft > 0) parts.unshift(`💀 слабость ${Math.floor(s.deathLeft / 60)}:${String(s.deathLeft % 60).padStart(2, '0')}`);
       $('passive').textContent = `${passiveDef.icon} ${parts.join(' · ') || passiveDef.name}`;
     }
   }

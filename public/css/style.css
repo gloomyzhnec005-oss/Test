@@ -1236,3 +1236,20 @@ canvas.skin { object-fit: contain; }
 .qty-row { display: flex; align-items: center; gap: 6px; }
 .qty-row input { flex: 1; accent-color: #d6b06a; }
 .qty-pm { width: 30px; height: 30px; border-radius: 6px; border: 1px solid #8a6d3b; background: #2a2018; color: #ffe9b0; font: 18px/1 Georgia, serif; }
+
+/* Баффы и дебаффы под здоровьем */
+.fx-bar { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; pointer-events: auto; }
+.fx-bar:empty { display: none; }
+.fx { position: relative; width: 22px; height: 22px; padding: 0; border-radius: 4px; background: rgba(0,0,0,.55); border: 1px solid #7dcf6a; cursor: pointer; }
+.fx.debuff { border-color: #e25a4a; }
+.fx img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.fx em { position: absolute; left: -2px; right: -2px; bottom: -3px; font: 600 8px/1 Arial, sans-serif; font-style: normal; color: #fff; text-align: center; text-shadow: 0 0 2px #000, 0 0 2px #000; }
+.fx-tip { position: absolute; left: 0; top: 100%; margin-top: 4px; z-index: 30; width: min(240px, 70vw); padding: 8px 10px; border-radius: 8px;
+  background: rgba(16,12,8,.95); border: 1px solid #7dcf6a; box-shadow: 0 4px 14px rgba(0,0,0,.6); font-size: 12px; color: #e6d8bb; }
+.fx-tip.debuff { border-color: #e25a4a; }
+.fx-tip.hidden { display: none; }
+.fx-tip-h { display: flex; gap: 8px; align-items: center; }
+.fx-tip-h img { width: 28px; height: 28px; }
+.fx-tip-h b { display: block; color: #ffe9b0; font-weight: normal; font-size: 13px; }
+.fx-tip-h small { color: #b9a988; font-size: 10px; }
+.fx-tip p { margin: 6px 0 0; }
