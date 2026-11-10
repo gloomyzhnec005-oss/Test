@@ -426,7 +426,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         // Вход сбоку: ворота стоят вдоль стены — высота по проходу, узкие; без боковой картинки — сжатые обычные (в перспективе)
         const h = ((g.n || 3) + 1.5) * this.T;
         img.setDisplaySize(sideArt ? h * src.width / src.height : this.T * 1.4, h).setDepth(10 + g.y);
-        if (sideArt && g.side === 'right') img.setFlipX(true);
+        if (sideArt && g.side === 'left') img.setFlipX(true); // проём смотрит в коридор, откуда идёт герой
         img.gateSide = sideArt ? g.side : null;
       } else img.setDisplaySize(g.w, g.w * src.height / src.width).setDepth(10 + g.y);
       img.gateState = g.state;
