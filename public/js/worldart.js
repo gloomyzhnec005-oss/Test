@@ -63,7 +63,7 @@ window.WorldArt = (() => {
     scene.load.image('arena_' + th, `assets/world/arena/${th}.webp`);
     return true;
   }
-  const SIDE_GATES = ['green']; // миры, для которых уже нарисованы боковые ворота (assets/world/gates/<мир>_side_<состояние>.webp)
+  const SIDE_GATES = ['green', 'abyss']; // миры, для которых уже нарисованы боковые ворота (assets/world/gates/<мир>_side_<состояние>.webp)
   const has = (th) => !!THEMES[th];
   const hash = (x, y) => (((x * 73856093) ^ (y * 19349663)) >>> 0) % 100;
   // Тайл для отрисовки: разнообразие травы в городе, свои пол и стены в данжах (столкновения не меняются)
