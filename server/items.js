@@ -331,6 +331,13 @@ for (const [id, s] of Object.entries(SETS)) {
 }
 // Камень удачи: +10% к шансу ковки за штуку, до 3 камней на одну ковку (сгорает и при удаче, и при неудаче)
 const LUCK_STONE = { per: 0.1, max: 3, cap: 0.95 };
+// Улучшение умений героя (server/meta.js → skillUp): только с полубоссов, боссов и мировых боссов, в лавках не продаются
+MATS.dust = { name: 'Волшебная пыль', icon: '✨', color: '#c99bff', kind: 'mat', desc: 'Улучшение умений героя. Падает с полубоссов (редко), боссов данжей и мировых боссов. В лавках не продаётся.', price: 0, buy: 300 };
+MATS.skillCrystal = { name: 'Кристалл мастерства', icon: '💠', color: '#ff7ad9', kind: 'mat', desc: 'Нужен, чтобы поднять умение на 10, 20, 30 и 40 уровень. Редко падает с боссов данжей и мировых боссов.', price: 0, buy: 1500 };
+// Сколько стоит поднять умение с уровня L на L+1 и насколько оно сильнее на уровне L
+const SKILL_UP = { per: 0.03 };
+const skillUpCost = (L) => ({ dust: 1 + Math.floor(L / 3), skillCrystal: (L + 1) % 10 === 0 ? (L + 1) / 10 : 0, gold: 150 * L });
+const skillMul = (L) => 1 + SKILL_UP.per * (Math.max(1, L) - 1);
 MATS.luckStone = { name: 'Камень удачи', icon: '🔷', color: '#5ad8ff', kind: 'mat', desc: 'Кладётся в кузнице к рецепту: +10% к шансу успешной ковки (до 3 камней). Редко падает с полубоссов, боссов и мировых боссов.', price: 0, buy: 500 };
 // Расходники
 Object.assign(MATS, {
@@ -626,6 +633,7 @@ const findRecipe = (id) => { const t = +String(id).slice(1, 2); return worldReci
 module.exports = {
   LUCK_STONE, WORLD_CRAFT, worldRecipes, findRecipe,
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, SET_SLOTS, WEAR_CATS, slotCat, TIER_MULT, DUPE_MAX, DUPE_STEP,
+  SKILL_UP, skillUpCost, skillMul,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
   upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,

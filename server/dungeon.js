@@ -398,6 +398,8 @@ module.exports = function createDungeons(d) {
     if (def.magicImmune && !opt.basic && !opt.pet) k *= def.magicImmune;
     if (m.form === 'beast') k *= 1.2;
     if (m.phase === 'stone') k *= 0.4;
+    if (m.wbShield) k *= 0.1; // щит кристаллов мирового босса
+    if (m.vulnUntil > now) k *= 1.5; // щит разбит — босс уязвим
     return k;
   }
   // Реакция на удар героя: отражение, заморозка атакующего, раскрытие тени, вклад в мирового босса
@@ -726,10 +728,55 @@ module.exports = function createDungeons(d) {
     const st = wbState[town], z = world.byId.get(`wb_${town}`);
     const type = st.cfg.list[st.idx++ % st.cfg.list.length];
     const n = Math.max(1, inZone(z.id).length);
-    const m = create(z, type, z.abs(20, 17), st.cfg.lv, { rank: 'world', hpMult: 1 + 0.7 * (n - 1), aggro: 900 });
+    const m = create(z, type, z.abs(20, 17), st.cfg.lv, { rank: 'world', hpMult: wbHpMult(n), aggro: 900 });
+    m.wbPhase = 0; m.markAt = Date.now() + 20000;
     m.scaledFor = n;
     st.bossId = m.id;
     d.broadcast(`👹 Мировой босс «${MOBS[type].name}» появился в мире ${world.byId.get(town).name}! Портал — на юге города.`);
+  }
+  // Здоровье мирового босса: рассчитано на 10 героев своего уровня; больше 10 — ещё +8% за каждого
+  const wbHpMult = (n) => Math.max(1, 1 + 0.08 * (n - 10));
+  const WB_PHASES = [0.75, 0.5, 0.25];
+  const zmsg = (zid, text) => { for (const o of inZone(zid)) o.socket.emit('chat', { sys: true, text }); };
+  // Механики боя: щит из кристаллов на 75/50/25%, метка смерти, ярость на последних 20%
+  function wbMechanics(b, now) {
+    const z = world.byId.get(b.zone), frac = b.hp / b.maxHp;
+    if (!b.wbShield && b.wbPhase < WB_PHASES.length && frac <= WB_PHASES[b.wbPhase]) {
+      b.wbPhase++; b.wbShield = true; b.shieldEnd = now + 30000;
+      const c = z.abs(20, 17), N = 4;
+      for (let i = 0; i < N; i++) {
+        const a = (i / N) * Math.PI * 2 + Math.PI / 4;
+        const cr = create(z, 'wbCrystal', { x: c.x + Math.cos(a) * 190, y: c.y + Math.sin(a) * 130 }, b.level, { rank: 'normal', lootMult: 0 });
+        cr.hp = cr.maxHp = Math.round(b.maxHp * 0.02); cr.wbOf = b.id; cr.still = true; cr.xp = 1;
+      }
+      fx({ t: 'tele', from: b.id, x: b.x, y: b.y, r: 120, ms: 1200, color: 0x5ad8ff, label: 'Щит кристаллов' });
+      zmsg(b.zone, `💎 ${MOBS[b.type].name} под щитом (урон −90%)! Разбейте 4 кристалла силы за 30 секунд — иначе босс восстановит здоровье и ударит всех`);
+    }
+    if (b.wbShield) {
+      const left = [...monsters.values()].filter((o) => o.wbOf === b.id);
+      if (!left.length) {
+        b.wbShield = false; b.vulnUntil = now + 10000; b.stunUntil = now + 3000;
+        zmsg(b.zone, '✨ Кристаллы разбиты! Босс оглушён и 10 секунд получает +50% урона — бейте!');
+      } else if (now >= b.shieldEnd) {
+        b.wbShield = false;
+        for (const o of left) monsters.delete(o.id);
+        b.hp = Math.min(b.maxHp, b.hp + b.maxHp * 0.05 * left.length);
+        fx({ t: 'teleHit', x: b.x, y: b.y, r: 600, color: 0x5ad8ff });
+        for (const p of inZone(b.zone)) if (!p.dead) hit(b, p, 2 * left.length, now);
+        zmsg(b.zone, `💥 Не успели! Кристаллов осталось ${left.length}: босс восстановил ${5 * left.length}% здоровья и ударил всех`);
+      }
+    }
+    // Метка смерти: под случайным героем через 4 с взрыв — он должен отбежать от группы
+    if (now >= b.markAt) {
+      b.markAt = now + 18000 + Math.random() * 6000;
+      const alive = inZone(b.zone).filter((p) => !p.dead);
+      const t = alive[Math.floor(Math.random() * alive.length)];
+      if (t) {
+        telegraph(b, t.x, t.y, 130, 4000, 0xff3a3a, (p) => hit(b, p, 3.5, Date.now()), 'Метка смерти');
+        t.socket.emit('chat', { sys: true, text: '☠️ На вас метка смерти! Отбегите от союзников — через 4 секунды взрыв' });
+      }
+    }
+    if (!b.enraged && frac <= 0.2) { b.enraged = true; b.cd = Math.round(b.cd * 0.7); b.dmg = Math.round(b.dmg * 1.25); zmsg(b.zone, `🔥 ${MOBS[b.type].name} в ярости: бьёт чаще и сильнее!`); }
   }
   function rewardWorldBoss(m) {
     const town = world.byId.get(m.zone)?.town;
@@ -739,7 +786,7 @@ module.exports = function createDungeons(d) {
     // Топ-10 по урону: редкие ресурсы (ядра мира, свитки грандмастера/легенды, камень удачи)
     const top = Object.entries(m.contrib).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([uid]) => uid);
     const core = `core${m.tier}`;
-    const TOP_MATS = (place) => (place === 1 ? { [core]: 4, scrollM: 1, luckStone: 2 } : place <= 3 ? { [core]: 3, scrollL: 1, luckStone: 1 } : { [core]: 2, scrollL: place <= 5 ? 1 : 0, luckStone: 1 });
+    const TOP_MATS = (place) => (place === 1 ? { [core]: 4, scrollM: 1, luckStone: 2, dust: 12, skillCrystal: 2 } : place <= 3 ? { [core]: 3, scrollL: 1, luckStone: 1, dust: 8, skillCrystal: 1 } : { [core]: 2, scrollL: place <= 5 ? 1 : 0, luckStone: 1, dust: 4 });
     for (const p of players.values()) {
       const place = top.indexOf(p.uid) + 1;
       if (place) {
@@ -795,7 +842,7 @@ module.exports = function createDungeons(d) {
     }
     for (const [town, st] of Object.entries(wbState)) {
       const b = st.bossId ? monsters.get(st.bossId) : null;
-      if (st.bossId && !b) { st.bossId = null; st.homeAt = now + 15000; } // босс повержен — через 15 с всех вернём в город
+      if (st.bossId && !b) { for (const o of monsters.values()) if (o.wbOf === st.bossId) monsters.delete(o.id); st.bossId = null; st.homeAt = now + 15000; } // босс повержен — через 15 с всех вернём в город
       if (!st.bossId && now >= (st.homeAt || 0)) {
         for (const o of inZone(`wb_${town}`)) { if (!o.dead) { d.moveToZone(o, town); o.socket.emit('chat', { sys: true, text: '🏰 Логово опустело — вы вернулись в город' }); } }
       }
@@ -811,10 +858,11 @@ module.exports = function createDungeons(d) {
           o.socket.emit('wbRank', { boss: MOBS[b.type].name, hp: Math.round(b.hp / b.maxHp * 100), top: top.map((t) => ({ ...t, me: t.uid === o.uid, uid: undefined })), me: i >= 0 ? { place: i + 1, dmg: Math.round(list[i][1]), pct: Math.round(list[i][1] / tot * 100) } : null });
         }
       }
-      // Здоровье мирового босса растёт, если пришли новые игроки
+      // Здоровье мирового босса растёт, если пришло больше 10 игроков
       if (b) {
         const n = Math.max(1, inZone(b.zone).length);
-        if (n > b.scaledFor) { const k = (1 + 0.7 * (n - 1)) / (1 + 0.7 * (b.scaledFor - 1)); b.maxHp = Math.round(b.maxHp * k); b.hp = Math.round(b.hp * k); b.scaledFor = n; }
+        if (n > b.scaledFor) { const k = wbHpMult(n) / wbHpMult(b.scaledFor); b.maxHp = Math.round(b.maxHp * k); b.hp = Math.round(b.hp * k); b.scaledFor = n; }
+        wbMechanics(b, now);
       }
     }
   }, 500);

@@ -188,7 +188,9 @@ module.exports = function createMeta(deps) {
       mats: Object.entries(pr.mats || {}).filter(([id, n]) => n > 0 && I.MATS[id]).map(([id, n]) => I.matView(id, n, tierOf(p))),
       sets: { counts: st.counts, active: st.active, cls: st.cls, clsName: st.cls ? I.CLASSES[st.cls].name : null },
       bagSize: bagSize(pr), bagBase: isSub(pr) ? SHOP.bagSub : SHOP.bag, whSize: whSize(pr), whLvl: pr.whLvl || 0, whNext: WH_UPGRADES[pr.whLvl || 0] || null, whMax: WH_UPGRADES.length, sub: isSub(pr) ? pr.subUntil : 0, buffs: pr.buffs || {}, tier: tierOf(p),
-      hero: { id: p.heroId, level: p.char.level, dupes: (pr.heroDupes || {})[p.heroId] || 0, unlocked: deps.unlockedSkills(pr, p.heroId), cls: I.classOf(p.heroId) },
+      hero: { id: p.heroId, level: p.char.level, dupes: (pr.heroDupes || {})[p.heroId] || 0, unlocked: deps.unlockedSkills(pr, p.heroId), cls: I.classOf(p.heroId),
+        skillUp: C.HEROES[p.heroId].skills.map((sk, i) => { const L = skillLv(pr, p.heroId, i); return { lvl: L, max: p.char.level, bonus: Math.round((I.skillMul(L) - 1) * 100), next: Math.round((I.skillMul(L + 1) - 1) * 100), cost: I.skillUpCost(L) }; }),
+        dust: (pr.mats || {}).dust || 0, crystals: (pr.mats || {}).skillCrystal || 0 },
       classNames: Object.fromEntries(Object.entries(I.CLASSES).map(([k, c]) => [k, `${c.icon} ${c.name}`])),
       power: (({ hp, dmg, crit, power }) => ({ hp, dmg: Math.round(dmg), crit: Math.round(crit * 100), power }))(fighter(deps, pr, p.heroId, '')),
       itemSpins: pr.itemSpins || 0, freeItemSpins: freeSpinsLeft(pr), pity: typeof pr.pity === 'number' ? pr.pity : 0, pityMax: SHOP.pity, pityE: pr.pityE || 0, gems: pr.gems || 0, glitter: pr.glitter || 0, gemsPerWish: SHOP.gemsPerWish, gearBanner: gearBanner(),
@@ -196,6 +198,7 @@ module.exports = function createMeta(deps) {
     };
   }
   const freeSpinsLeft = (pr) => (pr.freeItemDay === dayKey() ? pr.freeItemLeft || 0 : (isSub(pr) ? SHOP.freeItemSpinsSub : SHOP.freeItemSpins) + (passTier(pr) >= 2 ? 1 : 0)); // Серебряный орден: +1 в день
+  const skillLv = (pr, heroId, i) => ((pr.skillLv || {})[heroId] || [])[i] || 1;
   const equipped = (pr, id) => Object.values(pr.equip || {}).includes(id);
   // Журнал покупок в лавках за сегодня (для возврата)
   const todayBuys = (pr) => (pr.buys || []).filter((b) => b.day === dayKey());
@@ -230,6 +233,22 @@ module.exports = function createMeta(deps) {
 
   const OPS = {
     inv: (p) => ({ inv: invView(p) }),
+    // Улучшение умения: до уровня героя, за волшебную пыль, золото и (на 10/20/30/40) кристаллы мастерства
+    skillUp(p, d, pr) {
+      const i = Math.floor(Number(d.i)), H = C.HEROES[p.heroId];
+      if (!(i >= 0 && i < H.skills.length)) return { error: 'Нет такого умения' };
+      if (i >= deps.unlockedSkills(pr, p.heroId)) return { error: 'Сначала откройте это умение' };
+      const L = skillLv(pr, p.heroId, i);
+      if (L >= p.char.level) return { error: `Умение не выше уровня героя (${p.char.level}) — поднимите уровень` };
+      const c = I.skillUpCost(L), mats = pr.mats || {};
+      if ((mats.dust || 0) < c.dust) return { error: `Нужно ✨ ${c.dust} волшебной пыли (есть ${mats.dust || 0}) — она падает с полубоссов, боссов и мировых боссов` };
+      if (c.skillCrystal && (mats.skillCrystal || 0) < c.skillCrystal) return { error: `Нужно 💠 ${c.skillCrystal} кристалл(а) мастерства — редкая добыча боссов` };
+      if (pr.gold < c.gold) return { error: `Нужно ${c.gold} 💰` };
+      I.takeMats(pr, c.skillCrystal ? { dust: c.dust, skillCrystal: c.skillCrystal } : { dust: c.dust });
+      pr.gold -= c.gold;
+      ((pr.skillLv ??= {})[p.heroId] ??= [])[i] = L + 1;
+      return { toast: `${H.skills[i].icon} ${H.skills[i].name}: уровень ${L + 1} · сила +${Math.round((I.skillMul(L + 1) - 1) * 100)}%`, inv: invView(p) };
+    },
 
     equip(p, d, pr) {
       const it = I.findItem(pr, d.id);

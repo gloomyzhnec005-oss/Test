@@ -1310,3 +1310,21 @@ canvas.skin { object-fit: contain; }
 .story-hint small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 9px; color: #c8b890; line-height: 1.3; }
 .story-hint em { display: block; font-style: normal; font-size: 10px; color: #9fe08a; }
 .story-hint.ready { border-color: #7dff8a; box-shadow: 0 0 8px rgba(125,255,138,.45); }
+/* Улучшение умения */
+.sk-up { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #4a3b26; }
+.sk-up small { flex: 1; color: #c9a8ff; font-size: 10px; }
+.sk-up .l2-btn { padding: 5px 8px; font-size: 11px; white-space: nowrap; }
+
+/* Многослойная полоска здоровья мирового босса */
+.boss-bar { position: absolute; left: 50%; transform: translateX(-50%); top: calc(112px + env(safe-area-inset-top)); width: min(64%, 360px); z-index: 4; text-align: center; pointer-events: none !important; font-family: Georgia, serif; }
+.boss-bar.hidden { display: none; }
+.boss-bar b { display: block; font-weight: normal; font-size: 12px; color: #ffd0b0; text-shadow: 0 1px 3px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.boss-bar .bb-track { position: relative; height: 14px; margin: 2px 0; border: 1px solid #c8a060; border-radius: 4px; background: #111; overflow: hidden; box-shadow: 0 0 6px rgba(0,0,0,.8); }
+.boss-bar .bb-track i { position: absolute; left: 0; top: 0; bottom: 0; }
+.boss-bar .bb-next { width: 100%; }
+.boss-bar .bb-cur { transition: width .25s; box-shadow: inset 0 -4px 6px rgba(0,0,0,.35), inset 0 2px 3px rgba(255,255,255,.3); }
+.boss-bar em { position: absolute; right: 4px; top: -1px; font-style: normal; font-size: 11px; color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000; }
+.boss-bar small { display: block; font-size: 9px; color: #e8dcc0; text-shadow: 0 1px 2px #000; }
+.boss-bar.shield .bb-track { border-color: #5ad8ff; box-shadow: 0 0 10px #5ad8ff; }
+.boss-bar.shield small { color: #9fe8ff; }
+.boss-bar.vuln .bb-track { border-color: #ffd36a; box-shadow: 0 0 10px #ffd36a; }

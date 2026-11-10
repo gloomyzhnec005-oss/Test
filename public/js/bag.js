@@ -267,9 +267,23 @@ window.Bag = (() => {
       + H.skills.map((sk, i) => {
         const open = i < h.unlocked, u = U[i] || {};
         const meta = [`⏱ Перезарядка ${sec(sk.cooldown)}`, sk.cost ? `💧 ${sk.cost} ${res}` : '', sk.castTime ? `⏳ Подготовка ${sec(sk.castTime)}` : ''].filter(Boolean).map((x) => `<span class="nw">${x}</span>`).join(' · ');
-        const tag = open ? `Умение ${i + 1} · открыто` : `🔒 Откроется: ${u.lvl} уровень или ${u.dup} дубл. (сейчас ${h.level} ур., ${h.dupes} дубл.)`;
-        return card(SkillArt.icon(h.id, i, sk.icon), sk.name, tag, meta, sk.desc, !open);
-      }).join('');
+        const su = (h.skillUp || [])[i];
+        const tag = open ? `Умение ${i + 1} · ур. ${su ? su.lvl : 1} / ${h.level}${su && su.bonus ? ` · сила +${su.bonus}%` : ''}` : `🔒 Откроется: ${u.lvl} уровень или ${u.dup} дубл. (сейчас ${h.level} ур., ${h.dupes} дубл.)`;
+        let up = '';
+        if (open && su) {
+          const c = su.cost, maxed = su.lvl >= su.max;
+          up = maxed ? `<div class="sk-up"><small>Достигнут уровень героя — поднимите уровень, чтобы улучшать дальше</small></div>`
+            : `<div class="sk-up"><small>→ ур. ${su.lvl + 1}: сила +${su.next}% · ✨ ${c.dust}${c.skillCrystal ? ` · 💠 ${c.skillCrystal}` : ''} · 💰 ${c.gold}</small><button class="l2-btn" data-up="${i}">⬆️ Улучшить</button></div>`;
+        }
+        return card(SkillArt.icon(h.id, i, sk.icon), sk.name, tag, meta, sk.desc, !open).replace(/<\/div><\/div>$/, `${up}</div></div>`);
+      }).join('')
+      + `<p class="sheet-hint">✨ Волшебная пыль: <b>${h.dust || 0}</b> · 💠 Кристаллы мастерства: <b>${h.crystals || 0}</b>. Пыль падает с полубоссов (редко), боссов данжей и мировых боссов, кристаллы — редко с боссов; топ-10 по урону мирового босса получают больше. Умение улучшается до уровня героя.</p>`;
+    box.querySelectorAll('[data-up]').forEach((b) => { b.onclick = async () => {
+      const r = await act('skillUp', { i: +b.dataset.up });
+      toast(r.error || r.toast);
+      if (window.Sfx) Sfx.play(r.error ? 'error' : 'reward');
+      if (r.inv) { inv = r.inv; onChange(inv); box.replaceWith(skillsTab()); }
+    }; });
     return box;
   }
 

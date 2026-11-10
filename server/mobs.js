@@ -38,7 +38,7 @@ const RANK = {
 // мировой босс рассчитан на группу (здоровье растёт на 70% за каждого игрока на арене)
 const MINI = { hpK: 30, dmgK: 0.023, cd: 1300, speed: 75 };
 const BOSS = { hpK: 60, dmgK: 0.024, cd: 1500, speed: 70 };
-const WORLD = { hpK: 600, dmgK: 0.035, cd: 1500, speed: 60 };
+const WORLD = { hpK: 6000, dmgK: 0.1, cd: 1400, speed: 60 }; // рассчитан на группу из ~10 героев своего уровня
 
 // Свойства редких монстров (как в Path of Exile)
 const AFFIXES = {
@@ -112,6 +112,8 @@ mob('goblinHealer', 'Гоблин-знахарь', 'support', { hpK: 2.5, ab: { 
 mob('darkPriest', 'Тёмный жрец', 'support', { ab: { type: 'buff', stat: 'atk', mult: 1.2, r: 220, ms: 8000, cd: 10000 }, look: { b: 'hum', skin: '#c8b0b0', cloth: '#2a0a1a', head: 'hood', wpn: 'staff', gem: '#c0304a' } });
 mob('skeletonBanner', 'Скелет-знаменосец', 'support', { undead: true, range: 0, aura: { atk: 1.15, r: 220 }, look: { b: 'hum', skin: '#ece6cc', cloth: '#ece6cc', head: 'skull', wpn: 'banner', bones: true } });
 mob('demonHerald', 'Демон-герольд', 'support', { fire: true, ab: { type: 'buff', stat: 'spd', mult: 1.3, r: 240, ms: 8000, cd: 10000 }, look: { b: 'hum', skin: '#c04a2a', cloth: '#2a0a0a', head: 'horns', wpn: 'horn' } });
+// Кристалл силы мирового босса: стоит на месте и держит щит босса, пока его не разобьют
+mob('wbCrystal', 'Кристалл силы', 'tank', { hpK: 1, still: true, look: { b: 'golem', col: '#3a8ad8', glow: '#bfe8ff', sz: 0.9 } });
 mob('crystalGuardian', 'Кристальный страж', 'support', { hpK: 5, ab: { type: 'shieldAlly', frac: 0.3, r: 220, cd: 9000 }, look: { b: 'golem', col: '#b08ae0', glow: '#e0c0ff' } });
 // ---------- ПОЛУБОССЫ ----------
 mob('orcChief', 'Орк-вождь', 'melee', { rank: 'mini', enrage: { below: 0.4, mult: 1.5 }, ab: { type: 'stunHit', mult: 1.8, ms: TURN / 2, cd: 8000 }, look: { b: 'hum', skin: '#4f7a28', cloth: '#7a2a1a', head: 'tusksHelm', wpn: 'axe', sz: 1.2 } });
@@ -135,10 +137,10 @@ mob('phoenix', 'Феникс', 'mage', { rank: 'boss', fire: true, fly: true, no
 mob('cerberus', 'Цербер', 'melee', { rank: 'boss', fire: true, speed: 95, ab: { type: 'multi', n: 3, mult: 0.9, cd: 6000 }, look: { b: 'dog3', fur: '#3a2a2a', eye: '#ff6a1a' } });
 mob('chaosLord', 'Повелитель хаоса', 'mage', { rank: 'boss', range: 210, proj: 'illusion', ab: { type: 'chaos', cd: TURN, big: true }, look: { b: 'hum', skin: '#c8a8e8', cloth: '#3a0a4a', head: 'bigHorns', wpn: 'staff', gem: '#ff6ad8', wings: '#2a0a3a' } });
 // ---------- МИРОВЫЕ БОССЫ ----------
-mob('legion', 'Проклятый легион', 'melee', { rank: 'world', undead: true, legion: { n: 3, cd: 5000 }, enrage: { below: 0.5, mult: 1.5, allies: true }, ab: { type: 'aoe', r: 200, mult: 1.5, delay: 1200, cd: 8000, color: 0x5fffb0 }, look: { b: 'blob', col: '#3a4a3a', glow: '#5fffb0' } });
-mob('devourer', 'Пожиратель миров', 'tank', { rank: 'world', harvest: 0.2, devour: true, ab: { type: 'aoe', r: 220, mult: 1.6, delay: 1200, cd: 8000, color: 0x8a2a5a }, look: { b: 'kraken', col: '#2a0a1a', maw: true } });
-mob('eternalDragon', 'Вечный дракон', 'melee', { rank: 'world', fly: true, noclip: true, eternity: 3 * TURN, ab: { type: 'aoe', r: 240, mult: 1.8, delay: 1200, cd: 7000, color: 0xffffff }, look: { b: 'dragon', col: '#2a6a8a', belly: '#bfe8ff' } });
-mob('abyssAvatar', 'Аватар бездны', 'mage', { rank: 'world', range: 220, proj: 'dark', mirror: true, ab: { type: 'aoe', r: 150, mult: 1.6, delay: 1000, cd: 9000, color: 0xb06aff, onTarget: true }, look: { b: 'ghost', col: '#1a0a2a', eye: '#b06aff', sz: 1.4 } });
+mob('legion', 'Проклятый легион', 'melee', { rank: 'world', undead: true, legion: { n: 3, cd: 5000 }, enrage: { below: 0.5, mult: 1.5, allies: true }, ab: { type: 'aoe', r: 200, mult: 2.6, delay: 1200, cd: 8000, color: 0x5fffb0 }, look: { b: 'blob', col: '#3a4a3a', glow: '#5fffb0' } });
+mob('devourer', 'Пожиратель миров', 'tank', { rank: 'world', harvest: 0.2, devour: true, ab: { type: 'aoe', r: 220, mult: 2.8, delay: 1200, cd: 8000, color: 0x8a2a5a }, look: { b: 'kraken', col: '#2a0a1a', maw: true } });
+mob('eternalDragon', 'Вечный дракон', 'melee', { rank: 'world', fly: true, noclip: true, eternity: 3 * TURN, ab: { type: 'aoe', r: 240, mult: 3, delay: 1200, cd: 7000, color: 0xffffff }, look: { b: 'dragon', col: '#2a6a8a', belly: '#bfe8ff' } });
+mob('abyssAvatar', 'Аватар бездны', 'mage', { rank: 'world', range: 220, proj: 'dark', mirror: true, ab: { type: 'aoe', r: 150, mult: 2.8, delay: 1000, cd: 9000, color: 0xb06aff, onTarget: true }, look: { b: 'ghost', col: '#1a0a2a', eye: '#b06aff', sz: 1.4 } });
 mob('chaosTitan', 'Титан хаоса', 'tank', { rank: 'world', phases: 5 * TURN, ab: { type: 'chaos', cd: TURN * 1.5, big: true }, look: { b: 'golem', col: '#4a1a5a', glow: '#ff6ad8' } });
 // ---------- МИНЬОНЫ (призываются умениями) ----------
 mob('wolf', 'Волк', 'minion', { rank: 'summon', speed: 120, look: { b: 'beast', fur: '#8d8d8d', eye: '#ff3030', sz: 0.85 } });

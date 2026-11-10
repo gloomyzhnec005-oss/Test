@@ -705,9 +705,27 @@
       // ---------- Данж выживания: номер волны ----------
       // Прогресс данжа-лабиринта
       // Мировой босс: рейтинг урона (топ-10 получат редкие ресурсы); тап — свернуть/развернуть
+      // Полоска здоровья мирового босса: 10 слоёв разного цвета (как в больших MMO), ×N — сколько слоёв осталось
+      let wbBossName = '';
+      const BB_COL = ['#7a7f88', '#d81b60', '#8e24aa', '#3949ab', '#1e88e5', '#00acc1', '#43a047', '#c0ca33', '#fdd835', '#fb8c00', '#e53935'];
+      socket.on('state', (s) => {
+        const bar = $('bossBar');
+        const b = zone && zone.kind === 'worldboss' && s.m && s.m.find((m) => m.rk === 'world');
+        if (!b) { if (!bar.classList.contains('hidden')) bar.classList.add('hidden'); return; }
+        const LAYERS = 10, per = b.maxHp / LAYERS, L = Math.max(1, Math.ceil(b.hp / per));
+        const fill = Math.max(0, Math.min(1, (b.hp - (L - 1) * per) / per));
+        bar.classList.remove('hidden');
+        bar.classList.toggle('shield', !!b.wsh); bar.classList.toggle('vuln', !!b.vu);
+        bar.querySelector('b').textContent = `👹 ${b.nm || wbBossName || 'Мировой босс'} · ур. ${b.lv}`;
+        bar.querySelector('.bb-cur').style.cssText = `width:${(fill * 100).toFixed(1)}%;background:${BB_COL[L]}`;
+        bar.querySelector('.bb-next').style.background = BB_COL[L - 1];
+        bar.querySelector('em').textContent = `×${L}`;
+        bar.querySelector('small').textContent = b.wsh ? '💎 Щит: разбейте кристаллы силы!' : b.vu ? '✨ Босс уязвим: +50% урона' : `${Math.ceil(b.hp).toLocaleString('ru-RU')} / ${b.maxHp.toLocaleString('ru-RU')}`;
+      });
       let wbOpen = true;
       $('wbRank').onclick = () => { wbOpen = !wbOpen; $('wbRank').classList.toggle('mini', !wbOpen); };
       socket.on('wbRank', (r) => {
+        wbBossName = r.boss || wbBossName;
         const box = $('wbRank');
         if (!zone || zone.kind !== 'worldboss') { box.classList.add('hidden'); return; }
         const fmt = (n) => (n >= 10000 ? Math.round(n / 1000) + 'k' : n);
@@ -905,7 +923,7 @@
         onZone: (z) => {
           // Музыка: логово мирового босса и города Эльдмир, Аэлион — свои треки; данжи и остальное — тихий фон по теме
           const TOWN_TRACK = { town1: 'eldmir', town2: 'morgrath', town3: 'aelion' };
-          if (window.Sfx) { if (zone && zone.id !== z.id) Sfx.play('portal'); Sfx.music(z.kind === 'worldboss' ? 'worldboss' : z.kind === 'town' ? TOWN_TRACK[z.id] || z.theme : 'dungeon'); }
+          if (window.Sfx) { if (zone && zone.id !== z.id) Sfx.play('portal'); Sfx.music(z.kind === 'worldboss' || z.kind === 'pvp' ? 'worldboss' : z.kind === 'town' ? TOWN_TRACK[z.id] || z.theme : 'dungeon'); }
           zone = z;
           if (z.kind !== 'worldboss') $('wbRank').classList.add('hidden');
           if (typeof storyLater === 'function') storyLater();

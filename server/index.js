@@ -983,11 +983,14 @@ function syncCooldowns(p, now) {
   for (const sk of p.hero.skills) left[sk.id] = { left: Math.max(0, (p.skillReadyAt[sk.id] || 0) - now), total: sk.cooldown };
   p.socket.emit('skillCds', left);
 }
+let curSkillMul = 1;
 const skillCtx = {
   moveEntity, syncCooldowns, passiveOf,
   isUndead: (m) => !!C.MONSTERS[m.type].undead,
   raiseMinion,
-  monsters, players, damageMonster, healPlayer, teleport, knockback, addTotem, addGround, takeCorpse, giveShield, addPet, removePet,
+  monsters, players, teleport,
+  damageMonster: (p, m, dmg, o) => damageMonster(p, m, dmg * curSkillMul, o), // + уровень умения, которое сейчас применяется
+  healPlayer: (p, amount, ...a) => healPlayer(p, amount * curSkillMul, ...a), knockback, addTotem, addGround, takeCorpse, giveShield, addPet, removePet,
   isSolidAt: (x, y) => world.isSolidAt(x, y),
   monsterDef: (m) => C.MONSTERS[m.type] || {},
   pushFx: (f) => fx.push(f),
@@ -1279,7 +1282,9 @@ io.on('connection', (socket) => {
     if (target) p.dir = target.x < p.x ? -1 : 1;
     p.castPower = cast.power;
     p.castFree = cast.free;
-    const err = SKILLS[sk.id](skillCtx, p, target, now);
+    curSkillMul = I.skillMul(((getProfile(p.uid).skillLv || {})[p.heroId] || [])[si] || 1); // уровень умения (server/meta.js → skillUp)
+    let err;
+    try { err = SKILLS[sk.id](skillCtx, p, target, now); } finally { curSkillMul = 1; }
     p.castPower = 1;
     p.castFree = false;
     if (err) return fail(err);
@@ -1485,7 +1490,7 @@ setInterval(() => {
       m.dots = m.dots.filter((d) => now < d.until);
       if (!monsters.has(m.id)) continue;
     }
-    if (m.pvpOf) continue; // цель-двойник героя на арене не ходит и не атакует
+    if (m.pvpOf || m.still) continue; // цель-двойник героя на арене и кристаллы босса не ходят и не атакуют
     if (m.stunUntil > now) continue; // оглушён
     // Страх (рёв Талиесина): монстр убегает от источника
     if (m.starUntil > now) { m.fearUntil = 0; m.confusedUntil = 0; } // звёздная метка Фаэлина не даёт скрыться
@@ -1660,13 +1665,13 @@ setInterval(() => {
   for (const Z of byZone.values()) {
   const state = {
     p: Z.p.map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
-    m: Z.m.map((m) => m.pvpOf ? { id: m.id, pv: m.pvpOf, nm: '⚔️ ' + m.nm, lv: m.level, tm: (players.get(m.pvpOf) || {}).match ? `${players.get(m.pvpOf).match}:${players.get(m.pvpOf).team}` : null, x: Math.round(m.x), y: Math.round(m.y), hp: Math.ceil(m.hp), maxHp: m.maxHp } : ({ id: m.id, type: m.type, tr: m.tier, lv: m.level, rk: m.rank, nm: m.name, inv: m.inv ? 1 : 0, sz: m.size, sh: m.shieldHp > 0 ? 1 : 0, fm: m.form || m.phase || m.element || null, x: Math.round(m.x), y: Math.round(m.y),
+    m: Z.m.map((m) => slim(m.pvpOf ? { id: m.id, pv: m.pvpOf, nm: '⚔️ ' + m.nm, lv: m.level, tm: (players.get(m.pvpOf) || {}).match ? `${players.get(m.pvpOf).match}:${players.get(m.pvpOf).team}` : null, x: Math.round(m.x), y: Math.round(m.y), hp: Math.ceil(m.hp), maxHp: m.maxHp } : ({ id: m.id, type: m.type, tr: m.tier, lv: m.level, rk: m.rank, nm: m.name, inv: m.inv ? 1 : 0, sz: m.size, sh: m.shieldHp > 0 ? 1 : 0, fm: m.form || m.phase || m.element || null, x: Math.round(m.x), y: Math.round(m.y),
       hs: m.heroSkin || undefined, hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
       mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0,
       sw: m.slowUntil > now ? 1 : 0, tn: m.tauntUntil > now ? 1 : 0,
       ws: m.weakSpotUntil > now ? 1 : 0, br: m.brokenUntil > now ? 1 : 0, ps: m.poisonUntil > now ? 1 : 0,
       bn: m.burnUntil > now ? 1 : 0, bc: m.bloodCurseUntil > now ? 1 : 0, rt: m.rootUntil > now ? 1 : 0,
-      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, ds: m.darkSealUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0, ch: m.charmUntil > now ? 1 : 0, cu: m.curseUntil > now ? 1 : 0, fs: m.frost > 0 ? Math.round(m.frost) : 0, sn: m.stoneUntil > now ? 1 : 0, pf: m.petrify > 0 ? Math.round(m.petrify) : 0 })),
+      cf: m.confusedUntil > now ? 1 : 0, fr: m.fearUntil > now ? 1 : 0, fz: m.frozenUntil > now ? 1 : 0, mo: m.mockUntil > now ? 1 : 0, st2: m.starUntil > now ? 1 : 0, bd: m.bondUntil > now ? 1 : 0, ds: m.darkSealUntil > now ? 1 : 0, bl: m.bleedUntil > now ? 1 : 0, ch: m.charmUntil > now ? 1 : 0, cu: m.curseUntil > now ? 1 : 0, fs: m.frost > 0 ? Math.round(m.frost) : 0, sn: m.stoneUntil > now ? 1 : 0, wsh: m.wbShield ? 1 : 0, vu: m.vulnUntil > now ? 1 : 0, pf: m.petrify > 0 ? Math.round(m.petrify) : 0 }))),
     pt: Z.pt.map((pet) => ({ id: pet.id, kind: pet.kind, owner: pet.owner.id, skin: pet.kind === 'clone' ? 'hero_' + pet.owner.heroId : pet.kind === 'minion' ? 'mon_' + pet.monsterType : null, label: pet.label || null, drowned: pet.drowned ? 1 : 0, x: Math.round(pet.x), y: Math.round(pet.y),
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: Z.t.map((t) => ({ id: t.id, kind: t.kind, sub: t.sub || null, ang: t.ang ?? null, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
@@ -1676,6 +1681,24 @@ setInterval(() => {
   }
   fx = [];
 }, C.TICK_MS);
+
+// Пустые флаги состояния монстров не отправляем: пакет в разы меньше — на медленной связи не копится очередь
+const SLIM_KEEP = new Set(['x', 'y', 'hp', 'maxHp', 'lv', 'tr']);
+function slim(o) { for (const k in o) if ((o[k] === 0 || o[k] === null || o[k] === undefined) && !SLIM_KEEP.has(k)) delete o[k]; return o; }
+// Между тиками — только позиции героев (лёгкий пакет): чужие герои на экране двигаются плавно и без отставания
+setTimeout(() => setInterval(() => {
+  const byZ = new Map();
+  for (const p of players.values()) {
+    if (p.dead) continue;
+    if (!byZ.has(p.zone)) byZ.set(p.zone, []);
+    byZ.get(p.zone).push(p);
+  }
+  for (const list of byZ.values()) {
+    if (list.length < 2) continue;
+    const pos = list.map((p) => [p.id, Math.round(p.x), Math.round(p.y), p.dir]);
+    for (const p of list) p.socket.volatile.emit('pp', pos);
+  }
+}, C.TICK_MS), C.TICK_MS / 2);
 
 server.listen(PORT, () => {
   console.log(`MMORPG сервер запущен: http://localhost:${PORT}`);

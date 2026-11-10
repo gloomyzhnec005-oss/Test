@@ -107,6 +107,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
     // Сеть
     this.net.on('state', (s) => this.onState(s));
+    // Позиции героев между тиками сервера
+    this.net.on('pp', (list) => { for (const [id, x, y, dir] of list) { if (id === this.myId) continue; const e = this.players.get(id); if (e) { this.trackPos(e, x, y); if (e.data) e.data.dir = dir; } } });
     this.net.on('stats', (st) => { const now = Date.now(); this.myStats = { ...st, ccEnd: st.cc ? now + (st.ccMs || 0) : 0, rootEnd: st.rooted ? now + (st.rootMs || 0) : 0 }; });
     // Ворота босса открылись или запечатались: клетки прохода и анимация створок
     this.net.on('gate', (g) => {
@@ -714,7 +716,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
           this.cameras.main.startFollow(e.c, true, 1, 1); // камера жёстко закреплена на герое, без запаздывания
         }
       }
-      e.tx = p.x; e.ty = p.y; e.data = p;
+      this.trackPos(e, p.x, p.y);
+      e.data = p;
       e.label.setText(`${p.tag ? `[${p.tag}] ` : ''}${p.name} [${p.lvl}]`); // тег клана перед именем
       this.setBar(e, p.hp, p.maxHp);
       e.c.setAlpha(p.dead ? 0.35 : 1);
@@ -2388,6 +2391,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (path && path.length) this.walkTo = { path, stuck: 0 };
   }
 
+  // Новая позиция чужого героя: запоминаем скорость, чтобы предсказывать движение между пакетами
+  trackPos(e, x, y) {
+    const now = performance.now();
+    if (x !== e.tx || y !== e.ty) {
+      const dts = e.moveT ? (now - e.moveT) / 1000 : 0; // скорость — между двумя разными позициями
+      if (dts > 0.03 && dts < 0.4) { e.vx = Math.max(-400, Math.min(400, (x - e.tx) / dts)); e.vy = Math.max(-400, Math.min(400, (y - e.ty) / dts)); } else { e.vx = 0; e.vy = 0; }
+      e.moveT = now; e.posT = now;
+    } else if (!e.moveT || now - e.moveT > 160) { e.vx = 0; e.vy = 0; } // стоит на месте
+    e.tx = x; e.ty = y;
+  }
   update(time, delta) {
     if (this.zoneLoading) return; // догружается новый мир — карта ещё старая, не двигаемся
     const dt = delta / 1000;
@@ -2403,10 +2416,15 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
     // Интерполяция чужих сущностей
     const k = Math.min(1, dt * 12);
+    // Чужие герои: цель — последняя позиция с сервера плюс небольшое предсказание по скорости (до 120 мс вперёд)
+    const kp = Math.min(1, dt * 18), nowMs = performance.now();
     for (const [id, e] of this.players) {
       if (id === this.myId) continue;
-      const mx = e.tx - e.c.x, my = e.ty - e.c.y;
-      e.c.x += mx * k; e.c.y += my * k;
+      const ahead = e.posT ? Math.min(0.1, (nowMs - e.posT) / 1000) : 0;
+      const gx = e.tx + (e.vx || 0) * ahead, gy = e.ty + (e.vy || 0) * ahead;
+      const mx = gx - e.c.x, my = gy - e.c.y;
+      if (Math.hypot(mx, my) > 160) { e.c.x = gx; e.c.y = gy; } // телепорт — сразу на место
+      else { e.c.x += mx * kp; e.c.y += my * kp; }
       if (e.skinOn) {
         const moving = Math.hypot(mx, my) > 1.5;
         this.animSkin(e, moving ? mx : 0, moving ? my : 0, moving);
