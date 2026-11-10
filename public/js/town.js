@@ -77,7 +77,7 @@ window.Town = (() => {
     const r = el(`<div class="tw-ev"><div class="row-it"></div><div><b style="color:${it ? it.color : '#ffe9b0'}">${title}</b><small>${sub}</small></div>
       ${btnLabel ? `<button class="l2-btn" ${disabled ? 'disabled' : ''}>${btnLabel}</button>` : ''}</div>`).firstElementChild;
     if (it) { r.querySelector('.row-it').innerHTML = Bag.cell(it); r.querySelector('.row-it').onclick = () => Bag.card(it); }
-    if (btnLabel) r.querySelector('button').onclick = onBtn;
+    if (btnLabel) r.querySelector('.l2-btn').onclick = onBtn; // именно кнопка цены: тап по картинке предмета открывает карточку, а не покупает
     return r;
   }
 
@@ -88,13 +88,19 @@ window.Town = (() => {
     const r = el(`<div class="tw-ev"><div class="row-it">${Bag.cell(m)}</div><div><b style="color:${m.color}">${m.icon} ${m.name}</b>
       <small>${o.price} 💰 за шт.${o.left !== null ? ` · осталось сегодня ${o.left}` : ''}</small><small>${m.desc}</small></div><div class="btn-col"></div></div>`).firstElementChild;
     r.querySelector('.row-it').onclick = () => Bag.card(m, []);
+    // Количество — ползунком (до 50, лимита на сегодня и того, на что хватает золота), покупка — одной кнопкой
     const col = r.querySelector('.btn-col');
-    for (const n of o.left !== null ? [1, o.left].filter((x, i, a) => x > 0 && a.indexOf(x) === i) : [1, 5, 10]) {
-      const b = document.createElement('button'); b.className = 'l2-btn'; b.textContent = `×${n} · ${o.price * n}`;
-      b.disabled = o.sold;
-      b.onclick = async () => { const res = await Bag.act('buy', { kind, oid: o.oid, n }); toast(res.error || res.toast); reload(); };
-      col.append(b);
-    }
+    const max = Math.max(0, Math.min(50, o.left !== null ? o.left : 50, Math.floor((o.gold || 0) / o.price)));
+    const qty = el(`<div class="qty"><div class="qty-row"><button class="qty-pm" data-d="-1">−</button><input type="range" min="1" max="${Math.max(1, max)}" value="1"><button class="qty-pm" data-d="1">+</button></div>
+      <button class="l2-btn qty-buy"></button></div>`).firstElementChild;
+    const rng = qty.querySelector('input'), buy = qty.querySelector('.qty-buy');
+    const upd = () => { const n = +rng.value; buy.textContent = max ? `Купить ×${n} · ${(o.price * n).toLocaleString('ru-RU')} 💰` : o.sold ? 'Лимит на сегодня' : 'Не хватает золота'; };
+    rng.oninput = upd;
+    qty.querySelectorAll('.qty-pm').forEach((b) => { b.onclick = () => { rng.value = Math.min(max, Math.max(1, +rng.value + +b.dataset.d)); upd(); }; });
+    rng.disabled = buy.disabled = o.sold || max < 1;
+    buy.onclick = async () => { buy.disabled = true; const res = await Bag.act('buy', { kind, oid: o.oid, n: +rng.value }); toast(res.error || res.toast); reload(); };
+    upd();
+    col.append(qty);
     return r;
   }
   async function shopList(kind) {
@@ -104,11 +110,25 @@ window.Town = (() => {
     box.innerHTML = `<p class="sheet-hint">${TIER_LABEL[ctx.zone.tier]} · ${kind === 'alchemy' || kind === 'smith' ? 'товары не кончаются (кроме отмеченных)' : 'витрина обновляется каждый день'} · 💰 ${r.gold}</p>`;
     for (const o of r.offers || []) {
       const it = o.item;
-      if (o.mat) { box.append(matRow(o, kind, reload)); continue; }
+      if (o.mat) { box.append(matRow({ ...o, gold: r.gold }, kind, reload)); continue; }
       box.append(row(it, it.name, `${it.rarName} · ${Object.entries(it.stats).map(([k, v]) => Bag.statLine(k, v)).join(', ')}`,
         o.sold ? 'Куплено' : `${o.price} 💰`, async () => { const res = await Bag.act('buy', { kind, oid: o.oid }); toast(res.error || res.toast); reload(); }, o.sold));
     }
     return box;
+  }
+  // Возврат сегодняшних покупок из лавок — золото назад полностью
+  async function refundTab() {
+    const r = await Bag.act('buys');
+    const wrap = el('<p class="sheet-hint">Случайно купили? Сегодняшние покупки в лавках можно вернуть — золото вернётся полностью. Предмет должен быть в сумке, не надет и не усилен.</p>');
+    if (!(r.buys || []).length) { wrap.insertAdjacentHTML('beforeend', '<div class="tw-soon">Сегодня вы ничего не покупали в лавках</div>'); return wrap; }
+    for (const b of r.buys) {
+      const it = b.item || b.mat;
+      const t = new Date(b.at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      const line = row(it, it ? `${it.name}${b.mat ? ` ×${b.n}` : ''}` : b.name || 'Покупка', `${t} · ${b.gold.toLocaleString('ru-RU')} 💰${b.ok ? '' : ` · ${b.why}`}`,
+        `Вернуть · ${b.gold.toLocaleString('ru-RU')} 💰`, async () => { const res = await Bag.act('refund', { id: b.id }); toast(res.error || res.toast); wrap.replaceWith(await refundTab()); }, !b.ok);
+      wrap.append(line);
+    }
+    return wrap;
   }
   async function shopPanel(kind, title) {
     const sellTab = async () => {
@@ -117,7 +137,7 @@ window.Town = (() => {
       box.append(Bag.grid(inv.mats, (m) => Bag.card(m, Bag.matActions(m, () => shopPanel(kind, title))), { empty: 'Ресурсов нет', keepOrder: true }));
       return box;
     };
-    open(title, tabs([['Купить', () => shopList(kind)], ['Продать', sellTab]]));
+    open(title, tabs([['Купить', () => shopList(kind)], ['Продать', sellTab], ['Возврат', refundTab]]));
   }
 
   // ---------- Склад ----------

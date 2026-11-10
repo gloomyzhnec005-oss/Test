@@ -190,6 +190,11 @@ module.exports = function createMeta(deps) {
   }
   const freeSpinsLeft = (pr) => (pr.freeItemDay === dayKey() ? pr.freeItemLeft || 0 : (isSub(pr) ? SHOP.freeItemSpinsSub : SHOP.freeItemSpins) + (passTier(pr) >= 2 ? 1 : 0)); // Серебряный орден: +1 в день
   const equipped = (pr, id) => Object.values(pr.equip || {}).includes(id);
+  // Журнал покупок в лавках за сегодня (для возврата)
+  const todayBuys = (pr) => (pr.buys || []).filter((b) => b.day === dayKey());
+  const logBuy = (pr, b) => {
+    pr.buys = [...todayBuys(pr), { ...b, id: Math.random().toString(36).slice(2, 9), day: dayKey(), at: Date.now() }].slice(-60);
+  };
 
   // Выдать награду (батл-пасс, реклама)
   function reward(pr, r, tier) {
@@ -458,7 +463,8 @@ module.exports = function createMeta(deps) {
         pr.gold -= o.price * n;
         I.addMat(pr, o.mat, n);
         if (o.limit) for (let i = 0; i < n; i++) pr.shopBought.push(key);
-        return { toast: `Куплено: ${matName(o.mat, n)}` };
+        logBuy(pr, { kind, mat: o.mat, n, gold: o.price * n, key: o.limit ? key : null });
+        return { toast: `Куплено: ${matName(o.mat, n)} · вернуть можно сегодня во вкладке «Возврат»` };
       }
       // Каждый предмет витрины можно купить раз в день
       if (done) return { error: 'Уже куплено сегодня — витрина обновится завтра' };
@@ -466,7 +472,35 @@ module.exports = function createMeta(deps) {
       pr.gold -= o.price;
       pr.shopBought.push(key);
       const copy = { ...JSON.parse(JSON.stringify(o.item)), id: I.createItem(o.item.cat, o.item.rar).id };
-      return { toast: grantMsg(put(pr, copy)) };
+      const res = put(pr, copy);
+      logBuy(pr, { kind, itemId: res.item.id, name: I.itemView(res.item).name, gold: o.price, key });
+      return { toast: grantMsg(res) + ' · вернуть можно сегодня во вкладке «Возврат»' };
+    },
+    // ---------- Возврат покупок из лавок (только золото, в тот же день) ----------
+    buys(p, d, pr) {
+      const list = todayBuys(pr).map((b) => {
+        const it = b.itemId ? I.findItem(pr, b.itemId) : null;
+        const ok = b.itemId ? !!it && !equipped(pr, it.id) && !(it.dupes || 0) && !(it.runes || []).length : (pr.mats || {})[b.mat] >= b.n;
+        return { id: b.id, gold: b.gold, at: b.at, n: b.n || 1, item: it ? I.itemView(it) : null, mat: b.mat ? I.matView(b.mat, b.n, tierOf(p)) : null, name: b.name, ok,
+          why: ok ? '' : b.itemId ? (!it ? 'предмета уже нет' : equipped(pr, it.id) ? 'снимите предмет' : 'предмет изменён') : 'не хватает в сумке' };
+      });
+      return { buys: list.reverse() };
+    },
+    refund(p, d, pr) {
+      const all = todayBuys(pr), b = all.find((x) => x.id === d.id);
+      if (!b) return { error: 'Вернуть можно только сегодняшние покупки' };
+      if (b.itemId) {
+        const it = I.findItem(pr, b.itemId);
+        if (!it) return { error: 'Предмета уже нет' };
+        if (equipped(pr, it.id)) return { error: 'Сначала снимите предмет' };
+        if ((it.dupes || 0) || (it.runes || []).length) return { error: 'Предмет усилен или с рунами — вернуть нельзя' };
+        pr.items = pr.items.filter((i) => i !== it);
+      } else if (!I.takeMats(pr, { [b.mat]: b.n })) return { error: 'В сумке уже нет столько — вернуть нельзя' };
+      pr.gold += b.gold;
+      if (b.key && pr.shopDay === dayKey()) for (let i = 0; i < (b.itemId ? 1 : b.n); i++) { const k = pr.shopBought.indexOf(b.key); if (k >= 0) pr.shopBought.splice(k, 1); }
+      pr.buys = (pr.buys || []).filter((x) => x.id !== b.id);
+      refreshPlayer(p);
+      return { toast: `Возвращено: +${b.gold.toLocaleString('ru-RU')} 💰` };
     },
 
     // ---------- Призыв предметов ----------
@@ -741,7 +775,7 @@ module.exports = function createMeta(deps) {
     const pr = getProfile(p.uid);
     if (p.name && pr.arena) pr.arena.name = p.name;
     const res = fn(p, d, pr) || {};
-    if (!res.error && !['inv', 'inspect', 'market', 'auction', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo', 'recipes'].includes(d.op)) save();
+    if (!res.error && !['inv', 'inspect', 'buys', 'market', 'auction', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo', 'recipes'].includes(d.op)) save();
     res.gold = pr.gold;
     return res;
   }

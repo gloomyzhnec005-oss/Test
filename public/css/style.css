@@ -1230,3 +1230,9 @@ canvas.skin { object-fit: contain; }
 .ward-cur .slot-ghost { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; }
 .ward-cur .slot-ghost img { width: 28px; height: 28px; }
 .pd-slot span.ghost { filter: grayscale(1) brightness(.45); } /* эмодзи-заглушки новых слотов — тусклые, как силуэты */
+
+/* Количество в лавке: ползунок и ± */
+.qty { display: flex; flex-direction: column; gap: 6px; min-width: 150px; }
+.qty-row { display: flex; align-items: center; gap: 6px; }
+.qty-row input { flex: 1; accent-color: #d6b06a; }
+.qty-pm { width: 30px; height: 30px; border-radius: 6px; border: 1px solid #8a6d3b; background: #2a2018; color: #ffe9b0; font: 18px/1 Georgia, serif; }

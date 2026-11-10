@@ -91,6 +91,7 @@ window.Bag = (() => {
     }
   }
   function card(it, actions, cmp) {
+    if (!inv) { refresh().then(() => card(it, actions, cmp)); return; } // справочники статов ещё не загружены
     if (it.cat === 'mat') return matCard(it, actions || []);
     actions = actions || [];
     const wrap = $('itemCard');
