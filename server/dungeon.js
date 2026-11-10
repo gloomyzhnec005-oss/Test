@@ -449,7 +449,7 @@ module.exports = function createDungeons(d) {
   // Награду за полубосса и босса получают все, кто нанёс хотя бы 3% его здоровья.
   const halls = new Map(), announced = {};
   const BOSS_HOUR = Number(process.env.DUNGEON_BOSS_HOUR_UTC ?? 17), BOSS_MIN = Number(process.env.DUNGEON_BOSS_MIN ?? 0);
-  const RESPAWN = [1000, 2000], IDLE_MS = 5 * 60000, WARN_MS = 15 * 60000, GATE_OPEN_MS = 10 * 60000;
+  const RESPAWN = [8000, 8000], IDLE_MS = 5 * 60000, WARN_MS = 15 * 60000, GATE_OPEN_MS = 10 * 60000;
   const nextHour = (t) => Math.floor(t / 36e5) * 36e5 + 36e5;
   function nextBossAt(t) {
     const x = new Date(t);
@@ -469,18 +469,43 @@ module.exports = function createDungeons(d) {
     const lvAt = (depth) => Math.round(dg.lv[0] + (dg.lv[1] - dg.lv[0]) * depth / Math.max(1, z.maxD));
     const h = { z, dg, rooms: [], minis: [], boss: null, populated: false, lastPlayerAt: now };
     let mi = 0;
-    for (const room of z.rooms) {
+    for (const [ri, room] of z.rooms.entries()) {
       if (room.role === 'start') continue;
       const c = z.abs(room.cx, room.cy), R = Math.min(room.x1 - room.x0, room.y1 - room.y0) * 16;
       const lv = lvAt(room.depth), depthK = room.depth / Math.max(1, z.maxD);
       const fighters = dg.pool.filter((t) => !['summoner', 'support'].includes(MOBS[t].cls));
       const type = fighters[Math.floor(Math.random() * fighters.length)] || dg.pool[0];
       const target = room.role === 'normal' ? Math.round((3 + Math.floor(Math.random() * 2)) * (MOBS[type].pack || 1)) : 2; // у полубосса и босса — охрана
-      h.rooms.push({ c, R, lv, depthK, type, target, ids: new Set(), nextAt: 0 });
-      if (room.role === 'mini') h.minis.push({ c, type: dg.minis[mi++ % dg.minis.length], lv: lv + 1, id: null, at: now });
-      if (room.role === 'boss') h.boss = { c, type: dg.boss, lv: dg.lv[1] + 1, id: null, at: nextBossAt(now), warned: false };
+      h.rooms.push({ c, R, lv, depthK, type, target, ids: new Set(), nextAt: 0, ri });
+      if (room.role === 'mini') h.minis.push({ c, type: dg.minis[mi++ % dg.minis.length], lv: lv + 1, id: null, at: now, ri });
+      if (room.role === 'boss') h.boss = { c, type: dg.boss, lv: dg.lv[1] + 1, id: null, at: nextBossAt(now), warned: false, ri };
     }
     return h;
+  }
+  // ---------- Комнаты данжа: агр только в своей комнате, погоня — не дальше соседних ----------
+  const T_ = C.TILE;
+  function roomAt(z, x, y, nearest) {
+    const tx = (x - z.ox) / T_, ty = (y - z.oy) / T_;
+    let best = -1, bd = 1e9;
+    z.rooms.forEach((r, i) => {
+      const dx = Math.max(r.x0 - tx, 0, tx - (r.x1 + 1)), dy = Math.max(r.y0 - ty, 0, ty - (r.y1 + 1));
+      const d = Math.hypot(dx, dy);
+      if (d < bd) { bd = d; best = i; }
+    });
+    return bd === 0 || nearest ? best : -1; // в коридоре: точная комната — нет, ближайшая — да
+  }
+  // Заметить героя: только если он в комнате монстра
+  function canAggro(m, p) {
+    const z = m.room == null ? null : world.byId.get(m.zone);
+    if (!z || !z.rooms) return true;
+    return roomAt(z, p.x, p.y, false) === m.room;
+  }
+  // Держать цель: пока она в комнате монстра, в соседней или в коридоре между ними
+  function inLeash(m, p) {
+    const z = m.room == null ? null : world.byId.get(m.zone);
+    if (!z || !z.rooms) return true;
+    const r = roomAt(z, p.x, p.y, true);
+    return r === m.room || (z.rooms[m.room].links || []).includes(r);
   }
   const hallOf = (z) => { let h = halls.get(z.id); if (!h) { h = initHall(z); halls.set(z.id, h); } return h; };
   // Точка возрождения: в комнате, по возможности не рядом с героями
@@ -503,6 +528,7 @@ module.exports = function createDungeons(d) {
     const rank = rollRank(r.depthK);
     const affixes = rank === 'rare' ? Object.keys(AFFIXES).sort(() => Math.random() - 0.5).slice(0, 1 + (Math.random() < 0.5 ? 1 : 0)) : [];
     const m = create(h.z, t, spawnPoint(h.z, r, heroes), r.lv, { rank, affixes });
+    m.room = r.ri; // монстр «живёт» в своей комнате (агр и погоня — server/dungeon.js → canAggro/inLeash)
     r.ids.add(m.id);
     return m;
   }
@@ -547,6 +573,7 @@ module.exports = function createDungeons(d) {
       if (mi.id && !monsters.has(mi.id)) { mi.id = null; mi.at = nextHour(now); }
       if (!mi.id && now >= mi.at) {
         const m = create(h.z, mi.type, mi.c, mi.lv, { rank: 'mini' });
+        m.room = mi.ri;
         mi.id = m.id; m.hall = h.z.id;
         tellHall(h, `⭐ Полубосс «${MOBS[mi.type].name}» появился`);
         h.sentAt = 0;
@@ -564,6 +591,7 @@ module.exports = function createDungeons(d) {
       }
       if (!b.id && now >= b.at) {
         const m = create(h.z, b.type, b.c, b.lv, { rank: 'boss', name: h.dg.bossName });
+        m.room = b.ri;
         b.id = m.id; m.hall = h.z.id;
         if (announced.spawn !== b.at) { announced.spawn = b.at; d.broadcast('👑 Боссы данжей появились! Заходите в порталы своего мира.'); }
         tellHall(h, `👑 Босс «${m.name || MOBS[b.type].name}» ждёт`);
@@ -762,7 +790,7 @@ module.exports = function createDungeons(d) {
   }, 500);
 
   return {
-    create, act, melee, meleeRange, curSpeed, takenMult, onHurt, preventDeath, onKilled, onMonsterHp,
+    create, act, melee, meleeRange, canAggro, inLeash, curSpeed, takenMult, onHurt, preventDeath, onKilled, onMonsterHp,
     startDungeon, startSurvival, summonHallBosses, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState,
   };
 };

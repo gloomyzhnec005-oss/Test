@@ -1286,18 +1286,19 @@ setInterval(() => {
     const taunter = m.tauntUntil > now ? players.get(m.tauntBy) : null;
     if (taunter && !taunter.dead) m.target = taunter.id;
     let target = m.target ? players.get(m.target) || pets.get(m.target) : null;
-    if (target && (target.dead || target.down || target.stealthUntil > now || target.flyUntil > now || Math.hypot(target.x - m.x, target.y - m.y) > (m.aggro || def.aggro) * 1.8)) target = null;
+    if (target && (target.dead || target.down || target.stealthUntil > now || target.flyUntil > now || Math.hypot(target.x - m.x, target.y - m.y) > (m.aggro || def.aggro) * 1.8 || !D.inLeash(m, target))) target = null;
     if (!target) {
       let best = null, bestD = m.aggro || def.aggro;
       for (const p of players.values()) {
         if (p.dead) continue;
         if (m.ignoreUntil > now && m.ignoreId === p.id) continue; // потерял из виду (дымовая завеса)
         if (p.stealthUntil > now || p.flyUntil > now) continue; // невидимость (Кассиан), полёт (Талмира)
+        if (!D.canAggro(m, p)) continue; // в данже — только герои в комнате монстра
         const d = Math.hypot(p.x - m.x, p.y - m.y);
         if (d < bestD && world.lineOfSight(m.x, m.y, p.x, p.y)) { best = p; bestD = d; } // замечает только тех, кого видит
       }
       for (const pet of pets.values()) {
-        if (pet.down) continue;
+        if (pet.down || !D.canAggro(m, pet)) continue;
         const d = Math.hypot(pet.x - m.x, pet.y - m.y);
         if (d < bestD) { best = pet; bestD = d; }
       }
@@ -1321,6 +1322,16 @@ setInterval(() => {
       }
     } else {
       if (rooted) continue;
+      // Данж: потерял цель вдали от дома — бегом обратно, дома восстанавливает здоровье
+      if (m.room != null) {
+        const hx = m.homeX - m.x, hy = m.homeY - m.y, hd = Math.hypot(hx, hy);
+        if (hd > 120 && !m.goingHome) { m.goingHome = true; m.homeSince = now; }
+        if (m.goingHome) {
+          if (now - m.homeSince > 8000) { m.x = m.homeX; m.y = m.homeY; } // застрял за стеной — вернулся сам
+          if (Math.hypot(m.homeX - m.x, m.homeY - m.y) < 30) { m.goingHome = false; m.hp = m.maxHp; }
+          else { moveEntity(m, (hx / hd) * mspeed * dt, (hy / hd) * mspeed * dt); continue; }
+        }
+      }
       // Бродим около дома
       if (now > m.nextWander) {
         m.nextWander = now + 1500 + Math.random() * 3000;

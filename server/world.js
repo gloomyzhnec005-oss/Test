@@ -161,7 +161,8 @@ function mazeMap(seed, theme, minis) {
     const ax = boss.cx, ay = boss.y0;
     if (rock(ax, ay - 1) && tiles[ay * W + ax] !== T.DECO) put(BOSS_ALTAR[theme], ax, ay);
   }
-  const rooms = cells.map((c) => ({ x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1, cx: c.cx, cy: c.cy, depth: depth.get(c), role: c === start ? 'start' : c === boss ? 'boss' : 'normal' }));
+  const rooms = cells.map((c) => ({ x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1, cx: c.cx, cy: c.cy, depth: depth.get(c), role: c === start ? 'start' : c === boss ? 'boss' : 'normal',
+    links: c.links.map((n) => cells.indexOf(n)) })); // соседние комнаты (через коридор) — для погони монстров
   const maxD = depth.get(boss);
   const miniAt = minis === 1 ? [0.6] : [0.45, 0.75];
   miniAt.forEach((k) => { const c = path[Math.max(1, Math.min(path.length - 2, Math.round(k * (path.length - 1))))]; rooms[cells.indexOf(c)].role = 'mini'; });
