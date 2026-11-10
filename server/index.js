@@ -32,7 +32,7 @@ function saveProfiles() {
 }
 setInterval(saveProfiles, 15000);
 // Бэкап раз в час (последние 48): игроки, рынок, турнир, настройки админки
-store.startBackups(['players.json', 'market.json', 'tournament.json', 'admin.json'], saveProfiles);
+store.startBackups(['players.json', 'market.json', 'tournament.json', 'admin.json', 'clans.json'], saveProfiles);
 
 function getProfile(uid) {
   profiles[uid] ??= {};
@@ -342,9 +342,78 @@ const Arena = require('./arena')({
   C, world, players, monsters, D,
   moveToZone: (...a) => moveToZone(...a), getProfile: (uid) => getProfile(uid), partyMembers: (p) => partyMembers(p),
   revive: (p) => revivePlayer(p), addPassXp: (pr, n) => meta.addPassXp(pr, n), quest: (...a) => Q.track(...a),
-  statsFor: (...a) => statsFor(...a), profiles: () => profiles,
+  statsFor: (...a) => statsFor(...a), profiles: () => profiles, markDirty: (p) => markDirty(p),
   store, notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => io.emit('chat', { sys: true, text: t }), save: () => saveProfiles(),
 });
+// ---------- Кланы (data/clans.json): название, тег, глава, участники, история кланового чата ----------
+const CLAN = { price: 10000, max: 30 };
+const clans = store.readJSON('clans.json', {});
+let clanSaveTm = null;
+const saveClans = () => { clearTimeout(clanSaveTm); clanSaveTm = setTimeout(() => { try { store.writeJSON('clans.json', clans); } catch (e) { console.error('clans save', e.message); } }, 500); };
+const clanOf = (uid) => { const id = getProfile(uid).clan; const c = id && clans[id]; return c && c.members.includes(uid) ? c : null; };
+const clanNotify = (c, text) => { for (const o of players.values()) if (c.members.includes(o.uid)) o.socket.emit('chat', { sys: true, ch: 'clan', text }); };
+function clanView(c) {
+  const online = new Set([...players.values()].map((o) => o.uid));
+  return { id: c.id, name: c.name, tag: c.tag, leader: c.leader, max: CLAN.max,
+    members: c.members.map((uid) => { const pr = getProfile(uid); return { uid, name: pr.name || 'Герой', online: online.has(uid), leader: uid === c.leader }; }),
+    log: (c.log || []).slice(-30) };
+}
+function clanAct(p, d) {
+  const pr = getProfile(p.uid), mine = clanOf(p.uid);
+  if (d.op === 'info') return { clan: mine ? clanView(mine) : null, price: CLAN.price };
+  if (d.op === 'create') {
+    if (mine) return { error: 'Вы уже в клане' };
+    const name = String(d.name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 20), tag = String(d.tag || '').replace(/[^A-Za-zА-Яа-яЁё0-9]/g, '').slice(0, 4).toUpperCase();
+    if (name.length < 3) return { error: 'Название клана — от 3 символов' };
+    if (tag.length < 2) return { error: 'Тег — 2–4 буквы или цифры' };
+    if (Object.values(clans).some((c) => c.name.toLowerCase() === name.toLowerCase() || c.tag === tag)) return { error: 'Такое название или тег уже заняты' };
+    if (pr.gold < CLAN.price) return { error: `Нужно ${CLAN.price.toLocaleString('ru-RU')} 💰` };
+    pr.gold -= CLAN.price;
+    const id = 'c' + Date.now().toString(36);
+    clans[id] = { id, name, tag, leader: p.uid, members: [p.uid], created: Date.now(), log: [] };
+    pr.clan = id; saveClans(); saveProfiles();
+    return { toast: `Клан «${name}» [${tag}] создан`, clan: clanView(clans[id]) };
+  }
+  if (d.op === 'invite') {
+    if (!mine) return { error: 'Вы не в клане' };
+    const t = players.get(String(d.target || ''));
+    if (!t) return { error: 'Игрок не в сети' };
+    if (clanOf(t.uid)) return { error: `${t.name} уже в клане` };
+    if (mine.members.length >= CLAN.max) return { error: 'В клане нет мест' };
+    (mine.invited ??= []).push(t.uid);
+    t.socket.emit('clanInvite', { id: mine.id, name: mine.name, tag: mine.tag, from: p.name });
+    return { toast: `Приглашение в клан отправлено: ${t.name}` };
+  }
+  if (d.op === 'accept') {
+    const c = clans[String(d.id || '')];
+    if (!c || !(c.invited || []).includes(p.uid)) return { error: 'Приглашение устарело' };
+    if (mine) return { error: 'Сначала выйдите из своего клана' };
+    if (c.members.length >= CLAN.max) return { error: 'В клане нет мест' };
+    c.invited = c.invited.filter((u) => u !== p.uid);
+    c.members.push(p.uid); pr.clan = c.id; saveClans(); saveProfiles();
+    clanNotify(c, `🛡️ ${p.name} вступил в клан`);
+    return { toast: `Вы вступили в клан «${c.name}»`, clan: clanView(c) };
+  }
+  if (d.op === 'leave') {
+    if (!mine) return { error: 'Вы не в клане' };
+    mine.members = mine.members.filter((u) => u !== p.uid); pr.clan = null;
+    if (!mine.members.length) delete clans[mine.id];
+    else { if (mine.leader === p.uid) mine.leader = mine.members[0]; clanNotify(mine, `🛡️ ${p.name} покинул клан`); }
+    saveClans(); saveProfiles();
+    return { toast: 'Вы покинули клан' };
+  }
+  if (d.op === 'kick') {
+    if (!mine || mine.leader !== p.uid) return { error: 'Исключать может только глава клана' };
+    const uid = String(d.uid || '');
+    if (uid === p.uid || !mine.members.includes(uid)) return { error: 'Нет такого участника' };
+    mine.members = mine.members.filter((u) => u !== uid); getProfile(uid).clan = null;
+    clanNotify(mine, `🛡️ ${getProfile(uid).name || 'Игрок'} исключён из клана`); notifyUid(uid, `🛡️ Вас исключили из клана «${mine.name}»`);
+    saveClans(); saveProfiles();
+    return { toast: 'Участник исключён', clan: clanView(mine) };
+  }
+  return { error: 'Неизвестное действие' };
+}
+
 // Поднять героя с полным здоровьем и ресурсом (возрождение, начало и конец боя на арене)
 function revivePlayer(p) {
   p.dead = false; p.hp = p.maxHp; p.res = startRes(p); p.shieldHp = 0; p.cheatUsed = false;
@@ -530,7 +599,8 @@ function privateStats(p) {
     formKeys: p.potion ? { potion: p.potion, sign: p.sign } : p.rune ? { rune: p.rune } : p.facet ? { facet: p.facet } : null,
     passiveNote: passiveOf(p)?.note ? passiveOf(p).note(p) : '',
     shield: p.shieldUntil > Date.now() ? Math.round(p.shieldHp) : 0, haste: p.hasteUntil > Date.now(), rooted: p.rootSelfUntil > Date.now(),
-    cc: D.ccActive(p), slow: p.slowUntil > Date.now(), weak: p.weakUntil > Date.now(),
+    cc: D.ccActive(p), ccMs: p.cc ? Math.max(0, p.cc.until - Date.now()) : 0, rootMs: Math.max(0, (p.rootSelfUntil || 0) - Date.now()), // клиент снимает контроль сам по времени
+    slow: p.slowUntil > Date.now(), weak: p.weakUntil > Date.now(),
     flyBoost: (1 + ((p.gear && p.gear.ms) || 0) / 100) * (p.flyUntil > Date.now() ? 1 + 0.03 * (p.blessings || 0) : 1) * (p.stoneArmorUntil > Date.now() ? 0.7 : 1) };
 }
 // Статы отправляются не чаще 4 раз в секунду (см. игровой цикл)
@@ -1021,7 +1091,7 @@ io.on('connection', (socket) => {
       monsters: C.MONSTERS,
       stats: privateStats(p),
     });
-    socket.emit('chatHistory', chatHistory);
+    socket.emit('chatHistory', [...chatHistory, ...((clanOf(uid) || {}).log || []).slice(-30)].sort((a, b) => a.t - b.t)); // + история клана
     io.emit('chat', { sys: true, text: `${p.name} (${hero.name}, ${hero.title}) вошёл в мир` });
     if (S.motd) socket.emit('chat', { sys: true, text: `📢 ${S.motd}` });
     admin.log('join', `${p.name} (${uid}) вошёл: ${hero.name}`);
@@ -1214,17 +1284,51 @@ io.on('connection', (socket) => {
   });
 
   // Общий чат: последние сообщения хранятся, чтобы вошедший видел, о чём говорили; не чаще раза в 0,7 с
-  socket.on('chat', (text) => {
+  // Чат: общий, группа, клан, личные сообщения. Клиент шлёт строку (общий) или { text, ch, to }
+  socket.on('chat', (d) => {
     const p = players.get(socket.id);
-    if (!p || typeof text !== 'string') return;
+    if (!p) return;
+    const text = typeof d === 'string' ? d : d && d.text;
+    const ch = typeof d === 'object' && d ? d.ch : 'talk';
+    if (typeof text !== 'string') return;
     const clean = text.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 160);
     const now = Date.now();
     if (!clean || now - (p.chatAt || 0) < 700) return;
     p.chatAt = now;
-    const msg = { name: p.name, text: clean, t: now, sid: socket.id };
+    const msg = { name: p.name, text: clean, t: now, sid: socket.id, ch: 'talk' };
+    if (ch === 'party') {
+      if (!p.party) return socket.emit('chat', { sys: true, ch: 'party', text: 'Вы не в группе — пригласите игроков через профиль или меню «Группа»' });
+      msg.ch = 'party';
+      for (const o of partyMembers(p)) o.socket.emit('chat', msg);
+      return;
+    }
+    if (ch === 'clan') {
+      const cl = clanOf(p.uid);
+      if (!cl) return socket.emit('chat', { sys: true, ch: 'clan', text: 'Вы не в клане — создайте его или вступите по приглашению (меню «Игра» → «Клан»)' });
+      msg.ch = 'clan'; msg.tag = cl.tag;
+      (cl.log ??= []).push(msg); if (cl.log.length > 50) cl.log.shift();
+      for (const o of players.values()) if (cl.members.includes(o.uid)) o.socket.emit('chat', msg);
+      saveClans();
+      return;
+    }
+    if (ch === 'pm') {
+      const t = players.get(String(d.to || ''));
+      if (!t) return socket.emit('chat', { sys: true, ch: 'pm', text: 'Игрок не в сети — личное сообщение не доставлено' });
+      if (t === p) return;
+      const pm = { ...msg, ch: 'pm', to: t.name, toId: t.id, fromId: p.id };
+      t.socket.emit('chat', pm); socket.emit('chat', pm);
+      return;
+    }
     chatHistory.push(msg);
     if (chatHistory.length > 60) chatHistory.shift();
     io.emit('chat', msg);
+  });
+
+  // Кланы: создать, пригласить, вступить, выйти, исключить (глава), состав
+  socket.on('clan', (d = {}, cb) => {
+    const p = players.get(socket.id);
+    if (!p || typeof cb !== 'function') return;
+    cb(clanAct(p, d));
   });
 
   // Арена: очередь на дуэль и команды, бой с клоном и тенью чемпиона

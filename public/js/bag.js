@@ -122,6 +122,14 @@ window.Bag = (() => {
   function itemActions(it, ctx = {}) {
     const acts = [];
     const run = async (op, data, after) => { const r = await act(op, data); toast(r.error || r.toast || 'Готово'); await refresh(); if (after) after(r); return !r.error; };
+    // Руна: вставить в надетое оружие сразу или выбрать оружие в рунной мастерской
+    if (it.cat === 'rune') {
+      const wpn = inv.items.find((i) => i.id === inv.equip.weapon);
+      if (wpn && (wpn.runes || []).length < wpn.sockets) acts.push([`💠 Вставить в «${wpn.name}»`, () => run('socket', { weapon: wpn.id, rune: it.id }, ctx.after)]);
+      acts.push(['💠 Выбрать оружие для руны', () => { $('itemCard').classList.add('hidden'); Town.openPlace('runes', wpn && wpn.id); }]);
+    }
+    // Оружие: гнёзда для рун
+    if (it.cat === 'weapon' && it.sockets) acts.push([`💠 Руны · ${(it.runes || []).length} / ${it.sockets}`, () => { $('itemCard').classList.add('hidden'); Town.openPlace('runes', it.id); }]);
     if (it.cat !== 'rune') {
       if (isEquipped(it)) acts.push(['Снять', () => run('unequip', { slot: slotOf(it) }, ctx.after)]);
       else if (!fitsClass(it)) acts.push([`🔒 Только для: ${clsNames(it)}`, () => toast('Эту вещь может носить только другой класс')]);

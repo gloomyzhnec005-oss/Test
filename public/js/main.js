@@ -89,17 +89,24 @@
   const chatLog = $('chatLog'), chatList = $('chatList'), chatWin = $('chatWin'), chatInput = $('chatInput');
   // Стикеры (assets/ui/stickers/<имя>.webp): сообщение вида [st:имя] рисуется картинкой
   const STICKERS = ['gg', 'lol', 'cry', 'angry', 'greedy', 'help', 'sleep', 'love'];
-  let chatTab = 'talk', unread = 0;
+  let chatTab = 'talk', unread = 0, pmTo = null; // pmTo — кому пишем в «Личные»: { id, name }
+  const CH_PH = { talk: 'Сообщение всем игрокам...', party: 'Сообщение группе...', clan: 'Сообщение клану...', pm: 'Личное сообщение...' };
+  const chOf = (msg) => (msg.ch && msg.ch !== 'talk' ? msg.ch : msg.sys ? 'sys' : 'talk');
   const chatOpen = () => !chatWin.classList.contains('hidden');
   const hhmm = (t) => new Date(t || Date.now()).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   function chatLine(msg, full) {
     const div = document.createElement('div');
     const st = !msg.sys && /^\[st:(\w+)\]$/.exec(msg.text || '');
     div.className = msg.sys ? 'sys' : 'talk notr'; // текст игроков не переводится
-    if (full) { div.dataset.ch = msg.sys ? 'sys' : 'talk'; if (msg.sid && socket && msg.sid === socket.id) div.classList.add('mine'); }
+    if (full) { div.dataset.ch = chOf(msg); if (msg.sid && socket && msg.sid === socket.id) div.classList.add('mine'); }
+    if (msg.ch && msg.ch !== 'talk' && !msg.sys) div.classList.add('ch-' + msg.ch);
     if (full) { const t = document.createElement('small'); t.textContent = hhmm(msg.t); div.append(t); }
     if (msg.sys) { div.append(msg.text); return div; }
-    const b = document.createElement('b'); b.textContent = msg.name + ': ';
+    const b = document.createElement('b');
+    const tagP = !full && msg.ch === 'party' ? '[Группа] ' : !full && msg.ch === 'clan' ? `[${msg.tag || 'Клан'}] ` : '';
+    b.textContent = msg.ch === 'pm' ? (msg.fromId === (socket && socket.id) ? `→ ${msg.to}: ` : `✉️ ${msg.name}: `) : `${tagP}${msg.name}: `;
+    // Тап по имени — ответить лично
+    if (!msg.sys && msg.sid && (!socket || msg.sid !== socket.id)) { b.classList.add('chat-who'); b.dataset.pm = msg.sid; b.dataset.name = msg.name; }
     if (st && STICKERS.includes(st[1])) {
       const im = document.createElement('img'); im.className = 'chat-sticker'; im.src = `assets/ui/stickers/${st[1]}.webp`; im.alt = st[1];
       div.classList.add('stk'); div.append(b, im);
@@ -113,17 +120,31 @@
     chatList.appendChild(row);
     while (chatList.children.length > 150) chatList.removeChild(chatList.firstChild);
     if (atBottom || row.classList.contains('mine')) chatList.scrollTop = chatList.scrollHeight;
-    if (quiet || chatOpen()) return;
-    if (!msg.sys) { unread++; $('chatBadge').textContent = unread > 9 ? '9+' : unread; $('chatBadge').classList.remove('hidden'); }
-    if (!Settings.get('chatPop')) return;
+    if (quiet || (chatOpen() && chatTab === row.dataset.ch)) return;
+    if (!msg.sys) { unread++; $('chatBadge').textContent = unread > 9 ? '9+' : unread; $('chatBadge').classList.remove('hidden'); markTab(row.dataset.ch); }
+    if (chatOpen()) return;
+    if (!Settings.get(msg.sys ? 'sysPop' : 'chatPop')) return; // события и сообщения игроков отключаются по отдельности
     // Окно закрыто: всплывающая строка над картой и счётчик (только сообщения игроков)
     const div = chatLine(msg, false);
     chatLog.appendChild(div);
     while (chatLog.children.length > 4) chatLog.removeChild(chatLog.firstChild);
     setTimeout(() => div.remove(), 12000);
   }
+  function markTab(ch) { const b = chatWin.querySelector(`.chat-tabs [data-ch="${ch}"]`); if (b && ch !== chatTab) b.classList.add('new'); }
+  function setPm(to) {
+    pmTo = to;
+    $('pmTo').classList.toggle('hidden', !(to && chatTab === 'pm'));
+    if (to) $('pmTo').querySelector('span').textContent = `Кому: ${to.name}`;
+  }
+  // Написать игроку лично (из профиля или по тапу на имя в чате)
+  window.openPm = (id, name) => { setPm({ id, name }); openChat(); setTab('pm'); chatInput.focus(); };
   function setTab(ch) {
     chatTab = ch;
+    chatWin.querySelector(`.chat-tabs [data-ch="${ch}"]`)?.classList.remove('new');
+    chatInput.placeholder = ch === 'pm' && !pmTo ? 'Выберите, кому писать: тап по имени в чате или «Написать» в профиле' : CH_PH[ch] || '';
+    $('chatForm').classList.toggle('hidden', ch === 'sys');
+    $('stickerBar').classList.toggle('hidden', ch === 'sys');
+    setPm(pmTo);
     chatWin.querySelectorAll('[data-ch]').forEach((b) => b.tagName === 'BUTTON' && b.classList.toggle('on', b.dataset.ch === ch));
     for (const r of chatList.children) r.classList.toggle('hidden', r.dataset.ch !== ch);
     chatList.scrollTop = chatList.scrollHeight;
@@ -148,19 +169,26 @@
   chatWin.onclick = (e) => { if (e.target === chatWin) closeChat(); };
   chatWin.querySelector('.chat-tabs').onclick = (e) => { const b = e.target.closest('[data-ch]'); if (b) setTab(b.dataset.ch); };
   $('stickerBar').innerHTML = STICKERS.map((k) => `<button type="button" data-st="${k}"><img src="assets/ui/stickers/${k}.webp" alt="${k}"></button>`).join('');
+  // Отправка в текущий канал вкладки
+  const emitChat = (text) => {
+    if (chatTab === 'pm') { if (!pmTo) { if (window.Town) Town.toast('Сначала выберите получателя: тап по имени в чате'); return false; } socket.emit('chat', { text, ch: 'pm', to: pmTo.id }); }
+    else socket.emit('chat', chatTab === 'talk' || chatTab === 'sys' ? text : { text, ch: chatTab });
+    return true;
+  };
   $('stickerBar').onclick = (e) => {
     const b = e.target.closest('[data-st]');
     if (!b || !socket) return;
-    socket.emit('chat', `[st:${b.dataset.st}]`);
-    setTab('talk');
+    if (chatTab === 'sys') setTab('talk');
+    emitChat(`[st:${b.dataset.st}]`);
   };
   const sendChat = () => {
     const v = chatInput.value.trim();
     if (!v || !socket) return;
-    socket.emit('chat', v);
-    chatInput.value = '';
-    setTab('talk');
+    if (chatTab === 'sys') setTab('talk');
+    if (emitChat(v)) chatInput.value = '';
   };
+  chatList.addEventListener('click', (e) => { const w = e.target.closest('.chat-who'); if (w) window.openPm(w.dataset.pm, w.dataset.name); });
+  $('pmToClear').onclick = () => { setPm(null); setTab('pm'); };
   $('chatForm').onsubmit = (e) => { e.preventDefault(); sendChat(); };
   // Кнопка отправки не забирает фокус у поля — клавиатура остаётся открытой
   $('chatSend').addEventListener('pointerdown', (e) => e.preventDefault());
@@ -552,15 +580,55 @@
           <div class="pd-power"><span class="pw">Сила <b>${P.power}</b></span><span>❤️ ${P.hp}</span><span>⚔️ ${P.dmg}</span><span>🎯 ${P.crit}%</span></div>
           <div class="ic-sec">Снаряжение</div>
           <div class="pp-gear">${pl.slots.map((s) => `<div class="pp-slot" data-s="${s}">${bySlot[s] ? Bag.cell(bySlot[s], 'other') : '<span class="pp-empty"></span>'}<em>${pl.slotNames[s]}</em></div>`).join('')}</div>
-          ${pl.me ? '' : `<button class="l2-btn wide" id="ppInvite" ${pl.party ? 'disabled' : ''}>${inMyParty ? '✓ В вашей группе' : pl.party ? 'Уже в другой группе' : '👥 Пригласить в группу'}</button>`}`;
+          ${pl.me ? '' : `<button class="l2-btn wide" id="ppInvite" ${pl.party ? 'disabled' : ''}>${inMyParty ? '✓ В вашей группе' : pl.party ? 'Уже в другой группе' : '👥 Пригласить в группу'}</button>
+          <div class="btn-row"><button class="l2-btn" id="ppPm">✉️ Написать</button><button class="l2-btn" id="ppClan">🛡️ В клан</button></div>`}`;
         box.querySelector('.pp-name').textContent = pl.name;
         const art = window.Lobby && Lobby.heroCanvas(pl.hero, true);
         if (art) box.querySelector('.pp-art').append(art);
         box.querySelector('.pp-gear').onclick = (e) => { const s = e.target.closest('.pp-slot'); if (s && bySlot[s.dataset.s]) Bag.card(bySlot[s.dataset.s]); };
         const inv = box.querySelector('#ppInvite');
         if (inv) inv.onclick = () => { socket.emit('party', { op: 'invite', target: pl.id }); inv.disabled = true; inv.textContent = 'Приглашение отправлено'; };
+        const pmB = box.querySelector('#ppPm'), clB = box.querySelector('#ppClan');
+        if (pmB) pmB.onclick = () => { Town.close(); window.openPm(pl.id, pl.name); };
+        if (clB) clB.onclick = async () => { const x = await clanAct({ op: 'invite', target: pl.id }); Town.toast(x.error || x.toast); };
         Town.open(`👤 ${pl.name}`, box);
       };
+      // ---------- Клан ----------
+      const clanAct = (d) => new Promise((res) => socket.emit('clan', d, res));
+      const openClan = async () => {
+        const r = await clanAct({ op: 'info' });
+        const box = document.createElement('div');
+        if (!r.clan) {
+          box.innerHTML = `<p class="sheet-hint">Вы не в клане. Создайте свой (${r.price.toLocaleString('ru-RU')} 💰) или вступите по приглашению — его присылают из профиля игрока.</p>
+            <div class="clan-form"><input id="clName" maxlength="20" placeholder="Название клана"><input id="clTag" maxlength="4" placeholder="Тег (2–4)"><button class="l2-btn wide" id="clMake">🛡️ Создать клан · ${r.price.toLocaleString('ru-RU')} 💰</button></div>`;
+          box.querySelector('#clMake').onclick = async () => { const x = await clanAct({ op: 'create', name: box.querySelector('#clName').value, tag: box.querySelector('#clTag').value }); Town.toast(x.error || x.toast); if (!x.error) openClan(); };
+          box.querySelectorAll('input').forEach((i) => { i.addEventListener('keydown', (e) => e.stopPropagation()); i.addEventListener('focus', () => gameKeys(false)); i.addEventListener('blur', () => gameKeys(true)); });
+          Town.open('🛡️ Клан', box); return;
+        }
+        const c = r.clan, me = Lobby.profile() && Lobby.profile().uid, lead = c.leader === me;
+        box.innerHTML = `<div class="pass-head"><b>🛡️ ${c.name} [${c.tag}]</b><small>Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length}</small>
+          <button class="l2-btn" id="clChat">💬 Клановый чат</button></div><div class="ic-sec">Участники</div>`;
+        for (const m of c.members.sort((a, b) => b.online - a.online)) {
+          const row = document.createElement('div'); row.className = 'tw-ev';
+          row.innerHTML = `<div><b></b><small>${m.leader ? '👑 глава · ' : ''}${m.online ? '🟢 в сети' : '⚫ не в сети'}</small></div>${lead && !m.leader ? '<button class="l2-btn ghost">Исключить</button>' : ''}`;
+          row.querySelector('b').textContent = m.name;
+          const k = row.querySelector('button');
+          if (k) k.onclick = async () => { const x = await clanAct({ op: 'kick', uid: m.uid }); Town.toast(x.error || x.toast); openClan(); };
+          box.append(row);
+        }
+        box.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Пригласить: откройте профиль игрока (тап по герою на карте) → «В клан».</p><button class="l2-btn wide ghost" id="clLeave">Покинуть клан</button>');
+        box.querySelector('#clChat').onclick = () => { Town.close(); openChat(); setTab('clan'); };
+        box.querySelector('#clLeave').onclick = async () => { const x = await clanAct({ op: 'leave' }); Town.toast(x.error || x.toast); Town.close(); };
+        Town.open('🛡️ Клан', box);
+      };
+      socket.on('clanInvite', (d) => {
+        const box = $('partyInvite');
+        box.querySelector('b').textContent = `🛡️ ${d.from} приглашает вас в клан «${d.name}» [${d.tag}]`;
+        box.classList.remove('hidden');
+        $('piYes').onclick = async () => { box.classList.add('hidden'); const x = await clanAct({ op: 'accept', id: d.id }); Town.toast(x.error || x.toast); };
+        $('piNo').onclick = () => box.classList.add('hidden');
+        vibrate('medium');
+      });
       const openParty = () => {
         const box = document.createElement('div');
         const me = socket.id;
@@ -678,7 +746,8 @@
         sec('🖥️ Экран');
         row('Цифры урона', 'Всплывающий урон над целями', opt('dmgNums'));
         row('Имена над героями', 'Имена игроков и монстров на карте', opt('names'));
-        row('Чат над картой', 'Новые сообщения коротко видны в игре', opt('chatPop'));
+        row('Чат над картой', 'Сообщения игроков коротко видны в игре', opt('chatPop'));
+        row('События над картой', 'Системные сообщения (боссы, награды, вход игроков)', opt('sysPop'));
         row('Экономия батареи', '30 кадров в секунду вместо 60', opt('lowFps'));
         sec('💡 Подсказки');
         row('Подсказки в игре', 'У ворот босса и пояснения в окнах', opt('hints'));
@@ -735,6 +804,7 @@
           ['arena', 'Рейтинг арены', 'Лучшие игроки и турнир недели · сражаться — в доме арены', () => Town.openPlace('arenaRank')],
           ['pass', 'Сезонные ордена', 'Награды сезона, бонусы и автобой', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
+          ['events', 'Клан', 'Свой клан: участники, клановый чат, приглашения', openClan],
           ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
         ]),

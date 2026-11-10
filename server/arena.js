@@ -246,6 +246,8 @@ module.exports = function createArena(d) {
       const M = MODES[m.mode];
       // До начала боя: оглушение на время отсчёта
       if (now < m.startAt) { for (const tm of m.teams) for (const p of tm) if (players.has(p.id)) p.cc = { type: 'stun', until: m.startAt }; continue; }
+      // Бой начался: снять оглушение отсчёта и сразу сообщить героям, иначе клиент «держит» героя до первой посылки статов
+      if (!m.begun) { m.begun = true; for (const tm of m.teams) for (const p of tm) if (players.has(p.id)) { if (p.cc && p.cc.until <= m.startAt) p.cc = null; p.ccImmuneUntil = 0; d.markDirty && d.markDirty(p); } }
       if (m.solo) {
         const p = m.teams[0][0], foe = monsters.get(m.foe);
         if (!foe) finish(m, 0, 'соперник повержен');

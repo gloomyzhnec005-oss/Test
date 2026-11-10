@@ -2,7 +2,7 @@
 window.Settings = (() => {
   const DEF = {
     sfxVol: 80, musicVol: 60, vibro: true, // звук и отдача (громкость в процентах; общий выключатель — Sfx.toggle)
-    dmgNums: true, names: true, chatPop: true, // цифры урона, имена над героями и монстрами, сообщения чата над картой
+    dmgNums: true, names: true, chatPop: true, sysPop: true, // цифры урона, имена над героями и монстрами, сообщения чата и события над картой
     hints: true, lowFps: false, // подсказки в игре и окнах, экономия батареи (30 кадров в секунду)
     ctrlSize: 100, ctrlOpacity: 100, leftHand: false, // размер и прозрачность кнопок управления (%), джойстик справа
     autoPot: true, autoPotAt: 35, // автозелье: пить само, когда здоровья меньше autoPotAt %

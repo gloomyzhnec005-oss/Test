@@ -168,7 +168,7 @@ window.Town = (() => {
     if (!weapons.length) { box.innerHTML = soon('Нет оружия — руны вставляются в оружие'); return box; }
     const reload = async (id) => box.replaceWith(await runesBody(id));
     const w = weapons.find((i) => i.id === weaponId) || weapons.find((i) => Bag.isEquipped(i)) || weapons[0];
-    box.innerHTML = `<p class="sheet-hint">Выберите оружие, затем руну из сумки. Гнёзд: обычное/редкое 1, эпическое/легендарное 2, мифическое 3. Извлечение руны — ${50 * w.tier} 💰</p><div class="ic-sec">Оружие</div>`;
+    box.innerHTML = `<div class="rune-how"><b>Как вставить руну</b><ol><li>Выберите оружие ниже (надетое уже выбрано)</li><li>Тапните руну в разделе «Руны в сумке» — она встанет в свободное гнездо</li><li>Тап по вставленной руне — извлечь её (${50 * w.tier} 💰)</li></ol><small>Гнёзд: обычное и редкое оружие — 1, эпическое и легендарное — 2, мифическое — 3. Руны есть во вкладке «Купить руны» и падают с монстров.</small></div><div class="ic-sec">Оружие</div>`;
     box.append(Bag.grid(weapons, (it) => reload(it.id), { selected: new Set([w.id]) }));
     box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Гнёзда «${w.name}»: ${w.runes.length} / ${w.sockets}</div>`);
     const sock = document.createElement('div');
@@ -187,7 +187,7 @@ window.Town = (() => {
     }, { empty: 'Рун нет — купите во вкладке «Купить руны» или выбейте с монстров' }));
     return box;
   }
-  const runesPanel = () => open('💠 Рунная мастерская', tabs([['Вставить руну', () => runesBody()], ['Купить руны', () => shopList('runes')]]));
+  const runesPanel = (weaponId) => open('💠 Рунная мастерская', tabs([['Вставить руну', () => runesBody(weaponId)], ['Купить руны', () => shopList('runes')]]));
 
   // ---------- Рынок (фиксированная цена) ----------
   async function marketPanel(tab = 0) {

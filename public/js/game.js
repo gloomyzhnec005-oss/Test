@@ -107,7 +107,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
     // Сеть
     this.net.on('state', (s) => this.onState(s));
-    this.net.on('stats', (st) => { this.myStats = st; });
+    this.net.on('stats', (st) => { const now = Date.now(); this.myStats = { ...st, ccEnd: st.cc ? now + (st.ccMs || 0) : 0, rootEnd: st.rooted ? now + (st.rootMs || 0) : 0 }; });
     // Ворота босса открылись или запечатались: клетки прохода и анимация створок
     this.net.on('gate', (g) => {
       if (!this.tiles) return;
@@ -2463,11 +2463,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (t) { vx = t.c.x - me.x; vy = t.c.y - me.y; } else this.autoWalk = null;
     }
     // Контроль от монстров: оглушение/заморозка/паутина — стоим; подчинение — управление наоборот
-    const cc = this.myStats.cc;
+    // Контроль заканчивается по времени и без новой посылки статов (арена: оглушение отсчёта перед боем)
+    const cc = this.myStats.cc && Date.now() < (this.myStats.ccEnd || Infinity) ? this.myStats.cc : null;
     if (cc === 'confuse') { vx = -vx; vy = -vy; }
     const held = cc === 'stun' || cc === 'freeze' || cc === 'root';
     const len = Math.hypot(vx, vy);
-    if (len > 0 && !me.data.dead && !this.myStats.rooted && !held) {
+    const rooted = this.myStats.rooted && Date.now() < (this.myStats.rootEnd || Infinity);
+    if (len > 0 && !me.data.dead && !rooted && !held) {
       const n = Math.min(1, len) / len;
       const speed = this.prof().speed * (this.myStats.haste ? 1.25 : 1) * (this.myStats.flyBoost || 1) * (this.myStats.slow ? 0.6 : 1); // свет ветра, полёт
       const dx = vx * n * speed * dt, dy = vy * n * speed * dt;
