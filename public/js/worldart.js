@@ -46,6 +46,8 @@ window.WorldArt = (() => {
     if (has('tiles_' + th)) scene.textures.remove('tiles_' + th);
     L.image('tiles_' + th, `${base(th)}/tiles.png`);
     for (const st of ['closed', 'half', 'open', 'seal']) img(`gate_${th}_${st}`, `assets/world/gates/${th}_${st}.webp`);
+    // Ворота в боковой стене (вход слева/справа): нарисованы видом сбоку, смотрят влево — для правой стены отражаются
+    if (SIDE_GATES.includes(th)) for (const st of ['closed', 'half', 'open', 'seal']) img(`gate_${th}_side_${st}`, `assets/world/gates/${th}_side_${st}.webp`);
     for (const p of PLACES) img(`bld_${th}_${p}`, `${base(th)}/buildings/${p}.png`);
     for (const o of OBJECTS[th]) img(`obj_${th}_${o}`, `${base(th)}/objects/${o}.png`);
     for (const o of PORTALS) img(`ptl_${th}_${o}`, `${base(th)}/portals/${o}.png`);
@@ -61,6 +63,7 @@ window.WorldArt = (() => {
     scene.load.image('arena_' + th, `assets/world/arena/${th}.webp`);
     return true;
   }
+  const SIDE_GATES = []; // миры, для которых уже нарисованы боковые ворота (assets/world/gates/<мир>_side_<состояние>.webp)
   const has = (th) => !!THEMES[th];
   const hash = (x, y) => (((x * 73856093) ^ (y * 19349663)) >>> 0) % 100;
   // Тайл для отрисовки: разнообразие травы в городе, свои пол и стены в данжах (столкновения не меняются)

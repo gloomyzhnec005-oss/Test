@@ -449,7 +449,7 @@ module.exports = function createDungeons(d) {
   // Награду за полубосса и босса получают все, кто нанёс хотя бы 3% его здоровья.
   const halls = new Map(), announced = {};
   const BOSS_HOUR = Number(process.env.DUNGEON_BOSS_HOUR_UTC ?? 17), BOSS_MIN = Number(process.env.DUNGEON_BOSS_MIN ?? 0);
-  const RESPAWN = [5000, 10000], IDLE_MS = 5 * 60000, WARN_MS = 15 * 60000, GATE_OPEN_MS = 10 * 60000;
+  const RESPAWN = [1000, 2000], IDLE_MS = 5 * 60000, WARN_MS = 15 * 60000, GATE_OPEN_MS = 10 * 60000;
   const nextHour = (t) => Math.floor(t / 36e5) * 36e5 + 36e5;
   function nextBossAt(t) {
     const x = new Date(t);
@@ -748,7 +748,10 @@ module.exports = function createDungeons(d) {
     }
     for (const [town, st] of Object.entries(wbState)) {
       const b = st.bossId ? monsters.get(st.bossId) : null;
-      if (st.bossId && !b) st.bossId = null;
+      if (st.bossId && !b) { st.bossId = null; st.homeAt = now + 15000; } // босс повержен — через 15 с всех вернём в город
+      if (!st.bossId && now >= (st.homeAt || 0)) {
+        for (const o of inZone(`wb_${town}`)) { if (!o.dead) { d.moveToZone(o, town); o.socket.emit('chat', { sys: true, text: '🏰 Логово опустело — вы вернулись в город' }); } }
+      }
       if (!st.bossId && now >= st.nextAt) spawnWorldBoss(town, now);
       // Здоровье мирового босса растёт, если пришли новые игроки
       if (b) {

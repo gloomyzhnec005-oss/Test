@@ -213,6 +213,7 @@
       if (s.bonusDmg) parts.push(`${sg(s.bonusDmg)}% урона`);
       if (s.bonusSpd) parts.push(`${sg(s.bonusSpd)}% скор.`);
       if (s.passiveNote) parts.push(s.passiveNote);
+      if (s.deathLeft > 0) parts.unshift(`💀 слабость ${Math.floor(s.deathLeft / 60)}:${String(s.deathLeft % 60).padStart(2, '0')}`);
       $('passive').textContent = `${passiveDef.icon} ${parts.join(' · ') || passiveDef.name}`;
     }
   }
@@ -714,7 +715,7 @@
           Town.close();
           // Вне города центральная кнопка меню — портал в город (выход из данжа, логова босса, общей арены)
           // В данже кнопка открывает меню «Игра» с автобоем и выходом в город, в логове босса и на арене — сразу выход
-          const out = ['worldboss', 'pvp'].includes(z.kind) && !z.inst;
+          const out = z.kind === 'pvp' && !z.inst; // из логова мирового босса и данжа выживания выхода нет
           const pb = document.querySelector('[data-nav="play"]');
           pb.dataset.exit = out ? '1' : '';
           pb.querySelector('img').src = out ? 'assets/ui/place_teleport.webp' : 'assets/ui/nav_play.webp';

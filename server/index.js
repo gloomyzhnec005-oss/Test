@@ -395,6 +395,16 @@ const formOf = (p) => (p.hero.forms ? p.hero.forms[p.form || 'human']
   : p.hero.elements ? { ...p.hero, projectile: p.hero.elements[p.form || 'fire'].projectile }
   : p.hero.aspects ? { ...p.hero, projectile: p.hero.aspects[p.form || 'fire'].projectile } : p.hero);
 const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
+// Штраф за гибель (кроме PvP-арены, матчей и данжа выживания): −10% опыта уровня и «Слабость» на 2 минуты
+const DEATH = { xpLoss: 0.1, ms: 2 * 60000, dmg: 0.2, xp: 0.2 };
+function deathPenalty(p) {
+  const pr = getProfile(p.uid), need = xpForLevel(p.char.level);
+  const lost = Math.min(p.char.xp, Math.round(need * DEATH.xpLoss)); // уровень не теряется
+  p.char.xp -= lost;
+  p.deathUntil = pr.deathUntil = Date.now() + DEATH.ms; // сохраняется в профиле — перезаход не снимает
+  p.socket.emit('chat', { sys: true, text: `💀 Вы погибли: −${lost} опыта. Слабость на 2 минуты: урон −20%, получаемый опыт −20%` });
+  p.lastStats = 0;
+}
 const dmgMult = (p, now = Date.now()) => {
   const ps = passiveOf(p);
   return (p.roarUntil > now ? 1.4 : 1) * (p.frenzyUntil > now ? 1.5 : 1) * (p.linkUntil > now ? 1.3 : 1)
@@ -402,6 +412,7 @@ const dmgMult = (p, now = Date.now()) => {
     * (p.songUntil > now ? 1 + 0.15 * (p.songPw || 1) : 1) // песнь вдохновения Джакомо
     * (p.cryUntil > now ? 1.2 : 1) // клич валькирии
     * (p.weakUntil > now ? 0.7 : 1) // проклятие слабости монстров
+    * (p.deathUntil > now ? 1 - DEATH.dmg : 1) // слабость после гибели
     * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
@@ -468,7 +479,7 @@ function publicPlayer(p) {
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
-  return { level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm,
+  return { level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm,
     gold: getProfile(p.uid).gold, unlocked: p.unlocked, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
@@ -732,6 +743,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
     fx.push({ t: 'pdeath', target: target.id });
     const zKind = (world.byId.get(target.zone) || {}).kind;
     if (zKind === 'pvp' && !target.match) pvpKill(target);
+    if (zKind !== 'pvp' && zKind !== 'survival' && !target.match) deathPenalty(target);
     // Гибель союзника рядом усиливает Талмиру
     for (const o of players.values()) {
       const ops = passiveOf(o);
@@ -797,7 +809,7 @@ function setAutofarm(p, on) {
 function grantXp(p, amount, gold, shared = false) {
   const pr = getProfile(p.uid), now = Date.now();
   const sub = (meta.isSub(pr) ? meta.SHOP.sub.xpBonus : 0) + (meta.SHOP.passXpGold[meta.passTier(pr)] || 0); // подписка + орден (бесплатный Странника — тоже)
-  amount = Math.round(amount * (1 + ((p.gear && p.gear.xp) || 0) / 100 + sub + ((pr.buffs || {}).xp > now ? 0.5 : 0)) * S.xpMult);
+  amount = Math.round(amount * (1 + ((p.gear && p.gear.xp) || 0) / 100 + sub + ((pr.buffs || {}).xp > now ? 0.5 : 0)) * S.xpMult * (p.deathUntil > now ? 1 - DEATH.xp : 1));
   gold = Math.round(gold * (1 + ((p.gear && p.gear.gold) || 0) / 100 + sub) * S.goldMult);
   p.char.xp += amount;
   p.char.gold += gold;
@@ -932,6 +944,7 @@ io.on('connection', (socket) => {
     };
     p.hp = p.maxHp;
     p.res = startRes(p);
+    p.deathUntil = prj.deathUntil || 0; // слабость после гибели переживает перезаход
     p.god = !!(prj.test || {}).god; p.oneShot = !!(prj.test || {}).oneShot; // тестовые режимы из админки
     prj.name = p.name; prj.lastSeen = Date.now();
     if (hero.pets) { p.pets = createPets(p); p.pets.forEach((pet) => pets.set(pet.id, pet)); }
@@ -1101,6 +1114,9 @@ io.on('connection', (socket) => {
     if (obj.world && obj.lv) {
       const need = Math.max((world.towns.find((t) => t.id === z.id) || {}).minLevel || 1, obj.lv[0] - 5);
       if (p.char.level < need) return socket.emit('skillFail', `${obj.name}: нужен ${need} уровень`);
+      // Выхода из логова нет — пускаем, только пока босс жив
+      const st = D.wbState[z.id];
+      if (!st || !st.bossId) return socket.emit('skillFail', `Мирового босса нет · ${D.worldBossInfo(z.id)}`);
     }
     moveToZone(p, to);
     const nz = world.byId.get(to);
@@ -1112,8 +1128,10 @@ io.on('connection', (socket) => {
     const p = players.get(socket.id);
     if (!p || p.dead) return;
     const z = world.byId.get(p.zone);
-    if (!z || !['dungeon', 'worldboss', 'pvp'].includes(z.kind) || z.inst || !z.town) return socket.emit('skillFail', 'Отсюда телепорт недоступен');
-    if (Date.now() - (p.lastHurt || 0) < 5000) return socket.emit('skillFail', 'Нельзя в бою — подождите 5 секунд без урона');
+    if (z && z.kind === 'survival') return socket.emit('skillFail', 'Из данжа выживания не уйти — бой до конца');
+    if (z && z.kind === 'worldboss') return socket.emit('skillFail', 'Из логова не уйти, пока жив мировой босс');
+    if (!z || !['dungeon', 'pvp'].includes(z.kind) || z.inst || !z.town) return socket.emit('skillFail', 'Отсюда телепорт недоступен');
+    if (Date.now() - (p.lastHurt || 0) < 3000) return socket.emit('skillFail', 'Нельзя в бою — подождите 3 секунды без урона');
     moveToZone(p, z.town);
     socket.emit('chat', { sys: true, text: `🌀 Вы вернулись в город ${world.byId.get(z.town).name}` });
   });
@@ -1341,6 +1359,7 @@ setInterval(() => {
     const ps = passiveOf(p);
     if (ps && ps.onTick) ps.onTick(p, now, skillCtx);
     if (ps && ps.dmgMult && p.hp < p.maxHp) markDirty(p); // бонус зависит от здоровья
+    if (p.deathUntil && (p.deathUntil > now || p.deathUntil > now - 1500) && now - p.lastStats >= 1000) markDirty(p); // отсчёт слабости после гибели
     if (p.dirty && now - p.lastStats >= 250) {
       p.dirty = false;
       p.lastStats = now;

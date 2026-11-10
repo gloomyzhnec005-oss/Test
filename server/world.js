@@ -344,8 +344,7 @@ function buildWorld() {
   WORLDS.forEach((w) => {
     const z = add({ id: `wb_${w.id}`, kind: 'worldboss', name: 'Логово мирового босса', sub: `${w.name} · общая битва`, theme: w.theme, tier: w.tier,
       w: 40, h: 40, tiles: arenaTiles(40, 40), spawnTile: { tx: 20, ty: 33 }, town: w.id, objs: [] });
-    const back = z.abs(20, 35);
-    z.objs.push({ id: 'back', kind: 'portal', to: w.id, name: `В город ${w.name}`, icon: '🏰', x: back.x, y: back.y });
+    // Выхода нет: из логова — только после победы над боссом (всех вернёт в город) или после гибели
   });
 
   // Данж-лабиринт: один общий зал на всех игроков (id dg_<город>_<номер>), карта постоянная
@@ -354,11 +353,41 @@ function buildWorld() {
     const m = mazeMap(9000 + WORLDS.findIndex((w) => w.id === townId) * 500 + i * 101, town.theme, dg.minis.length);
     const z = add({ id: `dg_${townId}_${i}`, kind: 'dungeon', name: dg.name, sub: `${town.name} · портал ${i + 1} · ур. ${dg.lv[0]}–${dg.lv[1]}`, theme: town.theme, tier: town.tier,
       w: m.w, h: m.h, tiles: m.tiles, spawnTile: m.spawn, town: townId, objs: [], rooms: m.rooms, maxD: m.maxD, dg, dgIndex: i, decoTiles: m.deco });
-    const back = z.abs(m.spawn.tx, m.spawn.ty - 2);
+    const bt = wallSpot(m);
+    const back = z.abs(bt.tx, bt.ty);
     z.objs.push({ id: 'back', kind: 'portal', to: townId, name: `В город ${town.name}`, icon: '🏰', x: back.x, y: back.y });
     z.gates = bossGates(z);
     return z;
   };
+  // Портал выхода — у стены стартовой комнаты, подальше от проходов и от точки появления (не мешает пройти)
+  function wallSpot(m) {
+    const r = m.rooms.find((x) => x.role === 'start'), W = m.w;
+    const solid = (x, y) => x < 0 || y < 0 || x >= W || y >= m.h || SOLID.has(m.tiles[y * W + x]);
+    if (!r) return { tx: m.spawn.tx, ty: m.spawn.ty - 2 };
+    // Проходы: свободные клетки сразу за краем комнаты
+    const doors = [];
+    for (let x = r.x0; x <= r.x1; x++) { if (!solid(x, r.y0 - 1)) doors.push([x, r.y0 - 1]); if (!solid(x, r.y1 + 1)) doors.push([x, r.y1 + 1]); }
+    for (let y = r.y0; y <= r.y1; y++) { if (!solid(r.x0 - 1, y)) doors.push([r.x0 - 1, y]); if (!solid(r.x1 + 1, y)) doors.push([r.x1 + 1, y]); }
+    const t = (xx, yy) => m.tiles[yy * W + xx];
+    const wall = (xx, yy) => [T.ROCK, T.WALL].includes(t(xx, yy));
+    let best = null, bs = -1e9;
+    // Сначала строго (верхняя стена, далеко от проходов), затем мягче — любая стена
+    for (const [needTop, minDoor] of [[true, 3], [false, 3], [false, 2]]) {
+      for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) {
+        if (solid(x, y)) continue;
+        const top = wall(x, y - 1), side = wall(x - 1, y) || wall(x + 1, y) || wall(x, y + 1);
+        if (needTop ? !top : !(top || side)) continue;
+        if (t(x - 1, y) === T.DECO || t(x + 1, y) === T.DECO || t(x, y - 1) === T.DECO) continue; // не вплотную к украшениям
+        const door = Math.min(99, ...doors.map(([dx, dy]) => Math.abs(dx - x) + Math.abs(dy - y)));
+        const sp = Math.hypot(x - m.spawn.tx, y - m.spawn.ty);
+        if (door < minDoor || sp < 2.5) continue;
+        const score = door * 2 + Math.min(sp, 6) + (top ? 3 : 0) - Math.abs(x - r.cx) * 0.3;
+        if (score > bs) { bs = score; best = { tx: x, ty: y }; }
+      }
+      if (best) break;
+    }
+    return best || { tx: m.spawn.tx, ty: m.spawn.ty - 2 };
+  }
   // Ворота комнаты босса: на каждом входе из коридора — ряд клеток сразу за стеной комнаты.
   // Закрытые ворота — непроходимые клетки (DECO); открываются, когда босс в комнате (server/dungeon.js)
   function bossGates(z) {
@@ -381,7 +410,7 @@ function buildWorld() {
       const by = z.oy + (horiz ? mid[1] + 1 : g.cells[n - 1][1] + 1) * TILE;
       const idx = g.cells.map(([x, y]) => y * W + x);
       for (const k of idx) z.tiles[k] = T.DECO; // по умолчанию запечатаны
-      return { i, idx, floor: T.PATH, x: cx, y: by, w: (horiz ? n + 2 : 3) * TILE, side: g.side, state: 'seal' };
+      return { i, idx, floor: T.PATH, x: cx, y: by, w: (horiz ? n + 2 : 3) * TILE, n, side: g.side, state: 'seal' };
     });
   }
 
@@ -402,8 +431,7 @@ function buildWorld() {
     const W = 30, H = 30, tiles = arenaTiles(W, H, mulberry32(instSeq * 31));
     const z = add({ id: `surv${instSeq++}`, kind: 'survival', name: 'Данж выживания', sub: `${town.name} · волны монстров`, theme: town.theme, tier: town.tier,
       w: W, h: H, tiles, spawnTile: { tx: 15, ty: 15 }, town: townId, objs: [] });
-    const back = z.abs(15, 13);
-    z.objs.push({ id: 'back', kind: 'portal', to: townId, name: `Выйти в ${town.name}`, icon: '🏰', x: back.x, y: back.y });
+    // Выхода нет: данж выживания идёт до гибели
     return z;
   };
   // Арена матча (дуэль, команды, клон): отдельная копия на каждый бой
@@ -453,7 +481,7 @@ function buildWorld() {
   };
   // Данные зоны для клиента
   const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, inst: !!z.inst, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
-    town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon', mobs: zoneMobs(z), gates: (z.gates || []).map((g) => ({ i: g.i, x: g.x, y: g.y, w: g.w, side: g.side, state: g.state })) });
+    town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon', mobs: zoneMobs(z), gates: (z.gates || []).map((g) => ({ i: g.i, x: g.x, y: g.y, w: g.w, n: g.n, side: g.side, state: g.state })) });
 
   return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, addPvpInstance, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level, minLevel: w.minLevel || 1 })) };
 }

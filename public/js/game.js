@@ -116,7 +116,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (!img || !img.active) return;
       img.gateState = g.state;
       const th = this.zone.theme, seq = g.state === 'open' ? ['closed', 'half', 'open'] : ['open', 'half', 'closed', 'seal'];
-      seq.forEach((st, n) => this.time.delayedCall(n * 280, () => { if (img.active && this.textures.exists(`gate_${th}_${st}`)) img.setTexture(`gate_${th}_${st}`); }));
+      const pre = img.gateSide ? `gate_${th}_side_` : `gate_${th}_`; // боковые ворота — свои кадры
+      seq.forEach((st, n) => this.time.delayedCall(n * 280, () => { if (img.active && this.textures.exists(pre + st)) img.setTexture(pre + st); }));
       this.cameras.main.flash(250, 255, 230, 180);
       if (window.Sfx) Sfx.play('gate');
     });
@@ -415,11 +416,19 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Ворота комнаты босса (открываются, когда босс в комнате)
     this.gates = new Map();
     for (const g of z.gates || []) {
-      const key = `gate_${z.theme}_${g.state}`;
+      const side = g.side === 'left' || g.side === 'right';
+      const sideArt = side && this.textures.exists(`gate_${z.theme}_side_${g.state}`);
+      const key = sideArt ? `gate_${z.theme}_side_${g.state}` : `gate_${z.theme}_${g.state}`;
       if (!this.textures.exists(key)) continue;
       const img = this.add.image(g.x, g.y, key).setOrigin(0.5, 1);
       const src = img.frame;
-      img.setDisplaySize(g.w, g.w * src.height / src.width).setDepth(10 + g.y);
+      if (side) {
+        // Вход сбоку: ворота стоят вдоль стены — высота по проходу, узкие; без боковой картинки — сжатые обычные (в перспективе)
+        const h = ((g.n || 3) + 1.5) * this.T;
+        img.setDisplaySize(sideArt ? h * src.width / src.height : this.T * 1.4, h).setDepth(10 + g.y);
+        if (sideArt && g.side === 'right') img.setFlipX(true);
+        img.gateSide = sideArt ? g.side : null;
+      } else img.setDisplaySize(g.w, g.w * src.height / src.width).setDepth(10 + g.y);
       img.gateState = g.state;
       this.zoneObjs.push(img); this.gates.set(g.i, img);
     }
@@ -2442,7 +2451,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
     else if (this.walkTo) {
       const wp = this.walkTo.path[0];
       const dx = wp.x - me.x, dy = wp.y - me.y;
-      if (Math.hypot(dx, dy) < 8) { this.walkTo.path.shift(); if (!this.walkTo.path.length) this.walkTo = null; }
+      // Точка пути достигнута — или герой упёрся в угол рядом с ней (стоит на месте) — берём следующую
+      const near = Math.hypot(dx, dy), w = this.walkTo;
+      if (near < 16 && Math.hypot(me.x - (w.lx || 0), me.y - (w.ly || 0)) < 0.5) w.idle = (w.idle || 0) + 1; else w.idle = 0;
+      w.lx = me.x; w.ly = me.y;
+      if (near < 12 || w.idle > 6) { w.path.shift(); w.idle = 0; if (!w.path.length) this.walkTo = null; }
       if (++(this.walkTo || {}).stuck > 1500) this.walkTo = null;
       if (this.walkTo) { vx = dx; vy = dy; }
     } else if (this.autoWalk) {
