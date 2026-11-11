@@ -1158,6 +1158,7 @@ io.on('connection', (socket) => {
     socket.emit('resumed', { x: p.x, y: p.y, zone: p.zone });
     p.lastStats = 0; markDirty(p);
   }
+  socket.on('ping2', (cb) => { if (typeof cb === 'function') cb(); }); // замер задержки связи (Настройки → FPS и пинг)
   socket.on('join', (data = {}) => {
     if (players.has(socket.id)) return;
     const who = resolveUid(data.initData, data.guestId || socket.id);

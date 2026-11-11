@@ -1349,3 +1349,9 @@ canvas.skin { object-fit: contain; }
 .gems-btn { display: inline-flex; align-items: center; gap: 1px; padding: 0 3px 0 1px; border: 1px solid #6a5ad8; border-radius: 8px; background: rgba(60,40,120,.45); color: #fff; font: inherit; cursor: pointer; pointer-events: auto; }
 .gems-btn b { font-weight: bold; }
 .gems-btn i { font-style: normal; color: #9fe08a; font-weight: bold; margin-left: 2px; }
+
+.net-info { position: absolute; left: 50%; transform: translateX(-50%); top: calc(2px + env(safe-area-inset-top)); z-index: 29; padding: 1px 8px; border-radius: 8px;
+  background: rgba(0,0,0,.55); color: #9fe08a; font: 600 10px/1.4 Arial, sans-serif; pointer-events: none !important; }
+.net-info.hidden { display: none; }
+.net-info .bad { color: #ff7a6a; }
+.set-sel { background: #1a1612; color: #e8dcc0; border: 1px solid #4a3b26; border-radius: 6px; padding: 4px 6px; font: inherit; }

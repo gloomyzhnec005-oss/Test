@@ -841,6 +841,13 @@
         row('Чат над картой', 'Сообщения игроков коротко видны в игре', opt('chatPop'));
         row('События над картой', 'Системные сообщения (боссы, награды, вход игроков)', opt('sysPop'));
         row('Экономия батареи', '30 кадров в секунду вместо 60', opt('lowFps'));
+        {
+          const sel = document.createElement('select'); sel.className = 'set-sel';
+          for (const [v, n] of [['auto', 'Авто'], ['high', 'Чёткая'], ['fast', 'Быстрая']]) { const o = document.createElement('option'); o.value = v; o.textContent = n; o.selected = Settings.get('gfx') === v; sel.append(o); }
+          sel.onchange = () => Settings.set('gfx', sel.value);
+          row('Качество картинки', 'Авто — игра сама снижает чёткость, если телефон не успевает; «Быстрая» — для слабых телефонов', sel);
+        }
+        row('FPS и пинг', 'Маленькая строка сверху: кадры в секунду и задержка связи', opt('netInfo'));
         sec('💡 Подсказки');
         row('Подсказки в игре', 'У ворот босса и пояснения в окнах', opt('hints'));
         row('Обучение', 'Показать знакомство с управлением заново', btn('Начать', () => { Town.close(); Tutorial.start(true); }));
@@ -987,7 +994,19 @@
       // Рисуем в физических пикселях экрана (до ×2), иначе на телефоне картинка и текст растягиваются и мылятся
       // Холст — в настоящих пикселях экрана (раньше не больше 2×: на экранах 2,6–3× браузер растягивал картинку — мыло).
       // В режиме экономии батареи — до 2×
-      const DPR = window.GAME_DPR = Math.min(Settings.get('lowFps') ? 2 : 3, window.devicePixelRatio || 1);
+      // Разрешение холста. Полное (3× на iPhone) — самое чёткое, но в 2,25 раза больше пикселей, чем 2×: слабым телефонам
+      // не хватает сил на 60 кадров, игра «тормозит». «Авто»: начинаем с 2× (или с того, что подошло этому телефону раньше),
+      // следим за частотой кадров и сами переключаем разрешение
+      const devDpr = window.devicePixelRatio || 1;
+      const DPR_LEVELS = [...new Set([Math.min(3, devDpr), 2, 1.5, 1].filter((x) => x <= devDpr))].sort((a, b) => b - a);
+      const gfxStart = () => {
+        const g = Settings.get('gfx');
+        if (g === 'high') return DPR_LEVELS[0];
+        if (g === 'fast') return Math.min(1.5, DPR_LEVELS[0]);
+        const saved = Number(store.get('gfxDpr'));
+        return DPR_LEVELS.includes(saved) ? saved : Math.min(2, DPR_LEVELS[0]);
+      };
+      const DPR = window.GAME_DPR = Settings.get('lowFps') ? Math.min(2, gfxStart()) : gfxStart();
       game = new Phaser.Game({
         type: Phaser.AUTO,
         parent: 'game',
@@ -1009,7 +1028,29 @@
       game.scene.add('Game', window.GameScene, true, { socket, welcome: w, ui, input });
       setTimeout(() => window.Tutorial && Tutorial.start(), 1800); // обучение при первом входе
       let rt = 0;
-      window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { game.scale.resize(Math.round(window.innerWidth * DPR), Math.round(window.innerHeight * DPR)); game.scale.setZoom(1 / DPR); }, 100); });
+      const applyDpr = (d) => { window.GAME_DPR = d; game.scale.resize(Math.round(window.innerWidth * d), Math.round(window.innerHeight * d)); game.scale.setZoom(1 / d); };
+      window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => applyDpr(window.GAME_DPR), 100); });
+      // Авто-качество: каждые 3 с смотрим частоту кадров. Не тянет (< 48) два раза подряд — ниже разрешение;
+      // стабильно 58+ целых 15 с — пробуем выше, но не выше уровня, на котором уже тормозило
+      let slow = 0, fast = 0;
+      setInterval(() => {
+        if (document.hidden || Settings.get('lowFps') || Settings.get('gfx') !== 'auto' || !window.gameScene || window.gameScene.zoneLoading) { slow = fast = 0; return; }
+        const fps = game.loop.actualFps, cur = window.GAME_DPR, i = DPR_LEVELS.indexOf(cur);
+        if (fps < 48) { fast = 0; if (++slow >= 2 && i < DPR_LEVELS.length - 1) { slow = 0; store.set('gfxCap', String(cur)); store.set('gfxDpr', String(DPR_LEVELS[i + 1])); applyDpr(DPR_LEVELS[i + 1]); } }
+        else if (fps >= 58) { slow = 0; const cap = Number(store.get('gfxCap')) || 99; if (++fast >= 5 && i > 0 && DPR_LEVELS[i - 1] < cap) { fast = 0; store.set('gfxDpr', String(DPR_LEVELS[i - 1])); applyDpr(DPR_LEVELS[i - 1]); } }
+        else { slow = 0; fast = 0; }
+      }, 3000);
+      Settings.on((k, v) => { if (k === 'gfx') { store.set('gfxCap', ''); applyDpr(gfxStart()); } });
+      // FPS и пинг (Настройки → Экран): понять, тормозит телефон или интернет
+      let pingMs = 0;
+      setInterval(() => { if (!socket.connected) return; const t0 = performance.now(); socket.volatile.emit('ping2', () => { pingMs = Math.round(performance.now() - t0); }); }, 3000);
+      setInterval(() => {
+        const el = $('netInfo');
+        if (!Settings.get('netInfo')) { el.classList.add('hidden'); return; }
+        el.classList.remove('hidden');
+        const fps = Math.round(game.loop.actualFps);
+        el.innerHTML = `<span class="${fps < 45 ? 'bad' : ''}">${fps} FPS</span> · <span class="${pingMs > 250 ? 'bad' : ''}">${pingMs} мс</span> · ${window.GAME_DPR}×`;
+      }, 1000);
     });
   }
 
