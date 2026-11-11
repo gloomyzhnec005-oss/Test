@@ -1860,6 +1860,9 @@ setTimeout(() => setInterval(() => {
 }, C.TICK_MS), C.TICK_MS / 2);
 
 // Ошибка в одном обработчике не должна ронять весь сервер (иначе перезапуск: все теряют бой, босса и награды)
+// Все ошибки сервера (console.error) — ещё и в админку: вкладка «Журнал» → «Ошибки сервера»
+{ const orig = console.error.bind(console);
+  console.error = (...a) => { orig(...a); try { admin.log('error', a.map((x) => (x && x.stack) || (typeof x === 'object' ? JSON.stringify(x) : String(x))).join(' ')); } catch { /* журнал недоступен */ } }; }
 process.on('uncaughtException', (e) => console.error('uncaughtException', e));
 process.on('unhandledRejection', (e) => console.error('unhandledRejection', e));
 

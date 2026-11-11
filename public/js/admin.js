@@ -391,7 +391,11 @@
     const r = await api('log');
     if (r.error) return;
     const KIND = { admin: '⚙️', join: '➡️', pay: '⭐' };
+    const errs = r.errors || [];
     $('tab-log').innerHTML = `<div class="row"><button id="logRe" class="btn small">Обновить</button><span class="muted">Действия админов, входы игроков и оплаты с момента запуска сервера</span></div>
+      <h3>⚠️ Ошибки сервера (${errs.length})</h3>
+      ${errs.map((l) => `<details class="log-line err"><summary><time>${new Date(l.t).toLocaleString('ru-RU')}</time>${l.n > 1 ? `×${l.n} ` : ''}${esc(l.text.split('\n')[0].slice(0, 160))}</summary><pre>${esc(l.text)}</pre></details>`).join('') || '<p class="muted">Ошибок нет 👍</p>'}
+      <h3>Журнал</h3>
       ${r.log.map((l) => `<div class="log-line"><time>${new Date(l.t).toLocaleString('ru-RU')}</time>${KIND[l.kind] || ''} ${esc(l.text)}</div>`).join('') || '<p class="muted">Пока пусто</p>'}`;
     $('logRe').onclick = drawLog;
   }

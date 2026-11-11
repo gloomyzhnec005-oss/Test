@@ -26,9 +26,17 @@ module.exports = function createAdmin(ctx) {
   const saveSettings = () => store.writeJSON('admin.json', settings);
 
   // ---------- Журнал ----------
-  const journal = [];
+  const journal = [], errors = [];
   function log(kind, text) {
-    journal.push({ t: Date.now(), kind, text });
+    const e = { t: Date.now(), kind, text: String(text).slice(0, 1500) };
+    if (kind === 'error') {
+      // Одинаковые ошибки подряд не плодим: считаем повторы
+      const last = errors[errors.length - 1];
+      if (last && last.text === e.text) { last.n = (last.n || 1) + 1; last.t = e.t; return; }
+      errors.push(e); if (errors.length > 200) errors.shift();
+      return;
+    }
+    journal.push(e);
     if (journal.length > 500) journal.shift();
   }
 
@@ -413,7 +421,7 @@ module.exports = function createAdmin(ctx) {
     }
     return { settings };
   }, () => 'настройки'));
-  r.post('/log', act(() => ({ log: journal.slice(-300).reverse() })));
+  r.post('/log', act(() => ({ log: journal.slice(-300).reverse(), errors: errors.slice(-100).reverse() })));
   r.post('/save', act(() => ({ text: 'Данные записаны на диск' }), () => 'сохранение'));
 
   // Администратор ли этот игрок (Telegram ID в ADMIN_TG_IDS) — для кнопки админки в лобби
