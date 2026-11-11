@@ -247,6 +247,11 @@ module.exports = function createMeta(deps) {
     return null;
   }
   const cardReady = (pr) => !!(pr.card && pr.card.until > Date.now() && pr.card.last !== mskDayKey());
+  function compView(pr) {
+    const C2 = pr.comp || { owned: [], active: null };
+    return { gems: pr.gems || 0, active: C2.active || null, list: Object.entries(I.COMPANIONS).map(([id, c]) => ({ id, name: c.name, rare: c.rare, price: c.price, art: c.art, w: c.w, h: c.h,
+      bonus: Object.entries(c.bonus).map(([k, v]) => `${I.ATTRS[k] ? I.ATTRS[k][0] : k} +${v}%`).join(', '), owned: C2.owned.includes(id) })) };
+  }
   function cosmView(pr) {
     const C2 = pr.cosm || { owned: [] };
     return { gems: pr.gems || 0, cur: { name: C2.name || null, aura: C2.aura || null, frame: C2.frame || null },
@@ -290,6 +295,25 @@ module.exports = function createMeta(deps) {
 
   const OPS = {
     inv: (p) => ({ inv: invView(p) }),
+    // ---------- Спутники ----------
+    companions(p, d, pr) { return { comp: compView(pr) }; },
+    companionBuy(p, d, pr) {
+      const id = String(d.id || ''), c = Object.hasOwn(I.COMPANIONS, id) ? I.COMPANIONS[id] : null;
+      if (!c || !c.art) return { error: 'Этот спутник пока недоступен' };
+      const C2 = (pr.comp ??= { owned: [], active: null });
+      if (C2.owned.includes(id)) return { error: 'Уже есть' };
+      if ((pr.gems || 0) < c.price) return { error: `Нужно ${c.price} 💎` };
+      pr.gems -= c.price; C2.owned.push(id); C2.active = id;
+      deps.companionChanged(p.uid);
+      return { toast: `🐾 ${c.name} теперь с вами!`, comp: compView(pr) };
+    },
+    companionSet(p, d, pr) {
+      const id = d.id ? String(d.id) : null, C2 = (pr.comp ??= { owned: [], active: null });
+      if (id && !C2.owned.includes(id)) return { error: 'Сначала получите этого спутника' };
+      C2.active = id;
+      deps.companionChanged(p.uid);
+      return { toast: id ? `🐾 ${I.COMPANIONS[id].name} рядом с вами` : 'Спутник отдыхает', comp: compView(pr) };
+    },
     // ---------- Внешний вид ----------
     cosmetics(p, d, pr) { return { cosm: cosmView(pr) }; },
     cosmeticBuy(p, d, pr) {

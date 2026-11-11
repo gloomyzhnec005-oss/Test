@@ -312,6 +312,7 @@ const meta = createMeta({
   quest: (...a) => Q.track(...a),
   C, getProfile, saveProfiles, players, profiles,
   refreshPlayer: (p) => refreshPlayer(p), notifyUid: (uid, t) => notifyUid(uid, t),
+  companionChanged: (uid) => { for (const o of players.values()) if (o.uid === uid) { o.cp = (getProfile(uid).comp || {}).active || null; refreshPlayer(o); markDirty(o); } },
   cosmeticsChanged: (uid) => { for (const o of players.values()) if (o.uid === uid) { Object.assign(o, { look: meta.cosmLook(getProfile(uid)) }); o.lastStats = 0; markDirty(o); } },
   statsFor: (...a) => statsFor(...a), unlockedSkills: (...a) => unlockedSkills(...a),
   // Свиток возвращения: в город текущего мира
@@ -322,7 +323,7 @@ const meta = createMeta({
 const D = createDungeons({
   C, world, monsters, players, pets,
   push: (kind, text, filter) => Push.sendAll(kind, text, filter), maxHeroLevel: (pr) => maxHeroLevel(pr),
-  notifyUid: (uid, t) => notifyUid(uid, t),
+  notifyUid: (uid, t) => notifyUid(uid, t), companionDrop: (o, ch) => companionDrop(o, ch),
   wbWeek: (uid, dmg) => { const pr = getProfile(uid), w = Ranks.weekNo(); if (!pr.wbWeek || pr.wbWeek.w !== w) pr.wbWeek = { w, dmg: 0, n: 0 }; pr.wbWeek.dmg += Math.round(dmg); pr.wbWeek.n += 1; },
   pushFx: (f) => fx.push(f),
   hurtPlayer: (...a) => hurtPlayer(...a),
@@ -784,7 +785,7 @@ function moveEntity(e, dx, dy) {
 
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
-    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, tag: p.clanTag || null, dm: p.deathMarkUntil > Date.now() ? 1 : 0, nc: (p.look && p.look.nc) || null, au: (p.look && p.look.au) || null, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
+    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, tag: p.clanTag || null, cp: p.cp || null, dm: p.deathMarkUntil > Date.now() ? 1 : 0, nc: (p.look && p.look.nc) || null, au: (p.look && p.look.au) || null, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
     pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, phase: p.hero.phases ? p.form : null, heat: Math.round(p.heat || 0), abyss: p.abyssUntil > Date.now(), mt: p.match ? `${p.match}:${p.team}` : null, pcc: D.ccActive(p), pdot: (p.pdots || []).filter((x) => x.until > Date.now()).map((x) => x.kind)[0] || null, pslow: p.slowUntil > Date.now(), pweak: p.weakUntil > Date.now(), flame: p.hero.flames ? p.form : null, ash: p.ashArmorUntil > Date.now(), rootSelf: p.rootSelfUntil > Date.now(), cry: p.crystals && p.crystals.length ? p.crystals : null, wrune: p.weaponRuneUntil > Date.now() ? p.weaponRuneType : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
@@ -1209,10 +1210,23 @@ function dropLoot(killer, m) {
     // Материалы, свитки, чертежи и вещи комплектов данжа (server/loot.js)
     const z = world.byId.get(m.zone);
     const dungeon = z && z.kind === 'dungeon' ? { sets: Loot.dungeonSets(z.tier, z.dgIndex) } : null;
+    if (m.rank === 'boss') companionDrop(o, 0.03 * luck);
     const drop = Loot.rollMats(m, tier, dungeon, luck * (m.lootMult ?? 1) * S.dropMult);
     giveMats(o, pr, drop.mats, m);
     for (const it of drop.items) giveLoot(o, pr, it, m);
   }
+}
+// Спутник в добычу: случайный обычный, которого у игрока ещё нет (босс данжа 3%, мировой босс 5%)
+function companionDrop(o, chance) {
+  if (Math.random() >= chance) return;
+  const pr = getProfile(o.uid), C2 = (pr.comp ??= { owned: [], active: null });
+  const pool = Object.entries(I.COMPANIONS).filter(([id, c]) => c.art && !c.rare && !C2.owned.includes(id));
+  if (!pool.length) return;
+  const [id, c] = pool[Math.floor(Math.random() * pool.length)];
+  C2.owned.push(id); if (!C2.active) { C2.active = id; o.cp = id; refreshPlayer(o); }
+  o.socket.emit('chat', { sys: true, text: `🐾 Новый спутник: ${c.name}! Выбрать — «Герой» → «Спутники»` });
+  io.emit('chat', { sys: true, text: `🐾 ${o.name} нашёл спутника «${c.name}»!` });
+  markDirty(o);
 }
 // Выдать стопку материалов: всплывающая надпись, в чат — только ценное (свитки, чертежи, редкие материалы)
 function giveMats(o, pr, mats, at) {
@@ -1361,6 +1375,7 @@ io.on('connection', (socket) => {
     players.set(socket.id, p);
     p.clanTag = (clanOf(uid) || {}).tag || null;
     p.look = meta.cosmLook(getProfile(uid)); // цвет имени, сияние, рамка аватара
+    p.cp = (getProfile(uid).comp || {}).active || null; // спутник рядом с героем
 
     socket.emit('welcome', {
       id: socket.id,

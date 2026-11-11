@@ -203,6 +203,26 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (!this.load.isLoading()) this.load.start();
   }
 
+  // Спутник героя: лист из 4 кадров (public/assets/pets/c_<id>.png), догружается при первом появлении
+  attachComp(e, id) {
+    const S = { dragon: [53, 38], fox: [49, 33], owl: [57, 38], golem: [48, 40], cat: [52, 33], wolf: [54, 36] }[id];
+    if (!S) return;
+    const key = 'cmp_' + id;
+    if (!this.textures.exists(key)) {
+      if (!this.cmpQueued) this.cmpQueued = new Set();
+      if (!this.cmpQueued.has(id)) {
+        this.cmpQueued.add(id);
+        this.load.spritesheet(key, `assets/pets/c_${id}.png`, { frameWidth: S[0], frameHeight: S[1] });
+        this.lazyLoad(() => { for (const o of this.players.values()) if (o.cpKey === id && !o.cmp) this.attachComp(o, id); });
+      }
+      return;
+    }
+    if (!this.anims.exists('cmpw_' + id)) this.anims.create({ key: 'cmpw_' + id, frames: this.anims.generateFrameNumbers(key, { start: 0, end: 3 }), frameRate: 7, repeat: -1 });
+    e.cmp = this.add.sprite(-24, 10, key).setOrigin(0.5, 1);
+    e.cmp.play('cmpw_' + id);
+    e.c.addAt(e.cmp, 0); // позади героя
+  }
+
   // Чужой герой появился рядом — догружаем его лист, затем переодеваем всех с этим героем
   needHero(id) {
     if (!this.queueHero(id)) return;
@@ -732,6 +752,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.trackPos(e, p.x, p.y);
       e.data = p;
       e.label.setText(`${p.tag ? `[${p.tag}] ` : ''}${p.name} [${p.lvl}]`); // тег клана перед именем
+      // Спутник рядом с героем (виден всем)
+      if ((e.cpKey || null) !== (p.cp || null)) { e.cpKey = p.cp || null; if (e.cmp) { e.cmp.destroy(); e.cmp = null; } if (p.cp) this.attachComp(e, p.cp); }
+      if (e.cmp) { const dir = p.id === this.myId && this.me ? this.me.dir : p.dir || 1; e.cmp.setFlipX(dir < 0); e.cmp.x = -dir * 24; }
       // Внешний вид за самоцветы: цвет имени и сияние под героем
       const nc = p.nc || (p.id === this.myId ? '#ffcc4d' : '#ffffff');
       if (e.nc !== nc) { e.nc = nc; e.label.setColor(nc); }

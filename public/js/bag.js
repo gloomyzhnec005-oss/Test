@@ -356,13 +356,38 @@ window.Bag = (() => {
   }
 
   let rerender = () => {};
+  // Спутники: коллекция — картинка (первый кадр листа), бонус, выбрать / получить
+  async function compTab() {
+    const box = document.createElement('div');
+    const r = await act('companions');
+    if (!r.comp) { box.textContent = r.error || 'Нет связи'; return box; }
+    const C = r.comp;
+    box.innerHTML = `<p class="sheet-hint">Спутник всегда рядом с героем — его видят все игроки — и даёт небольшой бонус. Спутники выпадают с боссов данжей (3%) и мировых боссов (5%) или покупаются за самоцветы. У вас ${C.gems} 💎</p>`;
+    for (const c of C.list) {
+      const on = C.active === c.id;
+      const pic = c.art ? `<span class="cmp-pic" style="width:${c.w}px;height:${c.h}px;background-image:url(assets/pets/c_${c.id}.png)"></span>` : '<span class="cmp-pic soon">❔</span>';
+      const row = document.createElement('div');
+      row.className = `tw-ev cmp-row ${c.rare ? 'rare' : ''} ${on ? 'on' : ''}`;
+      row.innerHTML = `<span class="tw-ev-i">${pic}</span><div><b>${c.name}${c.rare ? ' · редкий' : ''}</b><small>${c.bonus}</small>
+        <small>${!c.art ? 'Скоро' : c.owned ? (on ? '✔ Рядом с героем' : 'Есть в коллекции') : `${c.price} 💎`}</small></div>
+        ${c.art ? `<button class="l2-btn">${!c.owned ? 'Получить' : on ? 'Отпустить' : 'Позвать'}</button>` : ''}`;
+      const b = row.querySelector('button');
+      if (b) b.onclick = async () => {
+        const x = !c.owned ? await act('companionBuy', { id: c.id }) : await act('companionSet', { id: on ? null : c.id });
+        toast(x.error || x.toast); if (window.Sfx) Sfx.play(x.error ? 'error' : 'reward');
+        if (x.comp) { await refresh(); box.replaceWith(await compTab()); }
+      };
+      box.append(row);
+    }
+    return box;
+  }
   async function openBag(tab = 'hero') {
     await refresh();
     if (!inv) return;
-    const hero = tab === 'hero' || tab === 'equip';
-    const tabsList = hero ? [['Снаряжение', heroTab], ['Умения', skillsTab], ['Характеристики', statsTab]] : [['Предметы', bagTab], ['Соединение 5 → 1', mergeTab]];
+    const hero = ['hero', 'equip', 'skills', 'companions'].includes(tab);
+    const tabsList = hero ? [['Снаряжение', heroTab], ['Умения', skillsTab], ['Характеристики', statsTab], ['Спутники', compTab]] : [['Предметы', bagTab], ['Соединение 5 → 1', mergeTab]];
     const show = (i) => { Town.open(hero ? '🧙 Персонаж' : '🎒 Инвентарь', Town.tabs(tabsList, i), 'tall dark'); rerender = () => show(Town.lastTab()); };
-    show(tab === 'merge' || tab === 'skills' ? 1 : 0);
+    show(tab === 'merge' || tab === 'skills' ? 1 : tab === 'companions' ? 3 : 0);
   }
 
   // Выбор предмета из сумки (для рынка, аукциона, рун)

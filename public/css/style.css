@@ -1384,3 +1384,9 @@ canvas.skin { object-fit: contain; }
 .look-sw.name { background: var(--c); box-shadow: 0 0 8px var(--c); }
 .look-sw.aura { border: 3px solid var(--c); background: radial-gradient(circle, transparent 40%, var(--c) 120%); box-shadow: 0 0 12px var(--c); transform: scaleY(.55); }
 .look-fr { width: 40px; height: 40px; object-fit: contain; }
+
+/* Спутники в окне героя: первый кадр листа */
+.cmp-pic { display: block; margin: auto; background-repeat: no-repeat; background-position: 0 0; image-rendering: pixelated; transform: scale(1.1); }
+.cmp-pic.soon { width: 40px; height: 40px; font-size: 26px; text-align: center; line-height: 40px; opacity: .5; }
+.cmp-row.rare b { color: #ffb340; }
+.cmp-row.on { border-color: #7dff8a; }

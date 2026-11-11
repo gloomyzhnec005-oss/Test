@@ -235,6 +235,7 @@
 
       <div class="card"><h3>💰 Ресурсы</h3>
         <div class="row"><label>Золото: <b>${fmtNum(p.gold)}</b></label><input id="goldVal" type="number" value="10000"><button class="btn" data-a="goldAdd">Добавить</button><button class="btn" data-a="goldSet">Установить</button></div>
+        <div class="row"><label>Самоцветы: <b>${fmtNum(p.gems || 0)}</b></label><input id="gemsVal" type="number" value="1000"><button class="btn" data-a="gemsAdd">Добавить</button><button class="btn" data-a="gemsSet">Установить</button></div>
         <div class="row"><label>Крутки героев</label><input id="spinsVal" type="number" value="${p.paidSpins}"><button class="btn" data-a="spins">Сохранить</button>
           <button class="btn" data-a="freeSpin" ${p.freeSpinUsed ? '' : 'disabled'}>Вернуть бесплатную</button></div>
         <div class="row"><label>Крутки предметов</label><input id="iSpinsVal" type="number" value="${p.itemSpins}"><button class="btn" data-a="itemSpins">Сохранить</button></div>
@@ -305,6 +306,7 @@
         heal: () => edit('heal'), kill: () => edit('kill'), maxTest: () => edit('maxTest'),
         teleport: () => edit('teleport', { zone: v('tpZone') }), xp: () => edit('xp', { value: v('xpVal') }),
         goldAdd: () => edit('gold', { value: v('goldVal') }), goldSet: () => edit('gold', { value: v('goldVal'), set: true }),
+        gemsAdd: () => edit('gems', { value: v('gemsVal') }), gemsSet: () => edit('gems', { value: v('gemsVal'), set: true }),
         spins: () => edit('spins', { value: v('spinsVal') }), freeSpin: () => edit('freeSpin'), itemSpins: () => edit('itemSpins', { value: v('iSpinsVal') }),
         allHeroes: () => edit('allHeroes'), allLevel: () => edit('level', { value: v('allLvl') }), allDupes: () => edit('dupes', { value: v('allDup') }),
         allSkills: () => edit('skills', { value: 3 }), noSkills: () => edit('skills', { value: 0 }),

@@ -96,7 +96,7 @@ module.exports = function createAdmin(ctx) {
     for (const it of pr.items) byRar[it.rar] = (byRar[it.rar] || 0) + 1;
     const pass = ctx.meta.passOf(pr);
     return {
-      uid, name: pr.name || null, lastSeen: pr.lastSeen || 0, gold: pr.gold, paidSpins: pr.paidSpins, itemSpins: pr.itemSpins || 0,
+      uid, name: pr.name || null, lastSeen: pr.lastSeen || 0, gold: pr.gold, gems: pr.gems || 0, paidSpins: pr.paidSpins, itemSpins: pr.itemSpins || 0,
       freeSpinUsed: !!pr.freeSpinUsed, heroes, items: pr.items.length, itemsByRar: byRar, subUntil: pr.subUntil || 0,
       pass: { tier: ctx.meta.passTier(pr), xp: pass.xp, level: Math.floor(pass.xp / ctx.meta.SHOP.pass.xpPerLevel) },
       arena: pr.arena ? pr.arena.rating : 1000, banned: pr.banned || null, test: pr.test || {},
@@ -113,6 +113,7 @@ module.exports = function createAdmin(ctx) {
     const refresh = () => ctx.refreshUid(uid);
     switch (d.action) {
       case 'gold': pr.gold = Math.max(0, Math.round(d.set ? num(d.value, 0, 1e12) : pr.gold + num(d.value, -1e12, 1e12))); return { text: `Золото: ${pr.gold}` };
+      case 'gems': pr.gems = Math.max(0, Math.round(d.set ? num(d.value, 0, 1e9) : (pr.gems || 0) + num(d.value, -1e9, 1e9))); refresh(); return { text: `Самоцветы: ${pr.gems}` };
       case 'spins': pr.paidSpins = Math.round(num(d.value, 0, 1e6)); return { text: `Крутки героев: ${pr.paidSpins}` };
       case 'itemSpins': pr.itemSpins = Math.round(num(d.value, 0, 1e6)); return { text: `Крутки предметов: ${pr.itemSpins}` };
       case 'freeSpin': pr.freeSpinUsed = false; return { text: 'Бесплатная крутка возвращена' };

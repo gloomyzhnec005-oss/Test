@@ -988,6 +988,7 @@ module.exports = function createDungeons(d) {
       // Мировой босс: 3% — легендарная сумка, из них каждая 6-я — мифическая «Бездонная сума»
       if (d.createBag && Math.random() < 0.03) d.giveLoot(p, pr, d.createBag(Math.random() < 0.15 ? 'mythic' : 'legendary', m.tier), m);
       d.giveMats(p, pr, d.rollMats({ rank: 'world' }, m.tier, null).mats, m); // материалы, свитки и чертёж
+      if (d.companionDrop) d.companionDrop(p, 0.05);
       d.markDirty(p);
     }
     d.broadcast(`👹 Мировой босс «${MOBS[m.type].name}» повержен! Следующий — через ${Math.round(X.WORLD_BOSS_RESPAWN / 60000)} минут.`);
