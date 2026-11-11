@@ -601,7 +601,11 @@ module.exports = function createDungeons(d) {
       // Объявления — одно на всех (боссы всех данжей появляются в одно время), плюс строка в своём городе
       if (!b.id && !b.warned && b.at - now <= WARN_MS) {
         b.warned = true;
-        if (announced.warn !== b.at) { announced.warn = b.at; d.broadcast(`👑 Через ${Math.max(1, Math.round((b.at - now) / 60000))} мин (в ${hhmm(b.at)}) в данжах появятся боссы! Награда — всем, кто сражался.`); }
+        if (announced.warn !== b.at) {
+          announced.warn = b.at;
+          d.broadcast(`👑 Через ${Math.max(1, Math.round((b.at - now) / 60000))} мин (в ${hhmm(b.at)}) в данжах появятся боссы! Награда — всем, кто сражался.`);
+          if (d.push) d.push('boss', `👑 В ${hhmm(b.at)} в данжах появятся боссы! Соберите группу — награда всем, кто сражался.`);
+        }
       }
       if (!b.id && now >= b.at) {
         const m = create(h.z, b.type, b.c, b.lv, { rank: 'boss', name: h.dg.bossName });
@@ -744,6 +748,7 @@ module.exports = function createDungeons(d) {
     m.scaledFor = n;
     st.bossId = m.id;
     d.broadcast(`👹 Мировой босс «${MOBS[type].name}» появился в мире ${world.byId.get(town).name}! Портал — на юге города.`);
+    if (d.push) d.push('wb', `👹 Мировой босс «${MOBS[type].name}» появился в мире ${world.byId.get(town).name}! Нужна команда — заходите.`, (pr) => d.maxHeroLevel(pr) >= st.cfg.lv - 5);
   }
   // Здоровье мирового босса: рассчитано на 10 героев своего уровня; больше 10 — ещё +8% за каждого
   const wbHpMult = (n) => Math.max(1, 1 + 0.08 * (n - 10));

@@ -258,6 +258,8 @@ module.exports = function createMeta(deps) {
 
   const OPS = {
     inv: (p) => ({ inv: invView(p) }),
+    // Уведомления в Telegram: вкл/выкл (Настройки)
+    notify(p, d, pr) { if (typeof d.on === 'boolean') { pr.notifyOff = !d.on; if (d.on) pr.pushBlocked = false; } return { notify: !pr.notifyOff, tg: String(p.uid).startsWith('tg') }; },
     // ---------- Награда за вход ----------
     login(p, d, pr) { return { login: loginView(p, pr) }; },
     loginClaim(p, d, pr) {

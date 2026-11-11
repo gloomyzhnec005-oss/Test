@@ -311,6 +311,7 @@ const meta = createMeta({
 // Бой монстров, данжи-лабиринты, выживание и мировые боссы (server/dungeon.js)
 const D = createDungeons({
   C, world, monsters, players, pets,
+  push: (kind, text, filter) => Push.sendAll(kind, text, filter), maxHeroLevel: (pr) => maxHeroLevel(pr),
   pushFx: (f) => fx.push(f),
   hurtPlayer: (...a) => hurtPlayer(...a),
   hurtPet: (pet, dmg, now) => hurtPet(skillCtx, pet, dmg, now),
@@ -376,7 +377,10 @@ function clanTrack(uid, type, n = 1) {
     if (before >= q.goal) continue;
     cq.prog[q.id] = Math.min(q.goal, before + n);
     (cq.by[uid] ??= {})[q.id] = (cq.by[uid][q.id] || 0) + n;
-    if (cq.prog[q.id] >= q.goal) clanNotify(c, `🛡️ Клановое задание «${q.name}» выполнено! Заберите награду: «Игра» → «Клан»`);
+    if (cq.prog[q.id] >= q.goal) {
+      clanNotify(c, `🛡️ Клановое задание «${q.name}» выполнено! Заберите награду: «Игра» → «Клан»`);
+      for (const m of c.members) Push.send(m, 'clan', `🛡️ Клан [${c.tag}]: задание «${q.name}» выполнено — заберите награду в игре («Игра» → «Клан»)`);
+    }
   }
   saveClans();
 }
@@ -551,7 +555,30 @@ function refreshPlayer(p) {
   markDirty(p);
 }
 const refreshUid = (uid) => { for (const p of players.values()) if (p.uid === uid) refreshPlayer(p); };
-const notifyUid = (uid, text) => { for (const p of players.values()) if (p.uid === uid) p.socket.emit('chat', { sys: true, text }); };
+// Сообщение игроку: в игре — в чат, не в игре — уведомлением от бота в Telegram (лот продан и т. п.)
+const notifyUid = (uid, text) => {
+  let on = false;
+  for (const p of players.values()) if (p.uid === uid) { p.socket.emit('chat', { sys: true, text }); if (!p.offline) on = true; }
+  if (!on) Push.send(uid, 'notify', text);
+};
+// Уведомления в Telegram (server/push.js)
+const Push = require('./push')({
+  getBot: () => bot, profiles: () => profiles, save: () => saveProfiles(),
+  isOnline: (uid) => [...players.values()].some((p) => p.uid === uid && !p.offline),
+  webAppUrl: () => (process.env.WEBAPP_URL || '').trim(),
+});
+const maxHeroLevel = (pr) => Math.max(1, ...Object.values(pr.chars || {}).map((c) => c.level || 1));
+// Напоминание вечером (19–22 МСК): серия входов есть, сегодня ещё не заходил — «не прервите серию»
+setInterval(() => {
+  const msk = new Date(Date.now() + 3 * 36e5), h = msk.getUTCHours();
+  if (h < 19 || h >= 22) return;
+  const today = msk.toISOString().slice(0, 10), yest = new Date(msk - 864e5).toISOString().slice(0, 10);
+  for (const [uid, pr] of Object.entries(profiles)) {
+    const L = pr.login;
+    if (!L || L.last !== yest || !(L.streak > 0)) continue;
+    Push.send(uid, 'login', `🔥 Серия входов: ${L.streak} дн. подряд! Зайдите сегодня и заберите награду дня ${(L.day + 1) % 7 + 1} — иначе серия начнётся заново.`);
+  }
+}, 5 * 60e3);
 // Усиления урона и скорости атаки: временные эффекты навыков и пассивные навыки
 const startRes = (p) => (p.hero.resource.start ?? 1) * p.resMax;
 // Текущий облик героя (Талиесин): свои дальность, скорость атаки, бег и снаряд
@@ -1789,7 +1816,8 @@ process.on('unhandledRejection', (e) => console.error('unhandledRejection', e));
 
 server.listen(PORT, () => {
   console.log(`MMORPG сервер запущен: http://localhost:${PORT}`);
-  if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ onPaid, isValidPayload });
+  if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ onPaid, isValidPayload,
+    onNotify: (tgId) => { const pr = profiles['tg' + tgId]; if (!pr) return null; pr.notifyOff = !pr.notifyOff; if (!pr.notifyOff) pr.pushBlocked = false; saveProfiles(); return !pr.notifyOff; } });
 });
 
 process.on('SIGINT', () => { saveProfiles(); process.exit(0); });

@@ -3,7 +3,7 @@
 require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 
-module.exports = function startBot({ onPaid, isValidPayload } = {}) {
+module.exports = function startBot({ onPaid, isValidPayload, onNotify } = {}) {
   const { BOT_TOKEN, WEBAPP_URL } = process.env;
   if (!BOT_TOKEN || !WEBAPP_URL) {
     console.error('Укажите BOT_TOKEN и WEBAPP_URL (https) в .env');
@@ -26,7 +26,13 @@ module.exports = function startBot({ onPaid, isValidPayload } = {}) {
     if (!admins.includes(String(ctx.from.id))) return ctx.reply(`Нет доступа. Ваш Telegram ID: ${ctx.from.id}`);
     return ctx.reply('Админ-панель:', Markup.inlineKeyboard([Markup.button.webApp('⚙️ Открыть админку', WEBAPP_URL.replace(/\/$/, '') + '/admin.html')]));
   });
-  bot.help((ctx) => ctx.reply('/play — открыть игру\nДжойстик слева — движение, кнопка справа — атака.'));
+  bot.help((ctx) => ctx.reply('/play — открыть игру\n/notify — включить или выключить уведомления (боссы, продажи, клан)\nДжойстик слева — движение, кнопка справа — атака.'));
+  // Уведомления игры: включить/выключить
+  bot.command('notify', (ctx) => {
+    const on = onNotify ? onNotify(String(ctx.from.id)) : null;
+    if (on === null) return ctx.reply('Сначала зайдите в игру — уведомления настраиваются для вашего героя.', playButton());
+    return ctx.reply(on ? '🔔 Уведомления включены: боссы, продажи на рынке, клан, серия входов. Выключить — снова /notify.' : '🔕 Уведомления выключены. Включить — снова /notify.');
+  });
 
   // Оплата в Telegram Stars
   bot.on('pre_checkout_query', (ctx) => {
