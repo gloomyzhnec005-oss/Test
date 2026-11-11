@@ -173,7 +173,7 @@ module.exports = function createMeta(deps) {
       if (tier === 1) { matOffer('ore1'); matOffer('ess1'); }
       matOffer('scrollR'); matOffer('scrollE');
     } else {
-      for (const m of ['potHp', 'potHp2', 'potRes', 'elxAtk', 'elxDef', 'elxAgi', 'elxMind', 'elxXp', 'elxLuck']) matOffer(m); // свиток возвращения убран: в город ведёт кнопка навигации
+      for (const m of ['potHp', 'potHp2', 'potRes', 'elxAtk', 'elxDef', 'elxAgi', 'elxMind', 'elxWind', 'elxFury', 'elxVamp', 'elxGold', 'elxXp', 'elxLuck']) matOffer(m); // свиток возвращения убран: в город ведёт кнопка навигации
     }
     shopCache.set(key, list);
     return list;
@@ -380,18 +380,19 @@ module.exports = function createMeta(deps) {
       const id = d.mat, m = I.MATS[id];
       if (!m || !(pr.mats || {})[id]) return { error: 'Нет такого предмета' };
       const now = Date.now();
-      let msg = '';
+      let msg = '', healed = 0;
       if (m.kind === 'potion') {
         if (p.dead) return { error: 'Герой повержен' };
         if (now < (p.potionAt || 0)) return { error: `Зелье будет готово через ${Math.ceil((p.potionAt - now) / 1000)} с` };
         if (m.heal && !m.res && p.hp >= p.maxHp) return { error: 'Здоровье и так полное' }; // не тратим зелье впустую
         p.potionAt = now + 8000;
-        if (m.heal) { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * m.heal); msg = `${m.icon} +${Math.round(p.maxHp * m.heal)} здоровья`; }
+        if (m.heal) { healed = Math.round(Math.min(p.maxHp - p.hp, p.maxHp * m.heal)); p.hp = Math.min(p.maxHp, p.hp + p.maxHp * m.heal); msg = `${m.icon} +${healed} здоровья`; }
         if (m.res) { p.res = Math.min(p.resMax, p.res + p.resMax * m.res); msg = `${m.icon} ресурс восстановлен`; }
       } else if (m.kind === 'elixir') {
         pr.buffs ??= {};
-        pr.buffs[m.buff] = Math.max(now, pr.buffs[m.buff] || 0) + 30 * 60000;
-        msg = `${m.icon} ${m.name}: ещё 30 минут`;
+        const mins = m.mins || 30;
+        pr.buffs[m.buff] = Math.max(now, pr.buffs[m.buff] || 0) + mins * 60000;
+        msg = `${m.icon} ${m.name}: ещё ${mins >= 60 ? `${mins / 60} ч` : `${mins} минут`}`;
       } else if (m.kind === 'scrollTp') {
         if (!deps.toTown(p)) return { error: 'Вы уже в городе' };
         msg = `${m.icon} Возвращение в город`;
@@ -400,7 +401,7 @@ module.exports = function createMeta(deps) {
       } else return { error: 'Этот предмет используется в кузнице' };
       I.takeMats(pr, { [id]: 1 });
       refreshPlayer(p);
-      return { toast: msg };
+      return { toast: msg, healed };
     },
     sellMat(p, d, pr) {
       const m = I.MATS[d.mat], n = Math.floor(Number(d.n) || 1);
@@ -678,6 +679,8 @@ module.exports = function createMeta(deps) {
 
     // ---------- Реклама (заглушка: подключите сеть, например Adsgram, в public/js/town.js → showAd) ----------
     ad(p, d, pr) {
+      return { error: 'Реклама отключена' }; // рекламы в игре нет
+      // eslint-disable-next-line no-unreachable
       if (pr.adDay !== dayKey()) { pr.adDay = dayKey(); pr.adCount = 0; }
       if (pr.adCount >= SHOP.ads.perDay) return { error: 'На сегодня реклама закончилась' };
       if (Date.now() - (pr.adAt || 0) < SHOP.ads.cooldownMs) return { error: 'Подождите немного' };
@@ -690,7 +693,7 @@ module.exports = function createMeta(deps) {
       if (pr.adDay !== dayKey()) { pr.adDay = dayKey(); pr.adCount = 0; }
       return { firstBuy: !pr.paidOnce, sub: isSub(pr) ? pr.subUntil : 0, subPrice: SHOP.sub.price, passTier: passTier(pr), passTiers: SHOP.passTiers,
         itemSpin: SHOP.itemSpin, gemPacks: Object.entries(SHOP.gems).map(([id, g]) => ({ id, ...g })), gems: pr.gems || 0, adsLeft: SHOP.ads.perDay - pr.adCount, gold: pr.gold,
-        chests: Object.entries(CHESTS).map(([k, c]) => ({ id: k, title: c.title, desc: c.description, amount: c.amount, bag: !!c.bag })) };
+        chests: Object.entries(CHESTS).map(([k, c]) => ({ id: k, title: c.title, desc: c.description, amount: c.amount, bag: !!c.bag, elixir: !!c.elixir })) };
     },
 
     // ---------- PvP-арена ----------
@@ -829,7 +832,14 @@ module.exports = function createMeta(deps) {
     chestSet: { n: 1, amount: 99, title: 'Ларец комплекта', description: 'Вещь комплекта вашего класса: эпическая, 15% легендарная, 2% мифическая' },
     chestSet5: { n: 5, amount: 449, title: 'Ларцы комплекта ×5', description: 'Пять ларцов комплекта со скидкой 10%' },
     chestLegend: { n: 1, amount: 149, title: 'Ларец грандмастера', description: '2 свитка грандмастера и редкий материал' },
+    // Великие эликсиры — в сумку, пьются оттуда (1 час)
+    elxXp2: { n: 1, amount: 49, elixir: true, title: 'Великий эликсир опыта', description: '+50% опыта на 1 час' },
+    elxXp2x5: { n: 5, amount: 199, elixir: true, title: 'Великий эликсир опыта ×5', description: '5 эликсиров: +50% опыта на 1 час каждый, скидка 20%' },
+    elxLuck2: { n: 1, amount: 59, elixir: true, title: 'Великий эликсир удачи', description: 'Предметы и материалы падают на 30% чаще 1 час' },
+    elxHero: { n: 1, amount: 69, elixir: true, title: 'Эликсир героя', description: '+15% урона и здоровья, +5% крита, +10% скорости атаки на 1 час' },
+    elxTitan: { n: 1, amount: 59, elixir: true, title: 'Эликсир титана', description: '+15% защиты, +25% здоровья, 2% вампиризма на 1 час' },
   };
+  CHESTS.elxXp2x5.mat = 'elxXp2';
   CHESTS.chestSet5.mat = 'chestSet';
   const INVOICES = {
     ...Object.fromEntries(Object.entries(CHESTS).map(([k, c]) => [k, { title: c.title, description: c.description, amount: c.amount }])),

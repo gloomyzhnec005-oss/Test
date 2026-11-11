@@ -597,7 +597,7 @@ const FX_CC = { stun: ['stun', 'Оглушение', 'Нельзя действ�
   fear: ['fear', 'Страх', 'Герой бежит и не слушается'], root: ['root', 'Корни', 'Нельзя двигаться'], taunt: ['taunt', 'Провокация', 'Атакуете только провокатора'],
   charm: ['curse', 'Очарование', 'Герой под чужой волей'], blind: ['weak', 'Ослепление', 'Атаки промахиваются'] };
 const FX_DOT = { poison: ['poison', 'Яд', 'Урон каждую секунду'], burn: ['burn', 'Горение', 'Урон огнём каждую секунду'], bleed: ['bleed', 'Кровотечение', 'Урон каждую секунду'] };
-const FX_ELX = { atk: 'elxAtk', def: 'elxDef', agi: 'elxAgi', mind: 'elxMind', xp: 'elxXp', luck: 'elxLuck' };
+const FX_ELX = I.ELIXIR_OF; // бафф → эликсир (значок под здоровьем)
 function playerEffects(p, now = Date.now()) {
   const out = [], left = (t) => Math.ceil((t - now) / 1000);
   for (const [k, buff, icon, name, desc] of FX_TIMED) if (p[k] > now) out.push({ k, b: buff, i: icon, n: name, d: desc, l: left(p[k]) });
@@ -605,7 +605,7 @@ function playerEffects(p, now = Date.now()) {
   if (p.cc && p.cc.until > now && FX_CC[p.cc.type]) { const [i, n, d] = FX_CC[p.cc.type]; out.push({ k: 'cc', b: 0, i, n, d, l: left(p.cc.until) }); }
   for (const x of p.pdots || []) if (x.until > now && FX_DOT[x.kind]) { const [i, n, d] = FX_DOT[x.kind]; out.push({ k: 'dot_' + x.kind, b: 0, i, n, d, l: left(x.until) }); }
   const pr = getProfile(p.uid);
-  for (const [buff, until] of Object.entries(pr.buffs || {})) if (until > now && FX_ELX[buff]) { const m = I.MATS[FX_ELX[buff]]; out.push({ k: 'elx_' + buff, b: 1, art: 'mat_' + FX_ELX[buff], n: m.name, d: m.desc, l: left(until) }); }
+  for (const [buff, until] of Object.entries(pr.buffs || {})) if (until > now && FX_ELX[buff]) { const m = I.MATS[FX_ELX[buff]]; out.push({ k: 'elx_' + buff, b: 1, art: 'mat_' + FX_ELX[buff], ic: m.icon, n: m.name, d: m.desc, l: left(until) }); }
   return out;
 }
 const dmgMult = (p, now = Date.now()) => {
@@ -1018,7 +1018,7 @@ function setAutofarm(p, on) {
 function grantXp(p, amount, gold, shared = false) {
   const pr = getProfile(p.uid), now = Date.now();
   const sub = (meta.isSub(pr) ? meta.SHOP.sub.xpBonus : 0) + (meta.SHOP.passXpGold[meta.passTier(pr)] || 0); // подписка + орден (бесплатный Странника — тоже)
-  amount = Math.round(amount * (1 + ((p.gear && p.gear.xp) || 0) / 100 + sub + ((pr.buffs || {}).xp > now ? 0.5 : 0)) * S.xpMult * (p.deathUntil > now ? 1 - DEATH.xp : 1));
+  amount = Math.round(amount * (1 + ((p.gear && p.gear.xp) || 0) / 100 + sub) * S.xpMult * (p.deathUntil > now ? 1 - DEATH.xp : 1));
   gold = Math.round(gold * (1 + ((p.gear && p.gear.gold) || 0) / 100 + sub) * S.goldMult);
   p.char.xp += amount;
   p.char.gold += gold;
@@ -1090,7 +1090,7 @@ function dropLoot(killer, m) {
   for (const o of receivers) {
     const pr = getProfile(o.uid);
     meta.addPassXp(pr, m.rank === 'boss' ? 20 : m.rank === 'mini' ? 8 : 1);
-    const luck = (pr.buffs || {}).luck > Date.now() ? 1.3 : 1;
+    const luck = I.buffLuck(pr); // эликсиры удачи
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
     const rolls = m.rank === 'boss' ? 2 : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult ? 1 : 0;
     for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, boss ? C.DROPS.boss[tier] : C.DROPS.weights[tier], null, o.heroId), m); // 75% — под класс героя

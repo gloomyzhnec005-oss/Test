@@ -344,12 +344,22 @@ Object.assign(MATS, {
   potHp: { name: 'Зелье здоровья', icon: '🧪', color: '#ff6a6a', kind: 'potion', heal: 0.35, desc: 'Сразу восстанавливает 35% здоровья. Раз в 8 с.', price: 30, buy: 6 },
   potHp2: { name: 'Большое зелье здоровья', icon: '⚗️', color: '#ff3a3a', kind: 'potion', heal: 0.7, desc: 'Сразу восстанавливает 70% здоровья. Раз в 8 с.', price: 120, buy: 24 },
   potRes: { name: 'Зелье энергии', icon: '🫙', color: '#5a9aff', kind: 'potion', res: 0.5, desc: 'Восстанавливает 50% маны, энергии или ярости. Раз в 8 с.', price: 40, buy: 8 },
-  elxAtk: { name: 'Эликсир силы', icon: '🍷', color: '#ff8a5a', kind: 'elixir', buff: 'atk', desc: '+10% урона на 30 минут.', price: 350, buy: 60 },
-  elxDef: { name: 'Эликсир стойкости', icon: '🛡️', color: '#c8d8e8', kind: 'elixir', buff: 'def', desc: '+8% защиты и +10% здоровья на 30 минут.', price: 350, buy: 60 },
-  elxAgi: { name: 'Эликсир ловкости', icon: '🌀', color: '#7ad8a0', kind: 'elixir', buff: 'agi', desc: '+10% скорости атаки и +5% шанса крита на 30 минут.', price: 350, buy: 60 },
-  elxMind: { name: 'Эликсир мудрости', icon: '🔮', color: '#b88aff', kind: 'elixir', buff: 'mind', desc: '+12% силы умений и −5% перезарядки на 30 минут.', price: 350, buy: 60 },
-  elxXp: { name: 'Эликсир опыта', icon: '📘', color: '#8ad3ff', kind: 'elixir', buff: 'xp', desc: '+50% опыта на 30 минут.', price: 400, buy: 70 },
-  elxLuck: { name: 'Эликсир удачи', icon: '🍀', color: '#7dff8a', kind: 'elixir', buff: 'luck', desc: 'Предметы и материалы падают на 30% чаще 30 минут.', price: 500, buy: 80 },
+  // Эликсиры за золото (лавка эликсиров): 30 минут, сгорают при гибели
+  elxAtk: { name: 'Эликсир силы', icon: '🍷', color: '#ff8a5a', kind: 'elixir', buff: 'atk', desc: '+10% урона на 30 минут.', price: 900, buy: 120 },
+  elxDef: { name: 'Эликсир стойкости', icon: '🛡️', color: '#c8d8e8', kind: 'elixir', buff: 'def', desc: '+8% защиты и +10% здоровья на 30 минут.', price: 900, buy: 120 },
+  elxAgi: { name: 'Эликсир ловкости', icon: '🌀', color: '#7ad8a0', kind: 'elixir', buff: 'agi', desc: '+10% скорости атаки и +5% шанса крита на 30 минут.', price: 900, buy: 120 },
+  elxMind: { name: 'Эликсир мудрости', icon: '🔮', color: '#b88aff', kind: 'elixir', buff: 'mind', desc: '+12% силы умений и −5% перезарядки на 30 минут.', price: 900, buy: 120 },
+  elxXp: { name: 'Эликсир опыта', icon: '📘', color: '#8ad3ff', kind: 'elixir', buff: 'xp', desc: '+5% опыта на 30 минут.', price: 1200, buy: 150 },
+  elxLuck: { name: 'Эликсир удачи', icon: '🍀', color: '#7dff8a', kind: 'elixir', buff: 'luck', desc: 'Предметы и материалы падают на 5% чаще 30 минут.', price: 1500, buy: 180 },
+  elxWind: { name: 'Эликсир ветра', icon: '🪶', color: '#bfe8ff', kind: 'elixir', buff: 'wind', desc: '+12% скорости бега на 30 минут.', price: 800, buy: 100 },
+  elxVamp: { name: 'Эликсир вампира', icon: '🩸', color: '#d0304a', kind: 'elixir', buff: 'vamp', desc: '3% нанесённого урона лечит героя, 30 минут.', price: 1300, buy: 160 },
+  elxFury: { name: 'Эликсир ярости', icon: '💢', color: '#ff5a2a', kind: 'elixir', buff: 'fury', desc: '+20% критического урона на 30 минут.', price: 1100, buy: 140 },
+  elxGold: { name: 'Эликсир богатства', icon: '🪙', color: '#ffd36a', kind: 'elixir', buff: 'gold', desc: '+10% золота с монстров на 30 минут.', price: 1000, buy: 130 },
+  // Великие эликсиры (Telegram Stars или GRAM, магазин): 1 час, сильнее обычных; действуют вместе с ними
+  elxXp2: { name: 'Великий эликсир опыта', icon: '📗', color: '#4dffb0', kind: 'elixir', buff: 'xp2', mins: 60, desc: '+50% опыта на 1 час.', price: 0, buy: 0 },
+  elxLuck2: { name: 'Великий эликсир удачи', icon: '☘️', color: '#3aff6a', kind: 'elixir', buff: 'luck2', mins: 60, desc: 'Предметы и материалы падают на 30% чаще 1 час.', price: 0, buy: 0 },
+  elxHero: { name: 'Эликсир героя', icon: '👑', color: '#ffb340', kind: 'elixir', buff: 'hero', mins: 60, desc: '+15% урона, +15% здоровья, +5% крита и +10% скорости атаки на 1 час.', price: 0, buy: 0 },
+  elxTitan: { name: 'Эликсир титана', icon: '🗿', color: '#c8b89a', kind: 'elixir', buff: 'titan', mins: 60, desc: '+15% защиты, +25% здоровья и 2% вампиризма на 1 час.', price: 0, buy: 0 },
   tpScroll: { name: 'Свиток возвращения', icon: '🌀', color: '#5fd1c8', kind: 'scrollTp', desc: 'Мгновенно переносит в город текущего мира.', price: 60, buy: 10 },
   // Платные ларцы (Telegram Stars) — открываются в сумке, мир берётся по месту открытия
   kitSmith: { name: 'Сундук кузнеца', icon: '🧰', color: '#ffd36a', kind: 'chest', desc: '30 руды, 15 эссенции и 2 свитка мастера мира, где вы его открыли.', price: 0, buy: 0 },
@@ -357,7 +367,14 @@ Object.assign(MATS, {
   chestLegend: { name: 'Ларец грандмастера', icon: '👑', color: '#ff4d6a', kind: 'chest', desc: '2 свитка грандмастера и 1 редкий материал мира, где вы его открыли.', price: 0, buy: 0 },
 });
 // Бонусы эликсиров (добавляются к статам экипировки, пока действуют)
-const BUFF_STATS = { atk: { atkP: 10 }, def: { def: 8, hpP: 10 }, agi: { aspd: 10, crit: 5 }, mind: { skill: 12, cdr: 5 } };
+const BUFF_STATS = { atk: { atkP: 10 }, def: { def: 8, hpP: 10 }, agi: { aspd: 10, crit: 5 }, mind: { skill: 12, cdr: 5 },
+  xp: { xp: 5 }, wind: { ms: 12 }, vamp: { ls: 3 }, fury: { critDmg: 20 }, gold: { gold: 10 },
+  xp2: { xp: 50 }, hero: { atkP: 15, hpP: 15, crit: 5, aspd: 10 }, titan: { def: 15, hpP: 25, ls: 2 } };
+// Удача эликсиров: прибавка к шансу добычи
+const BUFF_LUCK = { luck: 0.05, luck2: 0.3 };
+const buffLuck = (pr, now = Date.now()) => 1 + Object.entries(BUFF_LUCK).reduce((s, [k, v]) => s + ((pr.buffs || {})[k] > now ? v : 0), 0);
+// Эликсир по ключу баффа (значок в HUD)
+const ELIXIR_OF = Object.fromEntries(Object.entries(MATS).filter(([, m]) => m.kind === 'elixir').map(([id, m]) => [m.buff, id]));
 
 // Цена вещи в лавке материалов с учётом мира
 const matPrice = (id) => (MATS[id] ? MATS[id].price * (MATS[id].tier ? 1 : 1) : 0);
@@ -633,7 +650,7 @@ const findRecipe = (id) => { const t = +String(id).slice(1, 2); return worldReci
 module.exports = {
   LUCK_STONE, WORLD_CRAFT, worldRecipes, findRecipe,
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, SET_SLOTS, WEAR_CATS, slotCat, TIER_MULT, DUPE_MAX, DUPE_STEP,
-  SKILL_UP, skillUpCost, skillMul,
+  SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
   upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,

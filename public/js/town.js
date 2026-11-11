@@ -376,13 +376,13 @@ window.Town = (() => {
         <small>${s.passTiers.map((t) => `${t.icon} ${t.name} · ${t.price} ⭐`).join('<br>')}<br>Мифический предмет на 30 уровне · автобой с Золотого ордена</small>
         ${s.passTier ? `<small class="ok">${s.passTiers[s.passTier - 1].icon} ${s.passTiers[s.passTier - 1].name} активен</small>` : ''}
         <button class="l2-btn" id="openOrders">${s.passTier >= 4 ? 'Награды сезона' : s.passTier ? 'Улучшить орден' : 'Выбрать орден'}</button></div>
-      ${(s.chests || []).map((c) => `<div class="tw-banner items ${shopArt(c) ? 'has-art' : ''}">${shopArt(c) ? `<img class="tw-art" src="assets/ui/shop/${shopArt(c)}.webp" alt="">` : ''}<b>${{ kitSmith: '🧰', chestSet: '🎁', chestSet5: '🎁', chestLegend: '👑', bagEpic: '🎒', bagLegend: '🎒' }[c.id] || '🎁'} ${c.title}</b><small>${c.desc}${c.bag ? ' · надевается в слот «Сумка» на герое' : ' · открывается в сумке, награда — мира, где вы его открыли'}</small>
+      <div class="tw-banner pass"><b>⚗️ Великие эликсиры · 1 час</b><small>Намного сильнее эликсиров из лавки и действуют вместе с ними. Попадают в сумку — выпейте, когда нужно. Сгорают при гибели героя.</small></div>
+      ${(s.chests || []).filter((c) => c.elixir).map((c) => `<div class="tw-banner items elx"><b>${{ elxXp2: '📗', elxXp2x5: '📗', elxLuck2: '☘️', elxHero: '👑', elxTitan: '🗿' }[c.id] || '⚗️'} ${c.title}</b><small>${c.desc}</small>
         <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}
-      <div class="tw-banner ad has-art"><img class="tw-art" src="assets/ui/shop/gold2.webp" alt=""><b>📺 Награда за рекламу</b><small>Осталось сегодня: ${s.adsLeft} · золото, каждая 5-я — крутка предмета</small>
-        <button class="l2-btn" id="watchAd" ${s.adsLeft > 0 ? '' : 'disabled'}>Смотреть</button></div>`);
+      ${(s.chests || []).filter((c) => !c.elixir).map((c) => `<div class="tw-banner items ${shopArt(c) ? 'has-art' : ''}">${shopArt(c) ? `<img class="tw-art" src="assets/ui/shop/${shopArt(c)}.webp" alt="">` : ''}<b>${{ kitSmith: '🧰', chestSet: '🎁', chestSet5: '🎁', chestLegend: '👑', bagEpic: '🎒', bagLegend: '🎒' }[c.id] || '🎁'} ${c.title}</b><small>${c.desc}${c.bag ? ' · надевается в слот «Сумка» на герое' : ' · открывается в сумке, награда — мира, где вы его открыли'}</small>
+        <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}`);
     box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, storePanel); });
     box.querySelector('#openOrders').onclick = () => passPanel();
-    box.querySelector('#watchAd').onclick = () => showAd(storePanel);
     open('💎 Магазин', box);
   }
   // Реклама: здесь подключается рекламная сеть Telegram Mini Apps (например, Adsgram: AdController.show()).

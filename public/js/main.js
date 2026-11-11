@@ -218,7 +218,7 @@
   const avaTier = (l) => (l >= 50 ? 'legend' : l >= 40 ? 'diamond' : l >= 30 ? 'platinum' : l >= 20 ? 'gold' : l >= 10 ? 'silver' : 'bronze');
   // ---------- Баффы и дебаффы под полоской здоровья: значок + секунды, тап — описание ----------
   let fxList = [];
-  const fxIcon = (e) => `<img src="assets/${e.art ? 'items/' + e.art : 'ui/status/' + e.i}.webp" alt="">`;
+  const fxIcon = (e) => `<img src="assets/${e.art ? 'items/' + e.art : 'ui/status/' + e.i}.webp" alt="${e.ic || ''}" onerror="this.replaceWith(document.createTextNode(this.alt))">`; // нет картинки — значок-эмодзи
   const fxLeft = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)} мин ${sec % 60} с` : `${sec} с`);
   const fxTime = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` : `${sec}`);
   function drawFx() {
@@ -550,8 +550,12 @@
         let r = await Bag.act('useMat', { mat: 'potHp2' });
         if (r.error === NO_POT) r = await Bag.act('useMat', { mat: 'potHp' });
         potBusy = false;
-        if (!r.error) potCooldown(8000);
-        if (!auto || !r.error) Town.toast(r.error === NO_POT ? 'Нет зелий — купите в лавке эликсиров' : auto ? `Автозелье: ${r.toast}` : r.error || r.toast);
+        if (!r.error) {
+          potCooldown(8000);
+          // Выпито — маленькая зелёная цифра над героем, без сообщения посреди экрана
+          const sc = window.gameScene, me = sc && sc.me;
+          if (me && r.healed) sc.floatText(me.e.c.x, me.e.c.y - 30, '+' + r.healed, '#5dff7a', 10);
+        } else if (!auto) Town.toast(r.error === NO_POT ? 'Нет зелий — купите в лавке эликсиров' : r.error);
         return r;
       };
       // pointerdown, а не click: на iPhone click не приходит, пока другой палец держит джойстик или атаку
