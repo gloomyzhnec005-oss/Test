@@ -87,7 +87,7 @@
       <div class="row"><span class="grow"><small class="muted">Игроков в базе: ${fmtNum(s.players)} · последняя запись: ${s.lastFlush ? new Date(s.lastFlush).toLocaleTimeString('ru-RU') : '—'} (${s.flushMs} мс)<br>
         Запись — раз в ~1,5 с и при остановке сервера. Файлы-бэкапы на диске: ${s.backups} (последний: ${esc(last)})</small></span>
         <button class="btn small primary" data-backup="1">Скачать всё</button></div></div>`;
-    const dbWarn = s.dbUrlSet ? '<p style="color:var(--red)"><b>⚠️ DATABASE_URL задан, но база не подключилась</b> — смотрите строки [db] в логах Railway.</p>' : '';
+    const dbWarn = s.dbUrlSet ? `<p style="color:var(--red)"><b>⚠️ DATABASE_URL задан, но база не подключилась</b> — игра работает на файлах.${s.dbError ? `<br>Причина: <code>${esc(s.dbError)}</code>` : ''}</p>` : '';
     return `<div class="card"><h3>💾 Сохранения</h3>${warn}${dbWarn}
       <div class="row"><span class="grow"><small class="muted">Папка: ${esc(s.dir)}${s.persistent ? ' · постоянный диск ✅' : ''}<br>
         Игроки: ${fmtNum(s.sizeKb)} КБ · бэкапов: ${s.backups} из ${s.keep} (раз в ${s.everyMin} мин) · последний: ${esc(last)}</small></span>

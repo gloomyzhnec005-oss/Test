@@ -36,22 +36,32 @@ let lastBackup = null;
 const DB_URL = (process.env.DATABASE_URL || '').trim();
 let pool = null, flushTm = null, flushing = null;
 const mem = new Map(), dirty = new Set(), saved = new Map(); // документы в памяти; что записать; что уже лежит в базе (игроки)
-const dbStat = { lastFlush: 0, lastError: null, players: 0, flushMs: 0 };
+const dbStat = { lastFlush: 0, lastError: null, players: 0, flushMs: 0, initError: null };
+const MARKER = 'db_active.txt'; // появляется на диске после первого успешного переноса в базу: с этого момента база — главная
 const DOCS_TEXT = new Set(['admin_password.txt']);
 
 async function init() {
   if (!DB_URL) return false;
   const { Pool } = require('pg');
   const ssl = /sslmode=require|\.proxy\.rlwy\.net|amazonaws|supabase|neon\.tech/.test(DB_URL) || process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : false;
-  pool = new Pool({ connectionString: DB_URL, ssl, max: 5 });
-  pool.on('error', (e) => console.error('[db] соединение', e.message));
-  // База может подняться позже сервера (деплой) — ждём до 60 с
+  let p = new Pool({ connectionString: DB_URL, ssl, max: 5, connectionTimeoutMillis: 8000 });
+  p.on('error', (e) => console.error('[db] соединение', e.message));
+  // База может подняться позже сервера (деплой) — ждём до ~30 с
   for (let i = 0; ; i++) {
-    try { await pool.query('SELECT 1'); break; } catch (e) {
-      if (i >= 12) throw new Error('[db] база недоступна: ' + e.message);
+    try { await p.query('SELECT 1'); break; } catch (e) {
+      // Самоподписанный сертификат или SSL не включён — пробуем другой режим SSL
+      if (i === 0 && /ssl|certificate|SSL/i.test(e.message)) { p.end().catch(() => {}); p = new Pool({ connectionString: DB_URL, ssl: ssl ? false : { rejectUnauthorized: false }, max: 5, connectionTimeoutMillis: 8000 }); p.on('error', (er) => console.error('[db] соединение', er.message)); continue; }
+      if (i >= 5) {
+        const msg = `база недоступна: ${e.message}`;
+        p.end().catch(() => {});
+        // База ещё ни разу не была главной — работаем на файлах, игра доступна; причина видна в админке
+        if (!fs.existsSync(file(MARKER))) { dbStat.initError = msg; console.error('[db]', msg, '— работаю на файлах, как раньше'); return false; }
+        throw new Error('[db] ' + msg); // база уже главная: без неё не стартуем, чтобы не потерять свежие данные
+      }
       console.warn('[db] жду базу…', e.message); await new Promise((r) => setTimeout(r, 5000));
     }
   }
+  pool = p;
   await pool.query(`CREATE TABLE IF NOT EXISTS docs (name text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
     CREATE TABLE IF NOT EXISTS players (uid text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());`);
   const docs = await pool.query('SELECT name, data FROM docs');
@@ -73,6 +83,7 @@ async function init() {
     mem.set('players.json', players);
   }
   dbStat.players = Object.keys(mem.get('players.json') || {}).length;
+  try { fs.mkdirSync(DIR, { recursive: true }); fs.writeFileSync(file(MARKER), new Date().toISOString()); } catch { /* диска нет — не страшно */ }
   console.log(`[db] Postgres подключён: игроков ${dbStat.players}, документов ${mem.size - 1}`);
   return true;
 }
@@ -202,7 +213,7 @@ function info() {
   if (pool) return { db: true, persistent: true, onRailway: ON_RAILWAY, players: dbStat.players, lastFlush: dbStat.lastFlush, flushMs: dbStat.flushMs, lastError: dbStat.lastError, dir: DIR, backups: backupsOf('players.json').length, keep: KEEP, everyMin: EVERY_MS / 60000, lastBackup };
   let sizeKb = 0;
   try { sizeKb = Math.round(fs.statSync(file('players.json')).size / 1024); } catch { /* нет файла */ }
-  return { dbUrlSet: !!DB_URL, dir: DIR, persistent: PERSISTENT, onRailway: ON_RAILWAY, sizeKb, backups: backupsOf('players.json').length, keep: KEEP, everyMin: EVERY_MS / 60000, lastBackup };
+  return { dbUrlSet: !!DB_URL, dbError: dbStat.initError, dir: DIR, persistent: PERSISTENT, onRailway: ON_RAILWAY, sizeKb, backups: backupsOf('players.json').length, keep: KEEP, everyMin: EVERY_MS / 60000, lastBackup };
 }
 
 if (!PERSISTENT) {
