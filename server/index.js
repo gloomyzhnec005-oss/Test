@@ -303,7 +303,7 @@ const Q = createQuests({
   getProfile: (uid) => getProfile(uid), notifyUid: (uid, t) => notifyUid(uid, t),
   reward: (...a) => meta.reward(...a), addPassXp: (pr, n) => meta.addPassXp(pr, n), save: () => saveProfiles(),
 });
-{ const track = Q.track; Q.track = (uid, type, n = 1, info) => { track(uid, type, n, info); clanTrack(uid, type, n); }; } // + клановые задания
+{ const track = Q.track; Q.track = (uid, type, n = 1, info) => { track(uid, type, n, info); clanTrack(uid, type, n); clanWar(uid, type); }; } // + клановые задания и война кланов
 // Мета-игра: предметы, рынок, аукцион, батл-пасс, подписка, арена (server/meta.js)
 const meta = createMeta({
   quest: (...a) => Q.track(...a),
@@ -391,6 +391,34 @@ function clanTrack(uid, type, n = 1) {
   }
   saveClans();
 }
+// ---------- Война кланов: очки недели за боссов и арену; лучший клан недели — «Владыки» на следующую неделю ----------
+const WAR_PTS = { dungeon: 3, boss: 10, world: 8, arena: 1 }; // dungeon — полубосс или босс данжа, boss — ещё +10 за босса
+const warWeek = () => Math.floor((Date.now() + 3 * 36e5 - Date.UTC(2024, 0, 1)) / (7 * 864e5));
+function clanWar(uid, type) {
+  const c = WAR_PTS[type] && clanOf(uid);
+  if (!c) return;
+  if (!c.war || c.war.w !== warWeek()) c.war = { w: warWeek(), pts: 0 };
+  c.war.pts += WAR_PTS[type];
+  saveClans();
+}
+// Клан-владыка: +10% опыта и золота участникам до конца недели
+const reignBonus = (uid) => { const c = clanOf(uid); return c && c.reignUntil > Date.now() ? 0.1 : 0; };
+// Итоги недели (раз в минуту проверка смены недели)
+const warState = store.readJSON('clanwar.json', { week: warWeek() });
+setInterval(() => {
+  const w = warWeek();
+  if (warState.week === w) return;
+  const prev = warState.week; warState.week = w;
+  const best = Object.values(clans).filter((c) => c.war && c.war.w === prev && c.war.pts > 0).sort((a, b) => b.war.pts - a.war.pts)[0];
+  if (best) {
+    best.reignUntil = (w + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - 3 * 36e5;
+    best.reigns = (best.reigns || 0) + 1;
+    for (const uid of best.members) { const pr = getProfile(uid); pr.gems = (pr.gems || 0) + 100; notifyUid(uid, `👑 Ваш клан [${best.tag}] победил в войне кланов! +100 💎 и +10% опыта и золота всю неделю`); }
+    io.emit('chat', { sys: true, text: `👑 Война кланов: победил клан [${best.tag}] ${best.name} (${best.war.pts} очков) — владыки недели!` });
+    saveClans(); saveProfiles();
+  }
+  try { store.writeJSON('clanwar.json', warState); } catch (e) { console.error('clanwar save', e.message); }
+}, 60e3);
 // Тег клана над именем героя
 const setClanTag = (uid) => { const c = clanOf(uid); for (const o of players.values()) if (o.uid === uid) { o.clanTag = c ? c.tag : null; markDirty(o); } };
 const clans = store.readJSON('clans.json', {});
@@ -402,6 +430,7 @@ function clanView(c) {
   const online = new Set([...players.values()].map((o) => o.uid));
   return { id: c.id, name: c.name, tag: c.tag, leader: c.leader, max: CLAN.max,
     members: c.members.map((uid) => { const pr = getProfile(uid); return { uid, name: pr.name || 'Герой', online: online.has(uid), leader: uid === c.leader }; }),
+    war: { pts: c.war && c.war.w === warWeek() ? c.war.pts : 0, reign: c.reignUntil > Date.now() ? c.reignUntil : 0, reigns: c.reigns || 0 },
     log: (c.log || []).slice(-30), vault: (c.vault || []).map((it) => ({ ...I.itemView(it), by: it.clanBy || '' })), vaultMax: CLAN.vault };
 }
 function clanQuestView(c, uid) {
@@ -584,7 +613,10 @@ const Ranks = (() => {
     const wb = top(list.filter(([, pr]) => pr.wbWeek && pr.wbWeek.w === w).map(([uid, pr]) => ({ uid, name: nm(uid, pr), v: pr.wbWeek.dmg, n: pr.wbWeek.n })), (x) => `${x.v.toLocaleString('ru-RU')} урона · боссов ${x.n}`);
     const cl = Object.values(clans).map((c) => ({ uid: c.id, name: `[${c.tag}] ${c.name}`, v: c.members.reduce((s, u) => s + maxHeroLevel(getProfile(u)), 0), n: c.members.length }))
       .sort((a, b) => b.v - a.v).slice(0, 50).map((x, i) => ({ ...x, place: i + 1, val: `сила ${x.v} · участников ${x.n}` }));
-    return { lvl, pow, wb, cl, weekEnds: (w + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - 3 * 36e5 };
+    const ww = warWeek();
+    const war = Object.values(clans).filter((c) => c.war && c.war.w === ww && c.war.pts > 0).map((c) => ({ uid: c.id, name: `${c.reignUntil > Date.now() ? '👑 ' : ''}[${c.tag}] ${c.name}`, v: c.war.pts }))
+      .sort((a, b) => b.v - a.v).slice(0, 50).map((x, i) => ({ ...x, place: i + 1, val: `${x.v} очков` }));
+    return { lvl, pow, wb, cl, war, weekEnds: (w + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - 3 * 36e5 };
   }
   function get() { if (!cache || Date.now() - at > 120e3) { cache = build(); at = Date.now(); } return cache; }
   // Конец недели: награда тройке по урону мировым боссам
@@ -599,7 +631,7 @@ const Ranks = (() => {
     saveProfiles(); cache = null;
   }, 60e3);
   function view(uid, tab) {
-    const R = get(), list = R[tab] || R.lvl, key = tab === 'cl' ? ((clanOf(uid) || {}).id) : uid;
+    const R = get(), list = R[tab] || R.lvl, key = tab === 'cl' || tab === 'war' ? ((clanOf(uid) || {}).id) : uid;
     const mine = list.find((x) => x.uid === key);
     return { tab, list: list.slice(0, 50).map(({ name, val, place }) => ({ name, val, place })), me: mine ? { place: mine.place, val: mine.val } : null, weekEnds: R.weekEnds, prize: PRIZE };
   }
@@ -1090,7 +1122,7 @@ function setAutofarm(p, on) {
 
 function grantXp(p, amount, gold, shared = false) {
   const pr = getProfile(p.uid), now = Date.now();
-  const sub = (meta.isSub(pr) ? meta.SHOP.sub.xpBonus : 0) + (meta.SHOP.passXpGold[meta.passTier(pr)] || 0); // подписка + орден (бесплатный Странника — тоже)
+  const sub = (meta.isSub(pr) ? meta.SHOP.sub.xpBonus : 0) + (meta.SHOP.passXpGold[meta.passTier(pr)] || 0) + reignBonus(p.uid); // подписка + орден (бесплатный Странника — тоже) + клан-владыка
   amount = Math.round(amount * (1 + ((p.gear && p.gear.xp) || 0) / 100 + sub) * S.xpMult * (p.deathUntil > now ? 1 - DEATH.xp : 1));
   gold = Math.round(gold * (1 + ((p.gear && p.gear.gold) || 0) / 100 + sub) * S.goldMult);
   p.char.xp += amount;
@@ -1577,7 +1609,7 @@ io.on('connection', (socket) => {
   socket.on('ranks', (d = {}, cb) => {
     const p = players.get(socket.id);
     if (!p || typeof cb !== 'function') return;
-    try { cb(Ranks.view(p.uid, ['lvl', 'pow', 'cl', 'wb'].includes(d.tab) ? d.tab : 'lvl')); } catch (e) { console.error('ranks', e); cb({ error: 'Рейтинг недоступен' }); }
+    try { cb(Ranks.view(p.uid, ['lvl', 'pow', 'cl', 'wb', 'war'].includes(d.tab) ? d.tab : 'lvl')); } catch (e) { console.error('ranks', e); cb({ error: 'Рейтинг недоступен' }); }
   });
   // Кланы: создать, пригласить, вступить, выйти, исключить (глава), состав
   socket.on('clan', (d = {}, cb) => {

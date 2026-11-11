@@ -617,14 +617,14 @@
           const r = await new Promise((res) => socket.emit('ranks', { tab: t }, res));
           const box = document.createElement('div');
           if (r.error) { box.textContent = r.error; return box; }
-          const hint = { lvl: 'Самый прокачанный герой каждого игрока', pow: 'Сила лучшего героя: здоровье, урон, крит и скорость атаки с экипировкой', cl: 'Сила клана — сумма уровней лучших героев участников',
+          const hint = { war: 'Очки клана за неделю: босс данжа +13, полубосс +3, мировой босс +8, бой на арене +1 — за каждого участника. Лучший клан недели — «Владыки»: всем участникам +100 💎 и +10% опыта и золота на следующую неделю', lvl: 'Самый прокачанный герой каждого игрока', pow: 'Сила лучшего героя: здоровье, урон, крит и скорость атаки с экипировкой', cl: 'Сила клана — сумма уровней лучших героев участников',
             wb: `Урон по мировым боссам за неделю. В понедельник тройка лидеров получит 🥇 ${r.prize[0]} 💎 · 🥈 ${r.prize[1]} 💎 · 🥉 ${r.prize[2]} 💎` }[t];
           box.innerHTML = `<p class="sheet-hint">${hint}</p>${r.me ? `<div class="top-row me"><span>${r.me.place}</span><b>Вы</b><em>${r.me.val}</em></div>` : '<small>Вас пока нет в этом рейтинге</small>'}
             <div class="tour-top">${r.list.map((x) => `<div class="top-row"><span>${x.place <= 3 ? ['🥇', '🥈', '🥉'][x.place - 1] : x.place}</span><b></b><em>${x.val}</em></div>`).join('') || '<small>Пока пусто</small>'}</div>`;
           box.querySelectorAll('.tour-top .top-row b').forEach((b, i) => { b.textContent = r.list[i].name; });
           return box;
         };
-        const tabs = [['lvl', 'Уровень'], ['pow', 'Сила'], ['cl', 'Кланы'], ['wb', 'Боссы недели']];
+        const tabs = [['lvl', 'Уровень'], ['pow', 'Сила'], ['cl', 'Кланы'], ['war', 'Война кланов'], ['wb', 'Боссы недели']];
         Town.open('🏆 Рейтинги', Town.tabs(tabs.map(([t, n]) => [n, page(t)]), Math.max(0, tabs.findIndex(([t]) => t === tab))));
       };
       // ---------- Клан ----------
@@ -646,7 +646,8 @@
         const members = () => {
           const box = document.createElement('div');
           box.innerHTML = `<div class="pass-head"><b><img class="clan-emb" src="assets/ui/ic_clan.webp" alt="">${c.name} [${c.tag}]</b><small>Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length} · тег [${c.tag}] виден над именами героев</small>
-            <button class="l2-btn" id="clChat">💬 Клановый чат</button></div><div class="ic-sec">Участники</div>`;
+            <small>⚔️ Война кланов: ${c.war.pts} очков за неделю${c.war.reign ? ' · 👑 Владыки недели: +10% опыта и золота' : ''}${c.war.reigns ? ` · побед: ${c.war.reigns}` : ''}</small>
+          <button class="l2-btn" id="clChat">💬 Клановый чат</button></div><div class="ic-sec">Участники</div>`;
           for (const m of c.members.sort((a, b) => b.online - a.online)) {
             const row = document.createElement('div'); row.className = 'tw-ev';
             row.innerHTML = `<div><b></b><small>${m.leader ? '👑 глава · ' : ''}${m.online ? '🟢 в сети' : '⚫ не в сети'}</small></div>${lead && !m.leader ? '<button class="l2-btn ghost">Исключить</button>' : ''}`;
