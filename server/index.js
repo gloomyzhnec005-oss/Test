@@ -685,7 +685,7 @@ function publicPlayer(p) {
 }
 function privateStats(p) {
   return { fx: playerEffects(p), passReady: meta.passReady(getProfile(p.uid)), level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm,
-    gold: getProfile(p.uid).gold, unlocked: p.unlocked, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
+    gold: getProfile(p.uid).gold, gems: getProfile(p.uid).gems || 0, unlocked: p.unlocked, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
     formKeys: p.potion ? { potion: p.potion, sign: p.sign } : p.rune ? { rune: p.rune } : p.facet ? { facet: p.facet } : null,
@@ -1564,7 +1564,17 @@ setInterval(() => {
     const taunter = m.tauntUntil > now ? players.get(m.tauntBy) : null;
     if (taunter && !taunter.dead) m.target = taunter.id;
     let target = m.target ? players.get(m.target) || pets.get(m.target) : null;
-    if (target && (target.dead || target.down || target.stealthUntil > now || target.flyUntil > now || Math.hypot(target.x - m.x, target.y - m.y) > (m.aggro || def.aggro) * 1.8 || !D.inLeash(m, target))) target = null;
+    const bigOne = m.room != null && (m.boss || m.mini); // босс или полубосс данжа
+    if (target && (target.dead || target.down || target.stealthUntil > now || target.flyUntil > now || Math.hypot(target.x - m.x, target.y - m.y) > (m.aggro || def.aggro) * (bigOne ? 3 : 1.8) || !D.inLeash(m, target))) target = null;
+    // Босс в бою потерял цель — переключается на другого героя, который его бил и ещё рядом, а не уходит лечиться
+    if (!target && bigOne && m.contrib && m.hp < m.maxHp) {
+      let bd = 1e9;
+      for (const p of players.values()) {
+        if (p.dead || p.zone !== m.zone || !m.contrib[p.uid] || p.stealthUntil > now || !D.inLeash(m, p)) continue;
+        const d = Math.hypot(p.x - m.x, p.y - m.y);
+        if (d < bd) { bd = d; target = p; }
+      }
+    }
     if (!target) {
       let best = null, bestD = m.aggro || def.aggro;
       for (const p of players.values()) {

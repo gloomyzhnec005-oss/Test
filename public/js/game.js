@@ -265,7 +265,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const raw = Phaser.Math.Clamp(Math.min(w, h) / ((town ? 15 : 12) * this.T), (town ? 0.8 : 1) * dpr, 3 * dpr); // в городе обзор шире
     // Целый масштаб: каждый пиксель рисунка — ровно N пикселей экрана. При дробном (1,7) пиксели героев и плиток
     // разной ширины и «плывут» в движении — картинка кажется размытой
-    let zoom = raw >= 1 ? Math.round(raw) : raw;
+    let zoom = raw >= 1 ? (town ? Math.floor(raw) : Math.round(raw)) : raw; // в городе — дальше (больше видно)
     if (zoom > 1 && Math.min(w, h) / (zoom * this.T) < (town ? 11 : 9)) zoom -= 1; // не слишком близко
     this.cameras.main.setZoom(zoom);
   }
@@ -1035,11 +1035,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   // ---------- Эффекты ----------
-  floatText(x, y, text, color, size = 14) {
+  floatText(x, y, text, color, size = 14, hold = 0) {
     const t = this.add.text(x, y, text, {
       fontSize: size + 'px', fontFamily: 'Arial', fontStyle: 'bold', color, stroke: '#000', strokeThickness: 3, resolution: 2,
+      ...(hold ? { wordWrap: { width: 220 }, align: 'center' } : {}),
     }).setOrigin(0.5).setDepth(1000);
-    this.tweens.add({ targets: t, y: y - 30, alpha: 0, duration: 900, ease: 'Cubic.easeOut', onComplete: () => t.destroy() });
+    // hold — сколько мс надпись стоит на месте, прежде чем уплыть (подсказки, которые нужно успеть прочитать)
+    this.tweens.add({ targets: t, y: y - 30, alpha: 0, delay: hold, duration: 900, ease: 'Cubic.easeOut', onComplete: () => t.destroy() });
   }
 
   burst(x, y, color, n = 10) {
@@ -2421,8 +2423,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
       for (const img of this.gates.values()) {
         if (img.gateState === 'open' || Math.hypot(img.x - this.me.x, img.y - 20 - this.me.y) > 70) continue;
         const b = window.hallInfo && window.hallInfo.boss, t = b && new Date(b.at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-        this.floatText(img.x, img.y - img.displayHeight - 6, b ? `🔒 Откроются, когда придёт босс — в ${t}` : '🔒 Ворота запечатаны', '#ffd9a0', 12);
-        this.gateHintAt = time + 5000;
+        this.floatText(img.x, img.y - img.displayHeight - 6, b ? `🔒 Откроются, когда придёт босс — в ${t}` : '🔒 Ворота запечатаны', '#ffd9a0', 12, 4000);
+        this.gateHintAt = time + 6000; // надпись держится 4 с, потом плавно уходит
         break;
       }
     }

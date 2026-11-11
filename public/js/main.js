@@ -224,6 +224,7 @@
   function drawFx() {
     const now = Date.now();
     fxList = fxList.filter((e) => !e.end || e.end > now);
+    requestAnimationFrame(() => document.getElementById('hud').style.setProperty('--fxh', ($('fxBar').offsetHeight ? $('fxBar').offsetHeight + 4 : 0) + 'px')); // группа и кнопки слева — ниже баффов
     $('fxBar').innerHTML = fxList.map((e, i) => `<button class="fx ${e.b ? 'buff' : 'debuff'}" data-i="${i}">${fxIcon(e)}${e.end ? `<em>${fxTime(Math.ceil((e.end - now) / 1000))}</em>` : ''}</button>`).join('');
   }
   setInterval(() => { if (fxList.length) drawFx(); }, 1000);
@@ -256,7 +257,7 @@
     $('xpFill').style.width = (100 * s.xp / s.xpNext) + '%';
     $('xpText').textContent = `${s.xp} / ${s.xpNext} XP`;
     $('gold').textContent = s.gold;
-    $('kills').textContent = s.kills;
+    if (s.gems !== undefined) $('gems').textContent = s.gems;
     $('dmg').textContent = s.dmg;
     if (s.form !== undefined || s.formKeys) applyForm(s);
     // Закрытые умения (откроются с уровнем или дубликатами)
@@ -907,6 +908,7 @@
       let storyCur = null;
       const showStory = (S) => {
         const h = $('storyHint'); storyCur = S && S.cur;
+        h.classList.add('hidden'); return; // подсказка сюжета на экране убрана (мешала) — сюжет во вкладке «Квесты»
         if (!storyCur || (zone && (zone.kind === 'worldboss' || zone.kind === 'pvp'))) { h.classList.add('hidden'); return; }
         const q = storyCur, ok = q.prog >= q.goal;
         h.classList.toggle('ready', ok);
@@ -918,6 +920,7 @@
       let storyT = 0;
       const storyLater = () => { clearTimeout(storyT); storyT = setTimeout(storyRefresh, 600); };
       $('storyHint').onclick = () => NAV.quests();
+      $('gemsBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); vibrate('light'); NAV.store(); }); // самоцветы → магазин
       Town.setContext({ onQuests: questBadge, onStory: showStory });
       socket.on('chat', (m) => {
         if (m.sys && /^📜 Задание выполнено/.test(m.text)) { const b = document.querySelector('[data-nav="quests"]'); questBadge((+b.dataset.badge || 0) + 1); if (window.Sfx) Sfx.play('quest'); }

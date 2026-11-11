@@ -505,11 +505,14 @@ module.exports = function createDungeons(d) {
     return roomAt(z, p.x, p.y, false) === m.room;
   }
   // Держать цель: пока она в комнате монстра, в соседней или в коридоре между ними
+  // Боссы и полубоссы держат цель дальше: на две комнаты от своей (иначе в соседней комнате сбрасывали бой и лечились)
   function inLeash(m, p) {
     const z = m.room == null ? null : world.byId.get(m.zone);
     if (!z || !z.rooms) return true;
     const r = roomAt(z, p.x, p.y, true);
-    return r === m.room || (z.rooms[m.room].links || []).includes(r);
+    const links = z.rooms[m.room].links || [];
+    if (r === m.room || links.includes(r)) return true;
+    return !!(m.boss || m.mini) && links.some((l) => (z.rooms[l].links || []).includes(r));
   }
   const hallOf = (z) => { let h = halls.get(z.id); if (!h) { h = initHall(z); halls.set(z.id, h); } return h; };
   // Точка возрождения: в комнате, по возможности не рядом с героями
@@ -567,8 +570,11 @@ module.exports = function createDungeons(d) {
       for (const r of h.rooms) { for (const id of r.ids) monsters.delete(id); r.ids.clear(); r.nextAt = 0; }
       h.populated = false;
     }
+    const bossRoomShut = h.boss && h.z.gates && h.z.gates.length && h.z.gates.every((g) => g.state === 'seal');
     if (h.populated) for (const r of h.rooms) {
       for (const id of r.ids) if (!monsters.has(id)) r.ids.delete(id);
+      // Комната босса за запечатанными воротами пуста — охрана появляется вместе с боссом
+      if (bossRoomShut && r.ri === h.boss.ri) { for (const id of r.ids) monsters.delete(id); r.ids.clear(); r.nextAt = 0; continue; }
       if (r.ids.size >= r.target) { r.nextAt = 0; continue; }
       if (!r.nextAt) r.nextAt = now + RESPAWN[0] + Math.random() * (RESPAWN[1] - RESPAWN[0]);
       else if (now >= r.nextAt && heroes.length) { spawnInRoom(h, r, heroes); r.nextAt = 0; }

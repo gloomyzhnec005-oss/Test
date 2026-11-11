@@ -1337,3 +1337,15 @@ canvas.skin { object-fit: contain; }
 
 /* Игровой холст: если браузер всё же масштабирует — без размытия */
 #game canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* Баффы — под панелью героя, мельче; группа и кнопки слева сдвигаются ниже */
+.panel.stats .fx-bar { position: absolute; left: 0; top: calc(100% + 4px); width: 100%; margin: 0; gap: 2px; }
+.panel.stats .fx-bar .fx { width: 18px; height: 18px; }
+.panel.stats .fx-bar .fx em { font-size: 7px; bottom: -4px; }
+.panel.stats .fx-tip { top: calc(100% + 30px); }
+.party-frame { top: calc(112px + var(--fxh, 0px) + env(safe-area-inset-top)); }
+.town-bar { top: calc(118px + var(--fxh, 0px) + env(safe-area-inset-top)); }
+/* Самоцветы (покупаются за Stars и GRAM) рядом с золотом: тап — магазин */
+.gems-btn { display: inline-flex; align-items: center; gap: 1px; padding: 0 3px 0 1px; border: 1px solid #6a5ad8; border-radius: 8px; background: rgba(60,40,120,.45); color: #fff; font: inherit; cursor: pointer; pointer-events: auto; }
+.gems-btn b { font-weight: bold; }
+.gems-btn i { font-style: normal; color: #9fe08a; font-weight: bold; margin-left: 2px; }
