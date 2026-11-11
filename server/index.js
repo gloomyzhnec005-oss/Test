@@ -1954,5 +1954,7 @@ server.listen(PORT, () => {
     onNotify: (tgId) => { const pr = profiles['tg' + tgId]; if (!pr) return null; pr.notifyOff = !pr.notifyOff; if (!pr.notifyOff) pr.pushBlocked = false; saveProfiles(); return !pr.notifyOff; } });
 });
 
-process.on('SIGINT', () => { saveProfiles(); process.exit(0); });
-process.on('SIGTERM', () => { saveProfiles(); process.exit(0); });
+if (!store.db) process.on('SIGINT', () => { saveProfiles(); process.exit(0); });
+// Остановка сервера: server/boot.js вызывает это, дописывает всё в хранилище (базу) и только потом выходит
+global.__saveAll = () => { saveProfiles(); try { store.writeJSON('clans.json', clans); } catch (e) { console.error('clans save', e.message); } };
+if (!store.db) process.on('SIGTERM', () => { saveProfiles(); process.exit(0); }); // запуск без boot.js (старый способ) — как раньше

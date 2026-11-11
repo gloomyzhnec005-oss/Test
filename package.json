@@ -2,10 +2,10 @@
   "name": "telegram-mmorpg",
   "version": "1.0.0",
   "description": "Мобильная MMORPG для Telegram (Mini App): Phaser 3 + Node.js + Socket.IO + Telegraf",
-  "main": "server/index.js",
+  "main": "server/boot.js",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node --watch server/index.js"
+    "start": "node server/boot.js",
+    "dev": "node --watch server/boot.js"
   },
   "engines": {
     "node": ">=18"
@@ -17,6 +17,7 @@
     "compression": "^1.8.1",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
+    "pg": "^8.16.3",
     "phaser": "^3.90.0",
     "socket.io": "^4.8.4",
     "telegraf": "^4.16.3"

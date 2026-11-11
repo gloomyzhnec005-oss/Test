@@ -355,7 +355,7 @@ module.exports = function createAdmin(ctx) {
   r.post('/backup', act((d, req) => {
     ctx.saveProfiles();
     log('admin', `${req.admin}: скачал бэкап сохранений`);
-    return { files: Object.fromEntries(['players.json', 'market.json', 'tournament.json', 'admin.json'].map((f) => [f, store.readJSON(f, null)])) };
+    return { files: Object.fromEntries(['players.json', 'market.json', 'tournament.json', 'admin.json', 'clans.json', 'ranks.json', 'clanwar.json'].map((f) => [f, store.readJSON(f, null)])) };
   }));
   r.post('/meta', act(() => ({
     heroes: Object.entries(C.HEROES).map(([id, h]) => ({ id, name: h.name, title: h.title, rarity: h.rarity })),
