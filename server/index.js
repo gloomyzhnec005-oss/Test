@@ -318,6 +318,7 @@ const meta = createMeta({
 const D = createDungeons({
   C, world, monsters, players, pets,
   push: (kind, text, filter) => Push.sendAll(kind, text, filter), maxHeroLevel: (pr) => maxHeroLevel(pr),
+  notifyUid: (uid, t) => notifyUid(uid, t),
   wbWeek: (uid, dmg) => { const pr = getProfile(uid), w = Ranks.weekNo(); if (!pr.wbWeek || pr.wbWeek.w !== w) pr.wbWeek = { w, dmg: 0, n: 0 }; pr.wbWeek.dmg += Math.round(dmg); pr.wbWeek.n += 1; },
   pushFx: (f) => fx.push(f),
   hurtPlayer: (...a) => hurtPlayer(...a),
@@ -1488,7 +1489,7 @@ io.on('connection', (socket) => {
     const z = world.byId.get(p.zone);
     const obj = z && z.objs.find((o) => o.id === d.via);
     if (!obj || Math.hypot(obj.x - p.x, obj.y - p.y) > 110) return socket.emit('skillFail', 'Подойдите ближе');
-    if (obj.id === 'survival') return D.startSurvival(p);
+    if (obj.id === 'survival') return D.startSurvival(p, !!d.trial);
     if (obj.id === 'arena' && z.kind === 'town') {
       const [lo, hi] = PVP_LEVELS[z.id] || [1, 99];
       if (p.char.level < lo || p.char.level > hi) return socket.emit('skillFail', `Арена ${z.name}: герои ${lo}–${hi} уровня`);
@@ -1605,6 +1606,8 @@ io.on('connection', (socket) => {
     io.emit('chat', msg);
   });
 
+  // Испытание дня: условие, сделано ли сегодня, лучшие
+  socket.on('trialInfo', (cb) => { const p = players.get(socket.id); if (p && typeof cb === 'function') cb(D.trialInfo(getProfile(p.uid))); });
   // Рейтинги (меню «Игра» → «Рейтинги»)
   socket.on('ranks', (d = {}, cb) => {
     const p = players.get(socket.id);

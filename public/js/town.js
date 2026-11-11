@@ -469,12 +469,23 @@ window.Town = (() => {
   }
 
   // ---------- Данж выживания ----------
-  function survivalPanel() {
+  async function survivalPanel() {
     const box = el(`<div class="pass-head"><b>💀 Данж выживания</b>
       <small>Волны монстров этого мира становятся всё сильнее (уровень растёт каждые 2 волны), каждая 5-я — с полубоссом, каждая 10-я — с боссом. За каждую волну — золото, опыт пропуска и шанс предмета; на 5-й, 10-й, 15-й… — гарантированный редкий+ предмет.</small>
       <small>Идите соло или с группой (👥): все участники группы в этом городе войдут вместе. Смерть — возврат в город.</small></div>
       <button class="l2-btn wide" id="survGo">⚔️ Начать</button>`);
     box.querySelector('#survGo').onclick = () => { ctx.socket.emit('travel', { via: 'survival' }); close(); };
+    // Испытание дня
+    const T = await new Promise((res) => ctx.socket.emit('trialInfo', res));
+    if (T) {
+      const tb = el(`<div class="tw-banner hero trial"><b>🏅 Испытание дня: «${T.name}»</b><small>${T.desc}. Награда раз в день по числу пройденных волн: до 150 💎, волшебная пыль, с 20-й волны — кристалл мастерства.</small>
+        ${T.done ? `<small class="ok">Сегодня пройдено: ${T.best} волн — новое испытание завтра</small>` : ''}
+        ${T.top.length ? `<div class="tour-top">${T.top.map((t, i) => `<div class="top-row"><span>${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><b></b><em>${t.wave}</em></div>`).join('')}</div>` : '<small>Сегодня ещё никто не проходил — станьте первым!</small>'}
+        <button class="l2-btn wide" id="trialGo" ${T.done ? 'disabled' : ''}>🏅 Начать испытание</button></div>`);
+      tb.querySelectorAll('.tour-top .top-row b').forEach((b, i) => { b.textContent = T.top[i].name; });
+      tb.querySelector('#trialGo').onclick = () => { ctx.socket.emit('travel', { via: 'survival', trial: true }); close(); };
+      box.append(tb);
+    }
     open('💀 Данж выживания', box);
   }
 
