@@ -377,7 +377,7 @@ window.Town = (() => {
         ${s.passTier ? `<small class="ok">${s.passTiers[s.passTier - 1].icon} ${s.passTiers[s.passTier - 1].name} активен</small>` : ''}
         <button class="l2-btn" id="openOrders">${s.passTier >= 4 ? 'Награды сезона' : s.passTier ? 'Улучшить орден' : 'Выбрать орден'}</button></div>
       <div class="tw-banner pass"><b>⚗️ Великие эликсиры · 1 час</b><small>Намного сильнее эликсиров из лавки и действуют вместе с ними. Попадают в сумку — выпейте, когда нужно. Сгорают при гибели героя.</small></div>
-      ${(s.chests || []).filter((c) => c.elixir).map((c) => `<div class="tw-banner items elx"><b>${{ elxXp2: '📗', elxXp2x5: '📗', elxLuck2: '☘️', elxHero: '👑', elxTitan: '🗿' }[c.id] || '⚗️'} ${c.title}</b><small>${c.desc}</small>
+      ${(s.chests || []).filter((c) => c.elixir).map((c) => `<div class="tw-banner items elx has-art"><img class="tw-art" src="assets/items/mat_${c.id === 'elxXp2x5' ? 'elxXp2' : c.id}.webp" alt=""><b>${c.title}</b><small>${c.desc}</small>
         <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}
       ${(s.chests || []).filter((c) => !c.elixir).map((c) => `<div class="tw-banner items ${shopArt(c) ? 'has-art' : ''}">${shopArt(c) ? `<img class="tw-art" src="assets/ui/shop/${shopArt(c)}.webp" alt="">` : ''}<b>${{ kitSmith: '🧰', chestSet: '🎁', chestSet5: '🎁', chestLegend: '👑', bagEpic: '🎒', bagLegend: '🎒' }[c.id] || '🎁'} ${c.title}</b><small>${c.desc}${c.bag ? ' · надевается в слот «Сумка» на герое' : ' · открывается в сумке, награда — мира, где вы его открыли'}</small>
         <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}`);
