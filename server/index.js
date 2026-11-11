@@ -36,6 +36,20 @@ function saveProfiles() {
 setInterval(saveProfiles, 15000);
 // Бэкап раз в час (последние 48): игроки, рынок, турнир, настройки админки
 store.startBackups(['players.json', 'market.json', 'tournament.json', 'admin.json', 'clans.json'], saveProfiles);
+// Снимки всей игры: с базой — каждый час в базу; раз в сутки копия файлом администраторам в Telegram (ADMIN_TG_IDS)
+store.startSnapshots(() => { if (global.__saveAll) global.__saveAll(); }, async (buf, nPlayers) => {
+  const ids = String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean);
+  if (!bot || !ids.length) return;
+  const date = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+  const mb = (buf.length / 1048576).toFixed(1);
+  for (const id of ids) {
+    try {
+      if (buf.length > 49 * 1048576) { await bot.telegram.sendMessage(id, `💾 Бэкап за ${date}: ${mb} МБ — больше лимита Telegram (50 МБ), скачайте в админке → Обзор → Снимки.`); continue; }
+      await bot.telegram.sendDocument(id, { source: buf, filename: `mystic-backup-${date}.json.gz` },
+        { caption: `💾 Ежедневный бэкап игры · ${date}\nИгроков: ${nPlayers} · ${mb} МБ\nСохраните файл. Восстановить: админка → Обзор → «Восстановить из файла».`, disable_notification: true });
+    } catch (e) { console.error('бэкап в Telegram', id, e.message); }
+  }
+});
 
 function getProfile(uid) {
   profiles[uid] ??= {};
@@ -94,6 +108,18 @@ const admin = createAdmin({
   hurtPlayer: (...a) => hurtPlayer(...a), grantXp: (...a) => grantXp(...a), unlockedSkills: (...a) => unlockedSkills(...a), xpForLevel: (l) => xpForLevel(l), syncCooldowns: (...a) => syncCooldowns(...a),
 });
 Object.defineProperty(admin.ctx, 'profiles', { get: () => profiles });
+// Нагрузка сервера (видно в админке → Обзор): задержка игрового цикла и загрузка процессора за последние ~10 с.
+// Задержка p99 больше ~50 мс или процессор под 90% — сервер не успевает, пора брать тариф мощнее
+const perf = { lagP50: 0, lagP99: 0, lagMax: 0, cpu: 0 };
+{ const h = require('perf_hooks').monitorEventLoopDelay({ resolution: 10 }); h.enable();
+  let cpu0 = process.cpuUsage(), t0 = Date.now();
+  setInterval(() => {
+    const c = process.cpuUsage(cpu0), dt = Date.now() - t0;
+    perf.cpu = Math.round(((c.user + c.system) / 1000 / dt) * 100);
+    perf.lagP50 = Math.round(h.percentile(50) / 1e6); perf.lagP99 = Math.round(h.percentile(99) / 1e6); perf.lagMax = Math.round(h.max / 1e6);
+    h.reset(); cpu0 = process.cpuUsage(); t0 = Date.now();
+  }, 10000).unref(); }
+admin.ctx.perf = () => perf;
 const S = admin.settings;
 app.use('/admin/api', admin.router);
 app.use(express.json({ limit: '16kb' }));
@@ -151,6 +177,7 @@ app.post('/api/gacha/exchange', (req, res) => {
 });
 app.get('/api/config', (req, res) => res.json({
   heroes: C.HEROES, rarities: C.RARITIES, monsters: C.MONSTERS, backgrounds: C.LOBBY_BACKGROUNDS, gacha: C.GACHA, skillUnlock: C.SKILL_UNLOCK,
+  botName: (bot && bot.botInfo && bot.botInfo.username) || process.env.BOT_USERNAME || null, // для кнопки «Помощь с покупками»
 }));
 
 // Покупки за Telegram Stars: фон лобби (item=bg) или крутка гачи (item=spin)
@@ -260,10 +287,13 @@ function isValidPayload(payload) {
   if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass[1-4]$/.test(kind)) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
 }
-function onPaid(payload) {
+function onPaid(payload, info = {}) {
   if (!isValidPayload(payload)) return false;
   const [kind, uid, id] = String(payload).split(':');
   const pr = getProfile(uid);
+  // Журнал покупок игрока: нужен поддержке (/paysupport) и для возврата Stars (/refund)
+  (pr.payments ??= []).push({ t: Date.now(), kind, id: id || undefined, amount: info.amount, cur: info.currency || 'XTR', charge: info.charge });
+  if (pr.payments.length > 50) pr.payments.splice(0, pr.payments.length - 50);
   pr.paidOnce = true; // скидка на первую покупку израсходована
   if (kind === 'spin') pr.paidSpins += 1;
   else if (kind === 'spin10') pr.paidSpins += 10;
@@ -783,6 +813,12 @@ function moveEntity(e, dx, dy) {
   if (!world.isSolidAt(e.x, ny + Math.sign(dy) * r)) e.y = ny;
 }
 
+// Значения «по умолчанию» у записи героя в пакете состояния: такие поля не отправляем (клиент восстанавливает их из pDef,
+// присланного в welcome) — пакет с 10 героями рядом становится в несколько раз меньше
+const P_DEF = { tag: null, cp: null, dm: 0, nc: null, au: null, dead: false, form: null, rage: false, guard: false, smoke: false, sh: false, stealth: false, pact: null, elem: null, asp: null, phase: null,
+  heat: 0, abyss: false, mt: null, pcc: null, pdot: null, pslow: false, pweak: false, flame: null, ash: false, rootSelf: false, cry: null, wrune: null, might: false, stoneArmor: false, vow: null,
+  bless: false, song: null, haste: false, fly: false, tree: false, emp: false };
+function slimPlayer(o) { for (const k in P_DEF) if (o[k] === P_DEF[k] || o[k] === undefined) delete o[k]; return o; }
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
     hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, tag: p.clanTag || null, cp: p.cp || null, dm: p.deathMarkUntil > Date.now() ? 1 : 0, nc: (p.look && p.look.nc) || null, au: (p.look && p.look.au) || null, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
@@ -1387,6 +1423,7 @@ io.on('connection', (socket) => {
       heroes: C.HEROES,
       monsters: C.MONSTERS,
       stats: privateStats(p),
+      pDef: P_DEF, // поля героев, которых нет в пакете состояния, — со значениями отсюда
     });
     socket.emit('chatHistory', [...chatHistory, ...((clanOf(uid) || {}).log || []).slice(-30)].sort((a, b) => a.t - b.t)); // + история клана
     io.emit('chat', { sys: true, text: `${p.name} (${hero.name}, ${hero.title}) вошёл в мир` });
@@ -1774,14 +1811,16 @@ setInterval(() => {
         if (p.dead) continue;
         if (m.ignoreUntil > now && m.ignoreId === p.id) continue; // потерял из виду (дымовая завеса)
         if (p.stealthUntil > now || p.flyUntil > now) continue; // невидимость (Кассиан), полёт (Талмира)
-        if (!D.canAggro(m, p)) continue; // в данже — только герои в комнате монстра
-        const d = Math.hypot(p.x - m.x, p.y - m.y);
-        if (d < bestD && world.lineOfSight(m.x, m.y, p.x, p.y)) { best = p; bestD = d; } // замечает только тех, кого видит
+        const dx = p.x - m.x, dy = p.y - m.y;
+        if (dx > bestD || dx < -bestD || dy > bestD || dy < -bestD) continue; // далеко (сначала дешёвая проверка — героев и монстров сотни)
+        const d = Math.hypot(dx, dy);
+        if (d >= bestD || !D.canAggro(m, p)) continue; // в данже — только герои в комнате монстра
+        if (world.lineOfSight(m.x, m.y, p.x, p.y)) { best = p; bestD = d; } // замечает только тех, кого видит
       }
       for (const pet of pets.values()) {
-        if (pet.down || !D.canAggro(m, pet)) continue;
+        if (pet.down) continue;
         const d = Math.hypot(pet.x - m.x, pet.y - m.y);
-        if (d < bestD) { best = pet; bestD = d; }
+        if (d < bestD && D.canAggro(m, pet)) { best = pet; bestD = d; }
       }
       target = best;
     }
@@ -1897,7 +1936,7 @@ setInterval(() => {
   for (const f of fx) byZone.get(fxZone(f))?.fx.push(f);
   for (const Z of byZone.values()) {
   const state = {
-    p: Z.p.map(publicPlayer).map((p) => ({ ...p, hp: Math.ceil(p.hp) })),
+    p: Z.p.map((pl) => { const o = slimPlayer(publicPlayer(pl)); o.hp = Math.ceil(o.hp); return o; }),
     m: Z.m.map((m) => slim(m.pvpOf ? { id: m.id, pv: m.pvpOf, nm: '⚔️ ' + m.nm, lv: m.level, tm: (players.get(m.pvpOf) || {}).match ? `${players.get(m.pvpOf).match}:${players.get(m.pvpOf).team}` : null, x: Math.round(m.x), y: Math.round(m.y), hp: Math.ceil(m.hp), maxHp: m.maxHp } : ({ id: m.id, type: m.type, tr: m.tier, lv: m.level, rk: m.rank, nm: m.name, inv: m.inv ? 1 : 0, sz: m.size, sh: m.shieldHp > 0 ? 1 : 0, fm: m.form || m.phase || m.element || null, x: Math.round(m.x), y: Math.round(m.y),
       hs: m.heroSkin || undefined, hp: Math.ceil(m.hp), maxHp: m.maxHp, st: m.stunUntil > now ? 1 : 0, wk: m.weakUntil > now ? 1 : 0,
       mk: m.markUntil > now ? m.markedBy : null, sl: m.sealUntil > now ? 1 : 0,
@@ -1970,8 +2009,13 @@ process.on('unhandledRejection', (e) => console.error('unhandledRejection', e));
 
 server.listen(PORT, () => {
   console.log(`MMORPG сервер запущен: http://localhost:${PORT}`);
-  if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ onPaid, isValidPayload,
+  if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ onPaid, isValidPayload, profiles: () => profiles, save: () => saveProfiles(),
     onNotify: (tgId) => { const pr = profiles['tg' + tgId]; if (!pr) return null; pr.notifyOff = !pr.notifyOff; if (!pr.notifyOff) pr.pushBlocked = false; saveProfiles(); return !pr.notifyOff; } });
+});
+// Новые ошибки сервера — администраторам (ADMIN_TG_IDS) в Telegram, не чаще раза в 10 минут
+admin.setAlert((text) => {
+  if (!bot) return;
+  for (const id of String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean)) bot.telegram.sendMessage(id, text.slice(0, 4000), { disable_notification: true }).catch((e) => console.error('admin-alert', id, e.message));
 });
 
 if (!store.db) process.on('SIGINT', () => { saveProfiles(); process.exit(0); });

@@ -34,11 +34,33 @@ module.exports = function createAdmin(ctx) {
       const last = errors[errors.length - 1];
       if (last && last.text === e.text) { last.n = (last.n || 1) + 1; last.t = e.t; return; }
       errors.push(e); if (errors.length > 200) errors.shift();
+      if (!/^admin-alert/.test(e.text)) { alertQ.push(e.text); if (alertQ.length > 20) alertQ.shift(); alertTotal++; }
       return;
     }
     journal.push(e);
     if (journal.length > 500) journal.shift();
   }
+
+  // ---------- Новые ошибки сервера — администраторам в Telegram ----------
+  // Не чаще раза в 10 минут, одним сообщением (до 5 разных ошибок, у каждой — начало текста). Повторы одной и той же ошибки не шлём.
+  // Выключить: переменная ERROR_ALERTS=false. Отправку подключает index.js (setAlert) после запуска бота.
+  const alertQ = [], ALERT_EVERY = 10 * 60e3;
+  let alertFn = null, alertLast = 0, alertTotal = 0;
+  const alertSeen = new Map(); // текст (без чисел) → когда последний раз отправляли: одну и ту же ошибку — не чаще раза в 6 ч
+  setInterval(() => {
+    if (!alertFn || !alertQ.length || Date.now() - alertLast < ALERT_EVERY || process.env.ERROR_ALERTS === 'false') return;
+    const now = Date.now(), fresh = [];
+    for (const t of alertQ.splice(0)) {
+      const k = t.replace(/\d+/g, '#').slice(0, 200);
+      if (now - (alertSeen.get(k) || 0) < 6 * 3600e3 || fresh.some((x) => x.k === k)) continue;
+      alertSeen.set(k, now); fresh.push({ k, t });
+    }
+    const total = alertTotal; alertTotal = 0;
+    if (!fresh.length) return;
+    alertLast = now;
+    const body = fresh.slice(0, 5).map((x, i) => `${i + 1}) ${x.t.slice(0, 500)}`).join('\n\n');
+    alertFn(`⚠️ Ошибки сервера (${total} за последнее время, новых видов: ${fresh.length})\n\n${body}${fresh.length > 5 ? `\n\n…и ещё ${fresh.length - 5}` : ''}\n\nПодробно: админка → Журнал → Ошибки сервера`);
+  }, 30e3).unref();
 
   // ---------- Проверка доступа ----------
   const fails = new Map(); // ip → { n, until }
@@ -101,6 +123,7 @@ module.exports = function createAdmin(ctx) {
       pass: { tier: ctx.meta.passTier(pr), xp: pass.xp, level: Math.floor(pass.xp / ctx.meta.SHOP.pass.xpPerLevel) },
       arena: pr.arena ? pr.arena.rating : 1000, banned: pr.banned || null, test: pr.test || {},
       sessions: online(uid).map(sessionView),
+      payments: (pr.payments || []).slice(-15).reverse(),
     };
   }
 
@@ -313,7 +336,7 @@ module.exports = function createAdmin(ctx) {
       return { town, townName: zoneName(town), boss: b ? { name: MOBX.MOBS[b.type].name, hp: Math.ceil(b.hp), maxHp: b.maxHp } : null, nextAt: st.nextAt };
     });
     return {
-      uptime: Math.round(process.uptime()), memMb: Math.round(process.memoryUsage().rss / 1048576),
+      uptime: Math.round(process.uptime()), perf: ctx.perf ? ctx.perf() : null, memMb: Math.round(process.memoryUsage().rss / 1048576),
       online: ctx.players.size, profiles: Object.keys(ctx.profiles).length, monsters: ctx.monsters.size,
       dungeons: [...ctx.D.halls.values()].filter((h) => h.populated).length, survivals: ctx.D.survivals.size, worldBosses: wb, settings,
       storage: store.info(),
@@ -357,6 +380,52 @@ module.exports = function createAdmin(ctx) {
     ctx.saveProfiles();
     log('admin', `${req.admin}: скачал бэкап сохранений`);
     return { files: Object.fromEntries(['players.json', 'market.json', 'tournament.json', 'admin.json', 'clans.json', 'ranks.json', 'clanwar.json'].map((f) => [f, store.readJSON(f, null)])) };
+  }));
+  // ---------- Снимки (бэкапы) и восстановление ----------
+  const aact = (fn, label) => async (req, res) => {
+    try {
+      const out = await fn(req.body || {}, req);
+      if (out && out.text && label) log('admin', `${req.admin}: ${label(req.body || {})} — ${out.text}`);
+      res.status(out && out.error ? 400 : 200).json(out || {});
+    } catch (e) { console.error('admin', e); res.status(500).json({ error: 'Ошибка: ' + e.message }); }
+  };
+  r.post('/snapshots', aact(async () => ({ db: store.db, list: await store.listSnapshots() })));
+  r.post('/snapshotNow', aact(async () => {
+    if (!store.db) return { error: 'Снимки в базе доступны только с Postgres — используйте «Скачать всё»' };
+    ctx.saveProfiles();
+    const s = await store.snapshot('manual');
+    return { text: `Снимок №${s.id} сохранён · игроков ${s.players} · ${(s.size / 1048576).toFixed(2)} МБ` };
+  }, () => 'ручной снимок'));
+  // Скачать снимок (или текущее состояние, если id нет) — сжатый файл .json.gz
+  r.post('/snapDownload', async (req, res) => {
+    try {
+      let buf;
+      if (req.body && req.body.id) buf = await store.getSnapshot(Number(req.body.id));
+      else { ctx.saveProfiles(); buf = (await store.dump()).buf; }
+      if (!buf) return res.status(404).json({ error: 'Снимок не найден' });
+      log('admin', `${req.admin}: скачал бэкап${req.body && req.body.id ? ' №' + req.body.id : ''}`);
+      res.set('Content-Type', 'application/gzip').send(buf);
+    } catch (e) { console.error('admin', e); res.status(500).json({ error: e.message }); }
+  });
+  // Восстановление: всех игроков выкидываем, данные подменяем, сервер перезапускается (Railway поднимает его заново)
+  async function doRestore(buf, req, what) {
+    for (const p of [...ctx.players.values()]) { p.socket.emit('error_msg', 'Технические работы: восстановление данных, зайдите через минуту'); p.socket.disconnect(true); }
+    const r = await store.restore(buf);
+    log('admin', `${req.admin}: восстановил ${what} — игроков ${r.players}`);
+    console.log(`[admin] восстановление ${what} выполнил ${req.admin}; перезапуск`);
+    setTimeout(() => process.exit(1), 1500);
+    return { text: `Восстановлено: игроков ${r.players}, документов ${r.docs}. Сервер перезапускается — через минуту обновите страницу.`, restarting: true };
+  }
+  r.post('/restoreSnap', aact(async (d, req) => {
+    if (d.confirm !== 'ВОССТАНОВИТЬ') return { error: 'Нужно подтверждение' };
+    const buf = await store.getSnapshot(Number(d.id));
+    if (!buf) return { error: 'Снимок не найден' };
+    return doRestore(buf, req, `снимок №${d.id}`);
+  }));
+  r.post('/restoreFile', express.raw({ type: 'application/octet-stream', limit: '300mb' }), aact(async (d, req) => {
+    if (req.get('x-confirm') !== 'restore') return { error: 'Нужно подтверждение' };
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return { error: 'Пустой файл' };
+    return doRestore(req.body, req, 'из файла');
   }));
   r.post('/meta', act(() => ({
     heroes: Object.entries(C.HEROES).map(([id, h]) => ({ id, name: h.name, title: h.title, rarity: h.rarity })),
@@ -427,5 +496,5 @@ module.exports = function createAdmin(ctx) {
 
   // Администратор ли этот игрок (Telegram ID в ADMIN_TG_IDS) — для кнопки админки в лобби
   const isAdminUid = (uid) => String(uid).startsWith('tg') && TG_IDS.includes(String(uid).slice(2));
-  return { router: r, settings, log, ctx, isAdminUid };
+  return { router: r, settings, log, ctx, isAdminUid, setAlert: (fn) => { alertFn = fn; } };
 };

@@ -85,13 +85,65 @@
     if (s.db) return `<div class="card"><h3>💾 Сохранения · база Postgres ✅</h3>
       ${s.lastError ? `<p style="color:var(--red)">⚠️ Последняя ошибка записи: ${esc(s.lastError)}</p>` : ''}
       <div class="row"><span class="grow"><small class="muted">Игроков в базе: ${fmtNum(s.players)} · последняя запись: ${s.lastFlush ? new Date(s.lastFlush).toLocaleTimeString('ru-RU') : '—'} (${s.flushMs} мс)<br>
-        Запись — раз в ~1,5 с и при остановке сервера. Файлы-бэкапы на диске: ${s.backups} (последний: ${esc(last)})</small></span>
-        <button class="btn small primary" data-backup="1">Скачать всё</button></div></div>`;
+        Запись — раз в ~1,5 с и при остановке сервера. Снимки базы — каждый час (24 шт.) и раз в сутки (14 шт.), ежедневный — ещё и вам в Telegram.<br>
+        Последний снимок: ${s.snap && s.snap.last ? new Date(s.snap.last).toLocaleString('ru-RU') : 'ещё не было'}${s.snap && s.snap.lastError ? ` · <b style="color:var(--red)">ошибка: ${esc(s.snap.lastError)}</b>` : ''}</small></span>
+        <button class="btn small primary" data-snaps="1">Снимки и восстановление</button></div></div>`;
     const dbWarn = s.dbUrlSet ? `<p style="color:var(--red)"><b>⚠️ DATABASE_URL задан, но база не подключилась</b> — игра работает на файлах.${s.dbError ? `<br>Причина: <code>${esc(s.dbError)}</code>` : ''}</p>` : '';
     return `<div class="card"><h3>💾 Сохранения</h3>${warn}${dbWarn}
       <div class="row"><span class="grow"><small class="muted">Папка: ${esc(s.dir)}${s.persistent ? ' · постоянный диск ✅' : ''}<br>
         Игроки: ${fmtNum(s.sizeKb)} КБ · бэкапов: ${s.backups} из ${s.keep} (раз в ${s.everyMin} мин) · последний: ${esc(last)}</small></span>
-        <button class="btn small primary" data-backup="1">Скачать всё</button></div></div>`;
+        <button class="btn small primary" data-snaps="1">Бэкапы и восстановление</button></div></div>`;
+  }
+  // ---------- Снимки и восстановление (отдельное окно поверх — обзор обновляется каждые 4 с) ----------
+  const authHeaders = () => { const h = {}; if (key) h['x-admin-key'] = key; if (tg) h['x-tg-init'] = tg.initData; return h; };
+  async function saveSnap(id) {
+    toast('Готовлю файл…');
+    const r = await fetch('/admin/api/snapDownload', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+    if (!r.ok) return toast('Не удалось скачать', true);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await r.blob());
+    a.download = `mystic-backup-${id ? 'snap' + id + '-' : ''}${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')}.json.gz`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }
+  const KIND = { hour: 'час', day: 'сутки', manual: 'вручную', prerestore: 'перед восстановлением' };
+  async function openSnaps() {
+    let ov = document.getElementById('snapOv');
+    if (!ov) {
+      ov = document.createElement('div'); ov.id = 'snapOv';
+      ov.style.cssText = 'position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.75);overflow:auto;padding:16px';
+      document.body.append(ov);
+    }
+    const r = await api('snapshots');
+    ov.innerHTML = `<div class="card" style="max-width:720px;margin:0 auto">
+      <div class="row"><h3 class="grow" style="margin:0">💾 Бэкапы и восстановление</h3><button class="btn small" data-close="1">Закрыть</button></div>
+      <p class="muted"><small>Восстановление заменяет ВСЕ данные игры (игроки, рынок, кланы…) содержимым бэкапа. Текущее состояние перед этим сохраняется снимком «перед восстановлением» — им можно откатить. Игроков выкинет, сервер перезапустится примерно за минуту.</small></p>
+      <div class="row"><button class="btn primary" data-dl="0">Скачать текущее состояние</button>${r.db ? '<button class="btn" data-now="1">Сделать снимок сейчас</button>' : ''}</div>
+      <div class="row"><label class="grow">Восстановить из файла (.json.gz из Telegram или «Скачать»)<input type="file" id="snapFile" accept=".gz,.json,application/gzip,application/json"></label><button class="btn danger" data-file="1">Восстановить</button></div>
+      ${r.db ? `<h3>Снимки в базе (${(r.list || []).length})</h3><table><tr><th>№</th><th>Когда</th><th>Тип</th><th>Игроков</th><th>Размер</th><th></th></tr>
+        ${(r.list || []).map((x) => `<tr><td>${x.id}</td><td>${new Date(x.at).toLocaleString('ru-RU')}</td><td>${KIND[x.kind] || esc(x.kind)}</td><td>${fmtNum(x.players)}</td><td>${x.size < 1048576 ? Math.max(1, Math.round(x.size / 1024)) + " КБ" : (x.size / 1048576).toFixed(1) + " МБ"}</td>
+          <td><button class="btn small" data-dl="${x.id}">Скачать</button> <button class="btn small danger" data-rs="${x.id}">Восстановить</button></td></tr>`).join('')}</table>` : '<p class="muted">Без базы снимки делаются файлами на диске (см. «Сохранения»).</p>'}
+    </div>`;
+    const confirmTyped = (what) => (prompt(`Восстановить ${what}? Все текущие данные игры будут заменены.\nНапишите ВОССТАНОВИТЬ для подтверждения:`) || '').trim().toUpperCase() === 'ВОССТАНОВИТЬ';
+    const after = (res) => { if (res && res.restarting) { ov.innerHTML = `<div class="card" style="max-width:720px;margin:0 auto"><h3>✅ ${esc(res.text)}</h3></div>`; setTimeout(() => location.reload(), 30000); } };
+    ov.onclick = async (e) => {
+      const t = e.target;
+      if (t === ov || t.closest('[data-close]')) return ov.remove();
+      if (t.closest('[data-now]')) { await api('snapshotNow'); return openSnaps(); }
+      const dl = t.closest('[data-dl]'); if (dl) return saveSnap(Number(dl.dataset.dl) || 0);
+      const rs = t.closest('[data-rs]');
+      if (rs && confirmTyped(`снимок №${rs.dataset.rs}`)) return after(await api('restoreSnap', { id: Number(rs.dataset.rs), confirm: 'ВОССТАНОВИТЬ' }));
+      if (t.closest('[data-file]')) {
+        const f = document.getElementById('snapFile').files[0];
+        if (!f) return toast('Выберите файл бэкапа', true);
+        if (!confirmTyped(`из файла «${f.name}»`)) return;
+        toast('Загружаю файл…');
+        let res;
+        try { res = await (await fetch('/admin/api/restoreFile', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/octet-stream', 'x-confirm': 'restore' }, body: await f.arrayBuffer() })).json(); } catch { return toast('Нет связи с сервером', true); }
+        if (res.error) return toast(res.error, true);
+        toast(res.text); after(res);
+      }
+    };
   }
   async function downloadBackup() {
     const r = await api('backup');
@@ -116,6 +168,7 @@
         <div class="tile"><b>${o.dungeons} / ${o.survivals}</b><span>данжей / выживаний</span></div>
         <div class="tile"><b>${o.memMb} МБ</b><span>память</span></div>
         <div class="tile"><b>${dur(o.uptime)}</b><span>работает</span></div>
+        ${o.perf ? `<div class="tile"><b style="color:${o.perf.cpu > 85 || o.perf.lagP99 > 60 ? 'var(--red)' : 'inherit'}">${o.perf.cpu}% · ${o.perf.lagP99} мс</b><span>процессор · задержка цикла</span></div>` : ''}
       </div>
       ${storageCard(o.storage)}
       ${o.settings.maintenance ? '<div class="card"><b style="color:var(--red)">🔧 Включены технические работы — игроки не могут войти</b></div>' : ''}
@@ -137,6 +190,7 @@
       const wb = e.target.closest('[data-wb]');
       if (wb) { await api('worldBoss', { town: wb.dataset.wb, kill: !!wb.dataset.kill }); setTimeout(drawOverview, 800); }
       if (e.target.closest('[data-backup]')) return downloadBackup();
+      if (e.target.closest('[data-snaps]')) return openSnaps();
       if (e.target.closest('[data-dgboss]')) { await api('dungeonBosses', {}); setTimeout(drawOverview, 800); }
       const cl = e.target.closest('[data-clear]');
       if (cl) { await api('clearZone', { zone: cl.dataset.clear }); drawOverview(); }
@@ -240,6 +294,7 @@
           <button class="btn" data-a="freeSpin" ${p.freeSpinUsed ? '' : 'disabled'}>Вернуть бесплатную</button></div>
         <div class="row"><label>Крутки предметов</label><input id="iSpinsVal" type="number" value="${p.itemSpins}"><button class="btn" data-a="itemSpins">Сохранить</button></div>
       </div>
+      <div class="card"><h3>⭐ Покупки</h3>${(p.payments || []).length ? p.payments.map((x) => `<div class="row"><small class="grow">${new Date(x.t).toLocaleString('ru')} · ${esc(x.kind)}${x.id ? ' ' + esc(x.id) : ''} · ${x.amount ?? '?'} ${esc(x.cur || '')}${x.refunded ? ' · <b>возврат</b>' : ''}${x.charge ? `<br>возврат Stars в боте: <code>/refund ${esc(String(p.uid).replace(/^tg/, ''))} ${esc(x.charge)}</code>` : ''}</small></div>`).join('') : '<small>Покупок за Stars нет</small>'}</div>
 
       <div class="card"><h3>🦸 Герои (${p.heroes.filter((h) => h.owned).length} / ${p.heroes.length})</h3>
         <div class="row"><button class="btn" data-a="allHeroes">Выдать всех</button>

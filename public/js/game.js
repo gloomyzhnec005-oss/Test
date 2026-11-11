@@ -109,6 +109,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Кадры состояния применяем раз в кадр отрисовки: если после задержки сети пришло несколько сразу — берём последний,
     // эффекты (удары, лечение) складываем, чтобы ничего не потерять и не тормозить на пачке старых кадров
     this.net.on('state', (s) => {
+      // Сервер не присылает у героев поля со значением по умолчанию (пакет меньше) — восстанавливаем их
+      const PD = window.P_DEF;
+      if (PD && s.p) for (const o of s.p) for (const k in PD) if (!(k in o)) o[k] = PD[k];
       if (this.pendingState) { const fx = this.pendingState.fx.concat(s.fx); s.fx = fx.length > 150 ? fx.slice(-150) : fx; }
       this.pendingState = s;
       if (this.zoneLoading || document.hidden) return;

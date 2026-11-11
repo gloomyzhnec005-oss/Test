@@ -34,7 +34,7 @@ let lastBackup = null;
 
 // ---------- Postgres ----------
 const DB_URL = (process.env.DATABASE_URL || '').trim();
-let pool = null, flushTm = null, flushing = null;
+let pool = null, flushTm = null, flushing = null, frozen = false;
 const mem = new Map(), dirty = new Set(), saved = new Map(); // документы в памяти; что записать; что уже лежит в базе (игроки)
 const dbStat = { lastFlush: 0, lastError: null, players: 0, flushMs: 0, initError: null };
 const MARKER = 'db_active.txt'; // появляется на диске после первого успешного переноса в базу: с этого момента база — главная
@@ -63,7 +63,8 @@ async function init() {
   }
   pool = p;
   await pool.query(`CREATE TABLE IF NOT EXISTS docs (name text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
-    CREATE TABLE IF NOT EXISTS players (uid text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());`);
+    CREATE TABLE IF NOT EXISTS players (uid text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
+    CREATE TABLE IF NOT EXISTS snapshots (id bigserial PRIMARY KEY, at timestamptz NOT NULL DEFAULT now(), kind text NOT NULL, players int NOT NULL DEFAULT 0, size int NOT NULL DEFAULT 0, data bytea NOT NULL);`);
   const docs = await pool.query('SELECT name, data FROM docs');
   const pl = await pool.query('SELECT uid, data FROM players');
   if (!docs.rows.length && !pl.rows.length) {
@@ -89,7 +90,7 @@ async function init() {
 }
 // Записать в базу всё, что изменилось (all — проверить все документы, например перед остановкой)
 async function flushNow(all = false) {
-  if (!pool) return;
+  if (!pool || frozen) return;
   if (flushing) { await flushing; if (!all && !dirty.size) return; }
   if (all) for (const k of mem.keys()) dirty.add(k);
   const names = [...dirty]; dirty.clear();
@@ -134,6 +135,7 @@ function readFileJSON(name, fallback) {
 }
 
 function writeJSON(name, obj) {
+  if (frozen) return; // идёт восстановление из бэкапа — игра больше ничего не пишет до перезапуска
   if (pool) { mem.set(name, obj); dirty.add(name); schedule(); return; }
   fs.mkdirSync(DIR, { recursive: true });
   const f = file(name), tmp = f + '.tmp';
@@ -143,6 +145,7 @@ function writeJSON(name, obj) {
 }
 
 function writeText(name, text) {
+  if (frozen) return;
   if (pool) { mem.set(name, text); dirty.add(name); schedule(); return; }
   fs.mkdirSync(DIR, { recursive: true });
   const f = file(name);
@@ -209,8 +212,120 @@ function startBackups(names, beforeEach) {
   setInterval(run, EVERY_MS).unref();
 }
 
+
+// ---------- Снимки всей игры (бэкапы) ----------
+// Снимок — все документы (игроки, рынок, кланы, настройки…) одним сжатым JSON: { v: 1, at, docs: { 'players.json': {…}, … } }.
+// С базой снимки лежат в самой базе (таблица snapshots): каждый час (хранятся 24), раз в сутки (14), ручные и «перед восстановлением» (по 10).
+// Ежедневный снимок ещё и уходит администраторам в Telegram файлом (onDaily) — копия вне Railway, на случай если пропадёт сама база.
+const zlib = require('zlib');
+const { promisify } = require('util');
+const gzip = promisify(zlib.gzip), gunzip = promisify(zlib.gunzip);
+const SNAP_KEEP = { hour: 24, day: 14, manual: 10, prerestore: 10 };
+const snapStat = { last: 0, lastError: null, lastDaily: 0, count: 0 };
+
+function allDocs() {
+  if (pool) return Object.fromEntries([...mem.entries()]);
+  const out = {};
+  for (const name of fs.existsSync(DIR) ? fs.readdirSync(DIR) : []) {
+    if (!/\.json$/.test(name) && !DOCS_TEXT.has(name)) continue;
+    const v = DOCS_TEXT.has(name) ? readText(name) : readFileJSON(name, undefined);
+    if (v !== undefined && v !== null) out[name] = v;
+  }
+  return out;
+}
+// Весь снимок сжатым буфером (для скачивания, Telegram и таблицы snapshots)
+async function dump() {
+  const docs = allDocs();
+  const buf = await gzip(Buffer.from(JSON.stringify({ v: 1, at: new Date().toISOString(), docs })), { level: 6 });
+  return { buf, players: Object.keys(docs['players.json'] || {}).length };
+}
+async function snapshot(kind = 'hour') {
+  if (!pool) return null;
+  await flushNow();
+  const { buf, players } = await dump();
+  const r = await pool.query('INSERT INTO snapshots (kind, players, size, data) VALUES ($1, $2, $3, $4) RETURNING id, at', [kind, players, buf.length, buf]);
+  await pool.query(`DELETE FROM snapshots WHERE kind = $1 AND id NOT IN (SELECT id FROM snapshots WHERE kind = $1 ORDER BY id DESC LIMIT $2)`, [kind, SNAP_KEEP[kind] || 10]);
+  snapStat.last = Date.now();
+  return { id: Number(r.rows[0].id), at: r.rows[0].at, size: buf.length, players, buf };
+}
+async function listSnapshots() {
+  if (!pool) return [];
+  const r = await pool.query('SELECT id, at, kind, players, size FROM snapshots ORDER BY id DESC LIMIT 100');
+  snapStat.count = r.rows.length;
+  return r.rows.map((x) => ({ id: Number(x.id), at: x.at, kind: x.kind, players: x.players, size: x.size }));
+}
+async function getSnapshot(id) {
+  if (!pool) return null;
+  const r = await pool.query('SELECT data FROM snapshots WHERE id = $1', [id]);
+  return r.rows.length ? r.rows[0].data : null;
+}
+// Разобрать бэкап: сжатый снимок, несжатый снимок или старый файл «Скачать всё» ({ files: {…} })
+async function parseBackup(buf) {
+  let b = buf;
+  if (b[0] === 0x1f && b[1] === 0x8b) b = await gunzip(b);
+  const j = JSON.parse(b.toString('utf8'));
+  const docs = j.docs || j.files || j;
+  if (!docs || typeof docs !== 'object' || !docs['players.json'] || typeof docs['players.json'] !== 'object') throw new Error('в файле нет сохранений игроков (players.json)');
+  for (const k of Object.keys(docs)) if (!/^[\w.-]+\.(json|txt)$/.test(k)) throw new Error('неожиданное имя в бэкапе: ' + k);
+  return docs;
+}
+// Восстановить ВСЁ из бэкапа. Перед этим текущее состояние сохраняется снимком «prerestore» (можно откатить).
+// После восстановления запись замораживается — сервер нужно перезапустить (admin делает это сам), чтобы игра загрузила данные заново.
+async function restore(buf) {
+  const docs = await parseBackup(buf);
+  const n = Object.keys(docs['players.json']).length;
+  if (pool) {
+    try { await snapshot('prerestore'); } catch (e) { throw new Error('не удалось сохранить текущее состояние перед восстановлением: ' + e.message); }
+    if (flushing) await flushing;
+    frozen = true; clearTimeout(flushTm); flushTm = null;
+    const c = await pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query('DELETE FROM docs'); await c.query('DELETE FROM players');
+      for (const [name, v] of Object.entries(docs)) {
+        if (name === 'players.json') continue;
+        await c.query('INSERT INTO docs (name, data) VALUES ($1, $2)', [name, JSON.stringify(DOCS_TEXT.has(name) ? { text: v } : v)]);
+      }
+      const ent = Object.entries(docs['players.json']);
+      for (let i = 0; i < ent.length; i += 500) {
+        const part = ent.slice(i, i + 500);
+        await c.query('INSERT INTO players (uid, data) SELECT * FROM unnest($1::text[], $2::jsonb[])', [part.map((x) => x[0]), part.map((x) => JSON.stringify(x[1]))]);
+      }
+      await c.query('COMMIT');
+    } catch (e) { await c.query('ROLLBACK').catch(() => {}); frozen = false; throw e; } finally { c.release(); }
+  } else {
+    backup(Object.keys(docs).filter((k) => k.endsWith('.json'))); // текущие файлы — в бэкапы
+    for (const [name, v] of Object.entries(docs)) { if (DOCS_TEXT.has(name)) writeText(name, v); else writeJSON(name, v); }
+    frozen = true;
+  }
+  console.log(`[store] восстановлено из бэкапа: документов ${Object.keys(docs).length}, игроков ${n}`);
+  return { docs: Object.keys(docs).length, players: n };
+}
+// Каждый час — снимок в базу; раз в сутки (после 04:00 МСК) — ежедневный снимок + onDaily(buf) (отправка в Telegram)
+function startSnapshots(beforeEach, onDaily) {
+  const day = () => new Date(Date.now() + 3 * 36e5 - 4 * 36e5).toISOString().slice(0, 10); // «сутки» начинаются в 04:00 МСК
+  let lastDay = null;
+  const run = async () => {
+    try { if (beforeEach) beforeEach(); } catch (e) { console.error('[store]', e.message); }
+    try {
+      const daily = lastDay !== day();
+      if (pool) {
+        if (!lastDay) { const r = await pool.query("SELECT at FROM snapshots WHERE kind = 'day' ORDER BY id DESC LIMIT 1"); if (r.rows.length && new Date(new Date(r.rows[0].at).getTime() + 3 * 36e5 - 4 * 36e5).toISOString().slice(0, 10) === day()) lastDay = day(); }
+        const s = await snapshot(lastDay !== day() ? 'day' : 'hour');
+        if (lastDay !== day()) { lastDay = day(); snapStat.lastDaily = Date.now(); if (onDaily) await onDaily(s.buf, s.players); }
+      } else if (daily && onDaily) {
+        const { buf, players } = await dump();
+        lastDay = day(); snapStat.lastDaily = Date.now(); await onDaily(buf, players);
+      }
+      snapStat.lastError = null;
+    } catch (e) { snapStat.lastError = `${new Date().toISOString()} ${e.message}`; console.error('[store] снимок', e.message); }
+  };
+  setTimeout(run, 60000);
+  setInterval(run, 3600e3).unref();
+}
+
 function info() {
-  if (pool) return { db: true, persistent: true, onRailway: ON_RAILWAY, players: dbStat.players, lastFlush: dbStat.lastFlush, flushMs: dbStat.flushMs, lastError: dbStat.lastError, dir: DIR, backups: backupsOf('players.json').length, keep: KEEP, everyMin: EVERY_MS / 60000, lastBackup };
+  if (pool) return { db: true, persistent: true, onRailway: ON_RAILWAY, snap: snapStat, players: dbStat.players, lastFlush: dbStat.lastFlush, flushMs: dbStat.flushMs, lastError: dbStat.lastError, dir: DIR, backups: backupsOf('players.json').length, keep: KEEP, everyMin: EVERY_MS / 60000, lastBackup };
   let sizeKb = 0;
   try { sizeKb = Math.round(fs.statSync(file('players.json')).size / 1024); } catch { /* нет файла */ }
   return { dbUrlSet: !!DB_URL, dbError: dbStat.initError, dir: DIR, persistent: PERSISTENT, onRailway: ON_RAILWAY, sizeKb, backups: backupsOf('players.json').length, keep: KEEP, everyMin: EVERY_MS / 60000, lastBackup };
@@ -221,4 +336,4 @@ if (!PERSISTENT) {
     '   Подключите Volume к сервису (Settings → Volumes, путь /app/data) — см. README, раздел «Сохранения».\n');
 } else console.log(`[store] данные: ${DIR}`);
 
-module.exports = { DIR, get PERSISTENT() { return PERSISTENT; }, file, readJSON, writeJSON, readText, writeText, backup, startBackups, info, init, flushNow, get db() { return !!pool; } };
+module.exports = { snapshot, listSnapshots, getSnapshot, restore, dump, startSnapshots, DIR, get PERSISTENT() { return PERSISTENT; }, file, readJSON, writeJSON, readText, writeText, backup, startBackups, info, init, flushNow, get db() { return !!pool; } };

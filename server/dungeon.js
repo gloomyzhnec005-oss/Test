@@ -493,27 +493,39 @@ module.exports = function createDungeons(d) {
   // ---------- Комнаты данжа: агр только в своей комнате, погоня — не дальше соседних ----------
   const T_ = C.TILE;
   function roomAt(z, x, y, nearest) {
-    const tx = (x - z.ox) / T_, ty = (y - z.oy) / T_;
-    let best = -1, bd = 1e9;
-    z.rooms.forEach((r, i) => {
+    const tx = (x - z.ox) / T_, ty = (y - z.oy) / T_, rs = z.rooms;
+    let best = -1, bd = 1e18;
+    for (let i = 0; i < rs.length; i++) {
+      const r = rs[i];
       const dx = Math.max(r.x0 - tx, 0, tx - (r.x1 + 1)), dy = Math.max(r.y0 - ty, 0, ty - (r.y1 + 1));
-      const d = Math.hypot(dx, dy);
-      if (d < bd) { bd = d; best = i; }
-    });
+      const d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = i; if (d === 0) break; }
+    }
     return bd === 0 || nearest ? best : -1; // в коридоре: точная комната — нет, ближайшая — да
+  }
+  // Комната героя/питомца с запоминанием: монстров в зоне много, а герой за тик стоит на месте —
+  // без кеша roomAt считалась для каждой пары «монстр × герой» (это было ~15% времени сервера при 100 игроках)
+  function roomOf(z, e, nearest) {
+    const c = e._rc;
+    if (c && c.z === z && c.x === e.x && c.y === e.y) return nearest ? c.n : c.e;
+    const n = roomAt(z, e.x, e.y, true);
+    const tx = (e.x - z.ox) / T_, ty = (e.y - z.oy) / T_, r = n >= 0 ? z.rooms[n] : null;
+    const inside = r && tx >= r.x0 && tx <= r.x1 + 1 && ty >= r.y0 && ty <= r.y1 + 1;
+    e._rc = { z, x: e.x, y: e.y, n, e: inside ? n : -1 };
+    return nearest ? n : e._rc.e;
   }
   // Заметить героя: только если он в комнате монстра
   function canAggro(m, p) {
     const z = m.room == null ? null : world.byId.get(m.zone);
     if (!z || !z.rooms) return true;
-    return roomAt(z, p.x, p.y, false) === m.room;
+    return roomOf(z, p, false) === m.room;
   }
   // Держать цель: пока она в комнате монстра, в соседней или в коридоре между ними
   // Боссы и полубоссы держат цель дальше: на две комнаты от своей (иначе в соседней комнате сбрасывали бой и лечились)
   function inLeash(m, p) {
     const z = m.room == null ? null : world.byId.get(m.zone);
     if (!z || !z.rooms) return true;
-    const r = roomAt(z, p.x, p.y, true);
+    const r = roomOf(z, p, true);
     const links = z.rooms[m.room].links || [];
     if (r === m.room || links.includes(r)) return true;
     return !!(m.boss || m.mini) && links.some((l) => (z.rooms[l].links || []).includes(r));

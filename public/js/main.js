@@ -509,6 +509,7 @@
     socket.on('disconnect', () => { if (game) $('netBadge').classList.remove('hidden'); });
     socket.on('resumed', (d) => { $('netBadge').classList.add('hidden'); if (window.gameScene && window.gameScene.me) { window.gameScene.me.x = d.x; window.gameScene.me.y = d.y; } });
     socket.on('welcome', (w) => {
+      window.P_DEF = w.pDef || null;
       if (game) { location.reload(); return; } // переподключение после обрыва — начинаем заново
       Lobby.hide();
       $('hud').classList.remove('hidden');
@@ -888,6 +889,8 @@
         row('Игрок', `${Lobby.playerName()} · герой ${hero.name}`, btn('В лобби', () => location.reload()));
         const id = pr.tgId || pr.uid || '';
         if (id) row(pr.tgId ? 'Telegram ID' : 'ID игрока', String(id), btn('Копировать', () => { (navigator.clipboard ? navigator.clipboard.writeText(String(id)) : Promise.reject()).then(() => Town.toast('ID скопирован'), () => Town.toast(String(id))); }));
+        row('Правила и конфиденциальность', 'Пользовательское соглашение, покупки и возвраты, какие данные хранятся', btn('Открыть', () => { const u = location.origin + '/terms.html?lang=' + ((window.I18N && I18N.lang) || 'ru'); const tw = window.Telegram && Telegram.WebApp; if (tw && tw.openLink) tw.openLink(u); else window.open(u, '_blank'); }));
+        row('Помощь с покупками', 'Напишите боту игры команду /paysupport — ответит администратор', btn('Открыть бота', async () => { const tw = window.Telegram && Telegram.WebApp; let bot = ''; try { bot = (await (await fetch('/api/config')).json()).botName || ''; } catch { /* нет связи */ } if (tw && tw.openTelegramLink && bot) { tw.openTelegramLink('https://t.me/' + bot); } else Town.toast('Напишите боту игры /paysupport'); }, 'ghost'));
         row('Сбросить настройки', 'Вернуть всё как было по умолчанию', btn('Сбросить', () => { Settings.reset(); if (window.Sfx && !Sfx.isOn()) Sfx.toggle(); Town.toast('Настройки сброшены'); openSettings(); }, 'ghost'));
         Town.open('⚙️ Настройки', box);
       }
