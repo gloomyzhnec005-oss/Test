@@ -10,6 +10,8 @@ window.Town = (() => {
   // Нарисованные значки мест в заголовке окна (по эмодзи в начале названия)
   const TITLE_ART = { '📦': 'warehouse', '⚔️': 'equip', '🧪': 'alchemy', '🔨': 'smith', '💠': 'runes', '📖': 'trainer', '🏛️': 'auction', '🏪': 'market',
     '📜': 'events', '🎰': 'gacha', '🌀': 'teleport', '🏟️': 'arena', '💀': 'survival', '🎟️': 'pass', '💎': 'store', '👥': 'party' };
+  // Нарисованный знак ордена сезона (assets/ui/order_<id>.webp), эмодзи — если картинки нет
+  const orderIc = (t, sz = '') => (t ? `<img class="order-img ${sz}" src="assets/ui/order_${t.id}.webp" alt="${t.icon}" onerror="this.replaceWith(this.alt)">` : '');
   const placeImg = (id) => `<img class="place-ic" src="assets/ui/place_${id}.webp" alt="">`;
   const NAV_TITLE = { '⚔️ Игра': 'play', '⚙️ Настройки': 'more', '🧙 Персонаж': 'hero', '🎒 Инвентарь': 'bag' };
   const PANEL_BG = { '🏟️': 'arena', '💀': 'survival', '🔨': 'smith', '🏛️': 'auction' };
@@ -325,14 +327,14 @@ window.Town = (() => {
     const box = el(`<div class="pass-head"><b>Сезон · уровень ${ps.level} / ${ps.rewards.length}</b>
       <div class="tw-prog"><i style="width:${(ps.xp % ps.xpPerLevel) / ps.xpPerLevel * 100}%"></i><em>${ps.xp % ps.xpPerLevel} / ${ps.xpPerLevel} XP пропуска</em></div>
       <small>Опыт пропуска: монстры, боссы, волны выживания, арена, призывы · сезон закончится через ${fmtLeft(ps.ends - Date.now())}</small>
-      <small class="ok">${cur ? `${cur.icon} ${cur.name} активен` : `${ps.freeOrder.icon} ${ps.freeOrder.name} активен`}</small>
+      <small class="ok">${cur ? `${orderIc(cur, 'sm')} ${cur.name} активен` : `${orderIc(ps.freeOrder, 'sm')} ${ps.freeOrder.name} активен`}</small>
       ${cur ? '' : '<small>Платные ордена открывают премиум-награды и бонусы на весь сезон. Каждый следующий включает всё из предыдущих.</small>'}</div>
       <div class="orders"><div class="order o-free own">
-        <div class="order-h"><span class="order-ic">${ps.freeOrder.icon}</span><b>${ps.freeOrder.name}</b></div>
+        <div class="order-h"><span class="order-ic">${orderIc(ps.freeOrder)}</span><b>${ps.freeOrder.name}</b></div>
         <ul>${ps.freeOrder.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
         <span class="order-ok">✓ Бесплатно для всех игроков</span>
       </div>${ps.tiers.map((t) => `<div class="order o-${t.id} ${t.owned ? 'own' : ''}">
-        <div class="order-h"><span class="order-ic">${t.icon}</span><b>${t.name}</b></div>
+        <div class="order-h"><span class="order-ic">${orderIc(t)}</span><b>${t.name}</b></div>
         <ul><li class="inc">Всё из «${t.tier > 1 ? ps.tiers[t.tier - 2].name : ps.freeOrder.name}»</li>${t.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
         ${t.owned ? '<span class="order-ok">✓ Открыт</span>' : `<button class="l2-btn" data-order="${t.tier}">${ps.tier ? 'Улучшить' : 'Открыть'} · ${t.cost} ⭐</button>`}
       </div>`).join('')}</div>`);
@@ -373,8 +375,8 @@ window.Town = (() => {
       <div class="tw-banner items has-art"><img class="tw-art" src="assets/ui/shop/gems3.webp" alt=""><b>🎁 Печати снаряжения</b><small>Гарантированный легендарный предмет каждые 50 круток</small>
         <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · ${s.itemSpin.price} ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · ${s.itemSpin.price10} ⭐</button></div></div>
       <div class="tw-banner pass has-art"><img class="tw-art" src="assets/ui/shop/pass.webp" alt=""><b>🎟️ Сезонные ордена</b>
-        <small>${s.passTiers.map((t) => `${t.icon} ${t.name} · ${t.price} ⭐`).join('<br>')}<br>Мифический предмет на 30 уровне · автобой с Золотого ордена</small>
-        ${s.passTier ? `<small class="ok">${s.passTiers[s.passTier - 1].icon} ${s.passTiers[s.passTier - 1].name} активен</small>` : ''}
+        <small>${s.passTiers.map((t) => `${orderIc(t, 'sm')} ${t.name} · ${t.price} ⭐`).join('<br>')}<br>Мифический предмет на 30 уровне · автобой с Золотого ордена</small>
+        ${s.passTier ? `<small class="ok">${orderIc(s.passTiers[s.passTier - 1], 'sm')} ${s.passTiers[s.passTier - 1].name} активен</small>` : ''}
         <button class="l2-btn" id="openOrders">${s.passTier >= 4 ? 'Награды сезона' : s.passTier ? 'Улучшить орден' : 'Выбрать орден'}</button></div>
       <div class="tw-banner pass"><b>⚗️ Великие эликсиры · 1 час</b><small>Намного сильнее эликсиров из лавки и действуют вместе с ними. Попадают в сумку — выпейте, когда нужно. Сгорают при гибели героя.</small></div>
       ${(s.chests || []).filter((c) => c.elixir).map((c) => `<div class="tw-banner items elx has-art"><img class="tw-art" src="assets/items/mat_${c.id === 'elxXp2x5' ? 'elxXp2' : c.id}.webp" alt=""><b>${c.title}</b><small>${c.desc}</small>
