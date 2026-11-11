@@ -732,6 +732,18 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.trackPos(e, p.x, p.y);
       e.data = p;
       e.label.setText(`${p.tag ? `[${p.tag}] ` : ''}${p.name} [${p.lvl}]`); // тег клана перед именем
+      // Внешний вид за самоцветы: цвет имени и сияние под героем
+      const nc = p.nc || (p.id === this.myId ? '#ffcc4d' : '#ffffff');
+      if (e.nc !== nc) { e.nc = nc; e.label.setColor(nc); }
+      if ((e.auKey || null) !== (p.au || null)) {
+        e.auKey = p.au || null;
+        if (e.cosAura) { e.cosAura.destroy(); e.cosAura = null; }
+        if (p.au) {
+          e.cosAura = this.add.ellipse(0, 8, 36, 14, p.au, 0.3).setStrokeStyle(2, p.au, 0.9);
+          e.c.addAt(e.cosAura, 0);
+          this.tweens.add({ targets: e.cosAura, alpha: 0.45, scaleX: 1.12, scaleY: 1.12, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        }
+      }
       this.setBar(e, p.hp, p.maxHp);
       e.c.setAlpha(p.dead ? 0.35 : 1);
       // Аура усиления (рёв ярости, кровавое безумие)

@@ -374,6 +374,7 @@ window.Town = (() => {
         <small>+25% опыта и золота · 2 бесплатных призыва предметов в день · комиссия рынка 5% вместо 10% · сумка 80 ячеек · 8 боёв на арене в день</small>
         ${s.sub ? `<small class="ok">Активна до ${new Date(s.sub).toLocaleDateString('ru-RU')}</small>` : ''}
         <button class="l2-btn" data-buy="sub">${s.sub ? 'Продлить' : 'Оформить'} · ${s.subPrice} ⭐</button></div>
+      <div class="tw-banner hero"><b>✨ Внешний вид</b><small>Цвет имени и сияние под героем — видно всем игрокам; особые рамки портрета. За самоцветы</small><button class="l2-btn" id="openLooks">Открыть</button></div>
       <div class="tw-banner hero gems-row"><b>💎 Самоцветы · у вас ${s.gems || 0}</b><small>160 самоцветов = один призыв героя или снаряжения</small>
         <div class="gem-packs">${(s.gemPacks || []).map((g) => `<button class="gem-pack" data-buy="${g.id}"><img src="assets/ui/shop/${g.id}.webp" alt=""><b>${g.gems}</b><span>${g.amount} ⭐</span></button>`).join('')}</div></div>
       <div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/gems4.webp" alt=""><b>🔮 Печати призыва</b><small>Призыв героев: Избранный недели и Зал героев</small>
@@ -391,6 +392,7 @@ window.Town = (() => {
         <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}`);
     box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, storePanel); });
     box.querySelector('#openOrders').onclick = () => passPanel();
+    box.querySelector('#openLooks').onclick = () => looksPanel();
     const cc = box.querySelector('#cardClaim');
     if (cc) cc.onclick = async () => { const r = await Bag.act('cardClaim'); toast(r.error || r.toast); if (window.Sfx) Sfx.play(r.error ? 'error' : 'reward'); storePanel(); };
     open('💎 Магазин', box);
@@ -672,7 +674,33 @@ window.Town = (() => {
     open('🎁 Награда за вход', box);
   }
 
+  // ---------- Внешний вид: цвет имени, сияние, рамка аватара (за самоцветы) ----------
+  async function looksPanel(r) {
+    if (!r || !r.cosm) r = await Bag.act('cosmetics');
+    if (!r.cosm) return toast(r.error || 'Нет связи');
+    const C = r.cosm;
+    const box = el(`<p class="sheet-hint">Видно всем игрокам: цвет имени и сияние под героем. Рамка — у вашего портрета. На силу не влияет. У вас ${C.gems} 💎</p>`);
+    const KIND = { name: 'Цвет имени', aura: 'Сияние под героем', frame: 'Рамка портрета' };
+    for (const kind of ['name', 'aura', 'frame']) {
+      box.append(el(`<div class="ic-sec">${KIND[kind]}</div>`));
+      for (const it of C.list.filter((x) => x.kind === kind)) {
+        const on = C.cur[kind] === it.key;
+        const sw = kind === 'frame' ? `<img class="look-fr" src="assets/ui/ava/${it.key}.webp" alt="">` : `<i class="look-sw ${kind}" style="--c:${it.color}"></i>`;
+        const row = el(`<div class="tw-ev"><span class="tw-ev-i">${sw}</span><div><b ${kind === 'name' ? `style="color:${it.color}"` : ''}>${it.name}</b><small>${it.owned ? (on ? '✔ Надето' : 'Куплено') : `${it.price} 💎`}</small></div>
+          <button class="l2-btn">${!it.owned ? 'Купить' : on ? 'Снять' : 'Надеть'}</button></div>`).firstElementChild;
+        row.querySelector('button').onclick = async () => {
+          const x = !it.owned ? await Bag.act('cosmeticBuy', { id: it.id }) : await Bag.act('cosmeticSet', { kind, id: on ? null : it.key });
+          toast(x.error || x.toast); if (window.Sfx) Sfx.play(x.error ? 'error' : 'reward');
+          if (x.cosm) looksPanel(x);
+        };
+        box.append(row);
+      }
+    }
+    open('✨ Внешний вид', box);
+  }
+
   const PANELS = {
+    looks: looksPanel,
     login: loginPanel,
     warehouse: warehousePanel,
     equip: () => shopPanel('equip', '⚔️ Оружие и доспехи'),

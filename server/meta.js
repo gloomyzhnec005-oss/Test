@@ -6,6 +6,20 @@ const store = require('./store');
 
 const DAY = 864e5;
 const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+// Внешний вид за самоцветы: цвет имени и сияние видят все игроки, рамка аватара — у себя на панели. На силу не влияет
+const COSMETICS = {
+  name: {
+    gold: { name: 'Золотое имя', color: '#ffd36a', price: 500 }, crimson: { name: 'Алое имя', color: '#ff6a5a', price: 300 },
+    azure: { name: 'Лазурное имя', color: '#6ac8ff', price: 300 }, emerald: { name: 'Изумрудное имя', color: '#6aff9a', price: 300 },
+    violet: { name: 'Фиолетовое имя', color: '#c890ff', price: 300 }, rose: { name: 'Розовое имя', color: '#ff8ad8', price: 300 },
+  },
+  aura: {
+    gold: { name: 'Золотое сияние', color: 0xffd36a, price: 400 }, frost: { name: 'Ледяное сияние', color: 0x8ad3ff, price: 400 },
+    flame: { name: 'Огненное сияние', color: 0xff6a2a, price: 400 }, shadow: { name: 'Теневое сияние', color: 0x9a5aff, price: 400 },
+    life: { name: 'Сияние жизни', color: 0x6aff8a, price: 400 },
+  },
+  frame: { diamond: { name: 'Алмазная рамка', price: 600 }, legend: { name: 'Легендарная рамка', price: 900 } },
+};
 // Награда за вход 7 дней подряд: день — по Москве; пропустил день — серия начинается заново, после 7-го — по кругу
 const mskDay = (t = Date.now()) => new Date(t + 3 * 36e5).toISOString().slice(0, 10);
 const LOGIN_REWARDS = [
@@ -233,6 +247,14 @@ module.exports = function createMeta(deps) {
     return null;
   }
   const cardReady = (pr) => !!(pr.card && pr.card.until > Date.now() && pr.card.last !== mskDayKey());
+  function cosmView(pr) {
+    const C2 = pr.cosm || { owned: [] };
+    return { gems: pr.gems || 0, cur: { name: C2.name || null, aura: C2.aura || null, frame: C2.frame || null },
+      list: Object.entries(COSMETICS).flatMap(([kind, L]) => Object.entries(L).map(([id, c]) => ({ id: `${kind}:${id}`, kind, key: id, name: c.name, price: c.price,
+        color: typeof c.color === 'number' ? '#' + c.color.toString(16).padStart(6, '0') : c.color || null, owned: C2.owned.includes(`${kind}:${id}`) }))) };
+  }
+  // Что видно другим: цвет имени и цвет сияния
+  const cosmLook = (pr) => { const C2 = pr.cosm || {}; return { nc: C2.name ? COSMETICS.name[C2.name].color : null, au: C2.aura ? COSMETICS.aura[C2.aura].color : null, fr: C2.frame || null }; };
   const skillLv = (pr, heroId, i) => ((pr.skillLv || {})[heroId] || [])[i] || 1;
   const equipped = (pr, id) => Object.values(pr.equip || {}).includes(id);
   // Журнал покупок в лавках за сегодня (для возврата)
@@ -268,6 +290,27 @@ module.exports = function createMeta(deps) {
 
   const OPS = {
     inv: (p) => ({ inv: invView(p) }),
+    // ---------- Внешний вид ----------
+    cosmetics(p, d, pr) { return { cosm: cosmView(pr) }; },
+    cosmeticBuy(p, d, pr) {
+      const [kind, id] = String(d.id || '').split(':'), c = COSMETICS[kind] && Object.hasOwn(COSMETICS[kind], id) ? COSMETICS[kind][id] : null;
+      if (!c) return { error: 'Нет такого' };
+      const C2 = (pr.cosm ??= { owned: [] });
+      if (C2.owned.includes(d.id)) return { error: 'Уже куплено' };
+      if ((pr.gems || 0) < c.price) return { error: `Нужно ${c.price} 💎` };
+      pr.gems -= c.price; C2.owned.push(d.id); C2[kind] = id;
+      deps.cosmeticsChanged(p.uid);
+      return { toast: `✨ ${c.name} — куплено и надето`, cosm: cosmView(pr) };
+    },
+    cosmeticSet(p, d, pr) {
+      const kind = String(d.kind || ''), id = d.id ? String(d.id) : null;
+      if (!COSMETICS[kind] || !Object.hasOwn(COSMETICS, kind)) return { error: 'Нет такого' };
+      const C2 = (pr.cosm ??= { owned: [] });
+      if (id && !C2.owned.includes(`${kind}:${id}`)) return { error: 'Сначала купите' };
+      C2[kind] = id;
+      deps.cosmeticsChanged(p.uid);
+      return { toast: id ? `✨ ${COSMETICS[kind][id].name} — надето` : 'Снято', cosm: cosmView(pr) };
+    },
     // Уведомления в Telegram: вкл/выкл (Настройки)
     notify(p, d, pr) { if (typeof d.on === 'boolean') { pr.notifyOff = !d.on; if (d.on) pr.pushBlocked = false; } return { notify: !pr.notifyOff, tg: String(p.uid).startsWith('tg') }; },
     // ---------- Награда за вход ----------
@@ -919,6 +962,6 @@ module.exports = function createMeta(deps) {
 
   // Сила лучшего героя игрока (рейтинг «Сила»)
   const powerOf = (pr) => Math.max(0, ...(pr.heroes || []).map((h) => { try { return fighter(deps, pr, h, '').power; } catch { return 0; } }));
-  return { powerOf, canBuy, handle, addPassXp, passOf, passTier, passReady, passInvoice, isSub, bagSize, whSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
+  return { cosmLook, powerOf, canBuy, handle, addPassXp, passOf, passTier, passReady, passInvoice, isSub, bagSize, whSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
 };
 module.exports.simulate = simulate;
