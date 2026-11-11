@@ -1377,3 +1377,4 @@ canvas.skin { object-fit: contain; }
 .login-day.today { border-color: #7dff8a; box-shadow: 0 0 10px rgba(125,255,138,.5); }
 .login-day.got { opacity: .55; }
 .login-day i { position: absolute; top: 2px; right: 5px; font-style: normal; color: #7dff8a; font-weight: bold; }
+.top-row.me { border: 1px solid #7dff8a; border-radius: 6px; margin-bottom: 6px; }

@@ -317,6 +317,7 @@ const meta = createMeta({
 const D = createDungeons({
   C, world, monsters, players, pets,
   push: (kind, text, filter) => Push.sendAll(kind, text, filter), maxHeroLevel: (pr) => maxHeroLevel(pr),
+  wbWeek: (uid, dmg) => { const pr = getProfile(uid), w = Ranks.weekNo(); if (!pr.wbWeek || pr.wbWeek.w !== w) pr.wbWeek = { w, dmg: 0, n: 0 }; pr.wbWeek.dmg += Math.round(dmg); pr.wbWeek.n += 1; },
   pushFx: (f) => fx.push(f),
   hurtPlayer: (...a) => hurtPlayer(...a),
   hurtPet: (pet, dmg, now) => hurtPet(skillCtx, pet, dmg, now),
@@ -566,6 +567,43 @@ const notifyUid = (uid, text) => {
   for (const p of players.values()) if (p.uid === uid) { p.socket.emit('chat', { sys: true, text }); if (!p.offline) on = true; }
   if (!on) Push.send(uid, 'notify', text);
 };
+// ---------- Рейтинги: уровень, сила, кланы, мировые боссы за неделю (кэш на 2 минуты) ----------
+const Ranks = (() => {
+  const weekNo = () => Math.floor((Date.now() + 3 * 36e5 - Date.UTC(2024, 0, 1)) / (7 * 864e5)); // неделя по МСК, с понедельника
+  const PRIZE = [500, 300, 150]; // самоцветы тройке недели по урону мировым боссам
+  let cache = null, at = 0;
+  const state = store.readJSON('ranks.json', { week: weekNo() });
+  const nm = (uid, pr) => `${(clanOf(uid) || {}).tag ? `[${clanOf(uid).tag}] ` : ''}${pr.name || 'Герой'}`;
+  function build() {
+    const since = Date.now() - 30 * 864e5, list = Object.entries(profiles).filter(([, pr]) => (pr.heroes || []).length && (pr.lastSeen || 0) > since && !pr.banned);
+    const top = (arr, val) => arr.sort((a, b) => b.v - a.v).slice(0, 100).map((x, i) => ({ ...x, place: i + 1, val: val(x) }));
+    const lvl = top(list.map(([uid, pr]) => { const c = Object.values(pr.chars || {}).sort((a, b) => (b.level || 1) - (a.level || 1) || (b.xp || 0) - (a.xp || 0))[0] || {}; return { uid, name: nm(uid, pr), v: (c.level || 1) * 1e7 + (c.xp || 0), lvl: c.level || 1 }; }), (x) => `ур. ${x.lvl}`);
+    const pow = top(list.map(([uid, pr]) => ({ uid, name: nm(uid, pr), v: meta.powerOf(pr) })), (x) => `⚔️ ${x.v}`);
+    const w = weekNo();
+    const wb = top(list.filter(([, pr]) => pr.wbWeek && pr.wbWeek.w === w).map(([uid, pr]) => ({ uid, name: nm(uid, pr), v: pr.wbWeek.dmg, n: pr.wbWeek.n })), (x) => `${x.v.toLocaleString('ru-RU')} урона · боссов ${x.n}`);
+    const cl = Object.values(clans).map((c) => ({ uid: c.id, name: `[${c.tag}] ${c.name}`, v: c.members.reduce((s, u) => s + maxHeroLevel(getProfile(u)), 0), n: c.members.length }))
+      .sort((a, b) => b.v - a.v).slice(0, 50).map((x, i) => ({ ...x, place: i + 1, val: `сила ${x.v} · участников ${x.n}` }));
+    return { lvl, pow, wb, cl, weekEnds: (w + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - 3 * 36e5 };
+  }
+  function get() { if (!cache || Date.now() - at > 120e3) { cache = build(); at = Date.now(); } return cache; }
+  // Конец недели: награда тройке по урону мировым боссам
+  setInterval(() => {
+    const w = weekNo();
+    if (state.week === w) return;
+    const prev = state.week; state.week = w;
+    const rows = Object.entries(profiles).filter(([, pr]) => pr.wbWeek && pr.wbWeek.w === prev).sort((a, b) => b[1].wbWeek.dmg - a[1].wbWeek.dmg).slice(0, 3);
+    rows.forEach(([uid, pr], i) => { pr.gems = (pr.gems || 0) + PRIZE[i]; notifyUid(uid, `🏆 Рейтинг недели «Мировые боссы»: ${i + 1} место! +${PRIZE[i]} 💎`); });
+    if (rows.length) io.emit('chat', { sys: true, text: `🏆 Итоги недели по мировым боссам: ${rows.map(([uid, pr], i) => `${['🥇', '🥈', '🥉'][i]} ${pr.name || 'Герой'}`).join(' · ')}` });
+    try { store.writeJSON('ranks.json', state); } catch (e) { console.error('ranks save', e.message); }
+    saveProfiles(); cache = null;
+  }, 60e3);
+  function view(uid, tab) {
+    const R = get(), list = R[tab] || R.lvl, key = tab === 'cl' ? ((clanOf(uid) || {}).id) : uid;
+    const mine = list.find((x) => x.uid === key);
+    return { tab, list: list.slice(0, 50).map(({ name, val, place }) => ({ name, val, place })), me: mine ? { place: mine.place, val: mine.val } : null, weekEnds: R.weekEnds, prize: PRIZE };
+  }
+  return { view, weekNo };
+})();
 // Уведомления в Telegram (server/push.js)
 const Push = require('./push')({
   getBot: () => bot, profiles: () => profiles, save: () => saveProfiles(),
@@ -1490,6 +1528,12 @@ io.on('connection', (socket) => {
     io.emit('chat', msg);
   });
 
+  // Рейтинги (меню «Игра» → «Рейтинги»)
+  socket.on('ranks', (d = {}, cb) => {
+    const p = players.get(socket.id);
+    if (!p || typeof cb !== 'function') return;
+    try { cb(Ranks.view(p.uid, ['lvl', 'pow', 'cl', 'wb'].includes(d.tab) ? d.tab : 'lvl')); } catch (e) { console.error('ranks', e); cb({ error: 'Рейтинг недоступен' }); }
+  });
   // Кланы: создать, пригласить, вступить, выйти, исключить (глава), состав
   socket.on('clan', (d = {}, cb) => {
     const p = players.get(socket.id);

@@ -917,6 +917,8 @@ module.exports = function createMeta(deps) {
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
   };
 
-  return { canBuy, handle, addPassXp, passOf, passTier, passReady, passInvoice, isSub, bagSize, whSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
+  // Сила лучшего героя игрока (рейтинг «Сила»)
+  const powerOf = (pr) => Math.max(0, ...(pr.heroes || []).map((h) => { try { return fighter(deps, pr, h, '').power; } catch { return 0; } }));
+  return { powerOf, canBuy, handle, addPassXp, passOf, passTier, passReady, passInvoice, isSub, bagSize, whSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
 };
 module.exports.simulate = simulate;

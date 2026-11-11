@@ -611,6 +611,22 @@
         if (clB) clB.onclick = async () => { const x = await clanAct({ op: 'invite', target: pl.id }); Town.toast(x.error || x.toast); };
         Town.open(`👤 ${pl.name}`, box);
       };
+      // ---------- Рейтинги ----------
+      const openRanks = (tab = 'lvl') => {
+        const page = (t) => async () => {
+          const r = await new Promise((res) => socket.emit('ranks', { tab: t }, res));
+          const box = document.createElement('div');
+          if (r.error) { box.textContent = r.error; return box; }
+          const hint = { lvl: 'Самый прокачанный герой каждого игрока', pow: 'Сила лучшего героя: здоровье, урон, крит и скорость атаки с экипировкой', cl: 'Сила клана — сумма уровней лучших героев участников',
+            wb: `Урон по мировым боссам за неделю. В понедельник тройка лидеров получит 🥇 ${r.prize[0]} 💎 · 🥈 ${r.prize[1]} 💎 · 🥉 ${r.prize[2]} 💎` }[t];
+          box.innerHTML = `<p class="sheet-hint">${hint}</p>${r.me ? `<div class="top-row me"><span>${r.me.place}</span><b>Вы</b><em>${r.me.val}</em></div>` : '<small>Вас пока нет в этом рейтинге</small>'}
+            <div class="tour-top">${r.list.map((x) => `<div class="top-row"><span>${x.place <= 3 ? ['🥇', '🥈', '🥉'][x.place - 1] : x.place}</span><b></b><em>${x.val}</em></div>`).join('') || '<small>Пока пусто</small>'}</div>`;
+          box.querySelectorAll('.tour-top .top-row b').forEach((b, i) => { b.textContent = r.list[i].name; });
+          return box;
+        };
+        const tabs = [['lvl', 'Уровень'], ['pow', 'Сила'], ['cl', 'Кланы'], ['wb', 'Боссы недели']];
+        Town.open('🏆 Рейтинги', Town.tabs(tabs.map(([t, n]) => [n, page(t)]), Math.max(0, tabs.findIndex(([t]) => t === tab))));
+      };
       // ---------- Клан ----------
       const clanAct = (d) => new Promise((res) => socket.emit('clan', d, res));
       const openClan = async () => {
@@ -919,6 +935,7 @@
           ['pass', 'Сезонные ордена', 'Награды сезона, бонусы и автобой', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
           ['clan', 'Клан', 'Свой клан: участники, задания, хранилище, чат', openClan],
+          ['arena', 'Рейтинги', 'Лучшие по уровню, силе, кланы и урону мировым боссам за неделю', () => openRanks()],
           ['events', 'Награда за вход', 'Заходите каждый день — 7 дней подряд, награда растёт', () => Town.openPlace('login')],
           ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],

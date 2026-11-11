@@ -937,6 +937,8 @@ module.exports = function createDungeons(d) {
       }
     }
     if (top.length) d.broadcast(`🏆 Лучшие по урону: ${top.slice(0, 3).map((uid, i) => `${['🥇', '🥈', '🥉'][i]} ${d.getProfile(uid).name || 'Герой'}`).join(' · ')}`);
+    // Рейтинг недели «Мировые боссы»: урон всех участников (server/index.js → рейтинги)
+    if (d.wbWeek) for (const [uid, dmg] of Object.entries(m.contrib)) d.wbWeek(uid, dmg);
     for (const p of players.values()) {
       const part = (m.contrib[p.uid] || 0) / m.maxHp;
       if (part < 0.01) continue;
