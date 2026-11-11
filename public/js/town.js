@@ -9,7 +9,7 @@ window.Town = (() => {
 
   // Нарисованные значки мест в заголовке окна (по эмодзи в начале названия)
   const TITLE_ART = { '📦': 'warehouse', '⚔️': 'equip', '🧪': 'alchemy', '🔨': 'smith', '💠': 'runes', '📖': 'trainer', '🏛️': 'auction', '🏪': 'market',
-    '📜': 'events', '🎰': 'gacha', '🌀': 'teleport', '🏟️': 'arena', '💀': 'survival', '🎟️': 'pass', '💎': 'store', '👥': 'party' };
+    '📜': 'events', '🎰': 'gacha', '🌀': 'teleport', '🏟️': 'arena', '💀': 'survival', '🎟️': 'pass', '💎': 'store', '👥': 'party', '🛡️': 'clan' };
   // Нарисованный знак ордена сезона (assets/ui/order_<id>.webp), эмодзи — если картинки нет
   const orderIc = (t, sz = '') => (t ? `<img class="order-img ${sz}" src="assets/ui/order_${t.id}.webp" alt="${t.icon}" onerror="this.replaceWith(this.alt)">` : '');
   const placeImg = (id) => `<img class="place-ic" src="assets/ui/place_${id}.webp" alt="">`;

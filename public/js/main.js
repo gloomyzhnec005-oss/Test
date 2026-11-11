@@ -629,7 +629,7 @@
         const reopen = (i) => { openClan.tab = i; openClan(); };
         const members = () => {
           const box = document.createElement('div');
-          box.innerHTML = `<div class="pass-head"><b>🛡️ ${c.name} [${c.tag}]</b><small>Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length} · тег [${c.tag}] виден над именами героев</small>
+          box.innerHTML = `<div class="pass-head"><b><img class="clan-emb" src="assets/ui/ic_clan.webp" alt="">${c.name} [${c.tag}]</b><small>Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length} · тег [${c.tag}] виден над именами героев</small>
             <button class="l2-btn" id="clChat">💬 Клановый чат</button></div><div class="ic-sec">Участники</div>`;
           for (const m of c.members.sort((a, b) => b.online - a.online)) {
             const row = document.createElement('div'); row.className = 'tw-ev';
@@ -650,7 +650,7 @@
           for (const q of Q.list) {
             const done = q.prog >= q.goal;
             const row = document.createElement('div'); row.className = `tw-ev quest ${q.claimed ? 'claimed' : done && q.mine ? 'ready' : ''}`;
-            row.innerHTML = `<span class="tw-ev-i q-ic">${q.icon}</span><div><b>${q.name}</b><small>${q.desc} · ваш вклад: ${q.mine}</small>
+            row.innerHTML = `<span class="tw-ev-i q-ic"><img src="assets/ui/quests/${q.id}.webp" alt="${q.icon}" onerror="this.replaceWith(this.alt)"></span><div><b>${q.name}</b><small>${q.desc} · ваш вклад: ${q.mine}</small>
               <div class="tw-prog"><i style="width:${Math.round((100 * q.prog) / q.goal)}%"></i><em>${q.prog} / ${q.goal}</em></div><small class="q-rew">${q.reward}</small></div>
               <button class="l2-btn" ${done && q.mine && !q.claimed ? '' : 'disabled'}>${q.claimed ? '✔' : '🎁'}</button>`;
             row.querySelector('button').onclick = async () => { const x = await clanAct({ op: 'questClaim', id: q.id }); Town.toast(x.error || x.toast); if (window.Sfx) Sfx.play(x.error ? 'error' : 'reward'); reopen(1); };
@@ -912,7 +912,7 @@
           ['arena', 'Рейтинг арены', 'Лучшие игроки и турнир недели · сражаться — в доме арены', () => Town.openPlace('arenaRank')],
           ['pass', 'Сезонные ордена', 'Награды сезона, бонусы и автобой', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
-          ['events', 'Клан', 'Свой клан: участники, задания, хранилище, чат', openClan],
+          ['clan', 'Клан', 'Свой клан: участники, задания, хранилище, чат', openClan],
           ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
         ]),
