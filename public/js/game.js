@@ -785,7 +785,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.cryObjs.forEach((o, i) => { const a = tt + (i / e.cryObjs.length) * Math.PI * 2; o.setPosition(Math.cos(a) * 20, -2 + Math.sin(a) * 9); });
       }
       // Состояния от монстров: контроль, яд, замедление, проклятие
-      const pcc = { stun: 'stun', freeze: 'freeze', root: 'root', confuse: '😵' }[p.pcc];
+      const pcc = { stun: 'stun', freeze: 'freeze', root: 'root', confuse: 'confuse' }[p.pcc];
       this.statusRow(e, [pcc, p.pdot, p.pslow && 'slow', p.pweak && 'weak', p.sh && 'shield']);
       if (!!p.tree !== !!e.tree) { e.tree = !!p.tree; if (p.tree) e.sprite.setTint(0xb8ffb8); else e.sprite.clearTint(); }
       // Полёт (Талмира): герой поднят над землёй
@@ -886,9 +886,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (m.x !== e.tx && !e.skinOn) e.sprite.setFlipX(m.x < e.tx);
       // Значки состояний: оглушение и ослабление
       // Нарисованные значки (assets/ui/status/<имя>.webp); у редких эффектов без значка — эмодзи
-      const status = [m.st && 'stun', m.wk && 'weak', m.mk && '🎯', m.sl && '⛓️', m.sw && 'slow', m.tn && 'taunt', m.ws && '✨', m.br && 'weak', m.ps && 'poison', m.bn && 'burn',
-        (m.bc || m.bl) && 'bleed', m.rt && 'root', m.cf && '😵', m.fr && 'fear', m.fz && 'freeze', m.mo && '🤡', m.st2 && '⭐', m.ds && '🔯', m.bd && '⛓', m.ch && '💘', m.cu && 'curse',
-        m.fs && '❄️' + m.fs, m.sn ? '🗿' : m.pf && '🪨' + m.pf];
+      const status = [m.st && 'stun', m.wk && 'weak', m.mk && 'mark', m.sl && 'seal', m.sw && 'slow', m.tn && 'taunt', m.ws && 'weakspot', m.br && 'weak', m.ps && 'poison', m.bn && 'burn',
+        (m.bc || m.bl) && 'bleed', m.rt && 'root', m.cf && 'confuse', m.fr && 'fear', m.fz && 'freeze', m.mo && 'mock', m.st2 && 'star', m.ds && 'darkseal', m.bd && 'bond', m.ch && 'charm', m.cu && 'curse',
+        m.fs && 'frost', (m.sn || m.pf) && 'petrify'];
       // Печать тьмы Морвена — вращающийся знак под монстром
       if (m.ds && !e.sealFx) e.sealFx = HeroFx.sealMark(this, e);
       else if (!m.ds && e.sealFx) { e.sealFx.destroy(); e.sealFx = null; }

@@ -33,7 +33,7 @@ window.WorldArt = (() => {
   // Общее для всех миров (небольшое): обстановка, значки статусов, добыча
   function preload(scene) {
     for (const k of PROPS) scene.load.image('prop_' + k, `assets/world/props/${k}.png`);
-    for (const k of ['stun', 'root', 'slow', 'freeze', 'fear', 'taunt', 'weak', 'curse', 'poison', 'burn', 'bleed', 'shield', 'haste', 'rage', 'regen', 'invuln']) scene.load.image('st_' + k, `assets/ui/status/${k}.webp`);
+    for (const k of ['stun', 'root', 'slow', 'freeze', 'fear', 'taunt', 'weak', 'curse', 'poison', 'burn', 'bleed', 'shield', 'haste', 'rage', 'regen', 'invuln', 'confuse', 'mark', 'seal', 'mock', 'star', 'darkseal', 'bond', 'charm', 'petrify', 'frost', 'weakspot', 'deathmark']) scene.load.image('st_' + k, `assets/ui/status/${k}.webp`);
     for (const k of ['coins', 'goldBag', 'scroll', 'potion', 'lootCommon', 'lootRare', 'lootEpic', 'lootLegend']) scene.load.image('loot_' + k, `assets/world/loot/${k}.webp`);
   }
   // Графика одного мира — грузится, только когда игрок туда попадает (экономия памяти на слабых телефонах).
