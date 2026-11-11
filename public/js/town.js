@@ -14,7 +14,7 @@ window.Town = (() => {
   const orderIc = (t, sz = '') => (t ? `<img class="order-img ${sz}" src="assets/ui/order_${t.id}.webp" alt="${t.icon}" onerror="this.replaceWith(this.alt)">` : '');
   const placeImg = (id) => `<img class="place-ic" src="assets/ui/place_${id}.webp" alt="">`;
   const NAV_TITLE = { '⚔️ Игра': 'play', '⚙️ Настройки': 'more', '🧙 Персонаж': 'hero', '🎒 Инвентарь': 'bag' };
-  const PANEL_BG = { '🏟️': 'arena', '💀': 'survival', '🔨': 'smith', '🏛️': 'auction', '📦': 'warehouse', '⚔️': 'equip', '🧪': 'alchemy', '💠': 'runes', '📖': 'trainer', '📜': 'quests' };
+  const PANEL_BG = { '🏟️': 'arena', '💀': 'survival', '🔨': 'smith', '🏛️': 'auction', '📦': 'warehouse', '⚔️': 'equip', '🧪': 'alchemy', '💠': 'runes', '📖': 'trainer', '📜': 'quests', '🎰': 'gacha', '🌀': 'teleport', '💎': 'store', '🛡️': 'clan', '🎟️': 'pass' };
   function open(title, body, cls = '') {
     const em = Object.keys(TITLE_ART).find((e) => title.startsWith(e + ' '));
     if (NAV_TITLE[title]) $('sheetTitle').innerHTML = `<img class="place-ic" src="assets/ui/nav_${NAV_TITLE[title]}.webp" alt="">` + title.slice(title.indexOf(' ') + 1);
