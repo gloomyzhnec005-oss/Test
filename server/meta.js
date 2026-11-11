@@ -856,7 +856,7 @@ module.exports = function createMeta(deps) {
   }, 3000);
 
   function handle(p, d) {
-    const fn = OPS[d && d.op];
+    const fn = d && typeof d.op === 'string' && Object.hasOwn(OPS, d.op) ? OPS[d.op] : null;
     if (!fn) return { error: 'Неизвестное действие' };
     const pr = getProfile(p.uid);
     if (p.name && pr.arena) pr.arena.name = p.name;

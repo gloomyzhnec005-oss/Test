@@ -94,6 +94,7 @@ Object.defineProperty(admin.ctx, 'profiles', { get: () => profiles });
 const S = admin.settings;
 app.use('/admin/api', admin.router);
 app.use(express.json({ limit: '16kb' }));
+app.use((req, res, next) => (req.body && badArg(req.body) ? res.status(400).json({ error: 'Неверный запрос' }) : next()));
 // Профиль игрока для лобби: полученные герои, их прогресс, крутки гачи, фоны
 function profileView(who) {
   const pr = getProfile(who.uid);
@@ -1215,8 +1216,37 @@ function offlineSocket(real) {
     volatile: { emit() { return true; } }, join() {}, leave() {}, disconnect() {}, to() { return { emit() {} }; } };
 }
 
+// Путь шага не проходит сквозь стену (длинный шаг не «перепрыгивает» тонкую стену)
+function walkable(ax, ay, bx, by) {
+  const d = Math.hypot(bx - ax, by - ay), n = Math.ceil(d / 6);
+  for (let i = 1; i < n; i++) if (world.isSolidAt(ax + (bx - ax) * i / n, ay + (by - ay) * i / n)) return false;
+  return true;
+}
+// Защита от подмены служебных имён (constructor, __proto__, toString…) в командах и запросах
+const BAD_KEYS = new Set(Object.getOwnPropertyNames(Object.prototype));
+function badArg(a, depth = 0) {
+  if (typeof a === 'string') return BAD_KEYS.has(a);
+  if (a && typeof a === 'object' && depth < 3) {
+    for (const k of Object.keys(a)) if (BAD_KEYS.has(k) || badArg(a[k], depth + 1)) return true;
+  }
+  return false;
+}
+// Имя героя без разметки (имена из Telegram попадают в окна игры)
+const cleanName = (s) => String(s || '').replace(/[<>&"'`\u0000-\u001f]/g, '').trim();
+
 // ---------- Сокеты ----------
 io.on('connection', (socket) => {
+  // Любая команда со служебным именем в данных — молча отбрасывается
+  socket.use(([, ...args], next) => { if (args.some((a) => typeof a !== 'function' && badArg(a))) return; next(); });
+  // Не больше ~40 команд в секунду (шаги — отдельно, до 40/с): лишние отбрасываются, упорный флуд — отключение
+  const rate = { t: Date.now(), n: 0, mv: 0, strikes: 0 };
+  socket.use(([ev], next) => {
+    const now = Date.now();
+    if (now - rate.t >= 1000) { if (rate.n > 80 || rate.mv > 80) rate.strikes++; else rate.strikes = Math.max(0, rate.strikes - 1); rate.t = now; rate.n = 0; rate.mv = 0; }
+    if (rate.strikes >= 5) { console.error('flood: отключён', socket.id); socket.disconnect(true); return; }
+    if (ev === 'move') { if (++rate.mv > 40) return; } else if (++rate.n > 40) return;
+    next();
+  });
   // Связь восстановлена: тот же герой, то же место, те же перезарядки — без перезахода
   if (socket.recovered && players.has(socket.id)) {
     const p = players.get(socket.id);
@@ -1248,7 +1278,7 @@ io.on('connection', (socket) => {
       return;
     }
     const hero = C.HEROES[heroId];
-    const name = who.tg ? who.name : (String(data.guestName || '').trim().slice(0, 16) || 'Гость');
+    const name = (who.tg ? cleanName(who.name) : cleanName(data.guestName).slice(0, 16)) || (who.tg ? 'Герой' : 'Гость');
     const char = getChar(uid, heroId);
     const p = {
       id: socket.id, uid, name: name.slice(0, 20), heroId, hero, char, socket,
@@ -1312,12 +1342,17 @@ io.on('connection', (socket) => {
     if (cct === 'stun' || cct === 'freeze' || cct === 'root') { socket.emit('correct', { x: p.x, y: p.y }); return; } // контроль от монстров
     // Античит: ограничение скорости (у облика зверя бег быстрее; после смены облика даём запас)
     const flyBoost = p.flyUntil > now ? 1 + 0.03 * (p.blessings || 0) : 1; // полёт Талмиры
-    const maxDist = (p.slowUntil > now ? 1 : 1) * Math.max(formOf(p).speed, p.hero.speed) * (p.hasteUntil > now ? 1.25 : 1) * flyBoost * (1 + ((p.gear && p.gear.ms) || 0) / 100) * dt * 1.6 + 12;
+    const speed = Math.max(formOf(p).speed, p.hero.speed) * (p.hasteUntil > now ? 1.25 : 1) * flyBoost * (1 + ((p.gear && p.gear.ms) || 0) / 100);
+    // Античит: «бюджет» пути копится со временем (скорость × 1,4) и тратится на шаги — частые мелкие шаги не дают бежать быстрее
+    const cap = speed * 0.6 + 24;
+    p.mvBudget = Math.min(cap, (p.mvBudget ?? cap) + speed * 1.4 * dt);
     const dist = Math.hypot(x - p.x, y - p.y);
-    if (dist > maxDist || world.isSolidAt(x, y)) {
+    if (dist > p.mvBudget + 2 || world.isSolidAt(x, y) || (dist > 16 && !walkable(p.x, p.y, x, y))) {
+      p.mvBudget = Math.max(0, p.mvBudget - 4);
       socket.emit('correct', { x: p.x, y: p.y });
       return;
     }
+    p.mvBudget -= dist;
     if (Math.hypot(x - p.x, y - p.y) > 0.5) p.movedAt = now;
     p.x = x; p.y = y;
     if (d.dir === -1 || d.dir === 1) p.dir = d.dir;
