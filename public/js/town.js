@@ -445,13 +445,17 @@ window.Town = (() => {
     for (const m of info.modes) {
       const queued = info.queued === m.id;
       const sub = `${DESC[m.id] || ''}${m.solo ? ` · наград сегодня: ${m.perDay - m.left}/${m.perDay}` : ` · в очереди: ${m.waiting}`}`;
-      box.append(row(null, m.name, sub, queued ? 'Выйти из очереди' : m.solo ? 'В бой' : 'В очередь', async () => {
+      const modeRow = row(null, m.name, sub, queued ? 'Выйти из очереди' : m.solo ? 'В бой' : 'В очередь', async () => {
         const r = await new Promise((res) => ctx.socket.emit('arena', { op: queued ? 'leave' : 'join', mode: m.id }, res));
         if (r.error) return toast(r.error);
         if (m.solo) close(); else { toast(queued ? 'Вы вышли из очереди' : 'Вы в очереди — бой начнётся, когда найдётся соперник'); arenaPanel(); }
-      }));
+      });
+      modeRow.querySelector('.row-it').innerHTML = `<img class="mode-ic" src="assets/ui/ar_${m.id}.webp" alt="" onerror="this.remove()">`; // значок режима
+      box.append(modeRow);
     }
-    box.append(row(null, 'Свободная схватка', '🔥 Все против всех на общей арене мира: заходите и выходите когда угодно, возрождение на месте.', 'Войти', () => { ctx.socket.emit('travel', { via: 'arena' }); close(); }));
+    const ffa = row(null, 'Свободная схватка', '🔥 Все против всех на общей арене мира: заходите и выходите когда угодно, возрождение на месте.', 'Войти', () => { ctx.socket.emit('travel', { via: 'arena' }); close(); });
+    ffa.querySelector('.row-it').innerHTML = '<img class="mode-ic" src="assets/ui/ar_ffa.webp" alt="">';
+    box.append(ffa);
     box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Топ-10</div>${a.top.map((t, i) => `<div class="top-row"><span>${i + 1}</span><b>${t.name}</b><small>${t.hero}</small><em>${t.rating}</em></div>`).join('') || soon('Пока пусто')}`);
     open('🏟️ PvP-арена', box);
   }
@@ -547,8 +551,8 @@ window.Town = (() => {
       <div><b>${sk.name}</b><small>${i < inv.hero.unlocked ? 'Открыто' : `Откроется: ${U[i].lvl} уровень или ${U[i].dup} дубл.`}</small><small>${sk.desc}</small></div></div>`).join('')
       + `<div class="tw-ev"><span class="tw-ev-i">${SkillArt.icon(inv.hero.id, 'p', h.passive.icon)}</span><div><b>${h.passive.name} · пассивный</b><small>Всегда активен</small></div></div>`);
     const tree = () => el(`<p class="sheet-hint">Очки характеристик: 0 · даются за уровни героя</p><div class="tw-tree">${
-      [['💪', 'Сила'], ['🏹', 'Ловкость'], ['🔮', 'Интеллект'], ['❤️', 'Выносливость'], ['🍀', 'Удача'], ['🛡️', 'Защита']]
-        .map(([i, n]) => `<div class="tw-node"><span>${i}</span><b>${n}</b><em>0</em><button disabled>+</button></div>`).join('')}</div>
+      [['str', 'Сила'], ['agi', 'Ловкость'], ['int', 'Интеллект'], ['sta', 'Выносливость'], ['luck', 'Удача'], ['def', 'Защита']]
+        .map(([i, n]) => `<div class="tw-node"><span><img class="at-ic" src="assets/ui/at_${i}.webp" alt=""></span><b>${n}</b><em>0</em><button disabled>+</button></div>`).join('')}</div>
       ${soon('Ветка дополнительных характеристик откроется позже')}`);
     open('📖 Зал мастеров', tabs([['Умения', skills], ['Ветка характеристик', tree]]));
   }

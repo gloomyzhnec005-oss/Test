@@ -1361,3 +1361,8 @@ canvas.skin { object-fit: contain; }
 .order-img.sm { width: 1.6em; height: 1.6em; vertical-align: -0.45em; }
 .story-done span { display: inline-block; margin: 0 8px 4px 0; white-space: nowrap; }
 .clan-emb { width: 34px; height: 34px; vertical-align: middle; margin-right: 6px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.7)); }
+
+/* Значки вкладок чата, режимов арены, характеристик */
+.ch-ic { width: 18px; height: 18px; object-fit: contain; vertical-align: -4px; margin-right: 3px; filter: drop-shadow(0 1px 1px #000); }
+.mode-ic { width: 44px; height: 44px; object-fit: contain; display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.7)); }
+.at-ic { width: 30px; height: 30px; object-fit: contain; }
