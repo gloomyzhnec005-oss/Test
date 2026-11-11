@@ -1,4 +1,7 @@
 require('dotenv').config();
+// Запуск напрямую (node server/index.js — например, своя команда старта на Railway) при заданной базе:
+// сначала загрузчик server/boot.js подключит Postgres и загрузит данные, потом он сам запустит этот файл заново
+if ((process.env.DATABASE_URL || '').trim() && !global.__booted) { require('./boot'); return; }
 const path = require('path');
 const fs = require('fs');
 const http = require('http');

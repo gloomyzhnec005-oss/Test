@@ -2,8 +2,10 @@
 // При остановке (деплой, перезапуск на Railway) — дописать в базу всё несохранённое и только потом выйти.
 require('dotenv').config();
 const store = require('./store');
+global.__booted = true;
 
 store.init().then(() => {
+  delete require.cache[require.resolve('./index')]; // если первым запустили index.js — он ждал базу и вернулся пустым
   require('./index');
 }).catch((e) => {
   console.error(e.message || e);

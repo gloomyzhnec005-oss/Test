@@ -202,7 +202,7 @@ function info() {
   if (pool) return { db: true, persistent: true, onRailway: ON_RAILWAY, players: dbStat.players, lastFlush: dbStat.lastFlush, flushMs: dbStat.flushMs, lastError: dbStat.lastError, dir: DIR, backups: backupsOf('players.json').length, keep: KEEP, everyMin: EVERY_MS / 60000, lastBackup };
   let sizeKb = 0;
   try { sizeKb = Math.round(fs.statSync(file('players.json')).size / 1024); } catch { /* нет файла */ }
-  return { dir: DIR, persistent: PERSISTENT, onRailway: ON_RAILWAY, sizeKb, backups: backupsOf('players.json').length, keep: KEEP, everyMin: EVERY_MS / 60000, lastBackup };
+  return { dbUrlSet: !!DB_URL, dir: DIR, persistent: PERSISTENT, onRailway: ON_RAILWAY, sizeKb, backups: backupsOf('players.json').length, keep: KEEP, everyMin: EVERY_MS / 60000, lastBackup };
 }
 
 if (!PERSISTENT) {
