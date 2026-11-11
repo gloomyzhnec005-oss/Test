@@ -950,6 +950,7 @@ module.exports = function createDungeons(d) {
       const t = alive[Math.floor(Math.random() * alive.length)];
       if (t) {
         telegraph(b, t.x, t.y, 130, 4000, 0xff3a3a, (p) => hit(b, p, 3.5, Date.now()), 'Метка смерти');
+        t.deathMarkUntil = now + 4000; d.markDirty(t); // значок над героем — все видят, от кого отбегать
         t.socket.emit('chat', { sys: true, text: '☠️ На вас метка смерти! Отбегите от союзников — через 4 секунды взрыв' });
       }
     }

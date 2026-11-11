@@ -436,10 +436,10 @@ window.Town = (() => {
     const { arena: a } = await Bag.act('arena');
     const info = await new Promise((res) => ctx.socket.emit('arena', { op: 'info' }, res));
     const DESC = {
-      duel: '⚔️ Один на один с живым игроком. Победа — рейтинг и золото.',
-      team: '🛡️ Двое на двое: вступите в группу с другом — встанете в очередь вместе, иначе подберём напарника.',
-      clone: '🪞 Ваша копия с тем же здоровьем и уроном. Победите самого себя!',
-      champion: '👤 Тень лучшего игрока арены: его герой, сила подстроена под ваш уровень. За победу — самоцветы.',
+      duel: 'Один на один с живым игроком. Победа — рейтинг и золото.',
+      team: 'Двое на двое: вступите в группу с другом — встанете в очередь вместе, иначе подберём напарника.',
+      clone: 'Ваша копия с тем же здоровьем и уроном. Победите самого себя!',
+      champion: 'Тень лучшего игрока арены: его герой, сила подстроена под ваш уровень. За победу — самоцветы.',
     };
     const box = el(`<div class="pass-head"><b>🏟️ Рейтинг ${a.rating}</b><small>Победы ${a.wins} · поражения ${a.losses} · бои в реальном времени своими атаками и умениями. Арена этого мира — для героев ${{ town1: '1–20', town2: '15–35', town3: '30+' }[ctx.zone.id] || ''} уровня.</small></div>`);
     // Турнир недели: очки за бои, награды тройке лидеров в понедельник
@@ -463,7 +463,7 @@ window.Town = (() => {
       modeRow.querySelector('.row-it').innerHTML = `<img class="mode-ic" src="assets/ui/ar_${m.id}.webp" alt="" onerror="this.remove()">`; // значок режима
       box.append(modeRow);
     }
-    const ffa = row(null, 'Свободная схватка', '🔥 Все против всех на общей арене мира: заходите и выходите когда угодно, возрождение на месте.', 'Войти', () => { ctx.socket.emit('travel', { via: 'arena' }); close(); });
+    const ffa = row(null, 'Свободная схватка', 'Все против всех на общей арене мира: заходите и выходите когда угодно, возрождение на месте.', 'Войти', () => { ctx.socket.emit('travel', { via: 'arena' }); close(); });
     ffa.querySelector('.row-it').innerHTML = '<img class="mode-ic" src="assets/ui/ar_ffa.webp" alt="">';
     box.append(ffa);
     box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Топ-10</div>${a.top.map((t, i) => `<div class="top-row"><span>${i + 1}</span><b>${t.name}</b><small>${t.hero}</small><em>${t.rating}</em></div>`).join('') || soon('Пока пусто')}`);

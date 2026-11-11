@@ -798,7 +798,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
       // Состояния от монстров: контроль, яд, замедление, проклятие
       const pcc = { stun: 'stun', freeze: 'freeze', root: 'root', confuse: 'confuse' }[p.pcc];
-      this.statusRow(e, [pcc, p.pdot, p.pslow && 'slow', p.pweak && 'weak', p.sh && 'shield']);
+      this.statusRow(e, [p.dm && 'deathmark', pcc, p.pdot, p.pslow && 'slow', p.pweak && 'weak', p.sh && 'shield']);
       if (!!p.tree !== !!e.tree) { e.tree = !!p.tree; if (p.tree) e.sprite.setTint(0xb8ffb8); else e.sprite.clearTint(); }
       // Полёт (Талмира): герой поднят над землёй
       const flyY = p.fly ? -16 : 0;
