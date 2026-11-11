@@ -913,6 +913,7 @@
           ['pass', 'Сезонные ордена', 'Награды сезона, бонусы и автобой', () => Town.openPlace('pass')],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
           ['clan', 'Клан', 'Свой клан: участники, задания, хранилище, чат', openClan],
+          ['events', 'Награда за вход', 'Заходите каждый день — 7 дней подряд, награда растёт', () => Town.openPlace('login')],
           ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
         ]),
@@ -1036,6 +1037,15 @@
       w.myHero = selected; // свой герой грузится сразу, остальные — по мере появления
       game.scene.add('Game', window.GameScene, true, { socket, welcome: w, ui, input });
       setTimeout(() => window.Tutorial && Tutorial.start(), 1800); // обучение при первом входе
+      // Награда за вход: если сегодня ещё не забрана — окно само откроется (после обучения, когда окна свободны)
+      let loginTries = 0;
+      const loginCheck = async () => {
+        if (++loginTries > 60) return;
+        if (!$('sheet').classList.contains('hidden') || document.querySelector('.tut')) { setTimeout(loginCheck, 3000); return; } // ждём, пока закончится обучение и закроются окна
+        const r = await Bag.act('login');
+        if (r.login && !r.login.done) Town.openPlace('login');
+      };
+      setTimeout(loginCheck, 4000);
       let rt = 0;
       const applyDpr = (d) => { window.GAME_DPR = d; game.scale.resize(Math.round(window.innerWidth * d), Math.round(window.innerHeight * d)); game.scale.setZoom(1 / d); };
       window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => applyDpr(window.GAME_DPR), 100); });

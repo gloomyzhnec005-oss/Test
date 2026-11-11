@@ -630,7 +630,28 @@ window.Town = (() => {
     open('🔨 Кузница', tabs([['Рецепты', () => craftBody(ctx.zone.tier, rid, itemId)], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Разбор', salvageBody], ['Лавка кузнеца', () => shopList('smith')]]));
   }
 
+  // ---------- Награда за вход: 7 дней подряд ----------
+  async function loginPanel(r) {
+    if (!r || !r.login) r = await Bag.act('login');
+    if (!r.login) return toast(r.error || 'Нет связи');
+    const L = r.login;
+    const box = el(`<p class="sheet-hint">Заходите каждый день: награда растёт. Пропустите день — серия начнётся с первого дня. ${L.streak ? `Серия: <b>${L.streak}</b> дн. подряд` : ''}</p>
+      <div class="login-grid">${L.days.map((d) => `<div class="login-day ${d.i < L.day || (L.done && d.i === L.day) ? 'got' : d.i === L.day ? 'today' : ''} ${d.big ? 'big' : ''}">
+        <b>День ${d.i + 1}</b>${d.art ? `<img src="assets/items/mat_${d.art}.webp" alt="" onerror="this.remove()">` : `<img src="assets/ui/ic_gift.webp" alt="">`}
+        <small>${d.items.join('<br>')}</small>${d.i < L.day || (L.done && d.i === L.day) ? '<i>✔</i>' : ''}</div>`).join('')}</div>
+      <button class="l2-btn wide" id="loginGo" ${L.done ? 'disabled' : ''}>${L.done ? 'Получено — приходите завтра' : `🎁 Забрать награду дня ${L.day + 1}`}</button>`);
+    box.querySelector('#loginGo').onclick = async () => {
+      const x = await Bag.act('loginClaim');
+      toast(x.error || x.toast);
+      if (window.Sfx) Sfx.play(x.error ? 'error' : 'reward');
+      if (!x.error) Bag.refresh();
+      loginPanel(x);
+    };
+    open('🎁 Награда за вход', box);
+  }
+
   const PANELS = {
+    login: loginPanel,
     warehouse: warehousePanel,
     equip: () => shopPanel('equip', '⚔️ Оружие и доспехи'),
     alchemy: () => shopPanel('alchemy', '🧪 Эликсиры и свитки'),

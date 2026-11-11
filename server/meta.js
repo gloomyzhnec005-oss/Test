@@ -6,6 +6,17 @@ const store = require('./store');
 
 const DAY = 864e5;
 const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+// Награда за вход 7 дней подряд: день — по Москве; пропустил день — серия начинается заново, после 7-го — по кругу
+const mskDay = (t = Date.now()) => new Date(t + 3 * 36e5).toISOString().slice(0, 10);
+const LOGIN_REWARDS = [
+  { gold: 1000, mats: { potHp: 5 } },
+  { gold: 1500, mats: { dust: 1 } },
+  { gems: 30, mats: { potHp2: 2 } },
+  { gold: 2500, mats: { elxAtk: 1, elxDef: 1 } },
+  { itemSpins: 1, mats: { dust: 2 } },
+  { gems: 60, mats: { luckStone: 1 } },
+  { heroSpins: 1, gems: 100, mats: { elxXp2: 1, skillCrystal: 1 } },
+];
 
 // ---------- Баланс монетизации ----------
 const SHOP = {
@@ -198,6 +209,20 @@ module.exports = function createMeta(deps) {
     };
   }
   const freeSpinsLeft = (pr) => (pr.freeItemDay === dayKey() ? pr.freeItemLeft || 0 : (isSub(pr) ? SHOP.freeItemSpinsSub : SHOP.freeItemSpins) + (passTier(pr) >= 2 ? 1 : 0)); // Серебряный орден: +1 в день
+  // Какой день серии забирать сегодня: next — номер (0–6), streak — дней подряд
+  function loginState(pr) {
+    const L = pr.login || {}, today = mskDay(), yest = mskDay(Date.now() - 864e5);
+    if (L.last === today) return { last: L.last, next: L.day, streak: L.streak || 1, done: true };
+    const cont = L.last === yest;
+    return { last: L.last, next: cont ? ((L.day ?? -1) + 1) % 7 : 0, streak: cont ? L.streak || 0 : 0, done: false };
+  }
+  function loginView(p, pr) {
+    const L = loginState(pr), t = tierOf(p);
+    const label = (r) => [r.gold && `💰 ${r.gold}`, r.gems && `💎 ${r.gems}`, r.itemSpins && `🎁 ×${r.itemSpins}`, r.heroSpins && `🔮 ×${r.heroSpins}`,
+      ...Object.entries(r.mats || {}).map(([k, n]) => `${I.MATS[matKey(k, t)].name}${n > 1 ? ' ×' + n : ''}`)].filter(Boolean);
+    return { day: L.next, done: L.done, streak: L.streak, days: LOGIN_REWARDS.map((r, i) => ({ i, items: label(r),
+      art: Object.keys(r.mats || {}).map((k) => matKey(k, t))[0] || null, big: i === 6 })) };
+  }
   const skillLv = (pr, heroId, i) => ((pr.skillLv || {})[heroId] || [])[i] || 1;
   const equipped = (pr, id) => Object.values(pr.equip || {}).includes(id);
   // Журнал покупок в лавках за сегодня (для возврата)
@@ -233,6 +258,16 @@ module.exports = function createMeta(deps) {
 
   const OPS = {
     inv: (p) => ({ inv: invView(p) }),
+    // ---------- Награда за вход ----------
+    login(p, d, pr) { return { login: loginView(p, pr) }; },
+    loginClaim(p, d, pr) {
+      const L = loginState(pr), today = mskDay();
+      if (L.last === today) return { error: 'Сегодня награда уже получена — приходите завтра', login: loginView(p, pr) };
+      const r = LOGIN_REWARDS[L.next];
+      const msg = reward(pr, r, tierOf(p));
+      pr.login = { last: today, day: L.next, streak: L.streak + 1 };
+      return { toast: `🎁 День ${L.next + 1}: ${msg}`, login: loginView(p, pr) };
+    },
     // Улучшение умения: до уровня героя, за волшебную пыль, золото и (на 10/20/30/40) кристаллы мастерства
     skillUp(p, d, pr) {
       const i = Math.floor(Number(d.i)), H = C.HEROES[p.heroId];
@@ -806,7 +841,7 @@ module.exports = function createMeta(deps) {
     if (p.name && pr.arena) pr.arena.name = p.name;
     const res = fn(p, d, pr) || {};
     if (!res.error && ['equip', 'buy', 'socket'].includes(d.op)) deps.quest(p.uid, d.op); // шаги сюжета
-    if (!res.error && !['inv', 'inspect', 'buys', 'market', 'auction', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo', 'recipes'].includes(d.op)) save();
+    if (!res.error && !['inv', 'inspect', 'buys', 'market', 'auction', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo', 'recipes', 'login'].includes(d.op)) save();
     res.gold = pr.gold;
     return res;
   }
