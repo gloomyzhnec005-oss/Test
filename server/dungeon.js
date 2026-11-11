@@ -449,17 +449,21 @@ module.exports = function createDungeons(d) {
 
   // ---------- Данжи: общие залы для всех игроков ----------
   // Каждый данж — один зал на сервер. В обычных комнатах убитые монстры возрождаются через 5–10 секунд (пока в зале есть люди),
-  // полубоссы появляются раз в час (в начале часа), босс данжа — раз в день вечером (BOSS_HOUR:BOSS_MIN по UTC, по умолчанию 20:00 МСК).
+  // полубоссы появляются раз в час (в начале часа), босс данжа — три раза в день: 12:00, 18:00 и 23:00 МСК (DUNGEON_BOSS_TIMES, часы по МСК через запятую).
   // Награду за полубосса и босса получают все, кто нанёс хотя бы 3% его здоровья.
   const halls = new Map(), announced = {};
-  const BOSS_HOUR = Number(process.env.DUNGEON_BOSS_HOUR_UTC ?? 17), BOSS_MIN = Number(process.env.DUNGEON_BOSS_MIN ?? 0);
+  // Время появления боссов данжей (МСК = UTC+3): «12:00,18:00,23:00»
+  const BOSS_TIMES = String(process.env.DUNGEON_BOSS_TIMES || '12:00,18:00,23:00').split(',').map((s) => s.trim().split(':').map(Number)).filter(([h]) => h >= 0 && h < 24);
   const RESPAWN = [8000, 8000], IDLE_MS = 5 * 60000, WARN_MS = 15 * 60000, GATE_OPEN_MS = 10 * 60000;
   const nextHour = (t) => Math.floor(t / 36e5) * 36e5 + 36e5;
   function nextBossAt(t) {
-    const x = new Date(t);
-    let at = Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate(), BOSS_HOUR, BOSS_MIN);
-    if (at <= t) at += 864e5;
-    return at;
+    const x = new Date(t), day = Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate());
+    let best = Infinity;
+    for (const [h, mi = 0] of BOSS_TIMES) for (const dd of [-1, 0, 1]) {
+      const at = day + dd * 864e5 + ((h - 3) * 60 + mi) * 60000; // МСК → UTC
+      if (at > t && at < best) best = at;
+    }
+    return best;
   }
   const hhmm = (t) => new Date(t + 3 * 36e5).toISOString().slice(11, 16) + ' МСК';
   function rollRank(depthK) {
@@ -628,7 +632,7 @@ module.exports = function createDungeons(d) {
     const group = all;
     for (const o of group) {
       d.moveToZone(o, z.id);
-      o.socket.emit('chat', { sys: true, text: `${dg.name} (ур. ${dg.lv[0]}–${dg.lv[1]}): общий зал — здесь охотятся все игроки. Монстры возрождаются, полубоссы — каждый час, босс — каждый день в ${hhmm(nextBossAt(Date.now()))}.` });
+      o.socket.emit('chat', { sys: true, text: `${dg.name} (ур. ${dg.lv[0]}–${dg.lv[1]}): общий зал — здесь охотятся все игроки. Монстры возрождаются, полубоссы — каждый час, босс — 3 раза в день (12:00, 18:00, 23:00 МСК), следующий в ${hhmm(nextBossAt(Date.now()))}.` });
     }
     tickHall(h, Date.now());
     sendHall(h);
@@ -676,7 +680,7 @@ module.exports = function createDungeons(d) {
       if (first) { d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первая победа над боссом данжа: +160 самоцветов' }); }
       d.markDirty(p);
     }
-    if (boss) d.broadcast(`🏆 Босс «${m.name || MOBS[m.type].name}» в данже «${h.dg.name}» повержен! Следующий — завтра в ${hhmm(nextBossAt(Date.now() + 60000))}.`);
+    if (boss) d.broadcast(`🏆 Босс «${m.name || MOBS[m.type].name}» в данже «${h.dg.name}» повержен! Следующий — в ${hhmm(nextBossAt(Date.now() + 60000))}.`);
     setImmediate(() => { tickHall(h, Date.now()); sendHall(h); });
   }
 

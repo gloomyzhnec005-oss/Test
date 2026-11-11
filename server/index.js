@@ -817,12 +817,14 @@ function damageMonster(p, m, raw, opt = {}) {
     monsters.delete(m.id);
     corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type, zone: m.zone, level: m.level, maxHp: m.maxHp, dmg: m.dmg, speed: m.speed });
     if (corpses.length > 40) corpses.shift();
-    grantXp(p, xp, gold);
-    shareKill(p, m, xp);
-    dropLoot(p, m);
-    if (ps && ps.onKill) ps.onKill(skillCtx, p, Date.now(), m);
+    // Каждый шаг награды — отдельно: ошибка в одном (например, в пассивке героя) не отменяет остальные
+    const safe = (what, fn) => { try { fn(); } catch (e) { console.error('kill reward', what, m.type, e); } };
+    safe('xp', () => grantXp(p, xp, gold));
+    safe('share', () => shareKill(p, m, xp));
+    safe('loot', () => dropLoot(p, m));
+    if (ps && ps.onKill) safe('passive', () => ps.onKill(skillCtx, p, Date.now(), m));
     if (m.rank === 'boss') io.emit('chat', { sys: true, text: `${p.name} победил босса «${m.name || def.name}»!` });
-    D.onKilled(m, p);
+    safe('onKilled', () => D.onKilled(m, p));
     const zt = (world.byId.get(m.zone) || {}).tier;
     Q.track(p.uid, 'kill', 1, { tier: zt });
     if (['magic', 'rare', 'mini'].includes(m.rank)) Q.track(p.uid, 'elite');
@@ -1130,8 +1132,17 @@ function giveLoot(o, pr, item, at) {
   const v = I.itemView(res.item);
   if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}${res.dupe ? ' ⇧' : ''}`, color: v.color });
   o.socket.emit('chat', { sys: true, text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
-  if (res.dupe && Object.values(pr.equip).includes(res.item.id)) refreshPlayer(o);
+  if (res.dupe && Object.values(pr.equip || {}).includes(res.item.id)) refreshPlayer(o);
   return v;
+}
+
+// Пока у игрока нет связи: вместо сокета — копилка сообщений (чат, добыча); кадры мира не копим
+function offlineSocket(real) {
+  const missed = [];
+  const keep = new Set(['chat', 'party', 'clanInvite', 'passTier', 'autofarm']);
+  return { id: real.id, missed, offline: true, rooms: real.rooms, conn: { transport: { writable: false } },
+    emit(ev, data) { if (keep.has(ev) && missed.length < 100) missed.push([ev, data]); return true; },
+    volatile: { emit() { return true; } }, join() {}, leave() {}, disconnect() {}, to() { return { emit() {} }; } };
 }
 
 // ---------- Сокеты ----------
@@ -1140,7 +1151,9 @@ io.on('connection', (socket) => {
   if (socket.recovered && players.has(socket.id)) {
     const p = players.get(socket.id);
     clearTimeout(p.graceTimer); p.graceTimer = null; p.offline = false;
+    const missed = (p.socket && p.socket.missed) || [];
     p.socket = socket; p.lastMove = Date.now();
+    for (const [ev, data] of missed) socket.emit(ev, data); // что произошло, пока не было связи
     socket.join('z:' + p.zone);
     socket.emit('resumed', { x: p.x, y: p.y, zone: p.zone });
     p.lastStats = 0; markDirty(p);
@@ -1473,6 +1486,7 @@ io.on('connection', (socket) => {
     // Обрыв связи (не выход из игры): герой ждёт в мире, пока игрок не переподключится
     if (reason !== 'client namespace disconnect' && reason !== 'server namespace disconnect' && !p.match) {
       p.offline = true; p.autofarm = false;
+      p.socket = offlineSocket(socket); // сообщения (добыча, награды) копятся и придут, когда связь вернётся
       clearTimeout(p.graceTimer);
       p.graceTimer = setTimeout(() => { if (players.get(socket.id) === p && p.offline) removePlayer(socket, p); }, GRACE_MS);
       return;
@@ -1717,11 +1731,19 @@ setInterval(() => {
     fx: Z.fx,
   };
   // volatile: если связь медленная и прошлый кадр ещё не ушёл — этот пропускаем, а не копим очередь (иначе игра «догоняет» с задержкой)
-  for (const p of Z.p) if (!p.offline) p.socket.volatile.emit('state', state);
+  const important = Z.fx.filter((f) => FX_KEEP.has(f.t));
+  for (const p of Z.p) {
+    if (p.offline) continue;
+    const tr = p.socket.conn && p.socket.conn.transport;
+    if (tr && !tr.writable) { if (important.length) p.pendFx = (p.pendFx || []).concat(important).slice(-60); continue; } // связь занята — кадр пропускаем, важное копим
+    if (p.pendFx) { p.socket.volatile.emit('state', { ...state, fx: p.pendFx.concat(state.fx) }); p.pendFx = null; } else p.socket.volatile.emit('state', state);
+  }
   }
   fx = [];
 }, C.TICK_MS);
 
+// Эффекты, которые нельзя терять при плохой связи: гибель монстра, сундук, добыча, повышение уровня
+const FX_KEEP = new Set(['death', 'chest', 'loot', 'levelup', 'pdeath']);
 // Пустые флаги состояния монстров не отправляем: пакет в разы меньше — на медленной связи не копится очередь
 const SLIM_KEEP = new Set(['x', 'y', 'hp', 'maxHp', 'lv', 'tr']);
 function slim(o) { for (const k in o) if ((o[k] === 0 || o[k] === null || o[k] === undefined) && !SLIM_KEEP.has(k)) delete o[k]; return o; }
@@ -1739,6 +1761,10 @@ setTimeout(() => setInterval(() => {
     for (const p of list) p.socket.volatile.emit('pp', pos);
   }
 }, C.TICK_MS), C.TICK_MS / 2);
+
+// Ошибка в одном обработчике не должна ронять весь сервер (иначе перезапуск: все теряют бой, босса и награды)
+process.on('uncaughtException', (e) => console.error('uncaughtException', e));
+process.on('unhandledRejection', (e) => console.error('unhandledRejection', e));
 
 server.listen(PORT, () => {
   console.log(`MMORPG сервер запущен: http://localhost:${PORT}`);

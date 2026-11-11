@@ -117,7 +117,7 @@
         ${o.worldBosses.map((w) => `<div class="row"><span class="grow"><b>${esc(w.townName)}</b><br><small class="muted">${w.boss ? `👹 ${esc(w.boss.name)} · ${fmtNum(w.boss.hp)} / ${fmtNum(w.boss.maxHp)}` : `появится ${w.nextAt <= Date.now() ? 'сейчас' : 'через ' + Math.ceil((w.nextAt - Date.now()) / 60000) + ' мин'}`}</small></span>
           ${w.boss ? `<button class="btn small danger" data-wb="${w.town}" data-kill="1">Убрать</button>` : `<button class="btn small primary" data-wb="${w.town}">Вызвать сейчас</button>`}</div>`).join('')}
       </div>
-      <div class="card"><h3>Боссы данжей</h3><div class="row"><span class="grow"><small class="muted">По расписанию — раз в день; ворота к боссу открыты, пока он жив, и 10 минут после победы</small></span>
+      <div class="card"><h3>Боссы данжей</h3><div class="row"><span class="grow"><small class="muted">По расписанию — в 12:00, 18:00 и 23:00 МСК; ворота к боссу открыты, пока он жив, и 10 минут после победы</small></span>
           <button class="btn small primary" data-dgboss="1">Вызвать сейчас</button></div></div>
       <div class="card"><h3>В игре (${o.sessions.length})</h3>
         <div class="list">${o.sessions.map((s) => `<div class="item" data-uid="${esc(s.uid)}"><span class="dot on"></span>
