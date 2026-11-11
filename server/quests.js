@@ -103,7 +103,7 @@ module.exports = function createQuests(deps) {
     const s = storyOf(pr), q = STORY[s.i];
     return { step: s.i, total: STORY.length, chapter: q ? CHAPTERS[q.ch] : 'Сюжет пройден',
       cur: q ? { id: q.id, icon: q.icon, name: q.name, desc: q.desc, goal: q.goal, prog: storyProg(pr), reward: rewardText(q.reward, tier) } : null,
-      done: STORY.slice(0, s.i).map((x) => ({ icon: x.icon, name: x.name })) };
+      done: STORY.slice(0, s.i).map((x) => ({ id: x.id, icon: x.icon, name: x.name })) };
   }
   function storyClaim(pr, tier) {
     const s = storyOf(pr), q = STORY[s.i];

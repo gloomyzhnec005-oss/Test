@@ -1359,3 +1359,4 @@ canvas.skin { object-fit: contain; }
 /* Знаки орденов сезона */
 .order-img { width: 44px; height: 44px; object-fit: contain; vertical-align: middle; filter: drop-shadow(0 2px 3px rgba(0,0,0,.7)); }
 .order-img.sm { width: 1.6em; height: 1.6em; vertical-align: -0.45em; }
+.story-done span { display: inline-block; margin: 0 8px 4px 0; white-space: nowrap; }

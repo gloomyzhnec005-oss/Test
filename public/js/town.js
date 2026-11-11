@@ -500,7 +500,7 @@ window.Town = (() => {
       box.innerHTML = `<p class="sheet-hint">${S.chapter} · шаг ${Math.min(S.step + 1, S.total)} из ${S.total} — сюжет ведёт по всем местам игры</p>`;
       if (S.cur) {
         const q = S.cur;
-        const row = el(`<div class="tw-ev quest story ${sReady ? 'ready' : ''}"><span class="tw-ev-i q-ic">${q.icon}</span><div><b>${q.name}</b><small>${q.desc}</small>
+        const row = el(`<div class="tw-ev quest story ${sReady ? 'ready' : ''}"><span class="tw-ev-i q-ic"><img src="assets/ui/quests/${q.id}.webp" alt="${q.icon}" onerror="this.replaceWith(this.alt)"></span><div><b>${q.name}</b><small>${q.desc}</small>
           <div class="tw-prog"><i style="width:${Math.round((100 * q.prog) / q.goal)}%"></i><em>${q.prog} / ${q.goal}</em></div>
           <small class="q-rew">${q.reward}</small></div>
           <button class="l2-btn" ${sReady ? '' : 'disabled'}>🎁</button></div>`).firstElementChild;
@@ -513,7 +513,7 @@ window.Town = (() => {
         };
         box.append(row);
       } else box.insertAdjacentHTML('beforeend', '<small>🌟 Вы прошли весь сюжет! Новые главы появятся с новыми мирами.</small>');
-      if (S.done.length) box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Пройдено</div><small>${S.done.map((x) => `${x.icon} ${x.name}`).join(' · ')}</small>`);
+      if (S.done.length) box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Пройдено</div><small class="story-done">${S.done.map((x) => `<span><img class="ui-ic" src="assets/ui/quests/${x.id}.webp" alt="${x.icon}" onerror="this.replaceWith(this.alt)">${x.name}</span>`).join(' ')}</small>`);
       return box;
     };
     const cnt = (per) => Q[per].list.filter((q) => q.prog >= q.goal && !q.claimed).length;
