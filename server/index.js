@@ -1339,6 +1339,7 @@ io.on('connection', (socket) => {
     p.deathUntil = prj.deathUntil || 0; // слабость после гибели переживает перезаход
     p.god = !!(prj.test || {}).god; p.oneShot = !!(prj.test || {}).oneShot; // тестовые режимы из админки
     prj.name = p.name; prj.lastSeen = Date.now();
+    if (['ru', 'en', 'es', 'pt', 'de', 'fr', 'tr'].includes(data.lang)) prj.lang = data.lang; // уведомления бота — на языке игры
     if (hero.pets) { p.pets = createPets(p); p.pets.forEach((pet) => pets.set(pet.id, pet)); }
     if (hero.summons) p.pets = []; // слуги появляются навыком «Восстание мёртвых»
     if (hero.elements) p.form = 'fire'; // Аурелиус начинает с огня

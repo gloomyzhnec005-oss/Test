@@ -487,7 +487,7 @@
     socket.on('connect', () => {
       $('netBadge').classList.add('hidden');
       if (socket.recovered) return; // связь вернулась, сессия цела — герой там же, заново входить не нужно
-      socket.emit('join', { hero: selected, initData: tg ? tg.initData : '', guestId, guestName: name });
+      socket.emit('join', { hero: selected, initData: tg ? tg.initData : '', guestId, guestName: name, lang: window.I18N && I18N.lang }); // язык — для уведомлений бота
     });
     socket.on('error_msg', (m) => { Lobby.setStatus(m); Lobby.setBusy(false); socket.disconnect(); });
     socket.on('chat', (m) => addChat(m));

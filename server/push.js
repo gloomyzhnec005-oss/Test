@@ -9,6 +9,7 @@ const KINDS = {
   clan: 6 * 3600e3, // клановое задание выполнено
 };
 const DAY_MAX = 6, ACTIVE_DAYS = 14;
+const translate = require('./tr');
 
 module.exports = function createPush({ getBot, profiles, isOnline, webAppUrl, save }) {
   const queue = [];
@@ -24,9 +25,9 @@ module.exports = function createPush({ getBot, profiles, isOnline, webAppUrl, sa
   }
   function send(uid, kind, text) {
     if (!getBot() || !can(uid, kind)) return false;
-    const P = profiles()[uid].push;
+    const pr = profiles()[uid], P = pr.push;
     P.at[kind] = Date.now(); P.n += 1;
-    queue.push({ uid, text });
+    queue.push({ uid, text: translate(pr.lang, text), btn: translate(pr.lang, '⚔️ Играть') }); // на языке, который игрок выбрал в игре
     return true;
   }
   // Всем, кто играл за последние 2 недели (filter(pr) — например, по уровню героя)
@@ -41,7 +42,7 @@ module.exports = function createPush({ getBot, profiles, isOnline, webAppUrl, sa
     if (!bot) { queue.length = 0; return; }
     for (const m of queue.splice(0, 15)) {
       const url = webAppUrl();
-      bot.telegram.sendMessage(m.uid.slice(2), m.text, url ? { reply_markup: { inline_keyboard: [[{ text: '⚔️ Играть', web_app: { url } }]] } } : {})
+      bot.telegram.sendMessage(m.uid.slice(2), m.text, url ? { reply_markup: { inline_keyboard: [[{ text: m.btn || '⚔️ Играть', web_app: { url } }]] } } : {})
         .catch((e) => {
           // Бот заблокирован или чат удалён — больше не пишем этому игроку
           if (e && (e.code === 403 || /blocked|deactivated|chat not found/i.test(e.message || ''))) { const pr = profiles()[m.uid]; if (pr) { pr.pushBlocked = true; save(); } }
