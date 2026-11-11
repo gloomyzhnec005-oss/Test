@@ -220,9 +220,19 @@ module.exports = function createMeta(deps) {
     const L = loginState(pr), t = tierOf(p);
     const label = (r) => [r.gold && `💰 ${r.gold}`, r.gems && `💎 ${r.gems}`, r.itemSpins && `🎁 ×${r.itemSpins}`, r.heroSpins && `🔮 ×${r.heroSpins}`,
       ...Object.entries(r.mats || {}).map(([k, n]) => `${I.MATS[matKey(k, t)].name}${n > 1 ? ' ×' + n : ''}`)].filter(Boolean);
-    return { day: L.next, done: L.done, streak: L.streak, days: LOGIN_REWARDS.map((r, i) => ({ i, items: label(r),
+    return { card: cardReady(pr), day: L.next, done: L.done, streak: L.streak, days: LOGIN_REWARDS.map((r, i) => ({ i, items: label(r),
       art: Object.keys(r.mats || {}).map((k) => matKey(k, t))[0] || null, big: i === 6 })) };
   }
+  const STARTER_MS = 72 * 3600e3;
+  const mskDayKey = () => new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+  // Можно ли купить особый товар (null — можно, иначе причина)
+  function canBuy(kind, pr) {
+    if (kind !== 'starter') return null;
+    if (pr.starterBought) return 'Набор новичка уже куплен';
+    if (Date.now() > (pr.created || 0) + STARTER_MS) return 'Предложение для новичков закончилось';
+    return null;
+  }
+  const cardReady = (pr) => !!(pr.card && pr.card.until > Date.now() && pr.card.last !== mskDayKey());
   const skillLv = (pr, heroId, i) => ((pr.skillLv || {})[heroId] || [])[i] || 1;
   const equipped = (pr, id) => Object.values(pr.equip || {}).includes(id);
   // Журнал покупок в лавках за сегодня (для возврата)
@@ -730,7 +740,16 @@ module.exports = function createMeta(deps) {
       if (pr.adDay !== dayKey()) { pr.adDay = dayKey(); pr.adCount = 0; }
       return { firstBuy: !pr.paidOnce, sub: isSub(pr) ? pr.subUntil : 0, subPrice: SHOP.sub.price, passTier: passTier(pr), passTiers: SHOP.passTiers,
         itemSpin: SHOP.itemSpin, gemPacks: Object.entries(SHOP.gems).map(([id, g]) => ({ id, ...g })), gems: pr.gems || 0, adsLeft: SHOP.ads.perDay - pr.adCount, gold: pr.gold,
-        chests: Object.entries(CHESTS).map(([k, c]) => ({ id: k, title: c.title, desc: c.description, amount: c.amount, bag: !!c.bag, elixir: !!c.elixir })) };
+        chests: Object.entries(CHESTS).filter(([, c]) => !c.special).map(([k, c]) => ({ id: k, title: c.title, desc: c.description, amount: c.amount, bag: !!c.bag, elixir: !!c.elixir })),
+        starter: canBuy('starter', pr) ? null : { left: pr.created + STARTER_MS - Date.now(), amount: CHESTS.starter.amount, desc: CHESTS.starter.description },
+        card: { amount: CHESTS.card30.amount, desc: CHESTS.card30.description, until: pr.card && pr.card.until > Date.now() ? pr.card.until : 0, ready: cardReady(pr) } };
+    },
+    // Карта месяца: 100 самоцветов в день
+    cardClaim(p, d, pr) {
+      if (!cardReady(pr)) return { error: pr.card && pr.card.until > Date.now() ? 'Сегодня уже получено — приходите завтра' : 'Карта месяца не активна' };
+      pr.card.last = mskDayKey();
+      pr.gems = (pr.gems || 0) + 100;
+      return { toast: `💎 +100 самоцветов · карта действует ещё ${Math.ceil((pr.card.until - Date.now()) / DAY)} дн.` };
     },
 
     // ---------- PvP-арена ----------
@@ -856,6 +875,15 @@ module.exports = function createMeta(deps) {
     else if (kind === 'pass') passOf(pr).tier = Math.max(passOf(pr).tier, 2); // старые счета премиум-пропуска
     else if (/^pass[1-4]$/.test(kind)) passOf(pr).tier = Math.max(passOf(pr).tier, +kind[4]);
     else if (kind === 'sub') pr.subUntil = Math.max(Date.now(), pr.subUntil || 0) + SHOP.sub.days * DAY;
+    else if (kind === 'starter') {
+      pr.starterBought = true;
+      pr.gems = (pr.gems || 0) + 300; pr.paidSpins = (pr.paidSpins || 0) + 3; pr.itemSpins = (pr.itemSpins || 0) + 5;
+      grant(pr, I.createBag('epic', 1));
+      I.addMat(pr, 'elxXp2', 2); I.addMat(pr, 'elxHero', 1); I.addMat(pr, 'potHp2', 10);
+    } else if (kind === 'card30') {
+      pr.gems = (pr.gems || 0) + 300;
+      pr.card = { until: Math.max(Date.now(), (pr.card && pr.card.until) || 0) + 30 * DAY, last: (pr.card && pr.card.last) || '' };
+    }
     else if (CHESTS[kind] && CHESTS[kind].bag) grant(pr, I.createBag(CHESTS[kind].bag, 1)); // сумка за Stars — сразу в инвентарь
     else if (CHESTS[kind]) I.addMat(pr, CHESTS[kind].mat || kind, CHESTS[kind].n);
     else return false;
@@ -869,6 +897,9 @@ module.exports = function createMeta(deps) {
     chestSet: { n: 1, amount: 99, title: 'Ларец комплекта', description: 'Вещь комплекта вашего класса: эпическая, 15% легендарная, 2% мифическая' },
     chestSet5: { n: 5, amount: 449, title: 'Ларцы комплекта ×5', description: 'Пять ларцов комплекта со скидкой 10%' },
     chestLegend: { n: 1, amount: 149, title: 'Ларец грандмастера', description: '2 свитка грандмастера и редкий материал' },
+    // Особые предложения (своя витрина в магазине)
+    starter: { special: true, amount: 99, title: 'Набор новичка', description: '300 💎, 3 печати призыва, 5 печатей снаряжения, эпическая сумка, 2 великих эликсира опыта, эликсир героя, 10 больших зелий' },
+    card30: { special: true, amount: 199, title: 'Карта месяца', description: '300 💎 сразу и ещё 100 💎 каждый день 30 дней — всего 3300 💎' },
     // Великие эликсиры — в сумку, пьются оттуда (1 час)
     elxXp2: { n: 1, amount: 49, elixir: true, title: 'Великий эликсир опыта', description: '+50% опыта на 1 час' },
     elxXp2x5: { n: 5, amount: 199, elixir: true, title: 'Великий эликсир опыта ×5', description: '5 эликсиров: +50% опыта на 1 час каждый, скидка 20%' },
@@ -886,6 +917,6 @@ module.exports = function createMeta(deps) {
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
   };
 
-  return { handle, addPassXp, passOf, passTier, passReady, passInvoice, isSub, bagSize, whSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
+  return { canBuy, handle, addPassXp, passOf, passTier, passReady, passInvoice, isSub, bagSize, whSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
 };
 module.exports.simulate = simulate;

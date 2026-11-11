@@ -364,7 +364,13 @@ window.Town = (() => {
   const shopArt = (c) => (c.bag ? `../../items/bag_${{ bagEpic: 'epic', bagLegend: 'legendary' }[c.id] || 'rare'}` : SHOP_ART[c.id]); // сумки — картинка сумки
   async function storePanel() {
     const s = await Bag.act('shopInfo');
-    const box = el(`${s.firstBuy ? '<div class="first-buy">🎁 <b>−50% на первую покупку</b><small>Любой товар за ⭐ Stars или 💎 GRAM — за полцены. Скидка действует один раз.</small></div>' : ''}<div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/sub.webp" alt=""><b>👑 Подписка «Покровитель» · 30 дней</b>
+    const hrs = (ms) => { const h = Math.max(0, Math.floor(ms / 36e5)); return h >= 24 ? `${Math.floor(h / 24)} д ${h % 24} ч` : `${h} ч ${Math.floor((ms % 36e5) / 6e4)} мин`; };
+    const special = `${s.starter ? `<div class="tw-banner hero offer has-art"><img class="tw-art" src="assets/ui/shop/chestSet5.webp" alt=""><b>🎁 Набор новичка · только ${hrs(s.starter.left)}</b>
+        <small>${s.starter.desc}</small><small class="ok">Выгода больше 70% — один раз на аккаунт</small><button class="l2-btn" data-buy="starter">${s.starter.amount} ⭐</button></div>` : ''}
+      ${s.card ? `<div class="tw-banner hero offer has-art"><img class="tw-art" src="assets/ui/shop/gems4.webp" alt=""><b>📅 Карта месяца</b><small>${s.card.desc}</small>
+        ${s.card.until ? `<small class="ok">Активна ещё ${hrs(s.card.until - Date.now())}</small><div class="btn-row"><button class="l2-btn" id="cardClaim" ${s.card.ready ? '' : 'disabled'}>${s.card.ready ? '💎 Забрать 100 сегодня' : 'Сегодня получено'}</button><button class="l2-btn" data-buy="card30">Продлить · ${s.card.amount} ⭐</button></div>`
+          : `<button class="l2-btn" data-buy="card30">${s.card.amount} ⭐</button>`}</div>` : ''}`;
+    const box = el(`${special}${s.firstBuy ? '<div class="first-buy">🎁 <b>−50% на первую покупку</b><small>Любой товар за ⭐ Stars или 💎 GRAM — за полцены. Скидка действует один раз.</small></div>' : ''}<div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/sub.webp" alt=""><b>👑 Подписка «Покровитель» · 30 дней</b>
         <small>+25% опыта и золота · 2 бесплатных призыва предметов в день · комиссия рынка 5% вместо 10% · сумка 80 ячеек · 8 боёв на арене в день</small>
         ${s.sub ? `<small class="ok">Активна до ${new Date(s.sub).toLocaleDateString('ru-RU')}</small>` : ''}
         <button class="l2-btn" data-buy="sub">${s.sub ? 'Продлить' : 'Оформить'} · ${s.subPrice} ⭐</button></div>
@@ -385,6 +391,8 @@ window.Town = (() => {
         <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}`);
     box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, storePanel); });
     box.querySelector('#openOrders').onclick = () => passPanel();
+    const cc = box.querySelector('#cardClaim');
+    if (cc) cc.onclick = async () => { const r = await Bag.act('cardClaim'); toast(r.error || r.toast); if (window.Sfx) Sfx.play(r.error ? 'error' : 'reward'); storePanel(); };
     open('💎 Магазин', box);
   }
   // Реклама: здесь подключается рекламная сеть Telegram Mini Apps (например, Adsgram: AdController.show()).
@@ -639,7 +647,10 @@ window.Town = (() => {
       <div class="login-grid">${L.days.map((d) => `<div class="login-day ${d.i < L.day || (L.done && d.i === L.day) ? 'got' : d.i === L.day ? 'today' : ''} ${d.big ? 'big' : ''}">
         <b>День ${d.i + 1}</b>${d.art ? `<img src="assets/items/mat_${d.art}.webp" alt="" onerror="this.remove()">` : `<img src="assets/ui/ic_gift.webp" alt="">`}
         <small>${d.items.join('<br>')}</small>${d.i < L.day || (L.done && d.i === L.day) ? '<i>✔</i>' : ''}</div>`).join('')}</div>
+      ${L.card ? '<button class="l2-btn wide" id="loginCard">📅 Карта месяца: забрать 💎 100</button>' : ''}
       <button class="l2-btn wide" id="loginGo" ${L.done ? 'disabled' : ''}>${L.done ? 'Получено — приходите завтра' : `🎁 Забрать награду дня ${L.day + 1}`}</button>`);
+    const lc = box.querySelector('#loginCard');
+    if (lc) lc.onclick = async () => { const x = await Bag.act('cardClaim'); toast(x.error || x.toast); if (window.Sfx) Sfx.play(x.error ? 'error' : 'reward'); loginPanel(); };
     box.querySelector('#loginGo').onclick = async () => {
       const x = await Bag.act('loginClaim');
       toast(x.error || x.toast);

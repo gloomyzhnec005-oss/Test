@@ -42,6 +42,7 @@ function getProfile(uid) {
   pr.bgs ??= [];
   pr.paidSpins ??= 0;
   pr.freeSpinUsed ??= false;
+  pr.created ??= Date.now(); // с этого момента 72 ч действует набор новичка (у старых игроков — с выхода обновления)
   // Предметы, экипировка, дубликаты героев, кошелёк аккаунта
   pr.items ??= [];
   pr.equip ??= {};
@@ -156,6 +157,8 @@ app.post('/api/invoice', async (req, res) => {
   if (process.env.DEV_PAYMENTS === 'true') {
     const w = resolveUid(initData, guestId);
     if (!w) return res.status(403).json({ error: 'Нет игрока' });
+    const no = meta.INVOICES[item] && meta.canBuy(item, getProfile(w.uid));
+    if (no) return res.status(400).json({ error: no });
     const ok = onPaid(item === 'bg' ? `bg:${w.uid}:${bgId}` : `${item}:${w.uid}`);
     return ok ? res.json({ devPaid: true }) : res.status(400).json({ error: 'Неизвестный товар' });
   }
@@ -180,6 +183,8 @@ function buildInvoice(who, item, bgId) {
     if (v.error) return { error: v.error };
     invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
   } else if (meta.INVOICES[item]) {
+    const no = meta.canBuy(item, getProfile(who.uid)); // набор новичка — один раз и только первые 72 ч
+    if (no) return { error: no };
     const v = meta.INVOICES[item];
     invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
   } else if (item === 'spin' || item === 'spin10') {

@@ -1049,7 +1049,7 @@
         if (++loginTries > 60) return;
         if (!$('sheet').classList.contains('hidden') || document.querySelector('.tut')) { setTimeout(loginCheck, 3000); return; } // ждём, пока закончится обучение и закроются окна
         const r = await Bag.act('login');
-        if (r.login && !r.login.done) Town.openPlace('login');
+        if (r.login && (!r.login.done || r.login.card)) Town.openPlace('login');
       };
       setTimeout(loginCheck, 4000);
       let rt = 0;
