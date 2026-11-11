@@ -1390,3 +1390,11 @@ canvas.skin { object-fit: contain; }
 .cmp-pic.soon { width: 40px; height: 40px; font-size: 26px; text-align: center; line-height: 40px; opacity: .5; }
 .cmp-row.rare b { color: #ffb340; }
 .cmp-row.on { border-color: #7dff8a; }
+
+/* Фоны окон Ф-1…Ф-6: склад, лавки, руны, зал мастеров, квесты */
+.sheet-card.l2-panel.bg-warehouse { background-image: linear-gradient(180deg, rgba(10,8,6,.4), rgba(10,8,6,.8) 40%, rgba(10,8,6,.93)), url(../assets/ui/bg_warehouse.webp); }
+.sheet-card.l2-panel.bg-equip { background-image: linear-gradient(180deg, rgba(10,8,6,.4), rgba(10,8,6,.8) 40%, rgba(10,8,6,.93)), url(../assets/ui/bg_equip.webp); }
+.sheet-card.l2-panel.bg-alchemy { background-image: linear-gradient(180deg, rgba(10,8,6,.4), rgba(10,8,6,.8) 40%, rgba(10,8,6,.93)), url(../assets/ui/bg_alchemy.webp); }
+.sheet-card.l2-panel.bg-runes { background-image: linear-gradient(180deg, rgba(10,8,6,.4), rgba(10,8,6,.8) 40%, rgba(10,8,6,.93)), url(../assets/ui/bg_runes.webp); }
+.sheet-card.l2-panel.bg-trainer { background-image: linear-gradient(180deg, rgba(10,8,6,.4), rgba(10,8,6,.8) 40%, rgba(10,8,6,.93)), url(../assets/ui/bg_trainer.webp); }
+.sheet-card.l2-panel.bg-quests { background-image: linear-gradient(180deg, rgba(10,8,6,.4), rgba(10,8,6,.8) 40%, rgba(10,8,6,.93)), url(../assets/ui/bg_quests.webp); }
