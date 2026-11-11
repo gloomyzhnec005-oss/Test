@@ -286,6 +286,7 @@
   const SOLID_T = new Set([1, 2, 6, 7, 16]);
   const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   function buildMinimap(map) {
+    mmFar = null;
     const S = 4, W = map.w, H = map.h, pal = MM_PAL[map.kind === 'dungeon' ? 'dungeon' : map.theme] || MM_PAL.green;
     const c = document.createElement('canvas'); c.width = W * S; c.height = H * S;
     const ctx = c.getContext('2d'), img = ctx.createImageData(W * S, H * S), d = img.data;
@@ -350,6 +351,12 @@
       }
     }
     // Монстры: обычные — красные точки, полубоссы и боссы — крупнее, с золотой каймой
+    // Дальние монстры приходят точками (сервер шлёт их раз в 3 тика): [x/8, y/8, крупный]
+    if (state.mm) mmFar = state.mm; else if (!state.m.length && !mmFar) mmFar = [];
+    for (const [fx8, fy8, big] of mmFar || []) {
+      const [x, y] = P({ x: fx8 * 8, y: fy8 * 8 });
+      if (big) dot(x, y, 2.6 * k, '#ff3a2a', '#ffd36a'); else dot(x, y, 1.3 * k, '#ff5040', 'rgba(40,0,0,.8)');
+    }
     for (const m of state.m) {
       const [x, y] = P(m), big = m.rk === 'boss' || m.rk === 'world' || m.rk === 'mini';
       if (big) { dot(x, y, (m.rk === 'mini' ? 2.6 : 3.4) * k, '#ff3a2a', '#ffd36a'); } else dot(x, y, 1.3 * k, '#ff5040', 'rgba(40,0,0,.8)');
@@ -376,7 +383,9 @@
     const ox = map.ox || 0, oy = map.oy || 0;
     return { ...state, m: state.m.filter((m) => ex.has(Math.floor((m.y - oy) / tile) * map.w + Math.floor((m.x - ox) / tile))) };
   }
+  let mmFar = null; // дальние монстры для мини-карты
   function drawMinimap(state, myId, tile, map) {
+    if (state.mm) mmFar = state.mm; // запомнить, даже если этот кадр мини-карта пропустит
     if (++mmTick % 3 || !minimapBase) return;
     const now = performance.now();
     for (const [id, k] of [['minimap', 1], ...(mmBig ? [['mmBigCnv', 2.2]] : [])]) {

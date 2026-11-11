@@ -1699,6 +1699,7 @@ setInterval(() => {
   totems = totems.filter((t) => now < t.until);
 
   // Рассылка состояния — каждой зоне только её объекты
+  tickNo++;
   const zIdx = (x) => Math.floor(x / ZONE_STRIDE);
   const fxZone = (f) => {
     const x = f.x ?? f.fx ?? f.tx;
@@ -1733,16 +1734,35 @@ setInterval(() => {
   };
   // volatile: если связь медленная и прошлый кадр ещё не ушёл — этот пропускаем, а не копим очередь (иначе игра «догоняет» с задержкой)
   const important = Z.fx.filter((f) => FX_KEEP.has(f.t));
+  // Монстры: полные данные — только рядом с героем (экран и запас), дальние — точками для мини-карты раз в 3 тика.
+  // В данже из ~65 монстров на экране обычно 3–5: пакет в разы меньше, телефону меньше разбирать
+  const allM = state.m, mmTick = tickNo % 3 === 0;
   for (const p of Z.p) {
     if (p.offline) continue;
     const tr = p.socket.conn && p.socket.conn.transport;
     if (tr && !tr.writable) { if (important.length) p.pendFx = (p.pendFx || []).concat(important).slice(-60); continue; } // связь занята — кадр пропускаем, важное копим
-    if (p.pendFx) { p.socket.volatile.emit('state', { ...state, fx: p.pendFx.concat(state.fx) }); p.pendFx = null; } else p.socket.volatile.emit('state', state);
+    const rx = p.autofarm ? VIEW.x * 1.5 : VIEW.x, ry = p.autofarm ? VIEW.y * 1.5 : VIEW.y; // автобою нужен запас — искать цели дальше
+    let near = allM;
+    const far = mmTick ? [] : null; // пустой список тоже шлём: мини-карта стирает старые точки
+    if (allM.length > 12) {
+      near = [];
+      for (const m of allM) {
+        if (Math.abs(m.x - p.x) <= rx && Math.abs(m.y - p.y) <= ry || m.rk === 'world' || m.pv) near.push(m);
+        else if (far) far.push([m.x >> 3, m.y >> 3, m.rk === 'boss' || m.rk === 'mini' ? 1 : 0]);
+      }
+    }
+    const out = { ...state, m: near };
+    if (far) out.mm = far;
+    if (p.pendFx) { out.fx = p.pendFx.concat(state.fx); p.pendFx = null; }
+    p.socket.volatile.emit('state', out);
   }
   }
   fx = [];
 }, C.TICK_MS);
 
+// Видимая область вокруг героя (мировые пиксели), в которой монстры приходят целиком
+const VIEW = { x: 520, y: 720 };
+let tickNo = 0;
 // Эффекты, которые нельзя терять при плохой связи: гибель монстра, сундук, добыча, повышение уровня
 const FX_KEEP = new Set(['death', 'chest', 'loot', 'levelup', 'pdeath']);
 // Пустые флаги состояния монстров не отправляем: пакет в разы меньше — на медленной связи не копится очередь
