@@ -485,18 +485,18 @@ function setState(pr, heroId) {
 // Спутники героя: маленькое существо рядом с героем (видно всем) и небольшой бонус. Кадры — public/assets/pets/c_<id>.png.
 // art: true — картинка готова (редкие появятся после листа К-2). w×h — размер кадра листа.
 const COMPANIONS = {
-  dragon: { name: 'Огненный дракончик', bonus: { atkP: 3 }, rare: false, price: 600, art: true, w: 53, h: 38 },
-  fox: { name: 'Лисёнок-светлячок', bonus: { gold: 5 }, rare: false, price: 600, art: true, w: 49, h: 33 },
-  owl: { name: 'Сова-мудрец', bonus: { xp: 5 }, rare: false, price: 600, art: true, w: 57, h: 38 },
-  golem: { name: 'Каменный голем', bonus: { def: 3 }, rare: false, price: 600, art: true, w: 48, h: 40 },
-  cat: { name: 'Призрачный кот', bonus: { crit: 3 }, rare: false, price: 600, art: true, w: 52, h: 33 },
-  wolf: { name: 'Ледяной волчонок', bonus: { ms: 3 }, rare: false, price: 600, art: true, w: 54, h: 36 },
-  phoenix: { name: 'Феникс', bonus: { atkP: 6 }, rare: true, price: 2000, art: false },
-  unicorn: { name: 'Единорог', bonus: { hpP: 8 }, rare: true, price: 2000, art: false },
-  shadow: { name: 'Теневой дракончик', bonus: { crit: 6 }, rare: true, price: 2000, art: false },
-  griffin: { name: 'Золотой грифон', bonus: { gold: 10 }, rare: true, price: 2000, art: false },
-  fairy: { name: 'Лесная фея', bonus: { xp: 10 }, rare: true, price: 2000, art: false },
-  beetle: { name: 'Механический жук', bonus: { aspd: 6 }, rare: true, price: 2000, art: false },
+  dragon: { name: 'Огненный дракончик', bonus: { atkP: 3 }, rare: false, price: 1500, art: true, w: 53, h: 38 },
+  fox: { name: 'Лисёнок-светлячок', bonus: { gold: 5 }, rare: false, price: 1500, art: true, w: 49, h: 33 },
+  owl: { name: 'Сова-мудрец', bonus: { xp: 5 }, rare: false, price: 1500, art: true, w: 57, h: 38 },
+  golem: { name: 'Каменный голем', bonus: { def: 3 }, rare: false, price: 1500, art: true, w: 48, h: 40 },
+  cat: { name: 'Призрачный кот', bonus: { crit: 3 }, rare: false, price: 1500, art: true, w: 52, h: 33 },
+  wolf: { name: 'Ледяной волчонок', bonus: { ms: 3 }, rare: false, price: 1500, art: true, w: 54, h: 36 },
+  phoenix: { name: 'Феникс', bonus: { atkP: 6 }, rare: true, price: 5000, art: true, w: 60, h: 40 },
+  unicorn: { name: 'Единорог', bonus: { hpP: 8 }, rare: true, price: 5000, art: true, w: 56, h: 40 },
+  shadow: { name: 'Теневой дракончик', bonus: { crit: 6 }, rare: true, price: 5000, art: true, w: 60, h: 38 },
+  griffin: { name: 'Золотой грифон', bonus: { gold: 10 }, rare: true, price: 5000, art: true, w: 56, h: 40 },
+  fairy: { name: 'Лесная фея', bonus: { xp: 10 }, rare: true, price: 5000, art: true, w: 52, h: 40 },
+  beetle: { name: 'Механический жук', bonus: { aspd: 6 }, rare: true, price: 5000, art: true, w: 57, h: 36 },
 };
 const companionOf = (pr) => { const id = pr && pr.comp && pr.comp.active; return id && Object.hasOwn(COMPANIONS, id) ? COMPANIONS[id] : null; };
 function gearStats(pr, heroId = null) {

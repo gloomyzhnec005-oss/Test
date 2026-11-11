@@ -205,7 +205,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
   // Спутник героя: лист из 4 кадров (public/assets/pets/c_<id>.png), догружается при первом появлении
   attachComp(e, id) {
-    const S = { dragon: [53, 38], fox: [49, 33], owl: [57, 38], golem: [48, 40], cat: [52, 33], wolf: [54, 36] }[id];
+    const S = { dragon: [53, 38], fox: [49, 33], owl: [57, 38], golem: [48, 40], cat: [52, 33], wolf: [54, 36],
+      phoenix: [60, 40], unicorn: [56, 40], shadow: [60, 38], griffin: [56, 40], fairy: [52, 40], beetle: [57, 36] }[id];
     if (!S) return;
     const key = 'cmp_' + id;
     if (!this.textures.exists(key)) {

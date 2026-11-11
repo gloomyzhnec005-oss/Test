@@ -323,7 +323,7 @@ const meta = createMeta({
 const D = createDungeons({
   C, world, monsters, players, pets,
   push: (kind, text, filter) => Push.sendAll(kind, text, filter), maxHeroLevel: (pr) => maxHeroLevel(pr),
-  notifyUid: (uid, t) => notifyUid(uid, t), companionDrop: (o, ch) => companionDrop(o, ch),
+  notifyUid: (uid, t) => notifyUid(uid, t), companionDrop: (o, ch, rare) => companionDrop(o, ch, rare),
   wbWeek: (uid, dmg) => { const pr = getProfile(uid), w = Ranks.weekNo(); if (!pr.wbWeek || pr.wbWeek.w !== w) pr.wbWeek = { w, dmg: 0, n: 0 }; pr.wbWeek.dmg += Math.round(dmg); pr.wbWeek.n += 1; },
   pushFx: (f) => fx.push(f),
   hurtPlayer: (...a) => hurtPlayer(...a),
@@ -1210,17 +1210,18 @@ function dropLoot(killer, m) {
     // Материалы, свитки, чертежи и вещи комплектов данжа (server/loot.js)
     const z = world.byId.get(m.zone);
     const dungeon = z && z.kind === 'dungeon' ? { sets: Loot.dungeonSets(z.tier, z.dgIndex) } : null;
-    if (m.rank === 'boss') companionDrop(o, 0.03 * luck);
+    if (m.rank === 'boss') companionDrop(o, 0.005);
     const drop = Loot.rollMats(m, tier, dungeon, luck * (m.lootMult ?? 1) * S.dropMult);
     giveMats(o, pr, drop.mats, m);
     for (const it of drop.items) giveLoot(o, pr, it, m);
   }
 }
-// Спутник в добычу: случайный обычный, которого у игрока ещё нет (босс данжа 3%, мировой босс 5%)
-function companionDrop(o, chance) {
+// Спутник в добычу — очень редко: обычный (босс данжа 0,5%, мировой босс 1%), редкий — только с мирового босса (0,2%).
+// Выпадает тот, которого у игрока ещё нет
+function companionDrop(o, chance, rare = false) {
   if (Math.random() >= chance) return;
   const pr = getProfile(o.uid), C2 = (pr.comp ??= { owned: [], active: null });
-  const pool = Object.entries(I.COMPANIONS).filter(([id, c]) => c.art && !c.rare && !C2.owned.includes(id));
+  const pool = Object.entries(I.COMPANIONS).filter(([id, c]) => c.art && !!c.rare === rare && !C2.owned.includes(id));
   if (!pool.length) return;
   const [id, c] = pool[Math.floor(Math.random() * pool.length)];
   C2.owned.push(id); if (!C2.active) { C2.active = id; o.cp = id; refreshPlayer(o); }

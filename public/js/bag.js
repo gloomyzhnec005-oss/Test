@@ -362,7 +362,7 @@ window.Bag = (() => {
     const r = await act('companions');
     if (!r.comp) { box.textContent = r.error || 'Нет связи'; return box; }
     const C = r.comp;
-    box.innerHTML = `<p class="sheet-hint">Спутник всегда рядом с героем — его видят все игроки — и даёт небольшой бонус. Спутники выпадают с боссов данжей (3%) и мировых боссов (5%) или покупаются за самоцветы. У вас ${C.gems} 💎</p>`;
+    box.innerHTML = `<p class="sheet-hint">Спутник всегда рядом с героем — его видят все игроки — и даёт небольшой бонус. Спутники выпадают очень редко: обычные — с боссов данжей и мировых боссов, редкие — только с мировых боссов. Или покупаются за самоцветы. У вас ${C.gems} 💎</p>`;
     for (const c of C.list) {
       const on = C.active === c.id;
       const pic = c.art ? `<span class="cmp-pic" style="width:${c.w}px;height:${c.h}px;background-image:url(assets/pets/c_${c.id}.png)"></span>` : '<span class="cmp-pic soon">❔</span>';
