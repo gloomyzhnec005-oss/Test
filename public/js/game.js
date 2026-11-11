@@ -1227,7 +1227,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: ring, scale: 5, alpha: 0, duration: 800, onComplete: () => ring.destroy() });
       this.floatText(f.x, f.y - 40, `Уровень ${f.lvl}!`, '#ffcc4d', 18);
       this.burst(f.x, f.y, 0xffcc4d, 24);
-      if (f.id === this.myId) this.ui.vibrate('success');
+      if (f.id === this.myId) { this.ui.vibrate('success'); if (this.ui.onLevelUp) this.ui.onLevelUp(f.lvl); }
     } else if (f.t === 'hit' && f.kind === 'pet') {
       const e = this.pets.get(f.target);
       if (e) {
@@ -2417,8 +2417,21 @@ window.GameScene = class GameScene extends Phaser.Scene {
     } else if (!e.moveT || now - e.moveT > 160) { e.vx = 0; e.vy = 0; } // стоит на месте
     e.tx = x; e.ty = y;
   }
+  // Указатель для новичка: маленькая золотая стрелка у героя — куда идти по текущему шагу сюжета (только в городе)
+  guideArrow(time) {
+    const GOAL = { s1: 'portal1', s4: 'alchemy', s6: 'gacha', s9: 'arena', s14: 'teleport', s17: 'teleport' };
+    const id = GOAL[window.storyStep], me = this.me;
+    const o = id && me && this.zone && this.zone.kind === 'town' && (this.zone.objs || []).find((x) => x.id === id);
+    const d = o ? Math.hypot(o.x - me.x, o.y - me.y) : 0;
+    if (!o || d < 110) { if (this.guide) this.guide.setVisible(false); return; }
+    if (!this.guide) this.guide = this.add.triangle(0, 0, 0, -9, 18, 0, 0, 9, 0xffd36a).setStrokeStyle(2, 0x5a3a10).setDepth(950);
+    const a = Math.atan2(o.y - me.y, o.x - me.x), r = 40 + Math.sin(time / 200) * 4;
+    this.guide.setVisible(true).setPosition(me.x + Math.cos(a) * r, me.y - 12 + Math.sin(a) * r).setRotation(a).setAlpha(0.75 + Math.sin(time / 200) * 0.25);
+  }
+
   update(time, delta) {
     if (this.zoneLoading) return;
+    this.guideArrow(time);
     if (this.pendingState) { const s = this.pendingState; this.pendingState = null; this.onState(s); } // догружается новый мир — карта ещё старая, не двигаемся
     const dt = delta / 1000;
     // Подошёл к запечатанным воротам босса — когда они откроются

@@ -948,6 +948,7 @@
       let storyCur = null;
       const showStory = (S) => {
         const h = $('storyHint'); storyCur = S && S.cur;
+        window.storyStep = storyCur && storyCur.prog < storyCur.goal ? storyCur.id : null; // указатель к месту шага (game.js)
         h.classList.add('hidden'); return; // подсказка сюжета на экране убрана (мешала) — сюжет во вкладке «Квесты»
         if (!storyCur || (zone && (zone.kind === 'worldboss' || zone.kind === 'pvp'))) { h.classList.add('hidden'); return; }
         const q = storyCur, ok = q.prog >= q.goal;
@@ -971,6 +972,17 @@
       storyRefresh();
       $('navBar').onclick = (e) => { const b = e.target.closest('button[data-nav]'); if (b) { vibrate('light'); if (window.Sfx) Sfx.play('click'); if (b.dataset.exit) { socket.emit('recall'); return; } NAV[b.dataset.nav](); } };
       const ui = {
+        // Новый уровень: крупная надпись по центру — что стало доступно
+        onLevelUp: (lvl) => {
+          const U = (Town.skillUnlock() || []).findIndex((u) => u.lvl === lvl);
+          const towns = (w.towns || []).filter((t) => (t.minLevel || 1) === lvl).map((t) => t.name);
+          const extra = U >= 0 ? `Открыто ${U + 1}-е умение героя!` : towns.length ? `Открыт путь в ${towns.join(', ')} — телепорт в центре города` : lvl % 5 === 0 ? 'Новые вещи в лавках и кузнице' : 'Сила и здоровье выросли';
+          const b = $('zoneBanner');
+          b.querySelector('b').textContent = `⬆️ Уровень ${lvl}`;
+          b.querySelector('small').textContent = extra;
+          b.classList.add('hidden'); void b.offsetWidth; b.classList.remove('hidden');
+          clearTimeout(ui.bannerTm); ui.bannerTm = setTimeout(() => b.classList.add('hidden'), 2900);
+        },
         onWorld: (s, myId) => drawMinimap(s, myId, w.tile, zone),
         onZone: (z) => {
           // Музыка: логово мирового босса и города Эльдмир, Аэлион — свои треки; данжи и остальное — тихий фон по теме

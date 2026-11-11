@@ -1278,6 +1278,16 @@ io.on('connection', (socket) => {
       return;
     }
     const hero = C.HEROES[heroId];
+    // Новичок: стартовое снаряжение под класс героя (сразу надето) и зелья — чтобы первые бои шли уверенно
+    if (!prj.kitGiven && !(prj.items || []).length) {
+      prj.kitGiven = true;
+      for (const cat of ['weapon', 'armor']) {
+        const it = I.createItem(cat, 'rare', 1, null, I.classOf(heroId));
+        I.addItem(prj, it, 999, false);
+        (prj.equip ??= {})[cat] = it.id;
+      }
+      I.addMat(prj, 'potHp', 10);
+    }
     const name = (who.tg ? cleanName(who.name) : cleanName(data.guestName).slice(0, 16)) || (who.tg ? 'Герой' : 'Гость');
     const char = getChar(uid, heroId);
     const p = {
