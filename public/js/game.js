@@ -945,6 +945,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       e.stone = !!m.sn;
       this.statusRow(e, status);
       e.tx = m.x; e.ty = m.y; e.data = m;
+      if (s.ts) this.bufPush(e, m.x, m.y, s.ts);
       if (m.rk === 'world') e.sprite.setAlpha(m.ai ? 0.35 : 1); // дракон в небе — полупрозрачный
       this.setBar(e, m.hp, m.maxHp);
       e.c.setAlpha(m.inv ? 0.18 : 1); // тень в невидимости
@@ -1176,7 +1177,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
     m.sprite.once('animationcomplete', () => { m.attacking = false; m.sprite.setFrame(Skins.MOBS[m.mskin].walk[0]); });
   }
   playFx(f) {
-    this.playSound(f);
+    // Свой обычный удар уже показан сразу по нажатию (predictAttack) — от сервера берём только урон, без повторной анимации и звука
+    if (f.t === 'hit' && f.kind === 'm' && f.basic && !f.pet && f.from === this.myId && this.localAtk) {
+      const now = performance.now(), i = this.localAtk.findIndex((x) => x.target === f.target && now - x.at < 1500);
+      if (i >= 0) { this.localAtk.splice(i, 1); f.predicted = true; }
+      else this.localAtk = this.localAtk.filter((x) => now - x.at < 1500);
+    }
+    if (f.t === 'skill' && f.from === this.myId && this.localSkill && this.localSkill.s === f.s && performance.now() - this.localSkill.at < 1500) { this.localSkill = null; f.predicted = true; }
+    if (!f.predicted || (f.crit && f.t === 'hit')) this.playSound(f);
     // Умения монстров (круг на земле, призыв, рывок, бафф, лечение) — тоже с кадрами атаки
     if (f.from && /^(mswing|tele|teleHit|msum|mtext|mdash|mheal|mbuff|mrevive)$/.test(f.t)) this.mobSwing(this.monsters.get(f.from), f.t === 'tele' || f.t === 'mswing' ? f.x : null);
     if (f.t === 'hit' && f.kind === 'm') {
@@ -1191,6 +1199,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
           illusion: 0xff7ad0, fireball: 0xff8c1a, frost: 0x8ad3ff, spark: 0xffe94a, stone: 0xa07a4a, moon: 0xdfe4ff, water: 0x5ab8ff, sonic: 0x9ff0e0, dark: 0xb04aff, crystal: 0xd8b0ff, sand: 0xe8c878, rune: 0x5fb0ff, soul: 0xbfeaff }[f.proj] || 0xff4040;
         this.burst(x, y, col, 6);
       };
+      if (f.predicted) { doHit(); return; } // анимация и снаряд уже были — только цифра урона и вспышка
       const attacker = f.pet ? this.pets.get(f.pet) : this.players.get(f.from);
       // Герои с нарисованным скином: свой удар (рывок, взмах оружием) — public/js/herofx.js
       const tx0 = e ? e.c.x : f.tx, ty0 = e ? e.c.y : f.ty;
@@ -1402,8 +1411,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const caster = this.players.get(f.from);
     const hero = caster && this.heroes[caster.data.hero];
     const sk = hero && hero.skills.find((k) => k.id === f.s);
-    if (sk) this.floatText(caster.c.x, caster.c.y - 44, sk.icon + ' ' + sk.name, '#ffe08a', 12);
-    if (f.from === this.myId && !f.quiet) this.ui.vibrate('medium');
+    if (sk && !f.predicted) this.floatText(caster.c.x, caster.c.y - 44, sk.icon + ' ' + sk.name, '#ffe08a', 12);
+    if (f.from === this.myId && !f.quiet && !f.predicted) this.ui.vibrate('medium');
     if (HeroFx.skill(this, f)) return; // усиленные эффекты (public/js/herofx.js)
     switch (f.s) {
       case 'qiWave': {
@@ -2370,9 +2379,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const range = this.prof().range;
     const cur = this.targetId && this.monsters.get(this.targetId);
     const seen = (e) => this.lineOfSight(me.x, me.y, e.c.x, e.c.y); // за стеной цель не выбирается
-    if (cur && Phaser.Math.Distance.Between(me.x, me.y, cur.c.x, cur.c.y) <= range + 120 && seen(cur)) return cur;
+    const gone = (e) => e.killAt && performance.now() - e.killAt < 1200; // уже добит своим ударом, ждём подтверждения сервера
+    if (cur && !gone(cur) && Phaser.Math.Distance.Between(me.x, me.y, cur.c.x, cur.c.y) <= range + 120 && seen(cur)) return cur;
     let best = null, bestD = range + 60;
     for (const [id, e] of this.monsters) {
+      if (gone(e)) continue;
       const d = Phaser.Math.Distance.Between(me.x, me.y, e.c.x, e.c.y);
       if (d < bestD && seen(e)) { best = e; bestD = d; }
     }
@@ -2399,17 +2410,62 @@ window.GameScene = class GameScene extends Phaser.Scene {
     me.dir = t.c.x < me.x ? -1 : 1;
     if (me.e.skinOn) me.e.row = Skins.rowFor(t.c.x - me.x, t.c.y - me.y); // лицом к цели
     this.net.emit('attack', { targetId: t.data.id });
+    this.predictAttack(t, hero);
+  }
+  // Умение: название, звук, вибрация и вспышка — сразу по нажатию (сам эффект рисуется, когда придёт от сервера).
+  // Только если умение, по нашим данным, готово и хватает ресурса — иначе сервер всё равно откажет
+  predictSkill(id) {
+    const me = this.me, list = this.heroes[me.data.hero].skills, idx = list.findIndex((k) => k.id === id), sk = list[idx];
+    if (!sk || !me.e || idx >= (this.myStats.unlocked ?? 1)) return; // умение ещё закрыто — сервер откажет
+    const now = performance.now(), last = (this.skillAt ??= {})[id] || 0;
+    if (now - last < (sk.cooldown || 0) * 0.85 || (this.myStats.res ?? 1e9) < (sk.cost || 0)) return;
+    this.skillAt[id] = now;
+    this.localSkill = { s: id, at: now };
+    this.floatText(me.e.c.x, me.e.c.y - 44, sk.icon + ' ' + sk.name, '#ffe08a', 12);
+    this.ui.vibrate && this.ui.vibrate('medium');
+    const ring = this.add.circle(me.e.c.x, me.e.c.y - 8, 10, 0xffe08a, 0.35).setDepth(860).setStrokeStyle(2, 0xfff3c0, 0.9);
+    this.tweens.add({ targets: ring, scale: 3, alpha: 0, duration: 260, onComplete: () => ring.destroy() });
+    this.playSound({ t: 'skill', s: id, from: this.myId });
+  }
+  // Свой удар — сразу на экране (взмах или выстрел, звук), не дожидаясь ответа сервера: при пинге 200–300 мс
+  // иначе удар появлялся с заметной задержкой, а снаряд летел из старого места. Урон и цифры по-прежнему считает сервер.
+  predictAttack(t, hero) {
+    const me = this.me, a = me.e;
+    if (!a) return;
+    (this.localAtk ??= []).push({ target: t.data.id, at: performance.now() });
+    // Удар точно добивает (урон больше остатка здоровья) — сразу переключаемся на следующего, не бьём «мёртвого», пока сервер подтверждает
+    if ((this.myStats.dmg || 0) * 0.95 >= (t.data.hp || 0)) { t.killAt = performance.now(); if (this.targetId === t.data.id) this.targetId = null; }
+    if (this.localAtk.length > 20) this.localAtk.shift();
+    const tx = t.c.x, ty = t.c.y, proj = hero.projectile;
+    const f = { t: 'hit', kind: 'm', from: this.myId, target: t.data.id, basic: true, proj, fx: me.x, fy: me.y, tx, ty, crit: false, local: true };
+    const noop = () => {};
+    try {
+      if (proj) {
+        if (!HeroFx.shoot(this, a, f, tx, ty, noop)) {
+          const p = this.add.image(me.x, me.y, 'proj_' + proj).setDepth(800);
+          p.rotation = Phaser.Math.Angle.Between(me.x, me.y, tx, ty);
+          this.tweens.add({ targets: p, x: tx, y: ty, duration: Phaser.Math.Distance.Between(me.x, me.y, tx, ty) * 1.4, onComplete: () => p.destroy() });
+        }
+      } else if (!HeroFx.attack(this, a, f, tx, ty)) {
+        if (a.beast) this.tweens.add({ targets: a.sprite, x: Math.sign(tx - a.c.x) * 10, duration: 90, yoyo: true, onComplete: () => { a.sprite.x = 0; } });
+        else this.tweens.add({ targets: a.sprite, scaleX: 1.2, scaleY: 0.9, duration: 70, yoyo: true });
+        const slash = this.add.arc(tx, ty, 16, 200, 340, false).setStrokeStyle(3, 0xffffff).setDepth(800);
+        this.tweens.add({ targets: slash, alpha: 0, scale: 1.6, duration: 200, onComplete: () => slash.destroy() });
+      }
+    } catch (e) { /* анимация не обязательна */ }
+    if (window.Sfx) Sfx.play(proj ? 'shoot' : 'hit', { pitch: 0.9 + Math.random() * 0.2 });
   }
 
   autoFarmTick(time) {
     const me = this.me, range = this.prof().range;
     const skip = this.afSkip || (this.afSkip = new Map()); // недостижимые цели (за стенами лабиринта): id → до какого времени не брать
     let t = this.targetId && this.monsters.get(this.targetId);
-    if (t && (t.pvp || t.heroClone || skip.get(t.data.id) > time)) t = null;
+    const gone = (e) => e.killAt && performance.now() - e.killAt < 1200;
+    if (t && (t.pvp || t.heroClone || gone(t) || skip.get(t.data.id) > time)) t = null;
     if (!t) { // ближайший монстр; видимые напрямую — в приоритете
       let bd = 1e9;
       for (const e of this.monsters.values()) {
-        if (e.pvp || e.heroClone || skip.get(e.data.id) > time) continue;
+        if (e.pvp || e.heroClone || gone(e) || skip.get(e.data.id) > time) continue;
         let d = Math.hypot(e.c.x - me.x, e.c.y - me.y);
         if (d > 1200) continue;
         if (!this.lineOfSight(me.x, me.y, e.c.x, e.c.y)) d += 400;
@@ -2467,15 +2523,30 @@ window.GameScene = class GameScene extends Phaser.Scene {
     c.jit += (Math.max(0, sample - c.off) - c.jit) * 0.08;
     c.at = now;
   }
+  bufPush(e, x, y, ts) {
+    const b = (e.buf ??= []), last = b[b.length - 1];
+    if (last && Math.hypot(x - last.x, y - last.y) > 160) b.length = 0; // телепорт — без «проезда» через карту
+    if (!last || ts > last.t) b.push({ t: ts, x, y });
+    while (b.length > 2 && b[1].t < ts - 1500) b.shift();
+  }
+  // Позиция сущности на момент rt (время сервера) по буферу: между двумя известными — по прямой, после последней — чуть вперёд
+  interpAt(b, rt) {
+    const L = b[b.length - 1];
+    if (rt >= L.t) {
+      const p0 = b[b.length - 2], ext = p0 ? Math.min(150, rt - L.t) / Math.max(1, L.t - p0.t) : 0;
+      return [L.x + (p0 ? (L.x - p0.x) * ext : 0), L.y + (p0 ? (L.y - p0.y) * ext : 0)];
+    }
+    let i = b.length - 1;
+    while (i > 0 && b[i - 1].t > rt) i--;
+    const a0 = b[i - 1], a1 = b[i];
+    if (!a0) return [a1.x, a1.y];
+    const f = (rt - a0.t) / Math.max(1, a1.t - a0.t);
+    return [a0.x + (a1.x - a0.x) * f, a0.y + (a1.y - a0.y) * f];
+  }
   interpDelay() { return this.nc ? Math.max(100, Math.min(450, 70 + this.nc.jit * 1.6)) : 100; }
   trackPos(e, x, y, ts) {
     const now = performance.now();
-    if (ts) {
-      const b = (e.buf ??= []), last = b[b.length - 1];
-      if (last && Math.hypot(x - last.x, y - last.y) > 160) b.length = 0; // телепорт — без «проезда» через карту
-      if (!last || ts > last.t) b.push({ t: ts, x, y });
-      while (b.length > 2 && b[1].t < ts - 1500) b.shift();
-    }
+    if (ts) this.bufPush(e, x, y, ts);
     if (x !== e.tx || y !== e.ty) {
       const dts = e.moveT ? (now - e.moveT) / 1000 : 0; // скорость — между двумя разными позициями
       if (dts > 0.03 && dts < 0.4) { e.vx = Math.max(-400, Math.min(400, (x - e.tx) / dts)); e.vy = Math.max(-400, Math.min(400, (y - e.ty) / dts)); } else { e.vx = 0; e.vy = 0; }
@@ -2520,16 +2591,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const b = e.buf;
       if (b && b.length && this.nc) {
         // Интерполяция между позициями с сервера на момент «сейчас − задержка»: движение ровное, даже если пакеты пришли пачкой
-        const rt = nowMs - this.nc.off - this.interpDelay();
-        let i = b.length - 1;
-        while (i > 0 && b[i - 1].t > rt) i--;
-        const a0 = b[i - 1], a1 = b[i];
-        if (rt >= b[b.length - 1].t) {
-          const l = b[b.length - 1], p0 = b[b.length - 2];
-          const ext = p0 ? Math.min(150, rt - l.t) / Math.max(1, l.t - p0.t) : 0; // связь отстала — чуть продолжаем движение, потом стоим
-          gx = l.x + (p0 ? (l.x - p0.x) * ext : 0); gy = l.y + (p0 ? (l.y - p0.y) * ext : 0);
-        } else if (!a0) { gx = a1.x; gy = a1.y; }
-        else { const f = (rt - a0.t) / Math.max(1, a1.t - a0.t); gx = a0.x + (a1.x - a0.x) * f; gy = a0.y + (a1.y - a0.y) * f; }
+        [gx, gy] = this.interpAt(b, nowMs - this.nc.off - this.interpDelay());
         mx = gx - e.c.x; my = gy - e.c.y;
         if (Math.hypot(mx, my) > 160) { e.c.x = gx; e.c.y = gy; } else { const kk = Math.min(1, dt * 30); e.c.x += mx * kk; e.c.y += my * kk; }
         const sp = Math.hypot(mx, my) / Math.max(0.001, dt); // скорость на экране: идёт или стоит (для анимации шага)
@@ -2546,10 +2608,20 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.animSkin(e, moving ? mx : 0, moving ? my : 0, moving);
       } else if (e.beast) this.animBeast(e, mx, my, Math.hypot(mx, my) > 1.5);
     }
+    const mrt = this.nc ? nowMs - this.nc.off - this.interpDelay() : 0;
     for (const e of this.monsters.values()) {
       if (e.pvp) continue; // герой-соперник на арене движется вместе с героем
-      const mx = e.tx - e.c.x, my = e.ty - e.c.y;
-      e.c.x += mx * k; e.c.y += my * k;
+      let mx, my;
+      if (e.buf && e.buf.length && this.nc) {
+        // Монстры тоже по буферу времени сервера — без рывков при неровной связи
+        const [gx, gy] = this.interpAt(e.buf, mrt);
+        mx = gx - e.c.x; my = gy - e.c.y;
+        if (Math.hypot(mx, my) > 160) { e.c.x = gx; e.c.y = gy; } else { const kk = Math.min(1, dt * 30); e.c.x += mx * kk; e.c.y += my * kk; }
+        if (Math.hypot(mx, my) / Math.max(0.001, dt) < 20) { mx = 0; my = 0; } else { mx *= 4; my *= 4; }
+      } else {
+        mx = e.tx - e.c.x; my = e.ty - e.c.y;
+        e.c.x += mx * k; e.c.y += my * k;
+      }
       if (e.heroClone && e.skinOn) { const mv = Math.hypot(mx, my) > 1; this.animSkin(e, mv ? mx : 0, mv ? my : 0, mv); continue; }
       // Нарисованный монстр: шагает, пока движется, стоит — первый кадр ходьбы
       if (e.mskin && !e.attacking) {
@@ -2646,6 +2718,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (!me.data.dead) {
         const t = this.findTarget();
         this.net.emit('skill', { id: skillId, targetId: t ? t.data.id : null });
+        this.predictSkill(skillId);
       }
     }
 
