@@ -241,7 +241,7 @@ function buildInvoice(who, item, bgId) {
 const FIRST_BUY_OFF = 0.5;
 
 // ---------- Оплата в TON (server/ton.js): заказ → перевод из кошелька игрока → проверка в блокчейне ----------
-const ton = require('./ton')({ store, onPaid: (payload) => onPaid(payload), log: (k, t) => admin.log(k, t) });
+const ton = require('./ton')({ store, onPaid: (payload, info) => onPaid(payload, info), log: (k, t) => admin.log(k, t) });
 app.get('/api/ton/info', (req, res) => res.json(ton.info()));
 // Манифест TON Connect: кошелёк показывает игроку название и значок игры
 // Кошелёк скачивает его до подключения: нужен CORS (иначе вечная загрузка «Продолжите в Telegram…»),

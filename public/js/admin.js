@@ -307,7 +307,7 @@
           <button class="btn" data-a="freeSpin" ${p.freeSpinUsed ? '' : 'disabled'}>Вернуть бесплатную</button></div>
         <div class="row"><label>Крутки предметов</label><input id="iSpinsVal" type="number" value="${p.itemSpins}"><button class="btn" data-a="itemSpins">Сохранить</button></div>
       </div>
-      <div class="card"><h3>⭐ Покупки</h3>${(p.payments || []).length ? p.payments.map((x) => `<div class="row"><small class="grow">${new Date(x.t).toLocaleString('ru')} · ${esc(x.kind)}${x.id ? ' ' + esc(x.id) : ''} · ${x.amount ?? '?'} ${esc(x.cur || '')}${x.refunded ? ' · <b>возврат</b>' : ''}</small>${x.charge && !x.refunded && x.cur === 'XTR' ? `<button class="btn small danger" data-a="refund" data-charge="${esc(x.charge)}" data-amount="${x.amount ?? ''}">↩️ Вернуть Stars</button>` : ''}</div>`).join('') : '<small>Покупок за Stars нет</small>'}</div>
+      <div class="card"><h3>⭐ Покупки</h3>${(p.payments || []).length ? p.payments.map((x) => `<div class="row"><small class="grow">${new Date(x.t).toLocaleString('ru')} · ${esc(x.kind)}${x.id ? ' ' + esc(x.id) : ''} · ${x.amount ?? '?'} ${esc(x.cur || '')}${x.refunded ? ' · <b>возврат</b>' : ''}</small>${x.charge && !x.refunded && x.cur === 'XTR' ? `<button class="btn small danger" data-a="refund" data-charge="${esc(x.charge)}" data-amount="${x.amount ?? ''}">↩️ Вернуть Stars</button>` : ''}</div>`).join('') : '<small>Покупок нет</small>'}</div>
 
       <div class="card"><h3>🦸 Герои (${p.heroes.filter((h) => h.owned).length} / ${p.heroes.length})</h3>
         <div class="row"><button class="btn" data-a="allHeroes">Выдать всех</button>

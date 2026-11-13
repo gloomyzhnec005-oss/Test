@@ -65,7 +65,7 @@ module.exports = function createTon({ store, onPaid, log }) {
       return 'underpaid';
     }
     o.status = 'paid'; o.paidAt = Date.now(); o.tx = hash; o.from = m.source;
-    const ok = onPaid(o.payload);
+    const ok = onPaid(o.payload, { amount: o.ton, currency: 'GRAM' });
     log('pay', `TON: оплата ${o.ton} GRAM · ${o.payload}${ok ? '' : ' — НЕ ЗАЧИСЛЕНО (неизвестный товар)'}`);
     return ok ? 'paid' : 'error';
   }
