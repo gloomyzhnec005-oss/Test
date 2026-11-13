@@ -96,7 +96,19 @@
   }
   // ---------- Снимки и восстановление (отдельное окно поверх — обзор обновляется каждые 4 с) ----------
   const authHeaders = () => { const h = {}; if (key) h['x-admin-key'] = key; if (tg) h['x-tg-init'] = tg.initData; return h; };
+  // Скачать снимок. В Telegram на телефоне обычное скачивание даёт чёрный экран — там просим у сервера одноразовую ссылку
+  // и отдаём её Telegram (downloadFile) или внешнему браузеру; в обычном браузере — как раньше
   async function saveSnap(id) {
+    const inTg = tg && tg.platform && tg.platform !== 'unknown';
+    if (inTg) {
+      const r = await api('snapLink', { id });
+      if (!r.url) return;
+      const url = location.origin + r.url, name = r.url.split('/').pop();
+      if (tg.downloadFile && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')) {
+        try { return tg.downloadFile({ url, file_name: name }); } catch { /* старый Telegram — откроем в браузере */ }
+      }
+      return tg.openLink(url);
+    }
     toast('Готовлю файл…');
     const r = await fetch('/admin/api/snapDownload', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
     if (!r.ok) return toast('Не удалось скачать', true);
@@ -117,12 +129,12 @@
     const r = await api('snapshots');
     ov.innerHTML = `<div class="card" style="max-width:720px;margin:0 auto">
       <div class="row"><h3 class="grow" style="margin:0">💾 Бэкапы и восстановление</h3><button class="btn small" data-close="1">Закрыть</button></div>
-      <p class="muted"><small>Восстановление заменяет ВСЕ данные игры (игроки, рынок, кланы…) содержимым бэкапа. Текущее состояние перед этим сохраняется снимком «перед восстановлением» — им можно откатить. Игроков выкинет, сервер перезапустится примерно за минуту.</small></p>
-      <div class="row"><button class="btn primary" data-dl="0">Скачать текущее состояние</button>${r.db ? '<button class="btn" data-now="1">Сделать снимок сейчас</button>' : ''}</div>
-      <div class="row"><label class="grow">Восстановить из файла (.json.gz из Telegram или «Скачать»)<input type="file" id="snapFile" accept=".gz,.json,application/gzip,application/json"></label><button class="btn danger" data-file="1">Восстановить</button></div>
-      ${r.db ? `<h3>Снимки в базе (${(r.list || []).length})</h3><table><tr><th>№</th><th>Когда</th><th>Тип</th><th>Игроков</th><th>Размер</th><th></th></tr>
-        ${(r.list || []).map((x) => `<tr><td>${x.id}</td><td>${new Date(x.at).toLocaleString('ru-RU')}</td><td>${KIND[x.kind] || esc(x.kind)}</td><td>${fmtNum(x.players)}</td><td>${x.size < 1048576 ? Math.max(1, Math.round(x.size / 1024)) + " КБ" : (x.size / 1048576).toFixed(1) + " МБ"}</td>
-          <td><button class="btn small" data-dl="${x.id}">Скачать</button> <button class="btn small danger" data-rs="${x.id}">Восстановить</button></td></tr>`).join('')}</table>` : '<p class="muted">Без базы снимки делаются файлами на диске (см. «Сохранения»).</p>'}
+      <p class="muted"><small>На телефоне удобнее «📩 Прислать в Telegram» — бот пришлёт файл в чат, там его можно сохранить («Сохранить в Файлы»).<br>Восстановление заменяет ВСЕ данные игры (игроки, рынок, кланы…) содержимым бэкапа. Текущее состояние перед этим сохраняется снимком «перед восстановлением» — им можно откатить. Игроков выкинет, сервер перезапустится примерно за минуту.</small></p>
+      <div class="row" style="flex-wrap:wrap;gap:6px"><button class="btn primary" data-tg="0">📩 Прислать в Telegram</button><button class="btn" data-dl="0">Скачать текущее состояние</button>${r.db ? '<button class="btn" data-now="1">Сделать снимок сейчас</button>' : ''}</div>
+      <div class="row" style="flex-wrap:wrap"><label class="grow" style="min-width:0;max-width:100%">Восстановить из файла (.json.gz из Telegram или «Скачать»)<input type="file" id="snapFile" style="max-width:100%;display:block" accept=".gz,.json,application/gzip,application/json"></label><button class="btn danger" data-file="1">Восстановить</button></div>
+      ${r.db ? `<h3>Снимки в базе (${(r.list || []).length})</h3>
+        ${(r.list || []).map((x) => `<div style="border-top:1px solid rgba(255,255,255,.08);padding:8px 0"><div><b>№${x.id}</b> · ${new Date(x.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · ${KIND[x.kind] || esc(x.kind)}<br><small class="muted">игроков ${fmtNum(x.players)} · ${x.size < 1048576 ? Math.max(1, Math.round(x.size / 1024)) + ' КБ' : (x.size / 1048576).toFixed(1) + ' МБ'}</small></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><button class="btn small" data-tg="${x.id}">📩 В Telegram</button><button class="btn small" data-dl="${x.id}">Скачать</button><button class="btn small danger" data-rs="${x.id}">Восстановить</button></div></div>`).join('')}` : '<p class="muted">Без базы снимки делаются файлами на диске (см. «Сохранения»).</p>'}
     </div>`;
     const confirmTyped = (what) => (prompt(`Восстановить ${what}? Все текущие данные игры будут заменены.\nНапишите ВОССТАНОВИТЬ для подтверждения:`) || '').trim().toUpperCase() === 'ВОССТАНОВИТЬ';
     const after = (res) => { if (res && res.restarting) { ov.innerHTML = `<div class="card" style="max-width:720px;margin:0 auto"><h3>✅ ${esc(res.text)}</h3></div>`; setTimeout(() => location.reload(), 30000); } };
@@ -130,6 +142,7 @@
       const t = e.target;
       if (t === ov || t.closest('[data-close]')) return ov.remove();
       if (t.closest('[data-now]')) { await api('snapshotNow'); return openSnaps(); }
+      const tgb = t.closest('[data-tg]'); if (tgb) return api('snapToTg', { id: Number(tgb.dataset.tg) || 0 });
       const dl = t.closest('[data-dl]'); if (dl) return saveSnap(Number(dl.dataset.dl) || 0);
       const rs = t.closest('[data-rs]');
       if (rs && confirmTyped(`снимок №${rs.dataset.rs}`)) return after(await api('restoreSnap', { id: Number(rs.dataset.rs), confirm: 'ВОССТАНОВИТЬ' }));

@@ -121,6 +121,7 @@ const perf = { lagP50: 0, lagP99: 0, lagMax: 0, cpu: 0 };
   }, 10000).unref(); }
 admin.ctx.perf = () => perf;
 const S = admin.settings;
+app.get('/admin/dl/:t/:name', (req, res) => admin.download(req, res)); // одноразовая ссылка на бэкап (для телефона)
 app.use('/admin/api', admin.router);
 app.use(express.json({ limit: '16kb' }));
 app.use((req, res, next) => (req.body && badArg(req.body) ? res.status(400).json({ error: 'Неверный запрос' }) : next()));
@@ -2011,6 +2012,15 @@ server.listen(PORT, () => {
   console.log(`MMORPG сервер запущен: http://localhost:${PORT}`);
   if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ onPaid, isValidPayload, profiles: () => profiles, save: () => saveProfiles(),
     onNotify: (tgId) => { const pr = profiles['tg' + tgId]; if (!pr) return null; pr.notifyOff = !pr.notifyOff; if (!pr.notifyOff) pr.pushBlocked = false; saveProfiles(); return !pr.notifyOff; } });
+});
+// Бэкап из админки — файлом администраторам в Telegram (на телефоне скачать иначе нельзя)
+admin.setSendFile(async (buf, filename, caption) => {
+  if (!bot) return 0;
+  let n = 0;
+  for (const id of String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean)) {
+    try { await bot.telegram.sendDocument(id, { source: buf, filename }, { caption }); n++; } catch (e) { console.error('admin-alert: бэкап', id, e.message); }
+  }
+  return n;
 });
 // Новые ошибки сервера — администраторам (ADMIN_TG_IDS) в Telegram, не чаще раза в 10 минут
 admin.setAlert((text) => {

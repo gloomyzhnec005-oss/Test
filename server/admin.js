@@ -407,6 +407,42 @@ module.exports = function createAdmin(ctx) {
       res.set('Content-Type', 'application/gzip').send(buf);
     } catch (e) { console.error('admin', e); res.status(500).json({ error: e.message }); }
   });
+  // На телефоне (окно мини-приложения Telegram) скачать файл обычным способом нельзя — чёрный экран. Поэтому:
+  // 1) «Прислать в Telegram» — бот присылает снимок файлом администраторам;
+  // 2) одноразовая ссылка на 5 минут — для Telegram.WebApp.downloadFile или внешнего браузера.
+  const snapBuf = async (id) => {
+    if (id) return store.getSnapshot(Number(id));
+    ctx.saveProfiles(); return (await store.dump()).buf;
+  };
+  const snapName = (id) => `mystic-backup-${id ? 'snap' + id + '-' : ''}${new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 16).replace(/[T:]/g, '-')}.json.gz`;
+  let sendFileFn = null;
+  r.post('/snapToTg', aact(async (d, req) => {
+    if (!sendFileFn) return { error: 'Бот не запущен или не задан ADMIN_TG_IDS' };
+    const buf = await snapBuf(d.id);
+    if (!buf) return { error: 'Снимок не найден' };
+    if (buf.length > 49 * 1048576) return { error: 'Файл больше 50 МБ — Telegram не примет, скачайте с компьютера' };
+    const n = await sendFileFn(buf, snapName(d.id), `💾 Бэкап игры${d.id ? ' · снимок №' + d.id : ' · текущее состояние'}\nВосстановить: админка → Обзор → «Снимки и восстановление» → «Восстановить из файла».`);
+    if (!n) return { error: 'Не удалось отправить — проверьте ADMIN_TG_IDS и что вы писали боту /start' };
+    return { text: 'Файл отправлен вам в Telegram — откройте чат с ботом' };
+  }, (d) => `бэкап в Telegram${d.id ? ' №' + d.id : ''}`));
+  const dlTokens = new Map(); // токен → { id, until }
+  r.post('/snapLink', aact(async (d) => {
+    const t = crypto.randomBytes(18).toString('base64url');
+    dlTokens.set(t, { id: Number(d.id) || 0, until: Date.now() + 5 * 60e3 });
+    for (const [k, v] of dlTokens) if (v.until < Date.now()) dlTokens.delete(k);
+    return { url: `/admin/dl/${t}/${snapName(d.id)}` };
+  }));
+  async function download(req, res) {
+    const v = dlTokens.get(req.params.t);
+    if (!v || v.until < Date.now()) return res.status(404).send('Ссылка устарела — получите новую в админке');
+    dlTokens.delete(req.params.t);
+    try {
+      const buf = await snapBuf(v.id);
+      if (!buf) return res.status(404).send('Снимок не найден');
+      log('admin', `скачан бэкап${v.id ? ' №' + v.id : ''} по одноразовой ссылке`);
+      res.set({ 'Content-Type': 'application/gzip', 'Content-Disposition': `attachment; filename="${snapName(v.id)}"`, 'Cache-Control': 'no-store' }).send(buf);
+    } catch (e) { console.error('admin dl', e); res.status(500).send(e.message); }
+  }
   // Восстановление: всех игроков выкидываем, данные подменяем, сервер перезапускается (Railway поднимает его заново)
   async function doRestore(buf, req, what) {
     for (const p of [...ctx.players.values()]) { p.socket.emit('error_msg', 'Технические работы: восстановление данных, зайдите через минуту'); p.socket.disconnect(true); }
@@ -496,5 +532,5 @@ module.exports = function createAdmin(ctx) {
 
   // Администратор ли этот игрок (Telegram ID в ADMIN_TG_IDS) — для кнопки админки в лобби
   const isAdminUid = (uid) => String(uid).startsWith('tg') && TG_IDS.includes(String(uid).slice(2));
-  return { router: r, settings, log, ctx, isAdminUid, setAlert: (fn) => { alertFn = fn; } };
+  return { router: r, settings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; } };
 };
