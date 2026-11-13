@@ -2013,6 +2013,12 @@ server.listen(PORT, () => {
   if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ onPaid, isValidPayload, profiles: () => profiles, save: () => saveProfiles(),
     onNotify: (tgId) => { const pr = profiles['tg' + tgId]; if (!pr) return null; pr.notifyOff = !pr.notifyOff; if (!pr.notifyOff) pr.pushBlocked = false; saveProfiles(); return !pr.notifyOff; } });
 });
+// Возврат Stars кнопкой в админке; игроку — сообщение от бота
+admin.setRefund(async (tgId, charge) => {
+  if (!bot) throw new Error('бот не запущен');
+  await bot.telegram.callApi('refundStarPayment', { user_id: tgId, telegram_payment_charge_id: charge });
+  bot.telegram.sendMessage(tgId, '💫 Stars за покупку возвращены. / Your Stars have been refunded.').catch(() => {});
+});
 // Бэкап из админки — файлом администраторам в Telegram (на телефоне скачать иначе нельзя)
 admin.setSendFile(async (buf, filename, caption) => {
   if (!bot) return 0;

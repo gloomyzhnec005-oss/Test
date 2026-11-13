@@ -307,7 +307,7 @@
           <button class="btn" data-a="freeSpin" ${p.freeSpinUsed ? '' : 'disabled'}>Вернуть бесплатную</button></div>
         <div class="row"><label>Крутки предметов</label><input id="iSpinsVal" type="number" value="${p.itemSpins}"><button class="btn" data-a="itemSpins">Сохранить</button></div>
       </div>
-      <div class="card"><h3>⭐ Покупки</h3>${(p.payments || []).length ? p.payments.map((x) => `<div class="row"><small class="grow">${new Date(x.t).toLocaleString('ru')} · ${esc(x.kind)}${x.id ? ' ' + esc(x.id) : ''} · ${x.amount ?? '?'} ${esc(x.cur || '')}${x.refunded ? ' · <b>возврат</b>' : ''}${x.charge ? `<br>возврат Stars в боте: <code>/refund ${esc(String(p.uid).replace(/^tg/, ''))} ${esc(x.charge)}</code>` : ''}</small></div>`).join('') : '<small>Покупок за Stars нет</small>'}</div>
+      <div class="card"><h3>⭐ Покупки</h3>${(p.payments || []).length ? p.payments.map((x) => `<div class="row"><small class="grow">${new Date(x.t).toLocaleString('ru')} · ${esc(x.kind)}${x.id ? ' ' + esc(x.id) : ''} · ${x.amount ?? '?'} ${esc(x.cur || '')}${x.refunded ? ' · <b>возврат</b>' : ''}</small>${x.charge && !x.refunded && x.cur === 'XTR' ? `<button class="btn small danger" data-a="refund" data-charge="${esc(x.charge)}" data-amount="${x.amount ?? ''}">↩️ Вернуть Stars</button>` : ''}</div>`).join('') : '<small>Покупок за Stars нет</small>'}</div>
 
       <div class="card"><h3>🦸 Герои (${p.heroes.filter((h) => h.owned).length} / ${p.heroes.length})</h3>
         <div class="row"><button class="btn" data-a="allHeroes">Выдать всех</button>
@@ -384,6 +384,11 @@
         clearItems: () => confirm('Удалить все предметы игрока?') && edit('clearItems'),
         sub: () => edit('sub', { value: v('subDays') }), subOff: () => edit('sub', { value: 0 }), passXp: () => edit('passXp', { value: v('passXp') }), passTier: () => edit('passTier', { value: v('passTier') }),
         ban: () => confirm('Забанить игрока?') && edit('ban', { reason: v('banReason') }), unban: () => edit('unban'), kick: () => edit('kick'),
+        refund: async () => {
+          if (!confirm(`Вернуть игроку ${b.dataset.amount || ''} ⭐ за эту покупку? Отменить возврат нельзя.`)) return;
+          const r = await api('refund', { uid: cur.uid, charge: b.dataset.charge });
+          if (r.player) { cur = r.player; drawPlayer(); }
+        },
         reset: () => confirm('Удалить ВЕСЬ прогресс игрока? Это нельзя отменить.') && edit('reset'),
         rawLoad: async () => { const r = await api('raw', { uid: cur.uid }); if (r.json) { $('raw').value = JSON.stringify(r.json, null, 2); $('raw').classList.remove('hidden'); } },
         rawSave: async () => {

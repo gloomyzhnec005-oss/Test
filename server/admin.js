@@ -425,6 +425,19 @@ module.exports = function createAdmin(ctx) {
     if (!n) return { error: 'Не удалось отправить — проверьте ADMIN_TG_IDS и что вы писали боту /start' };
     return { text: 'Файл отправлен вам в Telegram — откройте чат с ботом' };
   }, (d) => `бэкап в Telegram${d.id ? ' №' + d.id : ''}`));
+  // Возврат Stars кнопкой из карточки игрока (то же, что /refund в боте, но без копирования charge_id)
+  let refundFn = null;
+  r.post('/refund', aact(async (d) => {
+    if (!refundFn) return { error: 'Бот не запущен' };
+    const pr = ctx.profiles[d.uid];
+    if (!pr || !String(d.uid).startsWith('tg')) return { error: 'Игрок не найден' };
+    const pay = (pr.payments || []).find((x) => x.charge === d.charge);
+    if (!pay) return { error: 'Покупка не найдена' };
+    if (pay.refunded) return { error: 'Уже возвращено' };
+    try { await refundFn(Number(String(d.uid).slice(2)), d.charge); } catch (e) { return { error: 'Telegram отказал: ' + e.message }; }
+    pay.refunded = Date.now(); ctx.saveProfiles();
+    return { text: `Stars возвращены (${pay.amount ?? '?'} ⭐). Заберите купленное в карточке игрока.`, player: playerView(d.uid) };
+  }, (d) => `возврат Stars ${d.uid} ${d.charge}`));
   const dlTokens = new Map(); // токен → { id, until }
   r.post('/snapLink', aact(async (d) => {
     const t = crypto.randomBytes(18).toString('base64url');
@@ -532,5 +545,5 @@ module.exports = function createAdmin(ctx) {
 
   // Администратор ли этот игрок (Telegram ID в ADMIN_TG_IDS) — для кнопки админки в лобби
   const isAdminUid = (uid) => String(uid).startsWith('tg') && TG_IDS.includes(String(uid).slice(2));
-  return { router: r, settings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; } };
+  return { router: r, settings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; }, setRefund: (fn) => { refundFn = fn; } };
 };
