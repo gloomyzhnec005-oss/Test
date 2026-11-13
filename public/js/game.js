@@ -114,10 +114,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (PD && s.p) for (const o of s.p) for (const k in PD) if (!(k in o)) o[k] = PD[k];
       if (this.pendingState) { const fx = this.pendingState.fx.concat(s.fx); s.fx = fx.length > 150 ? fx.slice(-150) : fx; }
       this.pendingState = s;
-      if (this.zoneLoading || document.hidden) return;
+      if (this.zoneLoading || (window.appHidden ? window.appHidden() : document.hidden)) return;
     });
     // Позиции героев между тиками сервера
-    this.net.on('pp', (list) => { for (const [id, x, y, dir] of list) { if (id === this.myId) continue; const e = this.players.get(id); if (e) { this.trackPos(e, x, y); if (e.data) e.data.dir = dir; } } });
+    this.net.on('pp', (list, ts) => { this.netClock(ts); for (const [id, x, y, dir] of list) { if (id === this.myId) continue; const e = this.players.get(id); if (e) { this.trackPos(e, x, y, ts); if (e.data) e.data.dir = dir; } } });
     this.net.on('stats', (st) => { const now = Date.now(); this.myStats = { ...st, ccEnd: st.cc ? now + (st.ccMs || 0) : 0, rootEnd: st.rooted ? now + (st.rootMs || 0) : 0 }; });
     // Ворота босса открылись или запечатались: клетки прохода и анимация створок
     this.net.on('gate', (g) => {
@@ -142,6 +142,15 @@ window.GameScene = class GameScene extends Phaser.Scene {
       } else this.enterZone(d);
     });
     this.load.on('progress', (v) => { if (this.zoneLoading && this.ui.onLoading) this.ui.onLoading(v); });
+    // Связь пропала надолго, сессию на сервере восстановить не удалось — заново вошли в мир (новый id, город).
+    // Раньше страница перезагружалась целиком, и на плохом интернете зависала на загрузке
+    this.rejoin = (w) => {
+      const old = this.players.get(this.myId);
+      if (old) { this.players.delete(this.myId); this.players.set(w.id, old); old.sprite && old.sprite.setData && old.sprite.setData('playerId', w.id); if (old.data) old.data.id = w.id; }
+      this.myId = w.id;
+      this.pendingState = null;
+      this.net.listeners('zone')[0]({ zone: w.zone, x: w.x, y: w.y });
+    };
     this.enterZone = (d) => {
       (d.zone.mobs || []).forEach((t) => this.makeMobAnims(t));
       this.buildZone(d.zone);
@@ -732,6 +741,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   onState(s) {
+    this.netClock(s.ts);
     // Игроки
     const seen = new Set();
     for (const p of s.p) {
@@ -753,7 +763,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
           this.cameras.main.startFollow(e.c, true, 1, 1); // камера жёстко закреплена на герое, без запаздывания
         }
       }
-      this.trackPos(e, p.x, p.y);
+      this.trackPos(e, p.x, p.y, s.ts);
       e.data = p;
       e.label.setText(`${p.tag ? `[${p.tag}] ` : ''}${p.name} [${p.lvl}]`); // тег клана перед именем
       // Спутник рядом с героем (виден всем)
@@ -2447,8 +2457,25 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   // Новая позиция чужого героя: запоминаем скорость, чтобы предсказывать движение между пакетами
-  trackPos(e, x, y) {
+  // Часы сервера для плавного показа чужих героев. off — наименьшая разница «наше время − время сервера» (пакет, дошедший быстрее всех),
+  // jit — насколько пакеты опаздывают сверх неё (неровная связь, VPN). Чужих героев рисуем «в прошлом» на задержку,
+  // зависящую от jit: при ровной связи ~100 мс, при пинге 300 мс через VPN — больше, зато без рывков и прыжков.
+  netClock(ts) {
+    if (!ts) return;
+    const now = performance.now(), sample = now - ts, c = (this.nc ??= { off: sample, jit: 30, at: now });
+    c.off = Math.min(sample, c.off + (now - c.at) * 0.002); // медленно подстраиваемся, если часы «уплывают»
+    c.jit += (Math.max(0, sample - c.off) - c.jit) * 0.08;
+    c.at = now;
+  }
+  interpDelay() { return this.nc ? Math.max(100, Math.min(450, 70 + this.nc.jit * 1.6)) : 100; }
+  trackPos(e, x, y, ts) {
     const now = performance.now();
+    if (ts) {
+      const b = (e.buf ??= []), last = b[b.length - 1];
+      if (last && Math.hypot(x - last.x, y - last.y) > 160) b.length = 0; // телепорт — без «проезда» через карту
+      if (!last || ts > last.t) b.push({ t: ts, x, y });
+      while (b.length > 2 && b[1].t < ts - 1500) b.shift();
+    }
     if (x !== e.tx || y !== e.ty) {
       const dts = e.moveT ? (now - e.moveT) / 1000 : 0; // скорость — между двумя разными позициями
       if (dts > 0.03 && dts < 0.4) { e.vx = Math.max(-400, Math.min(400, (x - e.tx) / dts)); e.vy = Math.max(-400, Math.min(400, (y - e.ty) / dts)); } else { e.vx = 0; e.vy = 0; }
@@ -2489,11 +2516,31 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const kp = Math.min(1, dt * 18), nowMs = performance.now();
     for (const [id, e] of this.players) {
       if (id === this.myId) continue;
-      const ahead = e.posT ? Math.min(0.1, (nowMs - e.posT) / 1000) : 0;
-      const gx = e.tx + (e.vx || 0) * ahead, gy = e.ty + (e.vy || 0) * ahead;
-      const mx = gx - e.c.x, my = gy - e.c.y;
-      if (Math.hypot(mx, my) > 160) { e.c.x = gx; e.c.y = gy; } // телепорт — сразу на место
-      else { e.c.x += mx * kp; e.c.y += my * kp; }
+      let gx, gy, mx, my;
+      const b = e.buf;
+      if (b && b.length && this.nc) {
+        // Интерполяция между позициями с сервера на момент «сейчас − задержка»: движение ровное, даже если пакеты пришли пачкой
+        const rt = nowMs - this.nc.off - this.interpDelay();
+        let i = b.length - 1;
+        while (i > 0 && b[i - 1].t > rt) i--;
+        const a0 = b[i - 1], a1 = b[i];
+        if (rt >= b[b.length - 1].t) {
+          const l = b[b.length - 1], p0 = b[b.length - 2];
+          const ext = p0 ? Math.min(150, rt - l.t) / Math.max(1, l.t - p0.t) : 0; // связь отстала — чуть продолжаем движение, потом стоим
+          gx = l.x + (p0 ? (l.x - p0.x) * ext : 0); gy = l.y + (p0 ? (l.y - p0.y) * ext : 0);
+        } else if (!a0) { gx = a1.x; gy = a1.y; }
+        else { const f = (rt - a0.t) / Math.max(1, a1.t - a0.t); gx = a0.x + (a1.x - a0.x) * f; gy = a0.y + (a1.y - a0.y) * f; }
+        mx = gx - e.c.x; my = gy - e.c.y;
+        if (Math.hypot(mx, my) > 160) { e.c.x = gx; e.c.y = gy; } else { const kk = Math.min(1, dt * 30); e.c.x += mx * kk; e.c.y += my * kk; }
+        const sp = Math.hypot(mx, my) / Math.max(0.001, dt); // скорость на экране: идёт или стоит (для анимации шага)
+        if (sp < 25) { mx = 0; my = 0; } else { mx *= 4; my *= 4; }
+      } else {
+        const ahead = e.posT ? Math.min(0.1, (nowMs - e.posT) / 1000) : 0;
+        gx = e.tx + (e.vx || 0) * ahead; gy = e.ty + (e.vy || 0) * ahead;
+        mx = gx - e.c.x; my = gy - e.c.y;
+        if (Math.hypot(mx, my) > 160) { e.c.x = gx; e.c.y = gy; } // телепорт — сразу на место
+        else { e.c.x += mx * kp; e.c.y += my * kp; }
+      }
       if (e.skinOn) {
         const moving = Math.hypot(mx, my) > 1.5;
         this.animSkin(e, moving ? mx : 0, moving ? my : 0, moving);

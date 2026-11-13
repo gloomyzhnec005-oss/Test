@@ -1425,6 +1425,7 @@ io.on('connection', (socket) => {
       monsters: C.MONSTERS,
       stats: privateStats(p),
       pDef: P_DEF, // поля героев, которых нет в пакете состояния, — со значениями отсюда
+      x: p.x, y: p.y, // место героя (для повторного входа после долгого обрыва — без перезагрузки страницы)
     });
     socket.emit('chatHistory', [...chatHistory, ...((clanOf(uid) || {}).log || []).slice(-30)].sort((a, b) => a.t - b.t)); // + история клана
     io.emit('chat', { sys: true, text: `${p.name} (${hero.name}, ${hero.title}) вошёл в мир` });
@@ -1949,6 +1950,7 @@ setInterval(() => {
       hp: Math.ceil(Math.max(0, pet.hp)), maxHp: pet.maxHp, down: pet.down, boost: pet.boostUntil > now })),
     t: Z.t.map((t) => ({ id: t.id, kind: t.kind, sub: t.sub || null, ang: t.ang ?? null, x: Math.round(t.x), y: Math.round(t.y), r: t.r, left: t.until - now })),
     fx: Z.fx,
+    ts: now, // время сервера: клиент показывает чужих героев с небольшой задержкой по этому времени (плавно при неровной связи)
   };
   // volatile: если связь медленная и прошлый кадр ещё не ушёл — этот пропускаем, а не копим очередь (иначе игра «догоняет» с задержкой)
   const important = Z.fx.filter((f) => FX_KEEP.has(f.t));
@@ -1958,7 +1960,11 @@ setInterval(() => {
   for (const p of Z.p) {
     if (p.offline) continue;
     const tr = p.socket.conn && p.socket.conn.transport;
-    if (tr && !tr.writable) { if (important.length) p.pendFx = (p.pendFx || []).concat(important).slice(-60); continue; } // связь занята — кадр пропускаем, важное копим
+    if (tr && !tr.writable) { // связь занята — кадр пропускаем, важное копим (умения — только рядом с героем, чтобы пакет не раздувался)
+      const keep = important.filter((f) => !FX_NEAR.has(f.t) || f.x === undefined || (Math.abs(f.x - p.x) < VIEW.x && Math.abs(f.y - p.y) < VIEW.y));
+      if (keep.length) p.pendFx = (p.pendFx || []).concat(keep).slice(-80);
+      continue;
+    }
     const rx = p.autofarm ? VIEW.x * 1.5 : VIEW.x, ry = p.autofarm ? VIEW.y * 1.5 : VIEW.y; // автобою нужен запас — искать цели дальше
     let near = allM;
     const far = mmTick ? [] : null; // пустой список тоже шлём: мини-карта стирает старые точки
@@ -1982,7 +1988,9 @@ setInterval(() => {
 const VIEW = { x: 520, y: 720 };
 let tickNo = 0;
 // Эффекты, которые нельзя терять при плохой связи: гибель монстра, сундук, добыча, повышение уровня
-const FX_KEEP = new Set(['death', 'chest', 'loot', 'levelup', 'pdeath']);
+const FX_KEEP = new Set(['death', 'chest', 'loot', 'levelup', 'pdeath', 'skill', 'heal', 'shield', 'absorb', 'dodge']);
+// Умения и лечение при плохой связи тоже не теряем (иначе умение «не срабатывало» — ни картинки, ни звука), но только те, что рядом
+const FX_NEAR = new Set(['skill', 'heal', 'shield', 'absorb', 'dodge']);
 // Пустые флаги состояния монстров не отправляем: пакет в разы меньше — на медленной связи не копится очередь
 const SLIM_KEEP = new Set(['x', 'y', 'hp', 'maxHp', 'lv', 'tr']);
 function slim(o) { for (const k in o) if ((o[k] === 0 || o[k] === null || o[k] === undefined) && !SLIM_KEEP.has(k)) delete o[k]; return o; }
@@ -1997,7 +2005,8 @@ setTimeout(() => setInterval(() => {
   for (const list of byZ.values()) {
     if (list.length < 2) continue;
     const pos = list.map((p) => [p.id, Math.round(p.x), Math.round(p.y), p.dir]);
-    for (const p of list) p.socket.volatile.emit('pp', pos);
+    const ts = Date.now();
+    for (const p of list) p.socket.volatile.emit('pp', pos, ts);
   }
 }, C.TICK_MS), C.TICK_MS / 2);
 

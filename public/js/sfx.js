@@ -42,14 +42,31 @@ window.Sfx = (() => {
     try { const s = c.createBufferSource(); s.buffer = c.createBuffer(1, 1, 22050); s.connect(c.destination); s.start(0); } catch (e) { /* ничего */ }
   };
   ['pointerdown', 'touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach((e) => document.addEventListener(e, unlock, { passive: true, capture: true }));
-  // После сворачивания вкладки iPhone «прерывает» звук — возобновляем при возврате
-  document.addEventListener('visibilitychange', () => {
+  // Игра свёрнута: вкладка скрыта ИЛИ мини-приложение свёрнуто в полоску внизу Telegram (тогда страница считается видимой,
+  // и без событий Telegram звук продолжал играть, а кадры зря рисовались — телефон грелся). window.appHidden() — для всей игры.
+  let tgInactive = false;
+  window.appHidden = () => document.hidden || tgInactive;
+  const onVis = () => {
     const el = musicNode && musicNode.el;
-    if (document.hidden) { if (keep) keep.pause(); if (el) el.pause(); return; }
-    if (ac && ac.state !== 'running') ac.resume().catch(() => {});
-    if (keep && on) keep.play().catch(() => {});
-    if (el && on) el.play().catch(() => {});
-  });
+    if (window.appHidden()) {
+      if (keep) keep.pause(); if (el) el.pause();
+      if (ac && ac.state === 'running') ac.suspend().catch(() => {});
+    } else {
+      // После сворачивания iPhone «прерывает» звук — возобновляем при возврате
+      if (ac && ac.state !== 'running') ac.resume().catch(() => {});
+      if (keep && on) keep.play().catch(() => {});
+      if (el && on) el.play().catch(() => {});
+    }
+    document.dispatchEvent(new CustomEvent('appvisibility', { detail: { hidden: window.appHidden() } }));
+  };
+  document.addEventListener('visibilitychange', onVis);
+  try {
+    const tw = window.Telegram && Telegram.WebApp;
+    if (tw && tw.onEvent) {
+      tw.onEvent('deactivated', () => { tgInactive = true; onVis(); });
+      tw.onEvent('activated', () => { tgInactive = false; onVis(); });
+    }
+  } catch (e) { /* старый Telegram */ }
 
   // Тон с огибающей: тип волны, частота от→до, длительность, громкость
   function tone(type, f0, f1, dur, vol, delay = 0, dest = master) {

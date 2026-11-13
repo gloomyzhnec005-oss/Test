@@ -26,6 +26,16 @@
         setTimeout(function () { el.classList.add('out'); setTimeout(function () { el.remove(); }, 600); }, msg ? 1200 : 250);
         window.splashDone = function () {};
       };
+      // Нет связи при загрузке: заставка остаётся, внизу — кнопка «Повторить» (раньше экран висел без выхода)
+      window.splashFail = function (msg) {
+        clearInterval(t);
+        document.getElementById('splashText').innerHTML = '';
+        var tx = document.createElement('span'); tx.textContent = msg || 'Нет связи с сервером';
+        var b = document.createElement('button'); b.className = 'splash-retry'; b.textContent = window.I18N && I18N.tr ? I18N.tr('Повторить') : 'Повторить';
+        b.onclick = function () { location.reload(); };
+        document.getElementById('splashText').append(tx, document.createElement('br'), b);
+      };
+      setTimeout(function () { if (document.getElementById('splash') && !document.getElementById('splash').classList.contains('out')) window.splashFail('Загрузка идёт слишком долго — проверьте интернет'); }, 30000);
     })();
   </script>
   <!-- Лобби (выбор персонажа) -->

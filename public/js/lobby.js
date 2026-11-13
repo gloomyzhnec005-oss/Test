@@ -46,8 +46,19 @@ window.Lobby = (() => {
     return c;
   }
 
+  // Запрос с ограничением по времени и повторами — на плохом интернете первый запрос часто «висит»
+  async function fetchRetry(url, init = {}, tries = 4) {
+    for (let i = 0; ; i++) {
+      const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 9000);
+      try { const r = await fetch(url, { ...init, signal: ac.signal }); clearTimeout(tm); return r; } catch (e) {
+        clearTimeout(tm);
+        if (i >= tries - 1) throw e;
+        await new Promise((ok) => setTimeout(ok, 1200 * (i + 1)));
+      }
+    }
+  }
   async function api(url, body) {
-    const r = await fetch(url, {
+    const r = await (url === '/api/profile' ? fetchRetry : fetch)(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ initData: opts.tg ? opts.tg.initData : '', guestId: opts.guestId, ...body }),
     });
@@ -351,7 +362,7 @@ window.Lobby = (() => {
       <div class="tw-tabs wb-tabs"><button class="tw-tab ${banner === 'event' ? 'on' : ''}" data-b="event">🌟 Избранный${ev.mythic ? ': ' + heroes[ev.mythic].name : ''}</button><button class="tw-tab ${banner === 'standard' ? 'on' : ''}" data-b="standard">⭐ Зал героев</button></div>
       ${head}
       <div class="reel-wrap"><div class="reel-marker"></div><div id="reel" class="reel"></div></div>
-      <div class="wb-wallet"><span title="Самоцветы">💎 ${w.gems || 0}</span><span title="Печати призыва">🔮 ${profile.paidSpins || 0}</span><span title="Осколки душ">✨ ${w.glitter || 0}</span></div>
+      <div class="spin-wallet"><div><b>${profile.paidSpins || 0}</b><span>🔮 печати призыва</span></div><div><b>${w.gems || 0}</b><span>💎 самоцветы · ${W().gemsPerWish || 160} = призыв</span></div><div><b>${w.glitter || 0}</b><span>✨ осколки душ</span></div></div>
       <div class="btn-row wb-btns"><button id="spinBtn" class="l2-btn spin-btn" data-n="1">Призыв ×1<small>${costLabel(1)}</small></button><button class="l2-btn spin-btn" data-n="10">Призыв ×10<small>${costLabel(10)}</small></button></div>
       <p class="chances">Мифический герой — не позже чем через ${st.mythicIn} · легендарный или выше — через ${st.legIn}${banner === 'event' && ev.guarM ? ' · <b class="ok">следующий мифический — избранный недели</b>' : ''}${banner === 'event' && ev.guarL ? ' · <b class="ok">следующий легендарный — спутник недели</b>' : ''}</p>
       <div class="btn-row wb-links"><button class="l2-btn" data-a="hist">📜 История</button><button class="l2-btn" data-a="glitter">✨ Обмен осколков</button><button class="l2-btn" data-a="buy">🔮 Печати</button></div>
@@ -729,7 +740,9 @@ window.Lobby = (() => {
         fetch('/admin/api/me', { method: 'POST', headers: { 'x-admin-key': key } })
           .then((r) => { if (r.ok) $('menuAdmin').classList.remove('hidden'); }).catch(() => {});
       }
-    } catch { /* офлайн — остаются значения по умолчанию */ }
+    } catch { // нет связи даже после повторов — заставка с кнопкой «Повторить»
+      if (window.splashFail) { window.splashFail('Нет связи с сервером — проверьте интернет'); return false; }
+    }
   }
 
   // ---------- Инициализация ----------
@@ -742,16 +755,16 @@ window.Lobby = (() => {
     requestAnimationFrame(loop);
 
     try {
-      const cfg = await (await fetch('/api/config')).json();
+      const cfg = await (await fetchRetry('/api/config')).json();
       heroes = cfg.heroes;
       rarities = cfg.rarities;
       backgrounds = cfg.backgrounds;
     } catch {
       $('status').textContent = 'Сервер недоступен';
-      window.splashDone?.('Сервер недоступен');
+      if (window.splashFail) window.splashFail('Нет связи с сервером — проверьте интернет'); else window.splashDone?.('Сервер недоступен');
       return;
     }
-    await loadProfile();
+    if (await loadProfile() === false) return;
     loadBackArt();
 
     const lastHero = opts.store.get('lastHero');

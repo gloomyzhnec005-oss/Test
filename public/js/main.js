@@ -510,7 +510,11 @@
     socket.on('resumed', (d) => { $('netBadge').classList.add('hidden'); if (window.gameScene && window.gameScene.me) { window.gameScene.me.x = d.x; window.gameScene.me.y = d.y; } });
     socket.on('welcome', (w) => {
       window.P_DEF = w.pDef || null;
-      if (game) { location.reload(); return; } // переподключение после обрыва — начинаем заново
+      if (game) { // переподключение после долгого обрыва: входим заново без перезагрузки страницы
+        $('netBadge').classList.add('hidden');
+        try { if (window.gameScene && window.gameScene.rejoin && w.x !== undefined) { window.gameScene.rejoin(w); setStats(w.stats); return; } } catch (e) { console.error('rejoin', e); }
+        location.reload(); return;
+      }
       Lobby.hide();
       $('hud').classList.remove('hidden');
       const hero = w.heroes[selected];
@@ -1092,13 +1096,19 @@
       // стабильно 58+ целых 15 с — пробуем выше, но не выше уровня, на котором уже тормозило
       let slow = 0, fast = 0;
       setInterval(() => {
-        if (document.hidden || Settings.get('lowFps') || Settings.get('gfx') !== 'auto' || !window.gameScene || window.gameScene.zoneLoading) { slow = fast = 0; return; }
+        if (window.appHidden() || Date.now() - (window.__shownAt || 0) < 6000 || Settings.get('lowFps') || Settings.get('gfx') !== 'auto' || !window.gameScene || window.gameScene.zoneLoading) { slow = fast = 0; return; }
         const fps = game.loop.actualFps, cur = window.GAME_DPR, i = DPR_LEVELS.indexOf(cur);
         if (fps < 48) { fast = 0; if (++slow >= 2 && i < DPR_LEVELS.length - 1) { slow = 0; store.set('gfxCap', String(cur)); store.set('gfxDpr', String(DPR_LEVELS[i + 1])); applyDpr(DPR_LEVELS[i + 1]); } }
         else if (fps >= 58) { slow = 0; const cap = Number(store.get('gfxCap')) || 99; if (++fast >= 5 && i > 0 && DPR_LEVELS[i - 1] < cap) { fast = 0; store.set('gfxDpr', String(DPR_LEVELS[i - 1])); applyDpr(DPR_LEVELS[i - 1]); } }
         else { slow = 0; fast = 0; }
       }, 3000);
       Settings.on((k, v) => { if (k === 'gfx') { store.set('gfxCap', ''); applyDpr(gfxStart()); } });
+      // Свернули игру — не рисуем кадры (батарея, нагрев); вернулись — рисуем снова. Первые секунды после возврата
+      // авто-качество не судит по FPS (браузер «разгоняется»), иначе зря снижало чёткость
+      document.addEventListener('appvisibility', (e) => {
+        if (e.detail.hidden) { if (game.loop.running) game.loop.sleep(); }
+        else { window.__shownAt = Date.now(); if (!game.loop.running) game.loop.wake(true); }
+      });
       // FPS и пинг (Настройки → Экран): понять, тормозит телефон или интернет
       let pingMs = 0;
       setInterval(() => { if (!socket.connected) return; const t0 = performance.now(); socket.volatile.emit('ping2', () => { pingMs = Math.round(performance.now() - t0); }); }, 3000);

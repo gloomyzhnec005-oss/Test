@@ -218,7 +218,7 @@ module.exports = function createMeta(deps) {
         dust: (pr.mats || {}).dust || 0, crystals: (pr.mats || {}).skillCrystal || 0 },
       classNames: Object.fromEntries(Object.entries(I.CLASSES).map(([k, c]) => [k, `${c.icon} ${c.name}`])),
       power: (({ hp, dmg, crit, power }) => ({ hp, dmg: Math.round(dmg), crit: Math.round(crit * 100), power }))(fighter(deps, pr, p.heroId, '')),
-      itemSpins: pr.itemSpins || 0, freeItemSpins: freeSpinsLeft(pr), pity: typeof pr.pity === 'number' ? pr.pity : 0, pityMax: SHOP.pity, pityE: pr.pityE || 0, gems: pr.gems || 0, glitter: pr.glitter || 0, gemsPerWish: SHOP.gemsPerWish, gearBanner: gearBanner(),
+      itemSpins: pr.itemSpins || 0, heroSpins: pr.paidSpins || 0, freeItemSpins: freeSpinsLeft(pr), pity: typeof pr.pity === 'number' ? pr.pity : 0, pityMax: SHOP.pity, pityE: pr.pityE || 0, gems: pr.gems || 0, glitter: pr.glitter || 0, gemsPerWish: SHOP.gemsPerWish, gearBanner: gearBanner(),
       attrs: I.ATTRS, rarities: I.ITEM_RARITIES, rarOrder: I.RARITY_ORDER, cats: I.CATEGORIES, slots: I.SLOT_ORDER, slotNames: I.SLOT_NAMES,
     };
   }
