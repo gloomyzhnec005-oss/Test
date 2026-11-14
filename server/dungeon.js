@@ -616,6 +616,14 @@ module.exports = function createDungeons(d) {
         for (const m of big) if (m.room === r) (m.present ??= {})[p.uid] = ((m.present || {})[p.uid] || 0) + (now - (h.presAt || now));
       }
       h.presAt = now;
+      // Босс данжа крепнет, когда в его комнату приходит больше героев (считаем и тех, кто уже бил его)
+      const bm = h.boss && h.boss.id && monsters.get(h.boss.id);
+      if (bm) {
+        const who = new Set(Object.keys(bm.contrib || {}));
+        for (const p of inZone(h.z.id)) if (!p.dead && roomAt(h.z, p.x, p.y, true) === bm.room) who.add(p.uid);
+        const n = Math.max(1, who.size);
+        if (n > (bm.scaledFor || 1)) { const k = bossHpMult(n) / bossHpMult(bm.scaledFor || 1); bm.maxHp = Math.round(bm.maxHp * k); bm.hp = Math.round(bm.hp * k); bm.scaledFor = n; }
+      }
     }
     const b = h.boss;
     if (b) {
@@ -632,7 +640,8 @@ module.exports = function createDungeons(d) {
         }
       }
       if (!b.id && now >= b.at) {
-        const m = create(h.z, b.type, b.c, b.lv, { rank: 'boss', name: h.dg.bossName });
+        const m = create(h.z, b.type, b.c, b.lv, { rank: 'boss', name: h.dg.bossName, hpMult: bossHpMult(1) });
+        m.scaledFor = 1;
         m.room = b.ri;
         b.id = m.id; m.hall = h.z.id;
         if (announced.spawn !== b.at) { announced.spawn = b.at; d.broadcast('👑 Боссы данжей появились! Заходите в порталы своего мира.'); }
@@ -837,7 +846,11 @@ module.exports = function createDungeons(d) {
     if (d.push) d.push('wb', `👹 Мировой босс «${MOBS[type].name}» появился в мире ${world.byId.get(town).name}! Нужна команда — заходите.`, (pr) => d.maxHeroLevel(pr) >= st.cfg.lv - 5);
   }
   // Здоровье мирового босса: рассчитано на 10 героев своего уровня; больше 10 — ещё +8% за каждого
-  const wbHpMult = (n) => Math.max(1, 1 + 0.08 * (n - 10));
+  // Здоровье мирового босса по числу героев в логове: на 10 — полное, меньше — пропорционально (не меньше 20%),
+  // больше 10 — +8% за каждого. Растёт, когда приходят новые, и не падает, когда уходят (иначе можно схитрить)
+  const wbHpMult = (n) => (n <= 10 ? Math.max(0.2, n / 10) : 1 + 0.08 * (n - 10));
+  // Босс данжа рассчитан на 4–5 героев: один — 25%, двое — 44%, трое — 67%, четверо — 89%, пятеро — 100%, дальше +10% за каждого
+  const bossHpMult = (n) => (n <= 5 ? Math.min(1, Math.max(0.25, n / 4.5)) : 1 + 0.1 * (n - 5));
   const WB_PHASES = [0.75, 0.5, 0.25];
   const zmsg = (zid, text) => { for (const o of inZone(zid)) o.socket.emit('chat', { sys: true, text }); };
   const secLeft = (t, now) => Math.max(0, Math.ceil((t - now) / 1000));
@@ -1103,7 +1116,7 @@ module.exports = function createDungeons(d) {
           o.socket.emit('wbRank', { boss: MOBS[b.type].name, hp: Math.round(b.hp / b.maxHp * 100), top: top.map((t) => ({ ...t, me: t.uid === o.uid, uid: undefined })), me: i >= 0 ? { place: i + 1, dmg: Math.round(list[i][1]), pct: Math.round(list[i][1] / tot * 100) } : null, task: b.taskText || '' });
         }
       }
-      // Здоровье мирового босса растёт, если пришло больше 10 игроков
+      // Здоровье мирового босса растёт, когда в логово приходят новые герои
       if (b) {
         const n = Math.max(1, inZone(b.zone).length);
         if (n > b.scaledFor) { const k = wbHpMult(n) / wbHpMult(b.scaledFor); b.maxHp = Math.round(b.maxHp * k); b.hp = Math.round(b.hp * k); b.scaledFor = n; }
