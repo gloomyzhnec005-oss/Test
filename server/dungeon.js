@@ -11,6 +11,8 @@ module.exports = function createDungeons(d) {
   const inZone = (zid) => [...players.values()].filter((p) => p.zone === zid);
   let seq = 1e6;
 
+  // Полубоссы в залах данжей: втрое больше здоровья, вдвое больше урона и опыта (раньше падали слишком быстро)
+  const MINI_K = { hp: 3, dmg: 2, xp: 2 };
   // ---------- Создание монстра ----------
   function create(z, type, pos, level, opts = {}) {
     const def = MOBS[type];
@@ -20,7 +22,7 @@ module.exports = function createDungeons(d) {
     const hp = Math.round(st.hp * (opts.hpMult || 1));
     const m = {
       id: seq++, type, x: pos.x, y: pos.y, homeX: pos.x, homeY: pos.y, zone: z.id, tier: z.tier, level, rank, affixes,
-      hp, maxHp: hp, dmg: st.dmg, cd: st.cd, speed: st.speed, xp: st.xp, range: def.range || 0,
+      hp, maxHp: hp, dmg: Math.max(1, Math.round(st.dmg * (opts.dmgMult || 1))), cd: st.cd, speed: st.speed, xp: Math.round(st.xp * (opts.xpMult || 1)), range: def.range || 0,
       aggro: opts.aggro || (rank === 'boss' || rank === 'world' ? 340 : 250), size: (def.look && def.look.sz || 1) * X.RANK[rank].size,
       target: null, lastAttack: 0, abAt: Date.now() + 1500 + Math.random() * ((def.ab && def.ab.cd) || 4000),
       undead: !!def.undead, boss: rank === 'boss' || rank === 'world', mini: rank === 'mini',
@@ -598,12 +600,22 @@ module.exports = function createDungeons(d) {
     for (const mi of h.minis) {
       if (mi.id && !monsters.has(mi.id)) { mi.id = null; mi.at = nextHour(now); }
       if (!mi.id && now >= mi.at) {
-        const m = create(h.z, mi.type, mi.c, mi.lv, { rank: 'mini' });
+        const m = create(h.z, mi.type, mi.c, mi.lv, { rank: 'mini', hpMult: MINI_K.hp, dmgMult: MINI_K.dmg, xpMult: MINI_K.xp }); // полубосс данжа — втрое крепче
         m.room = mi.ri;
         mi.id = m.id; m.hall = h.z.id;
         tellHall(h, `⭐ Полубосс «${MOBS[mi.type].name}» появился`);
         h.sentAt = 0;
       }
+    }
+    // Кто был в бою с боссом/полубоссом: время в его комнате, пока он ранен (для награды за участие, даже если урона мало)
+    if (h.populated) {
+      const big = [h.boss && h.boss.id, ...h.minis.map((mi) => mi.id)].map((id) => id && monsters.get(id)).filter((m) => m && m.hp < m.maxHp);
+      if (big.length) for (const p of inZone(h.z.id)) {
+        if (p.dead) continue;
+        const r = roomAt(h.z, p.x, p.y, true);
+        for (const m of big) if (m.room === r) (m.present ??= {})[p.uid] = ((m.present || {})[p.uid] || 0) + (now - (h.presAt || now));
+      }
+      h.presAt = now;
     }
     const b = h.boss;
     if (b) {
@@ -674,15 +686,30 @@ module.exports = function createDungeons(d) {
   }
   function sendHall(h) { const info = hallInfo(h); for (const p of inZone(h.z.id)) p.socket.emit('dungeon', info); }
   // Награда за полубосса и босса — всем с вкладом от 3% здоровья
+  // Порог силы: герой выше верхнего уровня данжа больше чем на OVER_LV — по боссу и полубоссам этого данжа бьёт ×0,2 и без добычи
+  const OVER_LV = 5, OVER_DMG = 0.2;
+  const overLevel = (p, h) => !!(h && p.char && p.char.level > h.dg.lv[1] + OVER_LV);
+  // Множитель урона героя по монстру (вызывается из боя): 1 — как обычно, OVER_DMG — если герой перерос данж
+  const overFor = (p, m) => !!(m.hall && (m.boss || m.mini) && overLevel(p, halls.get(m.hall)));
+  function overDmg(p, m) {
+    if (!m.hall || !(m.boss || m.mini)) return 1;
+    const h = halls.get(m.hall);
+    if (!overLevel(p, h)) return 1;
+    if (!(p.overWarn ??= {})[m.id]) { p.overWarn[m.id] = 1; p.socket.emit('skillFail', `Вы слишком сильны для этого данжа (ур. ${h.dg.lv[0]}–${h.dg.lv[1]}): урон по боссу ×${OVER_DMG}, добычи не будет`); }
+    return OVER_DMG;
+  }
   function rewardHallBoss(m) {
     const h = halls.get(m.hall);
     if (!h || !m.contrib) return;
     const boss = m.rank === 'boss';
     for (const p of players.values()) {
-      const part = (m.contrib[p.uid] || 0) / m.maxHp;
-      if (part < 0.03 || p.zone !== m.zone) continue;
+      const part = (m.contrib[p.uid] || 0) / m.maxHp, stayed = ((m.present || {})[p.uid] || 0) / 1000;
+      // Участник: 1% урона ИЛИ 20 с в комнате во время боя — чтобы сильный игрок не «забирал» босса у пришедших слабых
+      if ((part < 0.01 && stayed < 20) || p.zone !== m.zone) continue;
       const pr = d.getProfile(p.uid);
-      const gold = Math.round((boss ? 60 : 20) * h.dg.lv[1] * (0.6 + Math.min(1, part * 3) * 0.4));
+      const over = overLevel(p, h); // герой намного сильнее данжа — только малая доля золота, без добычи
+      if (over) { const g = Math.round((boss ? 60 : 20) * h.dg.lv[1] * 0.2); pr.gold += g; p.socket.emit('chat', { sys: true, text: `${boss ? '🏆 Босс' : '⭐ Полубосс'} повержен. Вы слишком сильны для этого данжа (ур. ${p.char.level} > ${h.dg.lv[1] + OVER_LV}) — только +${g} 💰, без добычи. Ищите данжи своего уровня.` }); d.markDirty(p); continue; }
+      const gold = Math.round((boss ? 60 : 20) * h.dg.lv[1] * (0.6 + Math.min(1, Math.max(part, 0.1) * 3) * 0.4));
       pr.gold += gold;
       d.addPassXp(pr, boss ? 25 : 10);
       d.quest(p.uid, 'dungeon');
@@ -1064,6 +1091,6 @@ module.exports = function createDungeons(d) {
 
   return {
     create, act, melee, meleeRange, canAggro, inLeash, curSpeed, takenMult, onHurt, preventDeath, onKilled, onMonsterHp,
-    startDungeon, startSurvival, trialInfo, summonHallBosses, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState,
+    startDungeon, startSurvival, trialInfo, summonHallBosses, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState, overDmg, overFor, OVER_LV,
   };
 };

@@ -100,6 +100,8 @@ const canWearTpl = (cat, tpl, cls) => { const l = classesFor({ cat, tpl }); retu
 // ---------- Слоты и обычные шаблоны ----------
 // Слоты комплектов (у каждого класса — вещь на каждый из них)
 const SET_SLOTS = ['weapon', 'helm', 'armor', 'gloves', 'boots', 'ring', 'amulet'];
+// Кузница: все предметы героя — и вещи комплектов, и плащ, пояс, серьги (у них реликвия — обычная вещь класса, без комплекта)
+const CRAFT_SLOTS = [...SET_SLOTS, 'cloak', 'belt', 'earring'];
 // Категории надеваемых вещей: + плащ, пояс, серьги (без вещей комплектов)
 const WEAR_CATS = [...SET_SLOTS, 'cloak', 'belt', 'earring'];
 // Слоты на герое: категории + второе кольцо (в него идёт вещь категории «кольцо»)
@@ -499,6 +501,31 @@ const COMPANIONS = {
   beetle: { name: 'Механический жук', bonus: { aspd: 6 }, rare: true, price: 5000, art: true, w: 57, h: 36 },
 };
 const companionOf = (pr) => { const id = pr && pr.comp && pr.comp.active; return id && Object.hasOwn(COMPANIONS, id) ? COMPANIONS[id] : null; };
+// ---------- Зал мастеров: ветка характеристик и мастерство пассивки (у каждого героя своё) ----------
+// Уровень узла не выше половины уровня героя (25 при 50 ур.), каждый уровень стоит золота — растёт быстро
+const TREE = {
+  str:  { name: 'Сила',         stats: { atkP: 1 },             desc: 'урон' },
+  sta:  { name: 'Выносливость', stats: { hpP: 1.5 },            desc: 'здоровье' },
+  agi:  { name: 'Ловкость',     stats: { aspd: 0.8 },           desc: 'скорость атаки' },
+  int:  { name: 'Интеллект',    stats: { skill: 1.2 },          desc: 'сила умений' },
+  luck: { name: 'Удача',        stats: { crit: 0.4, critDmg: 2 }, desc: 'шанс и урон крита' },
+  def:  { name: 'Защита',       stats: { def: 0.6 },            desc: 'защита' },
+};
+const TREE_MAX = 25;
+const treeReq = (L) => 2 * (L + 1);                                   // уровень героя для следующего уровня узла
+const treeCost = (L) => Math.round(150 * Math.pow(L + 1, 1.5) / 10) * 10; // золото за следующий уровень
+// Пассивка: 1 уровень — как есть; каждый следующий усиливает её множители на 4% и даёт +1% урона и здоровья
+const PAS_MAX = 25, PAS_STEP = 0.04;
+const pasReq = (L) => 2 * L;                                          // L — текущий уровень пассивки
+const pasCost = (L) => ({ gold: 500 * L, dust: 1 + Math.floor(L / 2) });
+function treeStats(pr, heroId) {
+  const ch = (pr.chars || {})[heroId] || {}, out = {};
+  for (const [k, n] of Object.entries(TREE)) { const L = (ch.tree || {})[k] || 0; if (L) for (const [s, v] of Object.entries(n.stats)) out[s] = (out[s] || 0) + v * L; }
+  const P = (ch.pasLv || 1) - 1;
+  if (P > 0) { out.atkP = (out.atkP || 0) + P; out.hpP = (out.hpP || 0) + P; }
+  return out;
+}
+
 function gearStats(pr, heroId = null) {
   const total = {};
   const add = (st) => { for (const [k, v] of Object.entries(st)) total[k] = (total[k] || 0) + v; };
@@ -512,6 +539,7 @@ function gearStats(pr, heroId = null) {
   const now = Date.now();
   for (const [k, st] of Object.entries(BUFF_STATS)) if ((pr.buffs || {})[k] > now) add(st);
   const cmp = companionOf(pr); if (cmp) add(cmp.bonus); // бонус спутника
+  if (heroId) add(treeStats(pr, heroId)); // ветка характеристик и мастерство пассивки из Зала мастеров
   for (const [k, cap] of Object.entries(CAPS)) if (total[k] > cap) total[k] = cap;
   for (const k of Object.keys(total)) total[k] = round1(total[k]);
   return total;
@@ -657,18 +685,18 @@ const RECIPE_PREFIX = { 1: 'Эльдмирская ковка', 2: 'Закалк
 function worldRecipes(tier) {
   const W = WORLD_CRAFT[tier];
   if (!W) return [];
-  const list = SET_SLOTS.map((slot) => ({ id: `w${tier}_${slot}`, tier, kind: 'forge', slot, name: `${RECIPE_PREFIX[tier]}: ${SLOT_NAMES[slot].toLowerCase()}`,
+  const list = CRAFT_SLOTS.map((slot) => ({ id: `w${tier}_${slot}`, tier, kind: 'forge', slot, name: `${RECIPE_PREFIX[tier]}: ${SLOT_NAMES[slot].toLowerCase()}`,
     needItem: { cat: slot, rar: W.from, tier }, rar: W.to, mats: W.mats, gold: W.gold, chance: W.chance }));
-  for (const slot of SET_SLOTS) list.push({ id: `r${tier}_${slot}`, tier, kind: 'relic', slot, name: `Реликвия мира: ${SLOT_NAMES[slot].toLowerCase()}`,
+  for (const slot of CRAFT_SLOTS) list.push({ id: `r${tier}_${slot}`, tier, kind: 'relic', slot, name: `Реликвия мира: ${SLOT_NAMES[slot].toLowerCase()}`,
     needItem: null, rar: W.relic.rar, mats: W.relic.mats, gold: W.relic.gold, chance: W.relic.chance });
   return list;
 }
 const findRecipe = (id) => { const t = +String(id).slice(1, 2); return worldRecipes(t).find((r) => r.id === id) || null; };
 
 module.exports = {
-  LUCK_STONE, WORLD_CRAFT, worldRecipes, findRecipe,
+  LUCK_STONE, WORLD_CRAFT, worldRecipes, findRecipe, CRAFT_SLOTS,
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, SET_SLOTS, WEAR_CATS, slotCat, TIER_MULT, DUPE_MAX, DUPE_STEP,
-  SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF, COMPANIONS,
+  SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF, COMPANIONS, TREE, TREE_MAX, treeReq, treeCost, PAS_MAX, PAS_STEP, pasReq, pasCost, CAPS, BUFF_LUCK,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
   upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,

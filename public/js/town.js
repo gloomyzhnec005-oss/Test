@@ -570,18 +570,42 @@ window.Town = (() => {
   }
 
   // ---------- Зал мастеров ----------
-  async function trainerPanel() {
+  async function trainerPanel(tabIdx) {
     const inv = await Bag.refresh();
-    const h = ctx.heroes[inv.hero.id], U = ctx.skillUnlock;
-    const skills = () => el(`<p class="sheet-hint">Умения открываются по уровню героя ИЛИ по числу дубликатов (призыв на алтаре). Сейчас: ур. ${inv.hero.level}, дубликатов ${inv.hero.dupes}</p>`
-      + h.skills.map((sk, i) => `<div class="tw-ev"><span class="tw-ev-i ${i < inv.hero.unlocked ? '' : 'lock'}">${SkillArt.icon(inv.hero.id, i, i < inv.hero.unlocked ? sk.icon : '🔒')}</span>
-      <div><b>${sk.name}</b><small>${i < inv.hero.unlocked ? 'Открыто' : `Откроется: ${U[i].lvl} уровень или ${U[i].dup} дубл.`}</small><small>${sk.desc}</small></div></div>`).join('')
-      + `<div class="tw-ev"><span class="tw-ev-i">${SkillArt.icon(inv.hero.id, 'p', h.passive.icon)}</span><div><b>${h.passive.name} · пассивный</b><small>Всегда активен</small></div></div>`);
-    const tree = () => el(`<p class="sheet-hint">Очки характеристик: 0 · даются за уровни героя</p><div class="tw-tree">${
-      [['str', 'Сила'], ['agi', 'Ловкость'], ['int', 'Интеллект'], ['sta', 'Выносливость'], ['luck', 'Удача'], ['def', 'Защита']]
-        .map(([i, n]) => `<div class="tw-node"><span><img class="at-ic" src="assets/ui/at_${i}.webp" alt=""></span><b>${n}</b><em>0</em><button disabled>+</button></div>`).join('')}</div>
-      ${soon('Ветка дополнительных характеристик откроется позже')}`);
-    open('📖 Зал мастеров', tabs([['Умения', skills], ['Ветка характеристик', tree]]));
+    const h = ctx.heroes[inv.hero.id], U = ctx.skillUnlock, hero = inv.hero;
+    const fmt = (n) => Number(n).toLocaleString('ru-RU');
+    const pct = (v) => (Math.round(v * 10) / 10).toString().replace('.', ',');
+    const again = (r, idx) => { toast(r.error || r.toast); if (window.Sfx) Sfx.play(r.error ? 'error' : 'reward'); if (!r.error) trainerPanel(idx); };
+    const skills = () => {
+      const P = hero.pas, maxed = P.lvl >= P.max, low = hero.level < P.req;
+      const box = el(`<p class="sheet-hint">Умения открываются по уровню героя ИЛИ по числу дубликатов (призыв на алтаре). Сейчас: ур. ${hero.level}, дубликатов ${hero.dupes}. Силу открытых умений повышают в окне героя → «Умения».</p>`
+        + `<div class="tw-ev tw-pas"><span class="tw-ev-i">${SkillArt.icon(hero.id, 'p', h.passive.icon)}</span><div><b>${h.passive.name} · пассивный · ур. ${P.lvl} / ${P.max}</b>
+          <small>${h.passive.desc}</small>
+          <small class="ok">Мастерство: эффект пассивки сильнее на ${P.pct}% · +${P.lvl - 1}% урона и здоровья</small>
+          ${maxed ? '<small>Максимальный уровень</small>' : `<small>→ ур. ${P.lvl + 1}: эффект +${P.next}%, +1% урона и здоровья · ✨ ${P.cost.dust} пыли · 💰 ${fmt(P.cost.gold)}${low ? ` · нужен ${P.req} ур. героя` : ''}</small>
+          <button class="l2-btn" id="pasUp" ${low ? 'disabled' : ''}>⬆️ Улучшить пассивку</button>`}</div></div>`
+        + h.skills.map((sk, i) => `<div class="tw-ev"><span class="tw-ev-i ${i < hero.unlocked ? '' : 'lock'}">${SkillArt.icon(hero.id, i, i < hero.unlocked ? sk.icon : '🔒')}</span>
+      <div><b>${sk.name}</b><small>${i < hero.unlocked ? 'Открыто' : `Откроется: ${U[i].lvl} уровень или ${U[i].dup} дубл.`}</small><small>${sk.desc}</small></div></div>`).join(''));
+      const b = box.querySelector('#pasUp');
+      if (b) b.onclick = async () => again(await Bag.act('pasUp'), 0);
+      return box;
+    };
+    const STAT = { atkP: 'урона', hpP: 'здоровья', aspd: 'скорости атаки', skill: 'силы умений', crit: 'шанса крита', critDmg: 'крит. урона', def: 'защиты' };
+    const per = (o, k = 1) => Object.entries(o).map(([s, v]) => `+${pct(v * k)}% ${STAT[s] || s}`).join(', ');
+    const tree = () => {
+      const T = hero.tree, spent = Object.values(T).reduce((a, n) => a + n.lvl, 0);
+      const box = el(`<p class="sheet-hint">Уровень каждой характеристики — не выше половины уровня героя (до ${Object.values(T)[0].max} на 50 ур.). Каждое улучшение стоит золота, цена растёт. У каждого героя — своя ветка. Вложено уровней: ${spent} · 💰 ${fmt(inv.gold)}</p>
+        <div class="tw-tree2">${Object.entries(T).map(([k, n]) => {
+          const maxed = n.lvl >= n.max, low = hero.level < n.req;
+          return `<div class="tw-node2"><span><img class="at-ic" src="assets/ui/at_${k}.webp" alt=""></span>
+            <div class="tn-main"><b>${n.name} · ${n.lvl} / ${n.max}</b><small>${n.lvl ? `Сейчас: ${per(n.per, n.lvl)}` : `За уровень: ${per(n.per)}`}</small>
+            <small>${maxed ? 'Максимум' : `→ ${n.lvl + 1}: 💰 ${fmt(n.cost)}${low ? ` · нужен ${n.req} ур. героя` : ''}`}</small></div>
+            <button class="l2-btn" data-k="${k}" ${maxed || low ? 'disabled' : ''}>+</button></div>`;
+        }).join('')}</div>`);
+      box.querySelectorAll('[data-k]').forEach((b) => { b.onclick = async () => again(await Bag.act('treeUp', { k: b.dataset.k }), 1); });
+      return box;
+    };
+    open('📖 Зал мастеров', tabs([['Умения и пассивка', skills], ['Ветка характеристик', tree]], tabIdx || 0));
   }
 
   // ---------- Кузница: рецепты мира. Слева — что получится, справа — слоты всего нужного: есть — светится, нет — тусклый ----------
@@ -612,7 +636,7 @@ window.Town = (() => {
     const chance = Math.min(r.stone.cap, rec.chance + crStones * r.stone.per);
     const res = item ? { ...item, rar: rec.rar, color: rec.color, dupes: 0 } : null;
     const view = el(`<div class="cr-view"><div class="cr-res"><div class="cr-cell big">${res ? Bag.cell(res) : `<button class="it" style="--rc:${rec.color}"><span>${ghost(rec.slot)}</span></button>`}</div>
-        <b style="color:${rec.color}">${rec.kind === 'relic' ? `${rec.slotName} комплекта` : res ? res.name : rec.slotName}</b><small>${rec.rarName}${rec.kind === 'relic' ? ` · класс «${r.clsName || '—'}»` : ' · атрибуты выпадут заново'}</small>
+        <b style="color:${rec.color}">${rec.kind === 'relic' ? `${rec.slotName} ${['cloak', 'belt', 'earring'].includes(rec.slot) ? 'вашего класса' : 'комплекта'}` : res ? res.name : rec.slotName}</b><small>${rec.rarName}${rec.kind === 'relic' ? ` · класс «${r.clsName || '—'}»` : ' · атрибуты выпадут заново'}</small>
         <em class="cr-chance ${chance < 0.5 ? 'low' : ''}">🎲 Шанс успеха ${Math.round(chance * 100)}%${crStones ? ` (+${Math.round(crStones * r.stone.per * 100)}%)` : ''}</em></div>
       <div class="cr-arrow">⟵</div><div class="cr-need">${need.join('')}</div></div>
       <div class="cr-stone ${r.stones ? '' : 'none'}"><div class="cr-cell">${Bag.cell({ ...r.stone, n: 1 })}</div>

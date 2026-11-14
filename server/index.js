@@ -176,6 +176,33 @@ app.post('/api/gacha/exchange', (req, res) => {
   saveProfiles();
   res.json({ profile: profileView(who) });
 });
+// Энциклопедия игры: цифры берём прямо из игровых данных, чтобы справка не расходилась с балансом
+let wikiCache = null;
+app.get('/api/wiki', (req, res) => {
+  if (!wikiCache) {
+    const towns = world.towns.map((t, i) => ({ id: t.id, name: t.name, sub: t.sub, level: t.level, tier: t.tier || (world.byId.get(t.id) || {}).tier || i + 1 }));
+    const nm = (id) => (MOBX.MOBS[id] ? MOBX.MOBS[id].name : id);
+    wikiCache = {
+      towns, maxLevel: MOBX.MAX_LEVEL, unlock: C.SKILL_UNLOCK, heroRar: Object.fromEntries(Object.entries(C.RARITIES).map(([k, r]) => [k, { name: r.name, color: r.color }])),
+      heroes: Object.entries(C.HEROES).map(([id, h]) => ({ id, name: h.name, title: h.title, rarity: h.rarity, cls: I.classOf(id), range: h.range, res: h.resource.name, passive: h.passive && h.passive.name })),
+      classes: Object.fromEntries(Object.entries(I.CLASSES).map(([k, c]) => [k, { name: c.name, icon: c.icon }])),
+      itemRar: I.ITEM_RARITIES, rarOrder: I.RARITY_ORDER, drops: C.DROPS, slots: I.SLOT_NAMES, attrs: I.ATTRS, caps: I.CAPS,
+      wish: { rates: Wish.RATES, soft: Wish.SOFT, hard: Wish.HARD, legEvery: Wish.LEG_EVERY, gemsPerWish: Wish.GEMS_PER_WISH, dupeMax: C.GACHA.heroDupeMax },
+      gear: { pity: meta.SHOP.pity, free: meta.SHOP.freeItemSpins, freeSub: meta.SHOP.freeItemSpinsSub, gemsPerWish: meta.SHOP.gemsPerWish },
+      craft: I.WORLD_CRAFT, luck: I.LUCK_STONE, upgrade: I.UPGRADE, craftSlots: I.CRAFT_SLOTS, mats: Object.fromEntries(Object.entries(I.MATS).map(([k, m]) => [k, { name: m.name, icon: m.icon, kind: m.kind, desc: m.desc, buy: m.buy }])),
+      runes: Object.values(I.TEMPLATES.rune).map((r) => ({ name: r.name, icon: r.icon, base: r.base })),
+      tree: I.TREE, treeMax: I.TREE_MAX, pasMax: I.PAS_MAX, pasStep: I.PAS_STEP,
+      dungeons: Object.fromEntries(Object.entries(MOBX.DUNGEONS).map(([t, list]) => [t, list.map((d) => ({ name: d.name, lv: d.lv, boss: d.bossName || nm(d.boss), minis: (d.minis || []).map(nm), pool: d.pool.map(nm) }))])),
+      worldBosses: Object.fromEntries(Object.entries(MOBX.WORLD_BOSSES).map(([t, w]) => [t, { lv: w.lv, list: w.list.map(nm) }])), wbRespawnMin: Math.round(MOBX.WORLD_BOSS_RESPAWN / 60000),
+      bossTimes: String(process.env.DUNGEON_BOSS_TIMES || '12:00,18:00,23:00'), overLv: D.OVER_LV, death: DEATH,
+      market: { fee: meta.SHOP.marketFee, feeSub: meta.SHOP.marketFeeSub, auction: meta.SHOP.auctionFee, slots: meta.SHOP.marketSlots, slotsSub: meta.SHOP.marketSlotsSub },
+      bag: meta.SHOP.bag, bagSub: meta.SHOP.bagSub, wh: meta.SHOP.wh,
+      companions: Object.entries(I.COMPANIONS).filter(([, c]) => c.art).map(([id, c]) => ({ name: c.name, rare: !!c.rare, price: c.price, bonus: c.bonus })),
+      warPts: WAR_PTS, passDays: meta.SHOP.pass.days, passLevels: meta.SHOP.pass.levels,
+    };
+  }
+  res.json(wikiCache);
+});
 app.get('/api/config', (req, res) => res.json({
   heroes: C.HEROES, rarities: C.RARITIES, monsters: C.MONSTERS, backgrounds: C.LOBBY_BACKGROUNDS, gacha: C.GACHA, skillUnlock: C.SKILL_UNLOCK,
   botName: (bot && bot.botInfo && bot.botInfo.username) || process.env.BOT_USERNAME || null, // для кнопки «Помощь с покупками»
@@ -700,6 +727,10 @@ const formOf = (p) => (p.hero.forms ? p.hero.forms[p.form || 'human']
   : p.hero.elements ? { ...p.hero, projectile: p.hero.elements[p.form || 'fire'].projectile }
   : p.hero.aspects ? { ...p.hero, projectile: p.hero.aspects[p.form || 'fire'].projectile } : p.hero);
 const passiveOf = (p) => (p.hero.passive ? PASSIVES[p.hero.passive.id] : null);
+// Мастерство пассивки (Зал мастеров): прибавка множителя пассивки растёт на 4% за уровень (×1,96 к прибавке на 25 уровне)
+const pasK = (p) => 1 + I.PAS_STEP * (((p.char && p.char.pasLv) || 1) - 1);
+const pasScale = (p, m) => (m === 1 ? 1 : 1 + (m - 1) * pasK(p));
+const pasScaleTaken = (p, m) => (m >= 1 ? m : Math.max(0.3, 1 - (1 - m) * pasK(p))); // снижение получаемого урона — сильнее, но не меньше ×0,3
 // Штраф за гибель (кроме PvP-арены, матчей и данжа выживания): −10% опыта уровня и «Слабость» на 2 минуты
 const DEATH = { xpLoss: 0.1, ms: 2 * 60000, dmg: 0.2, xp: 0.2 };
 function deathPenalty(p) {
@@ -756,11 +787,11 @@ const dmgMult = (p, now = Date.now()) => {
     * (p.cryUntil > now ? 1.2 : 1) // клич валькирии
     * (p.weakUntil > now ? 0.7 : 1) // проклятие слабости монстров
     * (p.deathUntil > now ? 1 - DEATH.dmg : 1) // слабость после гибели
-    * (ps && ps.dmgMult ? ps.dmgMult(p) : 1);
+    * (ps && ps.dmgMult ? pasScale(p, ps.dmgMult(p)) : 1);
 };
 const attackCd = (p, now = Date.now()) => {
   const ps = passiveOf(p);
-  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (p.blessUntil > now ? 1.2 : 1) * (p.songUntil > now ? 1 + 0.1 * (p.songPw || 1) : 1) * (p.hasteUntil > now ? 1.25 : 1) * (ps && ps.speedMult ? ps.speedMult(p) : 1) * (1 + ((p.gear && p.gear.aspd) || 0) / 100);
+  const speed = (p.frenzyUntil > now ? 1.5 : 1) * (p.pactUntil > now && p.pactType === 'wind' ? 1.4 : 1) * (p.blessUntil > now ? 1.2 : 1) * (p.songUntil > now ? 1 + 0.1 * (p.songPw || 1) : 1) * (p.hasteUntil > now ? 1.25 : 1) * (ps && ps.speedMult ? pasScale(p, ps.speedMult(p)) : 1) * (1 + ((p.gear && p.gear.aspd) || 0) / 100);
   return Math.round(formOf(p).cooldown / speed * (p.stoneArmorUntil > now ? 1.3 : 1)); // каменная броня Эмета замедляет
 };
 
@@ -918,7 +949,7 @@ function damageMonster(p, m, raw, opt = {}) {
   const ps = passiveOf(p);
   const now0 = Date.now();
   // Бонус против конкретной цели (пассивки) и пробитая защита монстра (Кира)
-  const tMult = (ps && ps.targetMult ? ps.targetMult(p, m) : 1) * (m.brokenUntil > now0 ? 1.25 : 1)
+  const tMult = D.overDmg(p, m) * (ps && ps.targetMult ? pasScale(p, ps.targetMult(p, m)) : 1) * (m.brokenUntil > now0 ? 1.25 : 1)
     * (m.curseUntil > now0 ? 1 + (m.curseAmp || 0.2) : 1) // проклятие Гидеона
     * (m.charmUntil > now0 ? 1.3 : 1) // очарование Галатеи
     * D.takenMult(m, opt, now0); // защита монстра: броня, иммунитеты, «Каменная кожа»
@@ -1061,7 +1092,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
   // Множители входящего урона: «в ущерб защите» (Вайалд), «Зов стаи» (Урсус), пассивки (Брендан)
   let dmg = raw * (target.hero.dmgTaken || 1) * (target.packUntil > now ? 0.65 : 1)
     * (target.pactUntil > now && target.pactType === 'stone' ? 0.6 : 1)
-    * (target.blessUntil > now ? 0.8 : 1) * (target.holyAuraUntil > now ? target.holyAuraMult : 1) * (ps && ps.dmgTakenMult ? ps.dmgTakenMult(target) : 1)
+    * (target.blessUntil > now ? 0.8 : 1) * (target.holyAuraUntil > now ? target.holyAuraMult : 1) * (ps && ps.dmgTakenMult ? pasScaleTaken(target, ps.dmgTakenMult(target)) : 1)
     * (1 - ((target.gear && target.gear.def) || 0) / 100 * (1 - ((m && m._pierce) || 0))) // защита с экипировки (бронебойные игнорируют часть)
     * (m && target.hero.fireImmune && C.MONSTERS[m.type] && C.MONSTERS[m.type].fire ? 0.3 : 1); // Кальдеро не боится огня
   // Обет защиты (Брендан): 40% урона союзника принимает на себя защитник, остальное союзнику −20%
@@ -1236,6 +1267,7 @@ function dropLoot(killer, m) {
   if (boss) fx.push({ t: 'chest', x: m.x, y: m.y + 10, big: m.rank === 'boss' });
   const receivers = boss ? partyMembers(killer).filter((o) => o.zone === killer.zone && Math.hypot(o.x - m.x, o.y - m.y) < 900) : [killer];
   for (const o of receivers) {
+    if (boss && D.overFor(o, m)) continue; // перерос данж — с его босса и полубоссов добычи нет
     const pr = getProfile(o.uid);
     meta.addPassXp(pr, m.rank === 'boss' ? 20 : m.rank === 'mini' ? 8 : 1);
     const luck = I.buffLuck(pr); // эликсиры удачи
@@ -1480,7 +1512,7 @@ io.on('connection', (socket) => {
     const empowered = p.empoweredUntil > now;
     if (empowered) { p.empoweredUntil = 0; fx.push({ t: 'skill', s: 'empHit', from: p.id, x: m.x, y: m.y, quiet: true }); }
     const ps1 = passiveOf(p);
-    let basic = ps1 && ps1.basicMult ? ps1.basicMult(p) : 1; // рвение Валериана, жар Блейза, трещины Эмета
+    let basic = ps1 && ps1.basicMult ? pasScale(p, ps1.basicMult(p)) : 1; // рвение Валериана, жар Блейза, трещины Эмета
     if (p.weaponRuneUntil > now && p.weaponRuneType === 'fire') { m.burnUntil = now + 3000; m.dots = (m.dots || []).concat({ until: now + 3000, dps: p.dmg * 0.3, by: p.id }); }
     if (p.nextAttackBoost) { basic *= p.nextAttackBoost; p.nextAttackBoost = 0; } // овация Джакомо
     damageMonster(p, m, p.dmg * basic * (empowered ? p.empMult || 2 : 1), { crit: Math.random() < 0.15 + ((p.gear && p.gear.crit) || 0) / 100, proj: formOf(p).projectile, basic: true });

@@ -215,7 +215,18 @@ module.exports = function createMeta(deps) {
       bagSize: bagSize(pr), bagBase: isSub(pr) ? SHOP.bagSub : SHOP.bag, whSize: whSize(pr), whLvl: pr.whLvl || 0, whNext: WH_UPGRADES[pr.whLvl || 0] || null, whMax: WH_UPGRADES.length, sub: isSub(pr) ? pr.subUntil : 0, buffs: pr.buffs || {}, tier: tierOf(p),
       hero: { id: p.heroId, level: p.char.level, dupes: (pr.heroDupes || {})[p.heroId] || 0, unlocked: deps.unlockedSkills(pr, p.heroId), cls: I.classOf(p.heroId),
         skillUp: C.HEROES[p.heroId].skills.map((sk, i) => { const L = skillLv(pr, p.heroId, i); return { lvl: L, max: p.char.level, bonus: Math.round((I.skillMul(L) - 1) * 100), next: Math.round((I.skillMul(L + 1) - 1) * 100), cost: I.skillUpCost(L) }; }),
-        dust: (pr.mats || {}).dust || 0, crystals: (pr.mats || {}).skillCrystal || 0 },
+        dust: (pr.mats || {}).dust || 0, crystals: (pr.mats || {}).skillCrystal || 0,
+        // Зал мастеров: ветка характеристик и мастерство пассивки
+        tree: Object.fromEntries(Object.entries(I.TREE).map(([k, n]) => { const L = ((p.char.tree || {})[k]) || 0; return [k, { name: n.name, desc: n.desc, per: n.stats, lvl: L, max: I.TREE_MAX, req: I.treeReq(L), cost: I.treeCost(L) }]; })),
+        pas: (() => { const L = p.char.pasLv || 1; return { lvl: L, max: I.PAS_MAX, req: I.pasReq(L), cost: I.pasCost(L), pct: Math.round(I.PAS_STEP * (L - 1) * 100), next: Math.round(I.PAS_STEP * L * 100) }; })() },
+      // Все характеристики героя с учётом снаряжения, комплектов, эликсиров, спутника и Зала мастеров
+      full: (() => {
+        const g = I.gearStats(pr, p.heroId), H = C.HEROES[p.heroId], st = deps.statsFor(p.heroId, p.char.level, pr);
+        return { hp: st.maxHp, dmg: st.dmg, res: st.resMax, resName: H.resource.name, regen: H.resource.regen, range: H.range,
+          atkSec: Math.round(1000 / (H.cooldown / (1 + (g.aspd || 0) / 100)) * 100) / 100, aspd: g.aspd || 0, atkP: g.atkP || 0, hpP: g.hpP || 0,
+          crit: Math.round((15 + (g.crit || 0)) * 10) / 10, critDmg: 200 + (g.critDmg || 0), def: g.def || 0, ls: g.ls || 0, skill: g.skill || 0, cdr: g.cdr || 0,
+          ms: Math.round(H.speed * (1 + (g.ms || 0) / 100)), msP: g.ms || 0, gold: g.gold || 0, xp: g.xp || 0, luck: Math.round((I.buffLuck(pr) - 1) * 100), caps: I.CAPS };
+      })(),
       classNames: Object.fromEntries(Object.entries(I.CLASSES).map(([k, c]) => [k, `${c.icon} ${c.name}`])),
       power: (({ hp, dmg, crit, power }) => ({ hp, dmg: Math.round(dmg), crit: Math.round(crit * 100), power }))(fighter(deps, pr, p.heroId, '')),
       itemSpins: pr.itemSpins || 0, heroSpins: pr.paidSpins || 0, freeItemSpins: freeSpinsLeft(pr), pity: typeof pr.pity === 'number' ? pr.pity : 0, pityMax: SHOP.pity, pityE: pr.pityE || 0, gems: pr.gems || 0, glitter: pr.glitter || 0, gemsPerWish: SHOP.gemsPerWish, gearBanner: gearBanner(),
@@ -364,6 +375,34 @@ module.exports = function createMeta(deps) {
       return { toast: `${H.skills[i].icon} ${H.skills[i].name}: уровень ${L + 1} · сила +${Math.round((I.skillMul(L + 1) - 1) * 100)}%`, inv: invView(p) };
     },
 
+    // Зал мастеров: +1 уровень узла ветки характеристик (не выше половины уровня героя, за золото)
+    treeUp(p, d, pr) {
+      const n = I.TREE[d.k];
+      if (!n || !Object.hasOwn(I.TREE, d.k)) return { error: 'Нет такой характеристики' };
+      const t = (p.char.tree ??= {}), L = t[d.k] || 0;
+      if (L >= I.TREE_MAX) return { error: `${n.name}: максимальный уровень` };
+      if (p.char.level < I.treeReq(L)) return { error: `Нужен ${I.treeReq(L)} уровень героя (сейчас ${p.char.level})` };
+      const cost = I.treeCost(L);
+      if (pr.gold < cost) return { error: `Нужно ${cost.toLocaleString('ru-RU')} 💰` };
+      pr.gold -= cost; t[d.k] = L + 1;
+      refreshPlayer(p);
+      return { toast: `${n.name}: уровень ${L + 1}`, inv: invView(p) };
+    },
+    // Мастерство пассивного навыка: уровень не выше половины уровня героя, за золото и волшебную пыль
+    pasUp(p, d, pr) {
+      const H = C.HEROES[p.heroId];
+      if (!H.passive) return { error: 'У героя нет пассивного навыка' };
+      const L = p.char.pasLv || 1;
+      if (L >= I.PAS_MAX) return { error: 'Пассивный навык уже максимального уровня' };
+      if (p.char.level < I.pasReq(L)) return { error: `Нужен ${I.pasReq(L)} уровень героя (сейчас ${p.char.level})` };
+      const c = I.pasCost(L), mats = pr.mats || {};
+      if ((mats.dust || 0) < c.dust) return { error: `Нужно ✨ ${c.dust} волшебной пыли (есть ${mats.dust || 0})` };
+      if (pr.gold < c.gold) return { error: `Нужно ${c.gold.toLocaleString('ru-RU')} 💰` };
+      I.takeMats(pr, { dust: c.dust }); pr.gold -= c.gold; p.char.pasLv = L + 1;
+      refreshPlayer(p);
+      return { toast: `${H.passive.icon} ${H.passive.name}: уровень ${L + 1} · сила пассивки +${Math.round(I.PAS_STEP * L * 100)}%`, inv: invView(p) };
+    },
+
     equip(p, d, pr) {
       const it = I.findItem(pr, d.id);
       if (!it || !I.SLOTS[it.cat]) return { error: 'Этот предмет нельзя надеть' };
@@ -436,7 +475,7 @@ module.exports = function createMeta(deps) {
       if (Math.random() >= chance) return { failed: true, toast: `💥 Ковка не удалась (шанс был ${Math.round(chance * 100)}%) — материалы и золото сгорели` };
       let res;
       if (it) { it.rar = r.rar; it.attrs = I.rollAttrs(r.rar, it.tier); res = it; } // тот же предмет — следующей редкости
-      else { const out = put(pr, I.createSetItem(I.classOf(p.heroId), r.tier, r.rar, r.slot)); if (out.error) return { error: out.error }; res = out.item; }
+      else { const out = put(pr, I.SET_SLOTS.includes(r.slot) ? I.createSetItem(I.classOf(p.heroId), r.tier, r.rar, r.slot) : I.createItem(r.slot, r.rar, r.tier, null, I.classOf(p.heroId))); if (out.error) return { error: out.error }; res = out.item; }
       refreshPlayer(p);
       return { result: I.itemView(res), toast: `⚒️ Создано: ${I.itemView(res).name} (${I.ITEM_RARITIES[res.rar].name})` };
     },

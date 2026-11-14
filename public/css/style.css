@@ -1412,3 +1412,41 @@ canvas.skin { object-fit: contain; }
 .spin-wallet span { display: block; font-size: 11px; line-height: 1.25; color: #e9dcc0; margin-top: 2px; }
 .spin-wallet .ok b { color: #8fe36a; }
 .spin-wallet .ui-ic { width: 13px; height: 13px; vertical-align: -2px; }
+/* Зал мастеров: ветка характеристик и мастерство пассивки */
+.tw-tree2 { display: flex; flex-direction: column; gap: 6px; }
+.tw-node2 { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(20, 14, 8, .78); border: 1px solid #5a4830; }
+.tw-node2 > span { flex: 0 0 40px; height: 40px; display: grid; place-items: center; }
+.tw-node2 .at-ic { width: 38px; height: 38px; object-fit: contain; }
+.tw-node2 .tn-main { flex: 1; min-width: 0; }
+.tw-node2 .tn-main b { display: block; color: #ffd77a; font-size: 14px; }
+.tw-node2 .tn-main small { display: block; font-size: 11.5px; color: #d8c8a4; line-height: 1.35; }
+.tw-node2 .l2-btn { flex: 0 0 44px; min-width: 44px; height: 40px; padding: 0; font-size: 22px; }
+.tw-pas { border-color: #b88a3a !important; }
+.tw-pas small.ok { color: #8fe36a; }
+.tw-pas .l2-btn { margin-top: 6px; }
+/* Все характеристики героя */
+.st-full { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 6px 0 4px; }
+.st-full div { display: flex; justify-content: space-between; gap: 6px; padding: 5px 8px; border-radius: 7px; background: rgba(20, 14, 8, .6); font-size: 12.5px; }
+.st-full div span { color: #cdbd9a; }
+.st-full div b { color: #ffe9b0; white-space: nowrap; }
+.st-full div.cap b { color: #ff9a6a; }
+.st-full div.zero b { color: #8a7c66; }
+/* Энциклопедия */
+.wk-toc { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.wk-toc-i { display: flex; align-items: center; gap: 8px; padding: 10px 8px; border-radius: 10px; border: 1px solid #6a5130; background: rgba(20, 14, 8, .8); color: #f3e6c6; font: inherit; text-align: left; cursor: pointer; }
+.wk-toc-i span { font-size: 22px; }
+.wk-toc-i b { font-size: 13px; line-height: 1.2; }
+.wk-back { margin-bottom: 8px; }
+.wk-body { font-size: 13px; line-height: 1.45; color: #e9dcc0; }
+.wk-h { margin: 12px 0 5px; color: #ffd77a; font-size: 14px; border-bottom: 1px solid #4a3b26; padding-bottom: 3px; }
+.wk-p { margin: 5px 0; }
+.wk-ul { margin: 4px 0; padding-left: 18px; }
+.wk-ul li { margin: 3px 0; }
+.wk-t { width: 100%; border-collapse: collapse; margin: 5px 0; font-size: 12px; }
+.wk-t th { text-align: left; color: #ffd77a; font-weight: normal; padding: 4px; border-bottom: 1px solid #5a4830; }
+.wk-t td { padding: 5px 4px; border-bottom: 1px solid rgba(255,255,255,.06); vertical-align: top; }
+.wk-t small { color: #bfae8a; }
+.wk-cls { margin: 4px 0; font-size: 12.5px; }
+.wk-nav { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 14px; padding-top: 10px; border-top: 1px solid #4a3b26; }
+.wk-nav button { padding: 5px 8px; border-radius: 8px; border: 1px solid #5a4830; background: rgba(20,14,8,.7); color: #d8c8a4; font: inherit; font-size: 11.5px; cursor: pointer; }
+.wk-nav button.on { border-color: #e8c063; color: #ffe9b0; }

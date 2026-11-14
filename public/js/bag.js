@@ -229,6 +229,26 @@ window.Bag = (() => {
     drawWard();
     return box;
   }
+  // Все характеристики героя одним списком (итог со снаряжением, комплектами, эликсирами, спутником и Залом мастеров)
+  function fullStats() {
+    const F = inv.full;
+    if (!F) return '';
+    const c = (v) => String(v).replace('.', ',');
+    const row = (name, val, cls = '') => `<div class="${cls}"><span>${name}</span><b>${val}</b></div>`;
+    const capCls = (k, v) => (F.caps[k] && v >= F.caps[k] ? 'cap' : v ? '' : 'zero');
+    const capTxt = (k) => (F.caps[k] ? ` / ${F.caps[k]}%` : '');
+    return `<div class="ic-sec">Все характеристики</div><div class="st-full">
+      ${row('❤️ Здоровье', F.hp.toLocaleString('ru-RU'))}${row('⚔️ Урон за удар', F.dmg.toLocaleString('ru-RU'))}
+      ${row('🔥 Бонус урона', '+' + c(F.atkP) + '%', F.atkP ? '' : 'zero')}${row('💗 Бонус здоровья', '+' + c(F.hpP) + '%', F.hpP ? '' : 'zero')}
+      ${row('⏱ Ударов в секунду', c(F.atkSec))}${row('💨 Скорость атаки', '+' + c(F.aspd) + '%' + capTxt('aspd'), capCls('aspd', F.aspd))}
+      ${row('🎯 Шанс крита', c(F.crit) + '%', capCls('crit', F.crit - 15))}${row('💥 Крит. урон', c(F.critDmg) + '%')}
+      ${row('🛡 Защита', c(F.def) + '%' + capTxt('def'), capCls('def', F.def))}${row('🩸 Вампиризм', c(F.ls) + '%' + capTxt('ls'), capCls('ls', F.ls))}
+      ${row('✨ Сила умений', '+' + c(F.skill) + '%', F.skill ? '' : 'zero')}${row('⌛ Перезарядка', '−' + c(F.cdr) + '%' + capTxt('cdr'), capCls('cdr', F.cdr))}
+      ${row('👟 Скорость бега', F.ms + (F.msP ? ` (+${c(F.msP)}%)` : ''), capCls('ms', F.msP))}${row('📏 Дальность атаки', F.range)}
+      ${row('💧 ' + F.resName, F.res + ` (+${F.regen}/с)`)}${row('🍀 Удача добычи', '+' + F.luck + '%', F.luck ? '' : 'zero')}
+      ${row('💰 Золото', '+' + c(F.gold) + '%', F.gold ? '' : 'zero')}${row('📘 Опыт', '+' + c(F.xp) + '%', F.xp ? '' : 'zero')}
+    </div><p class="sheet-hint">Оранжевым — достигнут предел. Растут от снаряжения, рун, комплектов, эликсиров, спутника и Зала мастеров (ветка характеристик и пассивка).</p>`;
+  }
   function statsTab() {
     const box = document.createElement('div');
     const h = inv.hero, H = Town.heroes()[h.id], P = inv.power || {};
@@ -239,9 +259,10 @@ window.Bag = (() => {
         <div><small>${ic('crown')}Сила героя</small><b>${P.power || '—'}</b></div><div><small>${ic('hp')}Здоровье</small><b>${P.hp || '—'}</b></div>
         <div><small>${ic('atk')}Атака</small><b>${P.dmg || '—'}</b></div><div><small>${ic('crit')}Крит</small><b>${P.crit || 0}%</b></div>
         <div><small>${ic('xp')}Уровень</small><b>${h.level}</b></div><div><small>${ic('star')}Дубликаты</small><b>${h.dupes}</b></div></div>
+      ${fullStats()}
       <div class="ic-sec">Умения</div>
       <div class="st-skills">${H.skills.map((sk, i) => `<div class="${i < h.unlocked ? '' : 'lock'}"><span>${SkillArt.icon(h.id, i, i < h.unlocked ? sk.icon : '🔒')}</span><b>${sk.name}</b></div>`).join('')}</div>
-      ${H.passive ? `<div class="st-skills"><div class="pas"><span>${SkillArt.icon(h.id, 'p', H.passive.icon)}</span><b>${H.passive.name} · пассивный</b></div></div>` : ''}
+      ${H.passive ? `<div class="st-skills"><div class="pas"><span>${SkillArt.icon(h.id, 'p', H.passive.icon)}</span><b>${H.passive.name} · пассивный · ур. ${h.pas ? h.pas.lvl : 1}</b></div></div>` : ''}
       ${next ? `<p class="sheet-hint">Следующее умение: ${next.lvl} уровень или ${next.dup} дубл.</p>` : ''}
       <div class="ic-sec">Бонусы экипировки</div>
       <div class="bag-gear">${g.length ? g.map(([k, v]) => `<span>${statLine(k, v)}</span>`).join('') : '<span>Наденьте предметы</span>'}</div>
