@@ -2616,7 +2616,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
         // Монстры тоже по буферу времени сервера — без рывков при неровной связи
         const [gx, gy] = this.interpAt(e.buf, mrt);
         mx = gx - e.c.x; my = gy - e.c.y;
-        if (Math.hypot(mx, my) > 160) { e.c.x = gx; e.c.y = gy; } else { const kk = Math.min(1, dt * 30); e.c.x += mx * kk; e.c.y += my * kk; }
+        const gap = Math.hypot(mx, my);
+        // Рывок монстра (на сервере мгновенный, до ~300) — быстрый бросок за ~0,15 с, а не телепорт; дальше 600 — настоящий перенос
+        if (gap > 600) { e.c.x = gx; e.c.y = gy; } else { const kk = Math.min(1, dt * (gap > 120 ? 14 : 30)); e.c.x += mx * kk; e.c.y += my * kk; }
         if (Math.hypot(mx, my) / Math.max(0.001, dt) < 20) { mx = 0; my = 0; } else { mx *= 4; my *= 4; }
       } else {
         mx = e.tx - e.c.x; my = e.ty - e.c.y;

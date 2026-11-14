@@ -1030,7 +1030,7 @@
         // Экран загрузки мира: v — доля 0..1 (null — скрыть), zone — куда идём (название над полоской)
         onLoading: (v, zone) => {
           const el = $('worldLoad');
-          if (v === null) { el.classList.add('hidden'); return; }
+          if (v === null) { el.classList.add('hidden'); window.__shownAt = Date.now(); return; } // после загрузки мира — пару секунд не судим по FPS
           if (el.classList.contains('hidden')) {
             el.classList.remove('hidden');
             $('wlZone').textContent = zone ? zone.name || '' : '';
@@ -1051,13 +1051,19 @@
       // не хватает сил на 60 кадров, игра «тормозит». «Авто»: начинаем с 2× (или с того, что подошло этому телефону раньше),
       // следим за частотой кадров и сами переключаем разрешение
       const devDpr = window.devicePixelRatio || 1;
+      // Нижняя граница чёткости в «Авто»: на плотных экранах (iPhone 3×) не ниже 2× — ниже картинка «зернистая», глазам больно;
+      // на экранах 2× — не ниже 1,5×. Совсем грубое 1× — только в режиме «Быстрая» на слабых телефонах
+      const AUTO_MIN = devDpr >= 2.5 ? 2 : devDpr >= 1.75 ? 1.5 : 1;
       const DPR_LEVELS = [...new Set([Math.min(3, devDpr), 2, 1.5, 1].filter((x) => x <= devDpr))].sort((a, b) => b - a);
+      const AUTO_LEVELS = DPR_LEVELS.filter((x) => x >= AUTO_MIN);
+      // Старые сохранённые «потолки» могли застрять на минимуме (снижали, пока игра была свёрнута) — сбрасываем один раз
+      if (store.get('gfxVer') !== '2') { store.set('gfxVer', '2'); store.set('gfxCap', ''); store.set('gfxDpr', ''); }
       const gfxStart = () => {
         const g = Settings.get('gfx');
         if (g === 'high') return DPR_LEVELS[0];
         if (g === 'fast') return Math.min(1.5, DPR_LEVELS[0]);
         const saved = Number(store.get('gfxDpr'));
-        return DPR_LEVELS.includes(saved) ? saved : Math.min(2, DPR_LEVELS[0]);
+        return AUTO_LEVELS.includes(saved) ? saved : Math.min(2, DPR_LEVELS[0]);
       };
       const DPR = window.GAME_DPR = Settings.get('lowFps') ? Math.min(2, gfxStart()) : gfxStart();
       game = new Phaser.Game({
@@ -1097,12 +1103,16 @@
       let slow = 0, fast = 0;
       setInterval(() => {
         if (window.appHidden() || Date.now() - (window.__shownAt || 0) < 6000 || Settings.get('lowFps') || Settings.get('gfx') !== 'auto' || !window.gameScene || window.gameScene.zoneLoading) { slow = fast = 0; return; }
-        const fps = game.loop.actualFps, cur = window.GAME_DPR, i = DPR_LEVELS.indexOf(cur);
-        if (fps < 48) { fast = 0; if (++slow >= 2 && i < DPR_LEVELS.length - 1) { slow = 0; store.set('gfxCap', String(cur)); store.set('gfxDpr', String(DPR_LEVELS[i + 1])); applyDpr(DPR_LEVELS[i + 1]); } }
-        else if (fps >= 58) { slow = 0; const cap = Number(store.get('gfxCap')) || 99; if (++fast >= 5 && i > 0 && DPR_LEVELS[i - 1] < cap) { fast = 0; store.set('gfxDpr', String(DPR_LEVELS[i - 1])); applyDpr(DPR_LEVELS[i - 1]); } }
+        // Снижаем только при стойкой просадке (< 42 кадров три замера подряд = 9 с) и не ниже AUTO_MIN.
+        // «Потолок» (на каком разрешении тормозило) живёт 10 минут, потом снова пробуем чётче
+        const fps = game.loop.actualFps, cur = window.GAME_DPR, i = AUTO_LEVELS.indexOf(cur);
+        if (i < 0) { slow = fast = 0; return; }
+        const capRaw = String(store.get('gfxCap') || '').split('@'), cap = Date.now() - (Number(capRaw[1]) || 0) < 600e3 ? Number(capRaw[0]) || 99 : 99;
+        if (fps < 42) { fast = 0; if (++slow >= 3 && i < AUTO_LEVELS.length - 1) { slow = 0; store.set('gfxCap', cur + '@' + Date.now()); store.set('gfxDpr', String(AUTO_LEVELS[i + 1])); applyDpr(AUTO_LEVELS[i + 1]); } }
+        else if (fps >= 57) { slow = 0; if (++fast >= 5 && i > 0 && AUTO_LEVELS[i - 1] < cap) { fast = 0; store.set('gfxDpr', String(AUTO_LEVELS[i - 1])); applyDpr(AUTO_LEVELS[i - 1]); } }
         else { slow = 0; fast = 0; }
       }, 3000);
-      Settings.on((k, v) => { if (k === 'gfx') { store.set('gfxCap', ''); applyDpr(gfxStart()); } });
+      Settings.on((k, v) => { if (k === 'gfx') { store.set('gfxCap', ''); store.set('gfxDpr', ''); applyDpr(gfxStart()); } });
       // Свернули игру — не рисуем кадры (батарея, нагрев); вернулись — рисуем снова. Первые секунды после возврата
       // авто-качество не судит по FPS (браузер «разгоняется»), иначе зря снижало чёткость
       document.addEventListener('appvisibility', (e) => {
