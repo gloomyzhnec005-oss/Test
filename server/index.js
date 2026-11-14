@@ -190,14 +190,14 @@ app.get('/api/wiki', (req, res) => {
       wish: { rates: Wish.RATES, soft: Wish.SOFT, hard: Wish.HARD, legEvery: Wish.LEG_EVERY, gemsPerWish: Wish.GEMS_PER_WISH, dupeMax: C.GACHA.heroDupeMax },
       gear: { pity: meta.SHOP.pity, free: meta.SHOP.freeItemSpins, freeSub: meta.SHOP.freeItemSpinsSub, gemsPerWish: meta.SHOP.gemsPerWish },
       craft: I.WORLD_CRAFT, luck: I.LUCK_STONE, upgrade: I.UPGRADE, craftSlots: I.CRAFT_SLOTS, mats: Object.fromEntries(Object.entries(I.MATS).map(([k, m]) => [k, { name: m.name, icon: m.icon, kind: m.kind, desc: m.desc, buy: m.buy }])),
-      runes: Object.values(I.TEMPLATES.rune).map((r) => ({ name: r.name, icon: r.icon, base: r.base })),
+      runes: Object.entries(I.TEMPLATES.rune).map(([id, r]) => ({ id, name: r.name, icon: r.icon, base: r.base })),
       tree: I.TREE, treeMax: I.TREE_MAX, pasMax: I.PAS_MAX, pasStep: I.PAS_STEP,
       dungeons: Object.fromEntries(Object.entries(MOBX.DUNGEONS).map(([t, list]) => [t, list.map((d) => ({ name: d.name, lv: d.lv, boss: d.bossName || nm(d.boss), minis: (d.minis || []).map(nm), pool: d.pool.map(nm) }))])),
-      worldBosses: Object.fromEntries(Object.entries(MOBX.WORLD_BOSSES).map(([t, w]) => [t, { lv: w.lv, list: w.list.map(nm) }])), wbRespawnMin: Math.round(MOBX.WORLD_BOSS_RESPAWN / 60000),
+      worldBosses: Object.fromEntries(Object.entries(MOBX.WORLD_BOSSES).map(([t, w]) => [t, { lv: w.lv, list: w.list.map(nm) }])), wbTime: D.wbTimeText(),
       bossTimes: String(process.env.DUNGEON_BOSS_TIMES || '12:00,18:00,23:00'), overLv: D.OVER_LV, death: DEATH,
       market: { fee: meta.SHOP.marketFee, feeSub: meta.SHOP.marketFeeSub, auction: meta.SHOP.auctionFee, slots: meta.SHOP.marketSlots, slotsSub: meta.SHOP.marketSlotsSub },
       bag: meta.SHOP.bag, bagSub: meta.SHOP.bagSub, wh: meta.SHOP.wh,
-      companions: Object.entries(I.COMPANIONS).filter(([, c]) => c.art).map(([id, c]) => ({ name: c.name, rare: !!c.rare, price: c.price, bonus: c.bonus })),
+      companions: Object.entries(I.COMPANIONS).filter(([, c]) => c.art).map(([id, c]) => ({ id, name: c.name, rare: !!c.rare, price: c.price, bonus: c.bonus })),
       warPts: WAR_PTS, passDays: meta.SHOP.pass.days, passLevels: meta.SHOP.pass.levels,
     };
   }

@@ -812,8 +812,19 @@ module.exports = function createDungeons(d) {
   }
 
   // ---------- Мировые боссы ----------
+  // Мировые боссы — раз в день, вечером: в WB_TIME по Москве (по умолчанию 21:00). Не победили за WB_STAY — уходят до завтра
+  const WB_TIME = String(process.env.WB_TIME || '21:00').split(':').map(Number);
+  const WB_STAY = 3 * 3600e3, WB_WARN = 15 * 60e3;
+  function nextWbAt(t) {
+    const msk = new Date(t + 3 * 36e5);
+    let at = Date.UTC(msk.getUTCFullYear(), msk.getUTCMonth(), msk.getUTCDate(), WB_TIME[0] || 0, WB_TIME[1] || 0) - 3 * 36e5;
+    if (at <= t) at += 864e5;
+    return at;
+  }
+  const wbTimeText = () => `${String(WB_TIME[0] || 0).padStart(2, '0')}:${String(WB_TIME[1] || 0).padStart(2, '0')}`;
+  let wbWarnedFor = 0;
   const wbState = {};
-  for (const [town, cfg] of Object.entries(X.WORLD_BOSSES)) wbState[town] = { cfg, idx: 0, bossId: null, nextAt: Date.now() + (Number(process.env.WB_FIRST_MS) || 90000) };
+  for (const [town, cfg] of Object.entries(X.WORLD_BOSSES)) wbState[town] = { cfg, idx: 0, bossId: null, nextAt: process.env.WB_FIRST_MS ? Date.now() + Number(process.env.WB_FIRST_MS) : nextWbAt(Date.now()) };
   function spawnWorldBoss(town, now) {
     const st = wbState[town], z = world.byId.get(`wb_${town}`);
     const type = st.cfg.list[st.idx++ % st.cfg.list.length];
@@ -821,7 +832,7 @@ module.exports = function createDungeons(d) {
     const m = create(z, type, z.abs(20, 17), st.cfg.lv, { rank: 'world', hpMult: wbHpMult(n), aggro: 900 });
     m.wbPhase = 0; m.markAt = Date.now() + 20000;
     m.scaledFor = n;
-    st.bossId = m.id;
+    st.bossId = m.id; st.spawnAt = Date.now(); st.warned = false;
     d.broadcast(`👹 Мировой босс «${MOBS[type].name}» появился в мире ${world.byId.get(town).name}! Портал — на юге города.`);
     if (d.push) d.push('wb', `👹 Мировой босс «${MOBS[type].name}» появился в мире ${world.byId.get(town).name}! Нужна команда — заходите.`, (pr) => d.maxHeroLevel(pr) >= st.cfg.lv - 5);
   }
@@ -998,7 +1009,7 @@ module.exports = function createDungeons(d) {
   function rewardWorldBoss(m) {
     const town = world.byId.get(m.zone)?.town;
     const st = wbState[town];
-    if (st) { st.bossId = null; st.nextAt = Date.now() + X.WORLD_BOSS_RESPAWN; }
+    if (st) { st.bossId = null; st.nextAt = nextWbAt(Date.now() + 60000); }
     const total = Object.values(m.contrib).reduce((s, v) => s + v, 0) || 1;
     // Топ-10 по урону: редкие ресурсы (ядра мира, свитки грандмастера/легенды, камень удачи)
     const top = Object.entries(m.contrib).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([uid]) => uid);
@@ -1030,13 +1041,14 @@ module.exports = function createDungeons(d) {
       if (d.companionDrop) { d.companionDrop(p, 0.01); d.companionDrop(p, 0.002, true); } // обычный 1%, редкий 0,2%
       d.markDirty(p);
     }
-    d.broadcast(`👹 Мировой босс «${MOBS[m.type].name}» повержен! Следующий — через ${Math.round(X.WORLD_BOSS_RESPAWN / 60000)} минут.`);
+    d.broadcast(`👹 Мировой босс «${MOBS[m.type].name}» повержен! Следующий — завтра в ${wbTimeText()} МСК.`);
   }
   function worldBossInfo(town) {
     const st = wbState[town];
     if (!st) return null;
     const b = st.bossId ? monsters.get(st.bossId) : null;
-    return b ? `👹 ${MOBS[b.type].name} здесь! Здоровье ${Math.round((b.hp / b.maxHp) * 100)}%` : `👹 Мировой босс появится через ${Math.max(1, Math.round((st.nextAt - Date.now()) / 60000))} мин`;
+    const left = st.nextAt - Date.now();
+    return b ? `👹 ${MOBS[b.type].name} здесь! Здоровье ${Math.round((b.hp / b.maxHp) * 100)}%` : left < 3600e3 ? `👹 Мировой босс появится через ${Math.max(1, Math.round(left / 60000))} мин` : `👹 Мировой босс — каждый день в ${wbTimeText()} МСК`;
   }
 
   // Периодические задачи: копии данжей, волны, мировые боссы
@@ -1068,6 +1080,17 @@ module.exports = function createDungeons(d) {
       if (!st.bossId && now >= (st.homeAt || 0)) {
         for (const o of inZone(`wb_${town}`)) { if (!o.dead) { d.moveToZone(o, town); o.socket.emit('chat', { sys: true, text: '🏰 Логово опустело — вы вернулись в город' }); } }
       }
+      // Не победили за WB_STAY — босс уходит до следующего вечера
+      if (b && st.spawnAt && now - st.spawnAt > WB_STAY) {
+        for (const o of monsters.values()) if (o.wbOf === b.id) monsters.delete(o.id);
+        monsters.delete(b.id); st.bossId = null; st.nextAt = nextWbAt(now); st.homeAt = now + 15000;
+        d.broadcast(`👹 Мировой босс «${MOBS[b.type].name}» ушёл из мира ${world.byId.get(town).name} — не успели. Он вернётся завтра в ${wbTimeText()} МСК.`);
+      }
+      // Предупреждение за 15 минут (одно на все миры)
+      if (!st.bossId && !st.warned && st.nextAt - now <= WB_WARN && st.nextAt > now) {
+        st.warned = true;
+        if (wbWarnedFor !== st.nextAt) { wbWarnedFor = st.nextAt; d.broadcast(`👹 Через ${Math.max(1, Math.round((st.nextAt - now) / 60000))} мин (в ${wbTimeText()} МСК) появятся мировые боссы! Собирайте команду — порталы на юге городов.`); }
+      }
       if (!st.bossId && now >= st.nextAt) spawnWorldBoss(town, now);
       // Рейтинг урона — каждому в логове раз в секунду
       if (b && now - (st.rankAt || 0) > 1000) {
@@ -1091,6 +1114,6 @@ module.exports = function createDungeons(d) {
 
   return {
     create, act, melee, meleeRange, canAggro, inLeash, curSpeed, takenMult, onHurt, preventDeath, onKilled, onMonsterHp,
-    startDungeon, startSurvival, trialInfo, summonHallBosses, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState, overDmg, overFor, OVER_LV,
+    startDungeon, startSurvival, trialInfo, summonHallBosses, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState, overDmg, overFor, OVER_LV, nextWbAt, wbTimeText,
   };
 };

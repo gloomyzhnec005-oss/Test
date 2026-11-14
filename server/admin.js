@@ -521,7 +521,7 @@ module.exports = function createAdmin(ctx) {
     if (d.kill) {
       const b = st.bossId && ctx.monsters.get(st.bossId);
       if (!b) return { error: 'Босса сейчас нет' };
-      ctx.monsters.delete(b.id); st.bossId = null; st.nextAt = Date.now() + MOBX.WORLD_BOSS_RESPAWN;
+      ctx.monsters.delete(b.id); st.bossId = null; st.nextAt = ctx.D.nextWbAt(Date.now());
       return { text: 'Мировой босс удалён' };
     }
     if (st.bossId && ctx.monsters.get(st.bossId)) return { error: 'Босс уже в мире' };

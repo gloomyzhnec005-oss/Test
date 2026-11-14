@@ -8,8 +8,13 @@ window.Wiki = (() => {
   const ul = (items) => `<ul class="wk-ul">${items.map((i) => `<li>${i}</li>`).join('')}</ul>`;
   const h = (s) => `<h4 class="wk-h">${s}</h4>`;
   const p = (s) => `<p class="wk-p">${s}</p>`;
+  // Нарисованные значки вместо эмодзи: места города, интерфейс, предметы и спутники игры
+  const ui = (n) => `<img class="wk-ic" src="assets/ui/${n}.webp" alt="">`;
+  const itm = (n) => `<img class="wk-ic" src="assets/items/${n}.webp" alt="">`;
+  const pet = (id) => `<i class="wk-pet" style="background-image:url(assets/pets/c_${id}.png)"></i>`;
+  const matImg = (k) => itm('mat_' + (String(k).startsWith('bp_') ? 'bp' : k));
   const rar = (k) => `<b style="color:${W.itemRar[k].color}">${W.itemRar[k].name}</b>`;
-  const matN = (k) => (W.mats[k] ? `${W.mats[k].icon} ${W.mats[k].name}` : k);
+  const matN = (k) => (W.mats[k] ? `${matImg(k)}${W.mats[k].name}` : k);
   const mats = (o) => Object.entries(o).map(([k, n]) => `${matN(k)} ×${n}`).join(', ');
   const stat = (o) => Object.entries(o).map(([k, v]) => `+${String(v).replace('.', ',')}${(W.attrs[k] || [k, '%'])[1] === '−%' ? '%' : (W.attrs[k] || [k, '%'])[1]} ${(W.attrs[k] || [k])[0].toLowerCase()}`).join(', ');
 
@@ -59,7 +64,7 @@ window.Wiki = (() => {
       + h('Материалы') + p('Руда, эссенции и сердца падают с монстров своего мира и боссов, их дают задания и разбор вещей. Свитки — в лавке кузнеца, наградах и сундуках.')],
 
     ['runes', '💠', 'Руны', () => p('Руны вставляются в оружие (окно героя → оружие → «Руны»). Число гнёзд зависит от редкости оружия. Вынуть руну можно в любой момент за немного золота.')
-      + t(W.runes.map((r) => [`${r.icon} ${r.name}`, stat(r.base)]), ['Руна', 'Базовый эффект'])
+      + t(W.runes.map((r) => [`${itm('rune_' + r.id)}${r.name}`, stat(r.base)]), ['Руна', 'Базовый эффект'])
       + p('Эффект руны растёт с её редкостью и миром. Руны падают с монстров и продаются в Рунной мастерской.')],
 
     ['wish', '🎰', 'Призывы', () => h('Призыв героев') + t(Object.entries(W.wish.rates).map(([k, v]) => [rar(k), pct(v)]), ['Редкость', 'Шанс'])
@@ -94,7 +99,7 @@ window.Wiki = (() => {
 
     ['worldboss', '👹', 'Мировые боссы', () => t(W.towns.map((tw) => [tw.name, (W.worldBosses[tw.id] || { list: [] }).list.join(', '), `ур. ${(W.worldBosses[tw.id] || {}).lv}`]), ['Мир', 'Боссы', 'Уровень'])
       + ul([
-        `Появляются в своём логове (портал в городе), после победы — снова через ${W.wbRespawnMin} минут.`,
+        `Появляются раз в день, в ${W.wbTime} по Москве, в своём логове (портал на юге города). За 15 минут — объявление в чате. Если за 3 часа босса не победили — он уходит до следующего вечера.`,
         'Рассчитаны на команду примерно из 10 героев; здоровье растёт с каждым игроком в логове.',
         'Многослойная полоска здоровья, на фазах — особые задания: выполните их, иначе босс станет сильнее.',
         'Награда по вкладу: топ-10 по урону получают редкие материалы, пыль и кристаллы; все участники — золото и предметы.',
@@ -112,11 +117,11 @@ window.Wiki = (() => {
         'Клан-победитель недели — «Владыки»: каждому участнику +100 💎 и +10% опыта и золота на следующую неделю.',
       ])],
 
-    ['potions', '🧪', 'Зелья и эликсиры', () => t(Object.values(W.mats).filter((m) => m.kind === 'potion' || m.kind === 'elixir').map((m) => [`${m.icon} ${m.name}`, m.desc, m.buy ? `💰 ${num(m.buy)}` : 'магазин']), ['Название', 'Эффект', 'Цена'])
+    ['potions', '🧪', 'Зелья и эликсиры', () => t(Object.entries(W.mats).filter(([, m]) => m.kind === 'potion' || m.kind === 'elixir').map(([k, m]) => [`<span class="wk-name">${matImg(k)}${m.name}</span>`, m.desc, m.buy ? `💰 ${num(m.buy)}` : 'магазин']), ['Название', 'Эффект', 'Цена'])
       + p('Эликсиры не пропадают при гибели. Одинаковые эффекты не складываются — продлевается время. Автозелье (Настройки) пьёт само, когда здоровья мало.')],
 
     ['pets', '🐾', 'Спутники', () => p('Спутник ходит рядом с героем (его видят все) и даёт постоянный бонус. Выпадают очень редко: обычные — с боссов данжей и мировых боссов, редкие — только с мировых. Можно купить за самоцветы.')
-      + t(W.companions.map((c) => [`${c.rare ? '🌟 ' : ''}${c.name}`, stat(c.bonus), `💎 ${num(c.price)}`]), ['Спутник', 'Бонус', 'Цена'])],
+      + t(W.companions.map((c) => [`<span class="wk-name">${pet(c.id)}${c.name}${c.rare ? ' · <b style="color:#ffb340">редкий</b>' : ''}</span>`, stat(c.bonus), `💎 ${num(c.price)}`]), ['Спутник', 'Бонус', 'Цена'])],
 
     ['economy', '💰', 'Экономика и торговля', () => h('Валюты') + ul([
         '💰 Золото — с монстров, боссов и заданий. Тратится на лавки, кузницу, улучшения и Зал мастеров.',
@@ -130,20 +135,24 @@ window.Wiki = (() => {
       ])],
 
     ['schedule', '⏰', 'Расписание', () => t([
-        ['👑 Боссы данжей', `${W.bossTimes.split(',').join(', ')} МСК (за 15 минут — объявление)`],
-        ['⭐ Полубоссы данжей', 'каждый час после гибели'],
-        ['👹 Мировые боссы', `через ${W.wbRespawnMin} минут после победы`],
-        ['🎁 Награда за вход', 'каждый день с 00:00 МСК, 7 дней подряд — награда растёт'],
-        ['📜 Ежедневные задания и бесплатный призыв снаряжения', 'обновляются в 03:00 МСК'],
-        ['📜 Еженедельные задания', 'понедельник, 03:00 МСК'],
-        ['📜 Ежемесячные задания', '1-е число, 03:00 МСК'],
-        ['🎯 Испытание дня', 'новое условие и попытка — каждый день в 00:00 МСК'],
-        ['🛡 Война кланов', 'неделя с понедельника 00:00 МСК'],
-        ['🎟 Сезон орденов', `${W.passDays} дней, ${W.passLevels} уровней наград`],
-        ['🌟 Избранный недели и комплект недели', 'меняются раз в неделю'],
+        [ui('ic_crown') + 'Боссы данжей', `${W.bossTimes.split(',').join(', ')} МСК (за 15 минут — объявление)`],
+        [ui('ic_star') + 'Полубоссы данжей', 'каждый час после гибели'],
+        [ui('ic_skull') + 'Мировые боссы', `каждый день в ${W.wbTime} МСК (за 15 минут — объявление), держатся 3 часа`],
+        [ui('ic_gift') + 'Награда за вход', 'каждый день с 00:00 МСК, 7 дней подряд — награда растёт'],
+        [ui('ic_scroll') + 'Ежедневные задания и бесплатный призыв снаряжения', 'обновляются в 03:00 МСК'],
+        [ui('ic_scroll') + 'Еженедельные задания', 'понедельник, 03:00 МСК'],
+        [ui('ic_scroll') + 'Ежемесячные задания', '1-е число, 03:00 МСК'],
+        [ui('place_survival') + 'Испытание дня', 'новое условие и попытка — каждый день в 00:00 МСК'],
+        [ui('ic_clan') + 'Война кланов', 'неделя с понедельника 00:00 МСК'],
+        [ui('ic_pass') + 'Сезон орденов', `${W.passDays} дней, ${W.passLevels} уровней наград`],
+        [ui('ic_sealHero') + 'Избранный недели и комплект недели', 'меняются раз в неделю'],
       ], ['Событие', 'Когда'])],
   ];
 
+  // Значки разделов — нарисованные места и значки игры
+  const SEC_ART = { start: 'nav_play', heroes: 'nav_hero', growth: 'place_trainer', gear: 'place_equip', craft: 'place_smith', runes: 'place_runes', wish: 'place_gacha',
+    worlds: 'place_teleport', worldboss: 'ic_skull', pvp: 'place_arena', clans: 'place_clan', potions: 'place_alchemy', economy: 'place_market', schedule: 'ic_time' };
+  const secIcon = (k, small) => (k === 'pets' ? `<i class="wk-pet${small ? ' sm' : ''}" style="background-image:url(assets/pets/c_fox.png)"></i>` : `<img class="${small ? 'wk-ic' : 'wk-toc-art'}" src="assets/ui/${SEC_ART[k]}.webp" alt="">`);
   function open(id) {
     const go = async () => {
       if (!W) {
@@ -153,13 +162,13 @@ window.Wiki = (() => {
       const sec = SECTIONS.find((s) => s[0] === id);
       if (!sec) {
         box.innerHTML = `<p class="sheet-hint">Всё о игре: развитие героя, снаряжение, крафт, руны, призывы, данжи, боссы и расписание.</p>
-          <div class="wk-toc">${SECTIONS.map(([k, ic, name]) => `<button class="wk-toc-i" data-s="${k}"><span>${ic}</span><b>${name}</b></button>`).join('')}</div>`;
+          <div class="wk-toc">${SECTIONS.map(([k, ic, name]) => `<button class="wk-toc-i" data-s="${k}"><span>${secIcon(k)}</span><b>${name}</b></button>`).join('')}</div>`;
         box.querySelectorAll('[data-s]').forEach((b) => { b.onclick = () => open(b.dataset.s); });
         Town.open('📚 Энциклопедия', box);
         return;
       }
       box.innerHTML = `<button class="l2-btn wk-back">← Оглавление</button><div class="wk-body">${sec[3]()}</div>
-        <div class="wk-nav">${SECTIONS.map(([k, ic, name]) => `<button class="${k === id ? 'on' : ''}" data-s="${k}">${ic} ${name}</button>`).join('')}</div>`;
+        <div class="wk-nav">${SECTIONS.map(([k, ic, name]) => `<button class="${k === id ? 'on' : ''}" data-s="${k}">${secIcon(k, true)}${name}</button>`).join('')}</div>`;
       box.querySelector('.wk-back').onclick = () => open();
       box.querySelectorAll('[data-s]').forEach((b) => { b.onclick = () => open(b.dataset.s); });
       Town.open(`📚 ${sec[2]}`, box);
