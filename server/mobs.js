@@ -56,7 +56,7 @@ function mob(id, name, cls, o = {}) {
 }
 
 // ---------- БЛИЖНИЙ БОЙ ----------
-mob('goblinRaider', 'Гоблин-рубака', 'melee', { hpK: 2.5, dmgK: 0.011, speed: 105, pack: 1.3, ab: { type: 'dash', mult: 1.3, range: 220, cd: 7000 }, look: { b: 'hum', skin: '#6aa040', cloth: '#7a5a3a', head: 'ears', wpn: 'sword', sz: 0.8 } });
+mob('goblinRaider', 'Гоблин-рубака', 'melee', { hpK: 2.5, dmgK: 0.011, speed: 150, pack: 1.3, look: { b: 'hum', skin: '#6aa040', cloth: '#7a5a3a', head: 'ears', wpn: 'sword', sz: 0.8 } });
 mob('orcWarrior', 'Орк-воин', 'melee', { hpK: 6, dmgK: 0.0189, speed: 60, ab: { type: 'stunHit', mult: 1.5, ms: TURN / 2, cd: 8000 }, look: { b: 'hum', skin: '#5f8f30', cloth: '#5a3a1a', head: 'tusks', wpn: 'axe', sz: 1.1 } });
 mob('skeletonSword', 'Скелет-мечник', 'melee', { undead: true, revive: 0.5, ab: { type: 'spin', r: 80, mult: 1.2, cd: 7000 }, look: { b: 'hum', skin: '#ece6cc', cloth: '#ece6cc', head: 'skull', wpn: 'sword', bones: true } });
 mob('zombieBerserk', 'Зомби-берсерк', 'melee', { undead: true, speed: 45, dmgK: 0.0189, enrage: { below: 0.3, mult: 1.5 }, look: { b: 'hum', skin: '#7a9a6a', cloth: '#4a4a3a', head: 'none', wpn: 'none', torn: true } });

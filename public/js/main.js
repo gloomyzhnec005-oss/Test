@@ -1055,7 +1055,7 @@
       // на экранах 2× — не ниже 1,5×. Совсем грубое 1× — только в режиме «Быстрая» на слабых телефонах
       const AUTO_MIN = devDpr >= 2.5 ? 2 : devDpr >= 1.75 ? 1.5 : 1;
       const DPR_LEVELS = [...new Set([Math.min(3, devDpr), 2, 1.5, 1].filter((x) => x <= devDpr))].sort((a, b) => b - a);
-      const AUTO_LEVELS = DPR_LEVELS.filter((x) => x >= AUTO_MIN);
+      const AUTO_LEVELS = DPR_LEVELS.filter((x) => x >= Math.min(AUTO_MIN, 1.5)); // ниже AUTO_MIN — только в тяжёлом бою (FPS < 32), потом вернётся
       // Старые сохранённые «потолки» могли застрять на минимуме (снижали, пока игра была свёрнута) — сбрасываем один раз
       if (store.get('gfxVer') !== '2') { store.set('gfxVer', '2'); store.set('gfxCap', ''); store.set('gfxDpr', ''); }
       const gfxStart = () => {
@@ -1108,8 +1108,9 @@
         const fps = game.loop.actualFps, cur = window.GAME_DPR, i = AUTO_LEVELS.indexOf(cur);
         if (i < 0) { slow = fast = 0; return; }
         const capRaw = String(store.get('gfxCap') || '').split('@'), cap = Date.now() - (Number(capRaw[1]) || 0) < 600e3 ? Number(capRaw[0]) || 99 : 99;
-        if (fps < 42) { fast = 0; if (++slow >= 3 && i < AUTO_LEVELS.length - 1) { slow = 0; store.set('gfxCap', cur + '@' + Date.now()); store.set('gfxDpr', String(AUTO_LEVELS[i + 1])); applyDpr(AUTO_LEVELS[i + 1]); } }
-        else if (fps >= 57) { slow = 0; if (++fast >= 5 && i > 0 && AUTO_LEVELS[i - 1] < cap) { fast = 0; store.set('gfxDpr', String(AUTO_LEVELS[i - 1])); applyDpr(AUTO_LEVELS[i - 1]); } }
+        const lowAt = AUTO_LEVELS[i + 1] !== undefined && AUTO_LEVELS[i + 1] < AUTO_MIN ? 32 : 42; // ниже нормы чёткости — только при сильной просадке
+        if (fps < lowAt) { fast = 0; if (++slow >= 3 && i < AUTO_LEVELS.length - 1) { slow = 0; store.set('gfxCap', cur + '@' + Date.now()); store.set('gfxDpr', String(AUTO_LEVELS[i + 1])); applyDpr(AUTO_LEVELS[i + 1]); } }
+        else if (fps >= 57 || (cur < AUTO_MIN && fps >= 50)) { slow = 0; if (++fast >= 5 && i > 0 && (AUTO_LEVELS[i - 1] < cap || cur < AUTO_MIN)) { fast = 0; store.set('gfxDpr', String(AUTO_LEVELS[i - 1])); applyDpr(AUTO_LEVELS[i - 1]); } }
         else { slow = 0; fast = 0; }
       }, 3000);
       Settings.on((k, v) => { if (k === 'gfx') { store.set('gfxCap', ''); store.set('gfxDpr', ''); applyDpr(gfxStart()); } });

@@ -175,6 +175,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (d.respawn) this.ui.onRespawn();
     });
 
+    this.time.addEvent({ delay: 5000, loop: true, callback: () => this.sweepTweens() }); // подстраховка от любых «осиротевших» анимаций
     window.gameScene = this; // для отладки из консоли
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,Q,E,R');
   }
@@ -411,8 +412,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
   buildZone(z) {
     const T = this.T;
     if (this.layer) { this.layer.destroy(); this.tilemap.destroy(); }
-    this.zoneObjs.forEach((o) => o.destroy());
+    this.zoneObjs.forEach((o) => { this.tweens.killTweensOf(o); o.destroy(); });
     this.zoneObjs = [];
+    this.sweepTweens();
     this.zone = z;
     if (z.kind === 'town') { try { localStorage.setItem('lastTown', z.theme); } catch { /* приватный режим */ } } // фон лобби — по этому городу
     const data2d = [];
@@ -1088,21 +1090,40 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   // ---------- Эффекты ----------
+  // Всплывающие цифры и надписи. Текст в Phaser — это отдельная текстура: создавать и удалять её на каждый удар дорого,
+  // а в большом бою ударов сотни в секунду (FPS падал до 15). Поэтому тексты берём из запаса и переиспользуем,
+  // а одновременно на экране держим не больше 40 (самые старые уходят первыми)
   floatText(x, y, text, color, size = 14, hold = 0) {
-    const t = this.add.text(x, y, text, {
-      fontSize: size + 'px', fontFamily: 'Arial', fontStyle: 'bold', color, stroke: '#000', strokeThickness: 3, resolution: 2,
-      ...(hold ? { wordWrap: { width: 220 }, align: 'center' } : {}),
-    }).setOrigin(0.5).setDepth(1000);
+    const pool = (this.ftPool ??= []), live = (this.ftLive ??= []);
+    if (!hold && live.length >= 40) { const old = live.shift(); this.tweens.killTweensOf(old); old.setVisible(false); pool.push(old); }
+    let t = !hold && pool.pop();
+    if (t) {
+      t.setText(text).setPosition(x, y).setAlpha(1).setVisible(true);
+      if (t.ftColor !== color) { t.setColor(color); t.ftColor = color; }
+      if (t.ftSize !== size) { t.setFontSize(size); t.ftSize = size; }
+    } else {
+      t = this.add.text(x, y, text, {
+        fontSize: size + 'px', fontFamily: 'Arial', fontStyle: 'bold', color, stroke: '#000', strokeThickness: 3, resolution: 2,
+        ...(hold ? { wordWrap: { width: 220 }, align: 'center' } : {}),
+      }).setOrigin(0.5).setDepth(1000);
+      t.ftColor = color; t.ftSize = size;
+    }
+    if (!hold) live.push(t);
     // hold — сколько мс надпись стоит на месте, прежде чем уплыть (подсказки, которые нужно успеть прочитать)
-    this.tweens.add({ targets: t, y: y - 30, alpha: 0, delay: hold, duration: 900, ease: 'Cubic.easeOut', onComplete: () => t.destroy() });
+    this.tweens.add({ targets: t, y: y - 30, alpha: 0, delay: hold, duration: 900, ease: 'Cubic.easeOut', onComplete: () => {
+      if (hold || pool.length > 60) { const i = live.indexOf(t); if (i >= 0) live.splice(i, 1); t.destroy(); return; }
+      const i = live.indexOf(t); if (i >= 0) live.splice(i, 1);
+      t.setVisible(false); pool.push(t);
+    } });
   }
 
+  // Вспышка частиц: один общий генератор на сцену вместо нового на каждый удар
   burst(x, y, color, n = 10) {
-    const em = this.add.particles(x, y, 'particle', {
-      speed: { min: 40, max: 140 }, lifespan: 450, scale: { start: 1, end: 0 }, tint: color, quantity: n, emitting: false,
-    }).setDepth(900);
-    em.explode(n);
-    this.time.delayedCall(600, () => em.destroy());
+    if (!this.burstEm || !this.burstEm.scene) {
+      this.burstEm = this.add.particles(0, 0, 'particle', { speed: { min: 40, max: 140 }, lifespan: 450, scale: { start: 1, end: 0 }, emitting: false, maxParticles: 400 }).setDepth(900);
+    }
+    this.burstEm.particleTint = color;
+    this.burstEm.explode(Math.min(n, 12), x, y);
   }
 
   // Нарисованная вспышка удара монстра (белая, красится в цвет атаки)
@@ -2522,6 +2543,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
     c.off = Math.min(sample, c.off + (now - c.at) * 0.002); // медленно подстраиваемся, если часы «уплывают»
     c.jit += (Math.max(0, sample - c.off) - c.jit) * 0.08;
     c.at = now;
+  }
+  // Анимации, чьи объекты уже удалены (свечение порталов прошлой карты, эффекты погибших монстров), продолжали крутиться
+  // бесконечно и копились при каждом переходе между мирами — через час фарма FPS падал даже в городе. Убираем их.
+  sweepTweens() {
+    for (const t of this.tweens.getTweens()) if (t.targets && t.targets.some((o) => o && typeof o === 'object' && 'scene' in o && !o.scene)) t.remove();
   }
   bufPush(e, x, y, ts) {
     const b = (e.buf ??= []), last = b[b.length - 1];
