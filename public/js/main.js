@@ -878,6 +878,12 @@
           sel.onchange = () => Settings.set('gfx', sel.value);
           row('Качество картинки', 'Авто — игра сама снижает чёткость, если телефон не успевает; «Быстрая» — для слабых телефонов', sel);
         }
+        {
+          const sel = document.createElement('select'); sel.className = 'set-sel';
+          for (const [v, n] of [['auto', 'Авто'], ['full', 'Полные'], ['lite', 'Упрощённые']]) { const o = document.createElement('option'); o.value = v; o.textContent = n; o.selected = Settings.get('fx') === v; sel.append(o); }
+          sel.onchange = () => Settings.set('fx', sel.value);
+          row('Эффекты', 'Авто — в больших боях игра сама убирает лишние частицы, тряску и чужие цифры; «Упрощённые» — всегда, для слабых телефонов', sel);
+        }
         row('FPS и пинг', 'Маленькая строка сверху: кадры в секунду и задержка связи', opt('netInfo'));
         // Уведомления от бота в Telegram (настройка хранится на сервере — у героя, а не в браузере)
         {

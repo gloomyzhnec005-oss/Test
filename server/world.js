@@ -326,10 +326,11 @@ function buildWorld() {
     objs.push({ id: 'teleport', kind: 'place', place: 'teleport', ...PLACES.teleport, x: tp.x, y: tp.y });
     DUNGEONS[w.id].forEach((dg, i) => {
       const pos = town.abs(7 + i * 6.8, 3.5);
-      objs.push({ id: 'portal' + (i + 1), kind: 'portal', dungeon: i, num: i + 1, name: dg.name, lv: dg.lv, icon: '🌀', x: pos.x, y: pos.y });
+      objs.push({ id: 'portal' + (i + 1), kind: 'portal', dungeon: i, num: i + 1, name: dg.name, lv: dg.lv, icon: '🌀', x: pos.x, y: pos.y,
+        mobs: [...new Set([...dg.pool, ...(dg.minis || []), dg.boss])] }); // клиент заранее грузит их картинки, пока герой идёт к порталу
     });
     const wb = town.abs(24, 37.2);
-    objs.push({ id: 'worldboss', kind: 'portal', to: `wb_${w.id}`, name: 'Мировой босс', lv: [WORLD_BOSSES[w.id].lv, WORLD_BOSSES[w.id].lv], icon: '👹', x: wb.x, y: wb.y, world: true });
+    objs.push({ id: 'worldboss', kind: 'portal', to: `wb_${w.id}`, name: 'Мировой босс', lv: [WORLD_BOSSES[w.id].lv, WORLD_BOSSES[w.id].lv], icon: '👹', x: wb.x, y: wb.y, world: true, mobs: WORLD_BOSSES[w.id].list });
   });
   // Арены мировых боссов: общие для всех игроков мира
   const arenaTiles = (W, H, rand) => {

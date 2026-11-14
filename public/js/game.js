@@ -116,6 +116,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.pendingState = s;
       if (this.zoneLoading || (window.appHidden ? window.appHidden() : document.hidden)) return;
     });
+    // Лёгкий кадр между полными (сервер 20 тиков/с): позиции, здоровье монстров и эффекты
+    this.net.on('lt', (s) => {
+      if (this.zoneLoading || (window.appHidden ? window.appHidden() : document.hidden)) return;
+      (this.ltQ ??= []).push(s);
+      if (this.ltQ.length > 6) this.ltQ.shift();
+    });
     // Позиции героев между тиками сервера
     this.net.on('pp', (list, ts) => { this.netClock(ts); for (const [id, x, y, dir] of list) { if (id === this.myId) continue; const e = this.players.get(id); if (e) { this.trackPos(e, x, y, ts); if (e.data) e.data.dir = dir; } } });
     this.net.on('stats', (st) => { const now = Date.now(); this.myStats = { ...st, ccEnd: st.cc ? now + (st.ccMs || 0) : 0, rootEnd: st.rooted ? now + (st.rootMs || 0) : 0 }; });
@@ -176,6 +182,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
     });
 
     this.time.addEvent({ delay: 5000, loop: true, callback: () => this.sweepTweens() }); // подстраховка от любых «осиротевших» анимаций
+    // Упрощённые эффекты: без тряски экрана (см. liteFx)
+    { const cam = this.cameras.main, sh = cam.shake.bind(cam); cam.shake = (...a) => (this.liteFx() ? cam : sh(...a)); }
     window.gameScene = this; // для отладки из консоли
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,Q,E,R');
   }
@@ -694,7 +702,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       sprite.setInteractive(new Phaser.Geom.Rectangle(-8, -8, sprite.width + 16, sprite.height + 16), Phaser.Geom.Rectangle.Contains);
       sprite.setData('monsterId', interactiveId);
     }
-    return { c, sprite, bar, label, tx: 0, ty: 0 };
+    return { c, sprite, bar, barBg, label, tx: 0, ty: 0 };
   }
 
   // Нарисованный скин: анимированный лист 8 направлений вместо процедурного спрайта
@@ -1123,12 +1131,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.burstEm = this.add.particles(0, 0, 'particle', { speed: { min: 40, max: 140 }, lifespan: 450, scale: { start: 1, end: 0 }, emitting: false, maxParticles: 400 }).setDepth(900);
     }
     this.burstEm.particleTint = color;
-    this.burstEm.explode(Math.min(n, 12), x, y);
+    this.burstEm.explode(this.liteFx() ? Math.min(n, 3) : Math.min(n, 12), x, y);
   }
 
   // Нарисованная вспышка удара монстра (белая, красится в цвет атаки)
   mobBurst(x, y, color, scale = 1) {
-    if (!this.textures.exists('mfx_burst')) return;
+    if (!this.textures.exists('mfx_burst') || this.liteFx()) return;
     const b = this.add.sprite(x, y, 'mfx_burst').setTint(color).setScale(scale).setDepth(870).setBlendMode(Phaser.BlendModes.ADD);
     b.play('mfx_burst'); b.once('animationcomplete', () => b.destroy());
   }
@@ -1214,7 +1222,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const tgt = this.monsters.get(f.target);
         const x = tgt ? tgt.c.x : f.tx, y = tgt ? tgt.c.y : f.ty;
         // Отражённый урон (возмездие Малакора) — фиолетовым
-        if (Settings.get('dmgNums')) this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
+        if (Settings.get('dmgNums') && (f.from === this.myId || !this.liteFx())) this.floatText(x, y - 20, (f.crit ? '💥' : '') + f.dmg, f.reflect ? '#c890ff' : f.crit ? '#ffde3a' : '#ffffff', f.crit ? 18 : 14);
         if (tgt) { tgt.sprite.setTintFill(0xffffff); this.time.delayedCall(80, () => tgt.sprite.clearTint()); }
         const col = f.reflect ? 0xb060ff : f.confused ? 0xff7ad0 : { venom: 0x7ad84a, bolt: 0xffc850, blood: 0xc0101a, arrow: 0xfff6c0, arcane: 0xc8a0ff, note: 0xffe08a, necro: 0x5fffb0, holy: 0xfff0a0, spirit: 0x9ff0ff, shadow: 0xb060ff, darkfire: 0x7a2ab0, leaf: 0x5fd17a,
           illusion: 0xff7ad0, fireball: 0xff8c1a, frost: 0x8ad3ff, spark: 0xffe94a, stone: 0xa07a4a, moon: 0xdfe4ff, water: 0x5ab8ff, sonic: 0x9ff0e0, dark: 0xb04aff, crystal: 0xd8b0ff, sand: 0xe8c878, rune: 0x5fb0ff, soul: 0xbfeaff }[f.proj] || 0xff4040;
@@ -2544,6 +2552,29 @@ window.GameScene = class GameScene extends Phaser.Scene {
     c.jit += (Math.max(0, sample - c.off) - c.jit) * 0.08;
     c.at = now;
   }
+  // Упрощённые эффекты: настройка «Упрощённые» или «Авто» в большом бою (много монстров рядом / телефон уже снизил чёткость)
+  liteFx() {
+    const m = Settings.get('fx');
+    if (m === 'lite') return true;
+    if (m === 'full') return false;
+    return this.monsters.size > 30 || (window.GAME_DPR || 2) < Math.min(2, window.devicePixelRatio || 1);
+  }
+  onLight(s) {
+    this.netClock(s.ts);
+    for (const [id, x, y, dir] of s.p) {
+      if (id === this.myId) continue;
+      const e = this.players.get(id);
+      if (e) { this.trackPos(e, x, y, s.ts); if (e.data) e.data.dir = dir; }
+    }
+    for (const [id, x, y, hp] of s.m) {
+      const e = this.monsters.get(id);
+      if (!e || e.pvp) continue;
+      if (x !== e.tx && !e.skinOn) e.sprite.setFlipX(x < e.tx);
+      e.tx = x; e.ty = y; this.bufPush(e, x, y, s.ts);
+      if (e.data && hp !== e.data.hp) { e.data.hp = hp; this.setBar(e, hp, e.data.maxHp); }
+    }
+    for (const f of s.fx || []) this.playFx(f);
+  }
   // Анимации, чьи объекты уже удалены (свечение порталов прошлой карты, эффекты погибших монстров), продолжали крутиться
   // бесконечно и копились при каждом переходе между мирами — через час фарма FPS падал даже в городе. Убираем их.
   sweepTweens() {
@@ -2595,7 +2626,20 @@ window.GameScene = class GameScene extends Phaser.Scene {
   update(time, delta) {
     if (this.zoneLoading) return;
     this.guideArrow(time);
+    // Предзагрузка: герой подошёл к порталу (ближе 360) — в фоне грузим монстров за ним, вход будет без экрана загрузки
+    if (((this.preN = (this.preN || 0) + 1) % 30) === 0 && this.me && this.zone && this.zone.kind === 'town' && !this.load.isLoading()) {
+      const done = (this.preDone ??= new Set());
+      for (const o of this.zone.objs || []) {
+        if (o.kind !== 'portal' || !o.mobs || done.has(o.id + this.zone.id) || Math.hypot(o.x - this.me.x, o.y - this.me.y) > 360) continue;
+        done.add(o.id + this.zone.id);
+        let any = false;
+        for (const t of o.mobs) any = this.queueMob(t) || any;
+        if (any) this.lazyLoad();
+        break;
+      }
+    }
     if (this.pendingState) { const s = this.pendingState; this.pendingState = null; this.onState(s); } // догружается новый мир — карта ещё старая, не двигаемся
+    if (this.ltQ && this.ltQ.length) { const q = this.ltQ; this.ltQ = []; for (const s of q) this.onLight(s); }
     const dt = delta / 1000;
     // Подошёл к запечатанным воротам босса — когда они откроются
     if (Settings.get('hints') && this.me && this.gates && this.gates.size && time > (this.gateHintAt || 0)) {
@@ -2635,6 +2679,18 @@ window.GameScene = class GameScene extends Phaser.Scene {
       } else if (e.beast) this.animBeast(e, mx, my, Math.hypot(mx, my) > 1.5);
     }
     const mrt = this.nc ? nowMs - this.nc.off - this.interpDelay() : 0;
+    // Толпа (больше 30 монстров): у дальних прячем имя и полоску здоровья — меньше рисования, на экране чище.
+    // Ближние (до 260), боссы, полубоссы и текущая цель — всегда с подписью. Проверяем раз в 6 кадров
+    if (((this.crowdN = (this.crowdN || 0) + 1) % 6) === 0 && this.me) {
+      const crowd = this.monsters.size > 30, names = Settings.get('names');
+      for (const [id, e] of this.monsters) {
+        if (e.pvp || !e.label) continue;
+        const rk = e.data && e.data.rk, keep = !crowd || id === this.targetId || rk === 'boss' || rk === 'world' || rk === 'mini' || Math.abs(e.c.x - this.me.x) + Math.abs(e.c.y - this.me.y) < 300;
+        if (e.crowdHid === !keep) continue;
+        e.crowdHid = !keep;
+        e.label.setVisible(keep && names); e.bar.setVisible(keep); if (e.barBg) e.barBg.setVisible(keep); if (e.statusBox) e.statusBox.setVisible(keep);
+      }
+    }
     for (const e of this.monsters.values()) {
       if (e.pvp) continue; // герой-соперник на арене движется вместе с героем
       let mx, my;

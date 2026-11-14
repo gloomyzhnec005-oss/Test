@@ -1936,6 +1936,29 @@ setInterval(() => {
   for (const pet of pets.values()) byZone.get(zIdx(pet.x))?.pt.push(pet);
   for (const t of totems) byZone.get(zIdx(t.x))?.t.push(t);
   for (const f of fx) byZone.get(fxZone(f))?.fx.push(f);
+  // Лёгкий кадр (каждый второй такт): позиции героев и монстров рядом, здоровье монстров и эффекты — без полного состояния
+  if (tickNo % 2 === 1) {
+    for (const Z of byZone.values()) {
+      const pl = Z.p.filter((p) => !p.dead).map((p) => [p.id, Math.round(p.x), Math.round(p.y), p.dir]);
+      const important = Z.fx.filter((f) => FX_KEEP.has(f.t));
+      for (const p of Z.p) {
+        if (p.offline) continue;
+        const tr = p.socket.conn && p.socket.conn.transport;
+        if (tr && !tr.writable) {
+          const keep = important.filter((f) => !FX_NEAR.has(f.t) || f.x === undefined || (Math.abs(f.x - p.x) < VIEW.x && Math.abs(f.y - p.y) < VIEW.y));
+          if (keep.length) p.pendFx = (p.pendFx || []).concat(keep).slice(-80);
+          continue;
+        }
+        const rx = p.autofarm ? VIEW.x * 1.5 : VIEW.x, ry = p.autofarm ? VIEW.y * 1.5 : VIEW.y, ml = [];
+        for (const m of Z.m) if (Math.abs(m.x - p.x) <= rx && Math.abs(m.y - p.y) <= ry || m.rank === 'world') ml.push([m.id, Math.round(m.x), Math.round(m.y), Math.ceil(m.hp)]);
+        const out = { ts: now, p: pl, m: ml, fx: Z.fx };
+        if (p.pendFx) { out.fx = p.pendFx.concat(Z.fx); p.pendFx = null; }
+        p.socket.volatile.emit('lt', out);
+      }
+    }
+    fx = [];
+    return;
+  }
   for (const Z of byZone.values()) {
   const state = {
     p: Z.p.map((pl) => { const o = slimPlayer(publicPlayer(pl)); o.hp = Math.ceil(o.hp); return o; }),
@@ -1956,7 +1979,7 @@ setInterval(() => {
   const important = Z.fx.filter((f) => FX_KEEP.has(f.t));
   // Монстры: полные данные — только рядом с героем (экран и запас), дальние — точками для мини-карты раз в 3 тика.
   // В данже из ~65 монстров на экране обычно 3–5: пакет в разы меньше, телефону меньше разбирать
-  const allM = state.m, mmTick = tickNo % 3 === 0;
+  const allM = state.m, mmTick = (tickNo >> 1) % 3 === 0; // мини-карта — раз в 3 полных кадра
   for (const p of Z.p) {
     if (p.offline) continue;
     const tr = p.socket.conn && p.socket.conn.transport;
@@ -1995,7 +2018,7 @@ const FX_NEAR = new Set(['skill', 'heal', 'shield', 'absorb', 'dodge']);
 const SLIM_KEEP = new Set(['x', 'y', 'hp', 'maxHp', 'lv', 'tr']);
 function slim(o) { for (const k in o) if ((o[k] === 0 || o[k] === null || o[k] === undefined) && !SLIM_KEEP.has(k)) delete o[k]; return o; }
 // Между тиками — только позиции героев (лёгкий пакет): чужие герои на экране двигаются плавно и без отставания
-setTimeout(() => setInterval(() => {
+if (C.TICK_MS >= 100) setTimeout(() => setInterval(() => { // при 20 тиках позиции идут в лёгком кадре — отдельный пакет не нужен
   const byZ = new Map();
   for (const p of players.values()) {
     if (p.dead) continue;

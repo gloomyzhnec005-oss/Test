@@ -4,7 +4,8 @@ window.Settings = (() => {
     sfxVol: 80, musicVol: 60, vibro: true, // звук и отдача (громкость в процентах; общий выключатель — Sfx.toggle)
     dmgNums: true, names: true, chatPop: true, sysPop: true, // цифры урона, имена над героями и монстрами, сообщения чата и события над картой
     hints: true, lowFps: false, // подсказки в игре и окнах, экономия батареи (30 кадров в секунду)
-    gfx: 'auto', netInfo: false, // качество картинки: auto (по частоте кадров) / high / fast; показывать FPS и пинг
+    gfx: 'auto', fx: 'auto', netInfo: false, // fx — эффекты: auto (упрощать в больших боях) / full / lite
+    // качество картинки: auto (по частоте кадров) / high / fast; показывать FPS и пинг
     ctrlSize: 100, ctrlOpacity: 100, leftHand: false, // размер и прозрачность кнопок управления (%), джойстик справа
     autoPot: true, autoPotAt: 35, // автозелье: пить само, когда здоровья меньше autoPotAt %
     lang: null, // язык; null — по языку Telegram или браузера
