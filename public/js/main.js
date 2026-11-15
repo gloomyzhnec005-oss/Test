@@ -794,7 +794,7 @@
       };
       socket.on('brk', (b) => { brk = b; showBrk(); });
       setInterval(showBrk, 20000);
-      fetch('/api/status').then((r) => r.json()).then((st) => { lastOnline = st.online; brk = st.brk; showOnline(); showBrk(); }).catch(() => {});
+      fetch('/api/status').then((r) => r.json()).then((st) => { lastOnline = st.online; brk = st.brk; window.GameLinks = st.links || {}; showOnline(); showBrk(); }).catch(() => {});
       socket.on('dungeon', (d) => {
         window.hallInfo = d; // для подсказки у запечатанных ворот босса
         const b = $('waveBadge');
@@ -847,7 +847,7 @@
       const menuRow = (icon, name, desc, fn) => {
         const r = document.createElement('button');
         r.className = 'nav-row';
-        r.innerHTML = `<span>${/^[a-z]+$/.test(icon) ? `<img class="place-ic big" src="assets/ui/${icon === "chat" ? "nav_chat" : "place_" + icon}.webp" alt="">` : icon}</span><div><b>${name}</b><small>${desc}</small></div><i>›</i>`;
+        r.innerHTML = `<span>${/^[a-z]+$/.test(icon) ? `<img class="place-ic big" src="assets/ui/${icon === "chat" ? "nav_chat" : icon === "auto" ? "ic_atk" : "place_" + icon}.webp" alt="">` : icon}</span><div><b>${name}</b><small>${desc}</small></div><i>›</i>`;
         r.onclick = fn;
         if (icon === 'pass' && passReadyN > 0) r.classList.add('nav-dot'); // есть награды пропуска
         return r;
@@ -928,7 +928,7 @@
       const autofarmRow = () => {
         const inDg = zone && zone.kind === 'dungeon';
         const desc = passTier < 3 ? '🔒 Открывается Золотым орденом' : !inDg ? 'Включается только в данже' : autoOn ? 'Герой сражается сам · нажмите, чтобы выключить' : 'Герой будет сам искать монстров и сражаться';
-        return ['⚔️', autoOn ? 'Автобой: включён' : 'Автобой: выключен', desc, () => {
+        return ['auto', autoOn ? 'Автобой: включён' : 'Автобой: выключен', desc, () => {
           if (passTier < 3) { Town.toast('Автобой открывается Золотым орденом'); Town.openPlace('pass'); return; }
           if (!inDg) { Town.toast('Автобой включается только в данже'); return; }
           Town.close();
@@ -951,6 +951,8 @@
         }
         Town.open('👥 Сменить героя', box);
       };
+      // Ссылка t.me внутри Telegram — без закрытия игры
+      const openTgLink = (url) => { const W = window.Telegram && window.Telegram.WebApp; if (W && W.openTelegramLink) W.openTelegramLink(url); else window.open(url, '_blank'); };
       const NAV = {
         hero: () => Bag.open('hero'),
         bag: () => Bag.open('bag'),
@@ -973,6 +975,8 @@
           ['arena', 'Рейтинги', 'Лучшие по уровню, силе, кланы и урону мировым боссам за неделю', () => openRanks()],
           ['events', 'Награда за вход', 'Заходите каждый день — 7 дней подряд, награда растёт', () => Town.openPlace('login')],
           ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
+          ...((window.GameLinks || {}).channel ? [['events', 'Канал игры', 'Новости, обновления, мировые боссы и подарки', () => openTgLink(window.GameLinks.channel)]] : []),
+          ...((window.GameLinks || {}).chat ? [['chat', 'Чат игроков в Telegram', 'Найти группу, спросить совет, сообщить об ошибке', () => openTgLink(window.GameLinks.chat)]] : []),
           ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
         ]),
         settings: () => openSettings(),

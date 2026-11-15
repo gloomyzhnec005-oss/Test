@@ -1,6 +1,6 @@
 # Mystic Horizon channel — texts (English)
 
-Posters: `docs/posters/beta/*_beta_en.jpg` (with the “Beta test” ribbon) and `docs/posters/*_en.jpg` (without it, for the open launch).
+Posters: `docs/posters/*_en.jpg` — the game is open, use these (no ribbon). The “Beta test” versions (`docs/posters/beta/`) are no longer needed.
 Game link everywhere: `t.me/MysticHorizonGameBot/play` — opens the game right away, no bot chat needed.
 
 ## Name and description
@@ -30,7 +30,7 @@ Violations: a warning, then a ban.
 
 ```
 ⚔️ Welcome to Mystic Horizon!
-🧪 Closed beta test is on — you are among the first heroes.
+🎉 The game is open — join while the world is just coming to life!
 
 A fantasy MMORPG right inside Telegram — nothing to download, opens in seconds.
 
@@ -91,7 +91,7 @@ Create a clan or join one (“Game” menu → “Clan”). Every week clans com
 
 👑 The best clan of the week becomes “Overlords”: every member gets +100 💎 and +10% experience and gold for the whole next week.
 
-The first Overlords of the beta will be crowned on Monday!
+The first Overlords will be crowned on Monday!
 🎮 t.me/MysticHorizonGameBot/play
 ```
 

@@ -71,7 +71,7 @@
     document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
     document.querySelectorAll('main > section').forEach((s) => s.classList.toggle('hidden', s.id !== 'tab-' + t));
     clearInterval(timer);
-    ({ overview: drawOverview, players: drawPlayers, world: drawWorld, settings: drawSettings, log: drawLog })[t]();
+    ({ overview: drawOverview, players: drawPlayers, world: drawWorld, econ: drawEcon, settings: drawSettings, log: drawLog })[t]();
     if (t === 'overview') timer = setInterval(drawOverview, 4000);
   }
 
@@ -168,6 +168,39 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   }
 
+  // ---------- Экономика ----------
+  const SRC = { kills: 'монстры', autosell: 'авто-продажа', sell: 'продажа вещей', sellMat: 'продажа материалов', buy: 'лавки', refund: 'возврат в лавку',
+    quests: 'задания', npc: 'поручения НПС', clan: 'клан', craft: 'кузница', upgrade: 'улучшение', setCraft: 'комплекты', treeUp: 'Зал мастеров: характеристики',
+    pasUp: 'Зал мастеров: пассивка', skillUp: 'умения', whUpgrade: 'склад', marketBuy: 'рынок: покупка', marketSell: 'рынок', auctionBid: 'аукцион: ставка',
+    itemSpin: 'призыв снаряжения', heroSummon: 'призыв героев', loginClaim: 'награда за вход', passClaim: 'орден', cardClaim: 'карта месяца', cosmeticBuy: 'косметика',
+    companionBuy: 'спутники', unsocket: 'извлечь руну', other: 'прочее (боссы, арена, рынок…)' };
+  const sum = (o) => Object.values(o || {}).reduce((s, v) => s + v, 0);
+  const top = (o, n = 6) => Object.entries(o || {}).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${esc(SRC[k] || k)} <b>${fmtNum(v)}</b>`).join(' · ') || '—';
+  async function drawEcon() {
+    const o = await api('econ');
+    const box = $('tab-econ');
+    if (o.error) { box.innerHTML = `<div class="card">${esc(o.error)}</div>`; return; }
+    const it = (d, k) => d.items[k] || 0;
+    box.innerHTML = `<div class="card"><small class="muted">По дням (МСК). Золото и самоцветы: сколько пришло игрокам и сколько они потратили. «Прочее» — всё, что не отмечено отдельно (боссы, арена, рынок между игроками, админка). Сводка обновляется раз в 10 минут и при открытии вкладки.</small></div>`
+      + (o.days.length ? o.days.map((d) => {
+        const p = Math.max(1, d.players), gi = sum(d.goldIn), go = sum(d.goldOut);
+        return `<div class="card"><h3>${esc(d.day)} · игроков ${d.players} · пик онлайна ${d.peak}</h3>
+        <div class="tiles">
+          <div class="tile"><b>${fmtNum(gi)} / ${fmtNum(go)}</b><span>💰 пришло / потрачено (на игрока ${fmtNum(Math.round(gi / p))} / ${fmtNum(Math.round(go / p))})</span></div>
+          <div class="tile"><b>${fmtNum(sum(d.gemsIn))} / ${fmtNum(sum(d.gemsOut))}</b><span>💎 пришло / потрачено</span></div>
+          <div class="tile"><b>${d.stars.n} · ${fmtNum(d.stars.sum)} ⭐</b><span>покупок за Stars</span></div>
+          <div class="tile"><b>${d.ton.n} · ${d.ton.sum}</b><span>покупок за TON (GRAM)</span></div>
+          <div class="tile"><b>${it(d, 'mythic:drop')} / ${it(d, 'legendary:drop')}</b><span>мифик / легенд. вещей с монстров</span></div>
+          <div class="tile"><b>${it(d, 'mythic:gearSummon')} / ${it(d, 'legendary:gearSummon')}</b><span>мифик / легенд. из призыва снаряжения</span></div>
+          <div class="tile"><b>${it(d, 'mythic:hero')} / ${it(d, 'legendary:hero')}</b><span>мифических / легенд. героев из призыва</span></div>
+        </div>
+        <p><small class="muted">💰 откуда:</small> ${top(d.goldIn)}</p>
+        <p><small class="muted">💰 куда:</small> ${top(d.goldOut)}</p>
+        <p><small class="muted">💎 откуда:</small> ${top(d.gemsIn)} · <small class="muted">куда:</small> ${top(d.gemsOut)}</p>
+        ${Object.keys(d.buys).length ? `<p><small class="muted">⭐ что покупали:</small> ${Object.entries(d.buys).map(([k, v]) => `${esc(k)} ×${v}`).join(' · ')}</p>` : ''}</div>`;
+      }).join('') : '<div class="card"><p class="muted">Данных пока нет — появятся через несколько минут игры</p></div>');
+  }
+
   // ---------- Обзор ----------
   async function drawOverview() {
     const o = await api('overview');
@@ -179,7 +212,7 @@
         <div class="tile"><b>${fmtNum(o.profiles)}</b><span>аккаунтов</span></div>
         <div class="tile"><b>${fmtNum(o.monsters)}</b><span>монстров</span></div>
         <div class="tile"><b>${o.dungeons} / ${o.survivals}</b><span>данжей / выживаний</span></div>
-        <div class="tile"><b>${o.memMb} МБ</b><span>память</span></div>
+        <div class="tile"><b style="color:${o.memLimitMb && o.memMb > o.memLimitMb * 0.8 ? 'var(--red)' : 'inherit'}">${o.memMb}${o.memLimitMb ? ' / ' + fmtNum(o.memLimitMb) : ''} МБ</b><span>память${o.memLimitMb ? ' · лимит тарифа' : ''}${o.memLimitMb && o.memMb > o.memLimitMb * 0.8 ? ' — почти кончилась, пора поднять тариф' : ''}</span></div>
         <div class="tile"><b>${dur(o.uptime)}</b><span>работает</span></div>
         ${o.perf ? `<div class="tile"><b style="color:${o.perf.cpu > 85 || o.perf.lagP99 > 60 ? 'var(--red)' : 'inherit'}">${o.perf.cpu}% · ${o.perf.lagP99} мс</b><span>процессор · задержка цикла</span></div>` : ''}
       </div>
@@ -465,12 +498,15 @@
         ${s.brk ? `<p>Запланирован: <b>${new Date(s.brk.at).toLocaleString('ru-RU')}</b> на ${s.brk.min} мин</p>` : '<p class="muted">Игроки получат предупреждения в чат за 30, 15, 5 и 1 минуту и плашку в игре; в начале перерыва все, кроме тестеров, выйдут; по окончании вход откроется сам.</p>'}
         <div class="row"><label>Через (мин)</label><input id="sBrkIn" type="number" min="1" value="30"><label>длительность (мин)</label><input id="sBrkLen" type="number" min="1" value="15"></div>
         <div class="row"><button class="btn primary" id="sBrkSet">Объявить перерыв</button>${s.brk ? '<button class="btn danger" id="sBrkOff">Отменить</button>' : ''}</div></div>
+      <div class="card"><h3>📢 Канал и чат игры</h3><p class="muted">Ссылка вида @имя или t.me/имя. Когда заполнено — в игре (меню «Игра» и лобби) и в боте (/start) появятся кнопки. Пусто — кнопок нет.</p>
+        <div class="row"><label>Канал</label><input id="sChannel" class="wide" placeholder="@mystichorizon_game" value="${esc(s.channel || '')}"></div>
+        <div class="row"><label>Чат</label><input id="sChat" class="wide" placeholder="@mystichorizon_chat" value="${esc(s.chat || '')}"></div></div>
       <div class="card"><h3>💬 Сообщение при входе</h3>
         <div class="row"><input id="sMotd" class="wide" placeholder="Показывается каждому игроку при входе в мир" value="${esc(s.motd)}"></div></div>
       <div class="row"><button id="sSave" class="btn primary">Сохранить настройки</button><button id="sDisk" class="btn">Записать данные игроков на диск</button></div>`;
     $('sSave').onclick = async () => {
       if ($('sMaint').checked && !s.maintenance && !confirm('Включить техработы? Все игроки, кроме тестеров, будут отключены.')) return;
-      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value } });
+      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value } });
       drawSettings();
     };
     $('sDisk').onclick = () => api('save');

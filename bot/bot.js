@@ -3,7 +3,7 @@
 require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 
-module.exports = function startBot({ onPaid, isValidPayload, onNotify, profiles, save } = {}) {
+module.exports = function startBot({ onPaid, isValidPayload, onNotify, profiles, save, links } = {}) {
   const { BOT_TOKEN, WEBAPP_URL } = process.env;
   if (!BOT_TOKEN || !WEBAPP_URL) {
     console.error('Укажите BOT_TOKEN и WEBAPP_URL (https) в .env');
@@ -11,13 +11,20 @@ module.exports = function startBot({ onPaid, isValidPayload, onNotify, profiles,
   }
   const bot = new Telegraf(BOT_TOKEN);
   const playButton = () => Markup.inlineKeyboard([Markup.button.webApp('⚔️ Играть', WEBAPP_URL)]);
+  // На /start — ещё канал и чат игры, если заданы в админке (Настройки → Канал и чат)
+  const startButtons = () => {
+    const L = (links && links()) || {}, row = [];
+    if (L.channel) row.push(Markup.button.url('📢 Канал', L.channel));
+    if (L.chat) row.push(Markup.button.url('💬 Чат игроков', L.chat));
+    return Markup.inlineKeyboard([[Markup.button.webApp('⚔️ Играть', WEBAPP_URL)], ...(row.length ? [row] : [])]);
+  };
 
   bot.start((ctx) =>
     ctx.reply(
       `Добро пожаловать в мир «Mystic Horizon»!\n\n` +
       `Призывай героев, проходи данжи, побеждай боссов и сражайся на арене вместе с другими игроками.\n` +
       `Нажми «⚔️ Играть», чтобы начать.`,
-      playButton(),
+      startButtons(),
     ));
   bot.command('play', (ctx) => ctx.reply('Открыть игру:', playButton()));
   // Админ-панель: только для Telegram ID из ADMIN_TG_IDS, вход без пароля

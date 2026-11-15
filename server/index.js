@@ -34,6 +34,9 @@ function saveProfiles() {
   try { store.writeJSON('players.json', profiles); } catch (e) { console.error('save error', e.message); }
 }
 setInterval(saveProfiles, 15000);
+setInterval(() => Econ.online([...players.values()].filter((p) => !p.offline).length), 30000).unref();
+// Сводка экономики по дням (админка → «Экономика»)
+const Econ = require('./econ')({ store, profiles: () => profiles });
 // Бэкап раз в час (последние 48): игроки, рынок, турнир, настройки админки
 store.startBackups(['players.json', 'market.json', 'tournament.json', 'admin.json', 'clans.json'], saveProfiles);
 // Снимки всей игры: с базой — каждый час в базу; раз в сутки копия файлом администраторам в Telegram (ADMIN_TG_IDS)
@@ -120,6 +123,7 @@ const perf = { lagP50: 0, lagP99: 0, lagMax: 0, cpu: 0 };
     h.reset(); cpu0 = process.cpuUsage(); t0 = Date.now();
   }, 10000).unref(); }
 admin.ctx.perf = () => perf;
+admin.ctx.econ = Econ;
 const S = admin.settings;
 app.get('/admin/dl/:t/:name', (req, res) => admin.download(req, res)); // одноразовая ссылка на бэкап (для телефона)
 app.use('/admin/api', admin.router);
@@ -160,8 +164,9 @@ app.post('/api/gacha/spin', (req, res) => {
   const who = resolveUid(initData, guestId);
   if (!who) return res.status(403).json({ error: 'Откройте игру через Telegram-бота' });
   const pr = getProfile(who.uid);
-  const r = Wish.pull(who.uid, pr, banner, n, FREE_SPINS || S.freeSpins);
+  const r = Econ.measure('heroSummon', pr, () => Wish.pull(who.uid, pr, banner, n, FREE_SPINS || S.freeSpins));
   if (r.error) return res.status(402).json(r);
+  for (const x of r.results) Econ.item(x.rar, 'hero');
   saveProfiles();
   const one = r.results[0];
   res.json({ results: r.results, hero: one.hero, dupe: one.dupe, profile: profileView(who) });
@@ -216,7 +221,7 @@ function onlineInfo() {
   }
   return { total, dg, wb, town, showTotal: total >= (S.onlineMin ?? 20) };
 }
-const launchInfo = () => ({ openAt: S.openAt > Date.now() ? S.openAt : 0, brk: S.brk && S.brk.at + S.brk.min * 60e3 > Date.now() ? { at: S.brk.at, min: S.brk.min } : null, maint: !!S.maintenance, now: Date.now() });
+const launchInfo = () => ({ links: { channel: S.channel || '', chat: S.chat || '' }, openAt: S.openAt > Date.now() ? S.openAt : 0, brk: S.brk && S.brk.at + S.brk.min * 60e3 > Date.now() ? { at: S.brk.at, min: S.brk.min } : null, maint: !!S.maintenance, now: Date.now() });
 app.get('/api/status', (req, res) => res.json({ online: onlineInfo(), ...launchInfo() }));
 // «Напомнить об открытии» — бот напишет в момент открытия
 app.post('/api/remind', (req, res) => {
@@ -394,6 +399,7 @@ function onPaid(payload, info = {}) {
   (pr.payments ??= []).push({ t: Date.now(), kind, id: id || undefined, amount: info.amount, cur: info.currency || 'XTR', charge: info.charge });
   if (pr.payments.length > 50) pr.payments.splice(0, pr.payments.length - 50);
   pr.paidOnce = true; // скидка на первую покупку израсходована
+  Econ.paid(kind, info.amount, info.currency || 'XTR');
   if (kind === 'spin') pr.paidSpins += 1;
   else if (kind === 'spin10') pr.paidSpins += 10;
   else if (meta.INVOICES[kind]) { meta.onPaid(kind, pr); refreshUid(uid); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
@@ -1285,6 +1291,7 @@ function grantXp(p, amount, gold, shared = false) {
   p.char.xp += amount;
   p.char.gold += gold;
   pr.gold += gold; // общий кошелёк аккаунта
+  Econ.gold('kills', gold);
   if (!shared) p.char.kills += 1;
   let leveled = false;
   if (p.char.level >= MOBX.MAX_LEVEL) p.char.xp = Math.min(p.char.xp, xpForLevel(p.char.level) - 1);
@@ -1398,12 +1405,13 @@ function giveLoot(o, pr, item, at) {
   const dupe = pr.items.some((i) => i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < I.DUPE_MAX);
   if (full && !dupe && item.cat !== 'bag') {
     const v0 = I.itemView(item);
-    pr.gold += v0.sell;
+    pr.gold += v0.sell; Econ.gold('autosell', v0.sell); Econ.item(item.rar, 'drop');
     if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `💰 +${v0.sell}`, color: '#ffd36a' });
     o.socket.emit('chat', { sys: true, text: `🎒 Сумка полна: ${v0.icon} ${v0.name} продан за ${v0.sell} 💰 — освободите место или перенесите вещи на склад` });
     return v0;
   }
   const res = meta.grant(pr, item);
+  Econ.item(item.rar, 'drop');
   const v = I.itemView(res.item);
   if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}${res.dupe ? ' ⇧' : ''}`, color: v.color });
   o.socket.emit('chat', { sys: true, text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
@@ -1475,6 +1483,7 @@ io.on('connection', (socket) => {
     for (const o of [...players.values()]) if (o.uid === uid && o.offline) { clearTimeout(o.graceTimer); removePlayer(o.socket, o); }
     const heroId = String(data.hero || '');
     const prj = getProfile(uid);
+    Econ.active(uid);
     if (prj.banned) return socket.emit('error_msg', `Вы заблокированы: ${prj.banned.reason}`);
     const isTester = !!(prj.test || {}).tester || admin.isAdminUid(uid);
     if (S.openAt > Date.now() && !isTester) return socket.emit('error_msg', `Игра откроется ${(() => { const d = new Date(S.openAt + 3 * 36e5).toISOString(); return `${d.slice(8, 10)}.${d.slice(5, 7)} в ${d.slice(11, 16)}`; })()} МСК`);
@@ -1720,7 +1729,13 @@ io.on('connection', (socket) => {
   socket.on('act', (d, cb) => {
     const p = players.get(socket.id);
     if (!p || typeof cb !== 'function') return;
-    try { cb(d && /^(quest|story)/.test(d.op) ? Q.handle(p, d) : d && d.op === 'npcMarks' ? NQ.marks(p, p.zone) : d && /^npc/.test(d.op) ? NQ.act(p, d) : meta.handle(p, d || {})); markDirty(p); } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
+    const op = d && typeof d.op === 'string' ? d.op : '';
+    const src = /^(quest|story)/.test(op) ? 'quests' : /^npc/.test(op) ? 'npc' : op;
+    try {
+      const res = Econ.measure(src, getProfile(p.uid), () => (/^(quest|story)/.test(op) ? Q.handle(p, d) : op === 'npcMarks' ? NQ.marks(p, p.zone) : /^npc/.test(op) ? NQ.act(p, d) : meta.handle(p, d || {})));
+      if (op === 'itemSpin' && res && res.results) for (const x of res.results) Econ.item(x.rar, 'gearSummon');
+      cb(res); markDirty(p);
+    } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
   });
 
   // Группа: приглашение игрока из своей зоны, до 4 человек
@@ -1802,7 +1817,7 @@ io.on('connection', (socket) => {
   socket.on('clan', (d = {}, cb) => {
     const p = players.get(socket.id);
     if (!p || typeof cb !== 'function') return;
-    cb(clanAct(p, d));
+    cb(Econ.measure('clan', getProfile(p.uid), () => clanAct(p, d)));
   });
 
   // Арена: очередь на дуэль и команды, бой с клоном и тенью чемпиона
@@ -2165,7 +2180,7 @@ process.on('unhandledRejection', (e) => console.error('unhandledRejection', e));
 
 server.listen(PORT, () => {
   console.log(`MMORPG сервер запущен: http://localhost:${PORT}`);
-  if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ onPaid, isValidPayload, profiles: () => profiles, save: () => saveProfiles(),
+  if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ links: () => ({ channel: S.channel || '', chat: S.chat || '' }), onPaid, isValidPayload, profiles: () => profiles, save: () => saveProfiles(),
     onNotify: (tgId) => { const pr = profiles['tg' + tgId]; if (!pr) return null; pr.notifyOff = !pr.notifyOff; if (!pr.notifyOff) pr.pushBlocked = false; saveProfiles(); return !pr.notifyOff; } });
 });
 // Возврат Stars кнопкой в админке; игроку — сообщение от бота

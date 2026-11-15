@@ -22,7 +22,7 @@ module.exports = function createAdmin(ctx) {
   // ---------- Настройки игры, меняются на лету ----------
   // openAt — время открытия игры (0 — открыта); onlineMin — с какого онлайна показывать общее число игроков;
   // brk — запланированный технический перерыв { at, min } (0 — нет)
-  const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '', openAt: 0, onlineMin: 20, brk: null };
+  const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '', openAt: 0, onlineMin: 20, brk: null, channel: '', chat: '' };
   const settings = { ...DEFAULTS };
   Object.assign(settings, store.readJSON('admin.json', {}));
   const saveSettings = () => store.writeJSON('admin.json', settings);
@@ -328,6 +328,13 @@ module.exports = function createAdmin(ctx) {
     return { text: `Удалено монстров: ${n}` };
   }
 
+  // Лимит памяти контейнера (Railway задаёт его по тарифу): cgroup v2 или v1; null — не ограничен или не узнать
+  function memLimitMb() {
+    for (const f of ['/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes']) {
+      try { const v = Number(require('fs').readFileSync(f, 'utf8').trim()); if (v > 0 && v < 2 ** 50) return Math.round(v / 1048576); } catch { /* нет файла */ }
+    }
+    return null;
+  }
   function overview() {
     const zones = new Map();
     for (const p of ctx.players.values()) zones.set(p.zone, (zones.get(p.zone) || 0) + 1);
@@ -338,7 +345,7 @@ module.exports = function createAdmin(ctx) {
       return { town, townName: zoneName(town), boss: b ? { name: MOBX.MOBS[b.type].name, hp: Math.ceil(b.hp), maxHp: b.maxHp } : null, nextAt: st.nextAt };
     });
     return {
-      uptime: Math.round(process.uptime()), perf: ctx.perf ? ctx.perf() : null, memMb: Math.round(process.memoryUsage().rss / 1048576),
+      uptime: Math.round(process.uptime()), perf: ctx.perf ? ctx.perf() : null, memMb: Math.round(process.memoryUsage().rss / 1048576), memLimitMb: memLimitMb(),
       online: ctx.players.size, profiles: Object.keys(ctx.profiles).length, monsters: ctx.monsters.size,
       dungeons: [...ctx.D.halls.values()].filter((h) => h.populated).length, survivals: ctx.D.survivals.size, worldBosses: wb, settings,
       storage: store.info(),
@@ -391,6 +398,8 @@ module.exports = function createAdmin(ctx) {
       res.status(out && out.error ? 400 : 200).json(out || {});
     } catch (e) { console.error('admin', e); res.status(500).json({ error: 'Ошибка: ' + e.message }); }
   };
+  // Экономика по дням: приход и расход золота и самоцветов, мифики, покупки (server/econ.js)
+  r.post('/econ', act(() => { ctx.econ.reconcile(); return { days: ctx.econ.view(14) }; }));
   r.post('/snapshots', aact(async () => ({ db: store.db, list: await store.listSnapshots() })));
   r.post('/snapshotNow', aact(async () => {
     if (!store.db) return { error: 'Снимки в базе доступны только с Postgres — используйте «Скачать всё»' };
@@ -536,6 +545,9 @@ module.exports = function createAdmin(ctx) {
       for (const k of ['xpMult', 'goldMult', 'dropMult']) if (d.set[k] !== undefined) settings[k] = num(d.set[k], 0, 100, 1);
       for (const k of ['freeSpins', 'maintenance']) if (d.set[k] !== undefined) settings[k] = !!d.set[k];
       if (d.set.motd !== undefined) settings.motd = String(d.set.motd).slice(0, 300);
+      // Канал и чат игры: @имя, t.me/имя или https://t.me/… → https://t.me/…
+      const tme = (v) => { const m = String(v || '').trim().match(/^(?:https?:\/\/)?(?:t\.me\/|@)?([A-Za-z0-9_+\/-]{4,64})$/); return m ? `https://t.me/${m[1]}` : ''; };
+      for (const k of ['channel', 'chat']) if (d.set[k] !== undefined) settings[k] = tme(d.set[k]);
       if (d.set.openAt !== undefined) settings.openAt = Math.max(0, Number(d.set.openAt) || 0);
       if (d.set.onlineMin !== undefined) settings.onlineMin = num(d.set.onlineMin, 0, 100000, 20);
       if (d.set.brk !== undefined) {

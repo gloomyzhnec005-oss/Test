@@ -148,9 +148,9 @@ window.Town = (() => {
     const box = document.createElement('div');
     const move = async (it) => { const r = await Bag.act('store', { id: it.id }); toast(r.error || r.toast); warehousePanel(); };
     const bag = inv.items.filter((i) => i.loc !== 'wh' && !Bag.isEquipped(i)), wh = inv.items.filter((i) => i.loc === 'wh');
-    box.innerHTML = `<p class="sheet-hint">Общий склад аккаунта · тап по предмету — перенести</p><div class="ic-sec">🎒 Сумка ${inv.items.filter((i) => i.loc !== 'wh').length} / ${inv.bagSize}</div>`;
+    box.innerHTML = `<p class="sheet-hint">Общий склад аккаунта · тап по предмету — перенести</p><div class="ic-sec"><img class="ui-ic" src="assets/ui/nav_bag.webp" alt=""> <span>Сумка</span> ${inv.items.filter((i) => i.loc !== 'wh').length} / ${inv.bagSize}</div>`;
     box.append(Bag.grid(bag, move, { empty: 'Сумка пуста' }));
-    box.insertAdjacentHTML('beforeend', `<div class="ic-sec">📦 Склад ${wh.length} / ${inv.whSize}</div>`);
+    box.insertAdjacentHTML('beforeend', `<div class="ic-sec"><img class="ui-ic" src="assets/ui/place_warehouse.webp" alt=""> <span>Склад</span> ${wh.length} / ${inv.whSize}</div>`);
     // Улучшение склада: +50 ячеек за уровень
     const nx = inv.whNext;
     box.insertAdjacentHTML('beforeend', nx

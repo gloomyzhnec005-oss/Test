@@ -752,6 +752,8 @@ window.Lobby = (() => {
     let st;
     try { st = await (await fetch('/api/status')).json(); } catch { return; }
     const skew = st.now - Date.now();
+    window.GameLinks = st.links || {};
+    $('menuChannel').classList.toggle('hidden', !window.GameLinks.channel);
     const on = onlineText(st.online);
     $('lobbyOnline').textContent = on; $('lobbyOnline').classList.toggle('hidden', !on);
     const box = $('lobbyLaunch');
@@ -812,6 +814,7 @@ window.Lobby = (() => {
 
     $('menuHeroes').onclick = openGacha;
     $('menuBg').onclick = () => openSheet('Фон лобби', bgSheet());
+    $('menuChannel').onclick = () => { const u = (window.GameLinks || {}).channel, W = window.Telegram && window.Telegram.WebApp; if (!u) return; if (W && W.openTelegramLink) W.openTelegramLink(u); else window.open(u, '_blank'); };
     $('menuRoster').onclick = () => openSheet('Мои герои', rosterSheet());
     $('heroPrev').onclick = () => cycle(-1);
     $('heroNext').onclick = () => cycle(1);
