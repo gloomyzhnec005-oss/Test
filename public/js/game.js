@@ -252,7 +252,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.makeHeroAnims(id);
       for (const e of this.players.values()) if (e.data && e.data.hero === id && !e.form) this.applySkin(e, id);
       for (const [mid, e] of this.monsters) if (e.heroClone && e.data && e.data.hs === id) { e.c.destroy(); this.monsters.delete(mid); } // пересоздастся со скином
-      for (const e of this.npcEnts || []) if (e.npcSkin === id && e.c.scene) this.applySkin(e, id); // NPC города
+      for (const e of this.npcEnts || []) if (e.npcSkin === id && e.c.scene && !(e.npcArt && this.applyNpcArt(e))) this.applySkin(e, id); // NPC города (нарисованный — главнее)
     });
   }
 
@@ -2590,16 +2590,25 @@ window.GameScene = class GameScene extends Phaser.Scene {
   // ---------- NPC города: поручители (стоят у площади, значок задания над головой) и стража/жители (ходят по дорогам) ----------
   buildNpcs(z, keep) {
     this.npcEnts = []; this.walkers = []; this.givers = new Map();
-    const mk = (skin, label, color) => {
-      this.needHero(skin);
+    // Нарисованные NPC (assets/npc/<город>_<роль>.png — 4 кадра в ряд); пока не загрузились — в образе героя
+    const art = GameScene.NPC_ART[z.id];
+    const mk = (skin, label, color, artKey) => {
       const e = this.makeEntity('hero_' + skin, label, color);
-      e.npcSkin = skin; this.applySkin(e, skin);
+      e.npcSkin = skin; e.npcArt = art ? artKey : null;
+      if (!e.npcArt || !this.applyNpcArt(e)) { this.needHero(skin); this.applySkin(e, skin); }
       keep(e.c); this.npcEnts.push(e);
       return e;
     };
+    if (art) {
+      const keys = [`${z.id}_cap`, `${z.id}_herb`, `${z.id}_track`, `${z.id}_guard_d`, `${z.id}_guard_u`, `${z.id}_guard_r`].filter((k) => !this.textures.exists('npc_' + k));
+      if (keys.length) {
+        for (const k of keys) this.load.image('npc_' + k, `assets/npc/${k}.png?v=${art}`);
+        this.lazyLoad(() => { for (const e of this.npcEnts || []) if (e.npcArt && e.c.scene) this.applyNpcArt(e); });
+      }
+    }
     for (const o of z.objs) {
       if (o.kind !== 'npc') continue;
-      const e = mk(o.skin, o.name, '#ffe08a');
+      const e = mk(o.skin, o.name, '#ffe08a', o.npc);
       e.c.setPosition(o.x, o.y); e.bar.setVisible(false); if (e.barBg) e.barBg.setVisible(false);
       e.mark = this.add.text(0, e.label.y - 16, '', { fontSize: '22px', fontFamily: 'Georgia, serif', fontStyle: 'bold', color: '#ffd23a', stroke: '#3a2400', strokeThickness: 4 }).setOrigin(0.5, 1);
       e.c.add(e.mark);
@@ -2607,7 +2616,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.givers.set(o.npc, e);
     }
     for (const n of z.npcs || []) {
-      const e = mk(n.skin, n.role === 'guard' ? `🛡 ${n.name}` : n.name, n.role === 'guard' ? '#9fd8ff' : '#e0d6c0');
+      const e = mk(n.skin, n.role === 'guard' ? `🛡 ${n.name}` : n.name, n.role === 'guard' ? '#9fd8ff' : '#e0d6c0', `${z.id}_guard`);
+      e.walker = true;
       e.bar.setVisible(false); if (e.barBg) e.barBg.setVisible(false);
       const pts = n.loop ? [...n.route, n.route[0]] : n.route;
       const segs = []; let L = 0;
@@ -2616,6 +2626,25 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const p0 = this.walkerPos(this.walkers[this.walkers.length - 1]); e.c.setPosition(p0[0], p0[1]);
     }
     if (z.kind === 'town') this.refreshNpcMarks();
+  }
+  // Нарисованный NPC: режем картинку на 4 кадра, анимация «дыхания» (поручитель) или шага (стражник). false — картинки ещё нет
+  applyNpcArt(e) {
+    const base = 'npc_' + e.npcArt;
+    const key = e.walker ? `npc_${e.npcArt}_d` : base;
+    if (!this.textures.exists(key)) return false;
+    for (const d of e.walker ? ['d', 'u', 'r'] : ['']) {
+      const k = e.walker ? `npc_${e.npcArt}_${d}` : base, tex = this.textures.get(k);
+      if (!tex || tex.key === '__MISSING') continue;
+      if (!tex.has(0)) { const src = tex.getSourceImage(), fw = Math.floor(src.width / 4); for (let i = 0; i < 4; i++) tex.add(i, 0, i * fw, 0, fw, src.height); }
+      if (!this.anims.exists(k)) this.anims.create({ key: k, frames: [0, 1, 2, 3].map((f) => ({ key: k, frame: f })), frameRate: e.walker ? 7 : 3, repeat: -1 });
+    }
+    e.skinOn = false; e.skin = null;
+    e.sprite.setTexture(key, 0).setOrigin(0.5, 0.94).setFlipX(false);
+    e.sprite.play(key); e.npcDir = 'd';
+    if (e.sprite.input) e.sprite.input.hitArea.setTo(0, 0, e.sprite.width, e.sprite.height); // тап по новому размеру
+    const top = -Math.round((e.sprite.height - 4) / 1.15) + 2; // рост фигуры: ячейка нарезки выше фигуры на ~15%
+    e.label.y = top - 4; e.bar.y = top; if (e.barBg) e.barBg.y = top;
+    return true;
   }
   // Позиция идущего NPC в момент «сейчас» по часам сервера: у всех игроков одинаковая, без сетевого трафика
   walkerPos(w) {
@@ -2632,6 +2661,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const [x, y] = this.walkerPos(w), dx = x - e.c.x, dy = y - e.c.y;
       e.c.setPosition(x, y); e.c.setDepth(10 + y);
       if (e.skinOn) this.animSkin(e, dx * 4, dy * 4, Math.hypot(dx, dy) > 0.05);
+      else if (e.npcArt && e.sprite.texture.key.startsWith('npc_') && Math.hypot(dx, dy) > 0.02) {
+        const d = Math.abs(dx) > Math.abs(dy) ? 'r' : dy > 0 ? 'd' : 'u';
+        if (d === 'r') e.sprite.setFlipX(dx < 0); else e.sprite.setFlipX(false);
+        if (d !== e.npcDir) { e.npcDir = d; e.sprite.play(`npc_${e.npcArt}_${d}`); }
+      }
     }
     const bob = Math.sin(performance.now() / 220) * 3;
     for (const e of this.givers ? this.givers.values() : []) { if (!e.c.scene) continue; e.c.setDepth(10 + e.c.y); if (e.mark) e.mark.y = e.label.y - 14 + bob; }
@@ -2896,6 +2930,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 };
 // Цвета тумана по мирам: base — плотная дымка (скрывает неразведанное), cloud — светлые клубы поверх
+// Города с нарисованными NPC: id → версия картинок (заменили картинки — увеличьте)
+window.GameScene.NPC_ART = { town1: 1 };
 window.GameScene.FOG = {
   green: { hex: '#3a4744', base: [58, 71, 68], cloud: [176, 192, 186] },
   abyss: { hex: '#2a2234', base: [42, 34, 52], cloud: [128, 108, 160] },
