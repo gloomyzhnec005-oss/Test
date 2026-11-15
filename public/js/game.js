@@ -252,6 +252,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.makeHeroAnims(id);
       for (const e of this.players.values()) if (e.data && e.data.hero === id && !e.form) this.applySkin(e, id);
       for (const [mid, e] of this.monsters) if (e.heroClone && e.data && e.data.hs === id) { e.c.destroy(); this.monsters.delete(mid); } // пересоздастся со скином
+      for (const e of this.npcEnts || []) if (e.npcSkin === id && e.c.scene) this.applySkin(e, id); // NPC города
     });
   }
 
@@ -559,6 +560,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         keep(this.add.text(o.x, top, title, { ...labelStyle, fontSize: '10px' }).setOrigin(0.5, 1).setDepth(3000));
       }
     }
+    this.buildNpcs(z, keep);
     this.nearObj = undefined;
     this.autoObj = undefined; // undefined — ещё не проверяли: объект рядом с точкой появления сам не срабатывает
     if (this.layer && this.scale) this.resize();
@@ -654,6 +656,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     for (const o of this.zone.objs) {
       const d = Math.hypot(o.x - this.me.x, o.y - this.me.y);
       // Телепорт стоит посреди города на пути — срабатывает, только если наступить на сам круг
+      if (o.kind === 'npc') continue; // к NPC — только по тапу или кнопке
       const R = o.kind === 'portal' ? 44 : o.place === 'teleport' ? 24 : 40;
       if (d < R && d < ad) { auto = o; ad = d; }
     }
@@ -2575,6 +2578,68 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
     for (const f of s.fx || []) this.playFx(f);
   }
+  // ---------- NPC города: поручители (стоят у площади, значок задания над головой) и стража/жители (ходят по дорогам) ----------
+  buildNpcs(z, keep) {
+    this.npcEnts = []; this.walkers = []; this.givers = new Map();
+    const mk = (skin, label, color) => {
+      this.needHero(skin);
+      const e = this.makeEntity('hero_' + skin, label, color);
+      e.npcSkin = skin; this.applySkin(e, skin);
+      keep(e.c); this.npcEnts.push(e);
+      return e;
+    };
+    for (const o of z.objs) {
+      if (o.kind !== 'npc') continue;
+      const e = mk(o.skin, o.name, '#ffe08a');
+      e.c.setPosition(o.x, o.y); e.bar.setVisible(false); if (e.barBg) e.barBg.setVisible(false);
+      e.mark = this.add.text(0, e.label.y - 16, '', { fontSize: '22px', fontFamily: 'Georgia, serif', fontStyle: 'bold', color: '#ffd23a', stroke: '#3a2400', strokeThickness: 4 }).setOrigin(0.5, 1);
+      e.c.add(e.mark);
+      e.sprite.setInteractive().on('pointerdown', (ptr) => { if (!this.uiBlocked(ptr)) this.goTo(o); });
+      this.givers.set(o.npc, e);
+    }
+    for (const n of z.npcs || []) {
+      const e = mk(n.skin, n.role === 'guard' ? `🛡 ${n.name}` : n.name, n.role === 'guard' ? '#9fd8ff' : '#e0d6c0');
+      e.bar.setVisible(false); if (e.barBg) e.barBg.setVisible(false);
+      const pts = n.loop ? [...n.route, n.route[0]] : n.route;
+      const segs = []; let L = 0;
+      for (let i = 0; i < pts.length - 1; i++) { const l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); segs.push({ a: pts[i], b: pts[i + 1], l, s: L }); L += l; }
+      this.walkers.push({ e, n, segs, L });
+      const p0 = this.walkerPos(this.walkers[this.walkers.length - 1]); e.c.setPosition(p0[0], p0[1]);
+    }
+    if (z.kind === 'town') this.refreshNpcMarks();
+  }
+  // Позиция идущего NPC в момент «сейчас» по часам сервера: у всех игроков одинаковая, без сетевого трафика
+  walkerPos(w) {
+    const now = this.nc ? performance.now() - this.nc.off : Date.now();
+    let d = ((now / 1000) * w.n.speed + (w.n.phase || 0) * w.L * (w.n.loop ? 1 : 2));
+    if (w.n.loop) d %= w.L; else { d %= 2 * w.L; if (d > w.L) d = 2 * w.L - d; }
+    for (const sg of w.segs) if (d <= sg.s + sg.l) { const k = sg.l ? (d - sg.s) / sg.l : 0; return [sg.a[0] + (sg.b[0] - sg.a[0]) * k, sg.a[1] + (sg.b[1] - sg.a[1]) * k]; }
+    const last = w.segs[w.segs.length - 1]; return [last.b[0], last.b[1]];
+  }
+  updateNpcs(dt) {
+    for (const w of this.walkers || []) {
+      const e = w.e;
+      if (!e.c.scene) continue;
+      const [x, y] = this.walkerPos(w), dx = x - e.c.x, dy = y - e.c.y;
+      e.c.setPosition(x, y); e.c.setDepth(10 + y);
+      if (e.skinOn) this.animSkin(e, dx * 4, dy * 4, Math.hypot(dx, dy) > 0.05);
+    }
+    const bob = Math.sin(performance.now() / 220) * 3;
+    for (const e of this.givers ? this.givers.values() : []) { if (!e.c.scene) continue; e.c.setDepth(10 + e.c.y); if (e.mark) e.mark.y = e.label.y - 14 + bob; }
+  }
+  // Значки над поручителями: «!» — новое задание, «?» — можно сдать, «…» — в работе
+  refreshNpcMarks() {
+    if (!this.givers || !this.givers.size || !this.zone || this.zone.kind !== 'town') return;
+    this.net.emit('act', { op: 'npcMarks' }, (m) => {
+      if (!m || m.error) return;
+      for (const [id, e] of this.givers) {
+        if (!e.mark || !e.mark.scene) continue;
+        const k = m[id];
+        e.mark.setText(k === 'new' ? '!' : k === 'ready' ? '?' : k === 'prog' ? '…' : k === 'low' ? '!' : '');
+        e.mark.setColor(k === 'ready' ? '#7dff6a' : k === 'prog' || k === 'low' ? '#b8b0a0' : '#ffd23a');
+      }
+    });
+  }
   // Анимации, чьи объекты уже удалены (свечение порталов прошлой карты, эффекты погибших монстров), продолжали крутиться
   // бесконечно и копились при каждом переходе между мирами — через час фарма FPS падал даже в городе. Убираем их.
   sweepTweens() {
@@ -2626,6 +2691,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
   update(time, delta) {
     if (this.zoneLoading) return;
     this.guideArrow(time);
+    this.updateNpcs(delta / 1000);
+    if (time - (this.npcMarkAt || 0) > 15000) { this.npcMarkAt = time; this.refreshNpcMarks(); }
     // Предзагрузка: герой подошёл к порталу (ближе 360) — в фоне грузим монстров за ним, вход будет без экрана загрузки
     if (((this.preN = (this.preN || 0) + 1) % 30) === 0 && this.me && this.zone && this.zone.kind === 'town' && !this.load.isLoading()) {
       const done = (this.preDone ??= new Set());

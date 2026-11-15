@@ -456,6 +456,15 @@
       <div class="card"><h3>🎛 Режимы</h3>
         <label class="switch"><input id="sFree" type="checkbox" ${s.freeSpins ? 'checked' : ''}> Бесплатные крутки героев для всех</label>
         <label class="switch"><input id="sMaint" type="checkbox" ${s.maintenance ? 'checked' : ''}> Технические работы (вход только тестерам)</label></div>
+      <div class="card"><h3>🏰 Открытие игры</h3>
+        <p class="muted">${s.openAt && s.openAt > Date.now() ? `Открытие: <b>${new Date(s.openAt).toLocaleString('ru-RU')}</b> — до этого входят только админы и тестеры, в лобби — отсчёт и «Напомнить»` : 'Игра открыта. Задайте дату — в лобби появится отсчёт. Первые 3 дня после открытия каждый новый вход получает подарок основателя.'}</p>
+        <div class="row"><input id="sOpen" type="datetime-local" value="${s.openAt ? new Date(s.openAt - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}"><button class="btn" id="sOpenSet">Задать</button><button class="btn danger" id="sOpenNow">Открыть сейчас</button></div>
+        <div class="row"><label class="grow">Показывать общий онлайн, когда игроков не меньше</label><input id="sOnMin" type="number" min="0" value="${s.onlineMin ?? 20}"></div>
+        <p class="muted">Меньше — в лобби и городе пишется, сколько героев в данжах и у мирового босса (это тоже правда, но звучит живее).</p></div>
+      <div class="card"><h3>🔧 Технический перерыв</h3>
+        ${s.brk ? `<p>Запланирован: <b>${new Date(s.brk.at).toLocaleString('ru-RU')}</b> на ${s.brk.min} мин</p>` : '<p class="muted">Игроки получат предупреждения в чат за 30, 15, 5 и 1 минуту и плашку в игре; в начале перерыва все, кроме тестеров, выйдут; по окончании вход откроется сам.</p>'}
+        <div class="row"><label>Через (мин)</label><input id="sBrkIn" type="number" min="1" value="30"><label>длительность (мин)</label><input id="sBrkLen" type="number" min="1" value="15"></div>
+        <div class="row"><button class="btn primary" id="sBrkSet">Объявить перерыв</button>${s.brk ? '<button class="btn danger" id="sBrkOff">Отменить</button>' : ''}</div></div>
       <div class="card"><h3>💬 Сообщение при входе</h3>
         <div class="row"><input id="sMotd" class="wide" placeholder="Показывается каждому игроку при входе в мир" value="${esc(s.motd)}"></div></div>
       <div class="row"><button id="sSave" class="btn primary">Сохранить настройки</button><button id="sDisk" class="btn">Записать данные игроков на диск</button></div>`;
@@ -465,6 +474,11 @@
       drawSettings();
     };
     $('sDisk').onclick = () => api('save');
+    $('sOpenSet').onclick = async () => { const v = $('sOpen').value; if (!v) return toast('Выберите дату и время', true); await api('settings', { set: { openAt: new Date(v).getTime() } }); drawSettings(); };
+    $('sOpenNow').onclick = async () => { if (!confirm('Открыть игру сейчас для всех?')) return; await api('settings', { set: { openAt: Date.now() } }); drawSettings(); };
+    $('sOnMin').onchange = () => api('settings', { set: { onlineMin: $('sOnMin').value } });
+    $('sBrkSet').onclick = async () => { const inMin = Number($('sBrkIn').value) || 30, len = Number($('sBrkLen').value) || 15; if (!confirm(`Перерыв через ${inMin} мин на ${len} мин?`)) return; await api('settings', { set: { brk: { at: Date.now() + inMin * 60000, min: len } } }); drawSettings(); };
+    if ($('sBrkOff')) $('sBrkOff').onclick = async () => { await api('settings', { set: { brk: null } }); drawSettings(); };
   }
 
   // ---------- Журнал ----------

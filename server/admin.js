@@ -20,7 +20,9 @@ module.exports = function createAdmin(ctx) {
   }
 
   // ---------- Настройки игры, меняются на лету ----------
-  const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '' };
+  // openAt — время открытия игры (0 — открыта); onlineMin — с какого онлайна показывать общее число игроков;
+  // brk — запланированный технический перерыв { at, min } (0 — нет)
+  const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '', openAt: 0, onlineMin: 20, brk: null };
   const settings = { ...DEFAULTS };
   Object.assign(settings, store.readJSON('admin.json', {}));
   const saveSettings = () => store.writeJSON('admin.json', settings);
@@ -534,6 +536,13 @@ module.exports = function createAdmin(ctx) {
       for (const k of ['xpMult', 'goldMult', 'dropMult']) if (d.set[k] !== undefined) settings[k] = num(d.set[k], 0, 100, 1);
       for (const k of ['freeSpins', 'maintenance']) if (d.set[k] !== undefined) settings[k] = !!d.set[k];
       if (d.set.motd !== undefined) settings.motd = String(d.set.motd).slice(0, 300);
+      if (d.set.openAt !== undefined) settings.openAt = Math.max(0, Number(d.set.openAt) || 0);
+      if (d.set.onlineMin !== undefined) settings.onlineMin = num(d.set.onlineMin, 0, 100000, 20);
+      if (d.set.brk !== undefined) {
+        const b = d.set.brk;
+        settings.brk = b && Number(b.at) > Date.now() - 6 * 3600e3 ? { at: Number(b.at), min: num(b.min, 1, 600, 15), warned: [] } : null;
+        if (!settings.brk && settings.maintenance && settings.brkAuto) { settings.maintenance = false; settings.brkAuto = false; } // отмена идущего перерыва
+      }
       saveSettings();
       if (d.set.maintenance) for (const p of [...ctx.players.values()]) if (!(ctx.getProfile(p.uid).test || {}).tester) { p.socket.emit('error_msg', 'Технические работы, зайдите позже'); p.socket.disconnect(true); }
       return { text: 'Настройки сохранены', settings };
@@ -545,5 +554,5 @@ module.exports = function createAdmin(ctx) {
 
   // Администратор ли этот игрок (Telegram ID в ADMIN_TG_IDS) — для кнопки админки в лобби
   const isAdminUid = (uid) => String(uid).startsWith('tg') && TG_IDS.includes(String(uid).slice(2));
-  return { router: r, settings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; }, setRefund: (fn) => { refundFn = fn; } };
+  return { router: r, settings, saveSettings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; }, setRefund: (fn) => { refundFn = fn; } };
 };

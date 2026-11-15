@@ -776,6 +776,25 @@
         [...box.querySelectorAll('div span')].forEach((s, i) => { if (r.top[i]) s.textContent = r.top[i].name; });
         box.classList.remove('hidden');
       });
+      // Онлайн в городе и плашка о техническом перерыве
+      let lastOnline = null, brk = null;
+      const showOnline = () => {
+        const o = lastOnline, el = $('townOnline');
+        if (!o || !zone || zone.kind !== 'town') { el.classList.add('hidden'); return; }
+        const t = o.showTotal ? `🟢 В игре: ${o.total}` : o.dg + o.wb > 0 ? `⚔️ ${o.dg} в данжах${o.wb ? ` · 👹 ${o.wb} у босса` : ''}` : '';
+        el.textContent = t; el.classList.toggle('hidden', !t);
+      };
+      socket.on('online', (o) => { lastOnline = o; showOnline(); });
+      const showBrk = () => {
+        const el = $('brkBanner');
+        if (!brk || brk.at <= Date.now()) { el.classList.add('hidden'); return; }
+        const m = Math.max(1, Math.ceil((brk.at - Date.now()) / 60000));
+        el.textContent = `🔧 Через ${m} мин — технический перерыв на ${brk.min} мин`;
+        el.classList.remove('hidden');
+      };
+      socket.on('brk', (b) => { brk = b; showBrk(); });
+      setInterval(showBrk, 20000);
+      fetch('/api/status').then((r) => r.json()).then((st) => { lastOnline = st.online; brk = st.brk; showOnline(); showBrk(); }).catch(() => {});
       socket.on('dungeon', (d) => {
         window.hallInfo = d; // для подсказки у запечатанных ворот босса
         const b = $('waveBadge');
@@ -820,6 +839,7 @@
         if (!o) return;
         vibrate('light');
         if (o.kind === 'portal') socket.emit('travel', { via: o.id });
+        else if (o.kind === 'npc') Town.openNpc(o.npc);
         else Town.openPlace(o.place);
       };
       $('actBtn').onclick = () => activate(near);
@@ -1017,6 +1037,7 @@
           pb.querySelector('img').src = out ? 'assets/ui/place_teleport.webp' : 'assets/ui/nav_play.webp';
           pb.querySelector('em').textContent = out ? 'В город' : 'Игра';
           if (z.kind !== 'survival' && z.kind !== 'dungeon') $('waveBadge').classList.add('hidden');
+          setTimeout(showOnline, 0);
           const b = $('zoneBanner');
           b.querySelector('b').textContent = z.name;
           b.querySelector('small').textContent = z.kind === 'town' ? `${z.sub} · уровень ${z.level}` : z.sub;

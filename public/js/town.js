@@ -729,6 +729,30 @@ window.Town = (() => {
     open('✨ Внешний вид', box);
   }
 
+  // ---------- Поручители (задания у NPC) ----------
+  async function npcPanel(id, view) {
+    const v = view || await Bag.act('npcView', { npc: id });
+    if (!v || v.error) { toast((v && v.error) || 'NPC недоступен'); return; }
+    const sk = window.Skins && Skins.get(v.skin), q = v.quest;
+    const box = el(`<div class="npc-head">${sk && sk.portrait ? `<img src="${sk.portrait}" alt="">` : ''}<div><b>${v.name} ${v.title}</b><p>«${v.hello}»</p></div></div>
+      ${q ? `<div class="npc-q ${q.ready ? 'ready' : ''}"><div class="npc-qt">${q.daily ? '🔁 Поручение дня' : `📜 Поручение ${v.step} из ${v.total}`}</div>
+        <b>${q.name}</b><p>${q.desc}</p>
+        ${q.acc || q.collect ? `<div class="tw-prog"><i style="width:${Math.min(100, q.prog / q.goal * 100)}%"></i><em>${q.prog} / ${q.goal}</em></div>` : ''}
+        <div class="npc-rw"><small>Награда:</small> ${q.reward.map((r) => `<span>${r}</span>`).join('')}</div>
+        ${q.minLv && v.lvl < q.minLv && !q.acc ? `<p class="npc-low">🔒 Нужен ${q.minLv} уровень героя (сейчас ${v.lvl})</p>` : ''}
+        <button class="l2-btn wide" id="npcBtn" ${(q.minLv && v.lvl < q.minLv && !q.acc) || (q.acc && !q.ready) ? 'disabled' : ''}>${q.ready ? '✅ Сдать поручение' : q.acc ? 'Выполняется…' : '📜 Взять поручение'}</button></div>`
+      : `<div class="npc-q"><b>На сегодня всё</b><p>Вы выполнили все мои поручения. Приходите завтра — будет новое поручение дня.</p></div>`}`);
+    const b = box.querySelector('#npcBtn');
+    if (b) b.onclick = async () => {
+      const r = await Bag.act(q.ready ? 'npcTurnIn' : 'npcAccept', { npc: id });
+      toast(r.error || r.toast);
+      if (window.Sfx) Sfx.play(r.error ? 'error' : r.reward ? 'reward' : 'click');
+      if (r.view) npcPanel(id, r.view);
+      if (window.gameScene && window.gameScene.refreshNpcMarks) window.gameScene.refreshNpcMarks();
+    };
+    open(`📜 ${v.name}`, box);
+  }
+
   const PANELS = {
     looks: looksPanel,
     login: loginPanel,
@@ -754,7 +778,7 @@ window.Town = (() => {
     setContext: (c) => { ctx = { ...ctx, ...c }; },
     placeImg,
     openPlace: (id, arg) => { if (!PANELS[id]) return; Promise.resolve().then(() => PANELS[id](arg)).catch((e) => { console.error(id, e); toast('Не удалось открыть — попробуйте ещё раз'); }); },
-    open, close, tabs, toast,
+    open, close, tabs, toast, openNpc: (id) => npcPanel(id).catch((e) => { console.error('npc', e); toast('Не удалось открыть — попробуйте ещё раз'); }),
     lastTab: () => lastTabIdx,
     heroes: () => ctx.heroes,
     skillUnlock: () => ctx.skillUnlock,

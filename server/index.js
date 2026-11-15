@@ -203,6 +203,64 @@ app.get('/api/wiki', (req, res) => {
   }
   res.json(wikiCache);
 });
+// ---------- Онлайн, открытие игры, технический перерыв ----------
+// Настоящий онлайн: всего в игре, в данжах, у мировых боссов; S.onlineMin — с какого числа показывать общий онлайн
+function onlineInfo() {
+  let total = 0, dg = 0, wb = 0, town = 0;
+  for (const p of players.values()) {
+    if (p.offline) continue;
+    total++;
+    const z = world.byId.get(p.zone);
+    if (!z) continue;
+    if (z.kind === 'dungeon' || z.kind === 'survival') dg++; else if (z.kind === 'worldboss') wb++; else if (z.kind === 'town') town++;
+  }
+  return { total, dg, wb, town, showTotal: total >= (S.onlineMin ?? 20) };
+}
+const launchInfo = () => ({ openAt: S.openAt > Date.now() ? S.openAt : 0, brk: S.brk && S.brk.at + S.brk.min * 60e3 > Date.now() ? { at: S.brk.at, min: S.brk.min } : null, maint: !!S.maintenance, now: Date.now() });
+app.get('/api/status', (req, res) => res.json({ online: onlineInfo(), ...launchInfo() }));
+// «Напомнить об открытии» — бот напишет в момент открытия
+app.post('/api/remind', (req, res) => {
+  const { initData, guestId } = req.body || {};
+  const who = resolveUid(initData, guestId);
+  if (!who) return res.status(403).json({ error: 'Откройте игру через Telegram-бота' });
+  const pr = getProfile(who.uid);
+  pr.remindOpen = true; saveProfiles();
+  res.json({ ok: true, tg: !!who.tg });
+});
+let launchFired = !S.openAt || S.openAt <= Date.now();
+const fmtHM = (t) => new Date(t + 3 * 36e5).toISOString().slice(11, 16);
+setInterval(() => {
+  const now = Date.now();
+  io.emit('online', onlineInfo());
+  // Открытие: в момент openAt — объявление и сообщение от бота всем, кто нажал «Напомнить»
+  if (S.openAt && !launchFired && now >= S.openAt) {
+    launchFired = true;
+    io.emit('chat', { sys: true, text: '🎉 Mystic Horizon открыт! Добро пожаловать, герои!' });
+    if (bot) for (const [uid, pr] of Object.entries(profiles)) if (pr.remindOpen && uid.startsWith('tg')) {
+      pr.remindOpen = false;
+      bot.telegram.sendMessage(uid.slice(2), '🎉 Mystic Horizon открыт! Первые 3 дня — подарок основателя: 300 💎, призывы и великий эликсир опыта.',
+        process.env.WEBAPP_URL ? { reply_markup: { inline_keyboard: [[{ text: '⚔️ Играть', web_app: { url: process.env.WEBAPP_URL } }]] } } : {}).catch(() => {});
+    }
+    saveProfiles();
+  }
+  if (S.openAt > now) launchFired = false;
+  // Технический перерыв: предупреждения за 30, 15, 5 и 1 минуту, затем вход закрыт до конца перерыва
+  const b = S.brk;
+  if (b) {
+    const left = b.at - now, end = b.at + b.min * 60e3;
+    for (const m of [30, 15, 5, 1]) if (left <= m * 60e3 && left > 0 && !(b.warned || []).includes(m)) {
+      (b.warned ??= []).push(m);
+      io.emit('chat', { sys: true, text: `🔧 Через ${m} мин (в ${fmtHM(b.at)} МСК) — технический перерыв на ${b.min} мин. Закончите бой и выйдите в город.` });
+      io.emit('brk', launchInfo().brk);
+    }
+    if (now >= b.at && now < end && !S.maintenance) {
+      S.maintenance = true; S.brkAuto = true; admin.saveSettings();
+      for (const p of [...players.values()]) if (!(getProfile(p.uid).test || {}).tester) { p.socket.emit('error_msg', `Технический перерыв до ${fmtHM(end)} МСК`); p.socket.disconnect(true); }
+    }
+    if (now >= end) { if (S.brkAuto) { S.maintenance = false; S.brkAuto = false; } S.brk = null; admin.saveSettings(); }
+  }
+}, 5000);
+
 app.get('/api/config', (req, res) => res.json({
   heroes: C.HEROES, rarities: C.RARITIES, monsters: C.MONSTERS, backgrounds: C.LOBBY_BACKGROUNDS, gacha: C.GACHA, skillUnlock: C.SKILL_UNLOCK,
   botName: (bot && bot.botInfo && bot.botInfo.username) || process.env.BOT_USERNAME || null, // для кнопки «Помощь с покупками»
@@ -364,7 +422,17 @@ const Q = createQuests({
   getProfile: (uid) => getProfile(uid), notifyUid: (uid, t) => notifyUid(uid, t),
   reward: (...a) => meta.reward(...a), addPassXp: (pr, n) => meta.addPassXp(pr, n), save: () => saveProfiles(),
 });
-{ const track = Q.track; Q.track = (uid, type, n = 1, info) => { track(uid, type, n, info); clanTrack(uid, type, n); clanWar(uid, type); }; } // + клановые задания и война кланов
+// Задания у NPC в городах (server/npcq.js)
+const NQ = require('./npcq')({ X: MOBX, I, getProfile: (uid) => getProfile(uid), grantXp: (...a) => grantXp(...a), refreshPlayer: (p) => refreshPlayer(p), notifyUid: (uid, t) => notifyUid(uid, t), save: () => saveProfiles() });
+// События игры → задания NPC: убийства и элита по зоне, полубосс/босс данжа (всем участникам), выживание, мировой босс
+const npcTrack = (uid, type, n, info = {}) => {
+  if (type === 'kill' || type === 'elite') return NQ.track(uid, type, n, info);
+  if (type === 'dungeon' && info.rank === 'mini') return NQ.track(uid, 'mini', 1, info);
+  if (type === 'boss' && info.zone) return NQ.track(uid, 'boss', 1, info);
+  if (type === 'survival') return NQ.track(uid, 'survival', n, info);
+  if (type === 'worldPart') return NQ.track(uid, 'world', 1, info);
+};
+{ const track = Q.track; Q.track = (uid, type, n = 1, info) => { track(uid, type, n, info); clanTrack(uid, type, n); clanWar(uid, type); try { npcTrack(uid, type, n, info); } catch (e) { console.error('npcq', e); } }; } // + клановые задания, война кланов, NPC
 // Мета-игра: предметы, рынок, аукцион, батл-пасс, подписка, арена (server/meta.js)
 const meta = createMeta({
   quest: (...a) => Q.track(...a),
@@ -1003,8 +1071,8 @@ function damageMonster(p, m, raw, opt = {}) {
     if (m.rank === 'boss') io.emit('chat', { sys: true, text: `${p.name} победил босса «${m.name || def.name}»!` });
     safe('onKilled', () => D.onKilled(m, p));
     const zt = (world.byId.get(m.zone) || {}).tier;
-    Q.track(p.uid, 'kill', 1, { tier: zt });
-    if (['magic', 'rare', 'mini'].includes(m.rank)) Q.track(p.uid, 'elite');
+    Q.track(p.uid, 'kill', 1, { tier: zt, zone: m.zone });
+    if (['magic', 'rare', 'mini'].includes(m.rank)) Q.track(p.uid, 'elite', 1, { zone: m.zone });
     if (m.rank === 'boss' && !m.hall) Q.track(p.uid, 'boss'); // боссы данжей засчитываются всем участникам (server/dungeon.js)
     if (m.rank === 'world') Q.track(p.uid, 'world');
   }
@@ -1393,7 +1461,15 @@ io.on('connection', (socket) => {
     const heroId = String(data.hero || '');
     const prj = getProfile(uid);
     if (prj.banned) return socket.emit('error_msg', `Вы заблокированы: ${prj.banned.reason}`);
-    if (S.maintenance && !(prj.test || {}).tester) return socket.emit('error_msg', 'Технические работы, зайдите позже');
+    const isTester = !!(prj.test || {}).tester || admin.isAdminUid(uid);
+    if (S.openAt > Date.now() && !isTester) return socket.emit('error_msg', `Игра откроется ${(() => { const d = new Date(S.openAt + 3 * 36e5).toISOString(); return `${d.slice(8, 10)}.${d.slice(5, 7)} в ${d.slice(11, 16)}`; })()} МСК`);
+    if (S.maintenance && !isTester) return socket.emit('error_msg', S.brk ? `Технический перерыв до ${fmtHM(S.brk.at + S.brk.min * 60e3)} МСК` : 'Технические работы, зайдите позже');
+    // Подарок основателя: всем, кто вошёл в первые 3 дня после открытия (один раз на аккаунт)
+    if (S.openAt && Date.now() >= S.openAt && Date.now() < S.openAt + 3 * 864e5 && !prj.founder) {
+      prj.founder = Date.now();
+      prj.gems = (prj.gems || 0) + 300; prj.paidSpins = (prj.paidSpins || 0) + 2; prj.itemSpins = (prj.itemSpins || 0) + 3; I.addMat(prj, 'elxXp2', 1);
+      setTimeout(() => socket.emit('chat', { sys: true, text: '🎁 Подарок основателя: 300 💎, 2 печати призыва героев, 3 печати снаряжения и Великий эликсир опыта. Спасибо, что вы с нами с первых дней!' }), 2500);
+    }
     if (!C.HEROES[heroId] || !getProfile(uid).heroes.includes(heroId)) {
       socket.emit('error_msg', 'Сначала получите персонажа');
       return;
@@ -1629,7 +1705,7 @@ io.on('connection', (socket) => {
   socket.on('act', (d, cb) => {
     const p = players.get(socket.id);
     if (!p || typeof cb !== 'function') return;
-    try { cb(d && /^(quest|story)/.test(d.op) ? Q.handle(p, d) : meta.handle(p, d || {})); markDirty(p); } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
+    try { cb(d && /^(quest|story)/.test(d.op) ? Q.handle(p, d) : d && d.op === 'npcMarks' ? NQ.marks(p, p.zone) : d && /^npc/.test(d.op) ? NQ.act(p, d) : meta.handle(p, d || {})); markDirty(p); } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
   });
 
   // Группа: приглашение игрока из своей зоны, до 4 человек

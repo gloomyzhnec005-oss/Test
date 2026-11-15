@@ -745,6 +745,38 @@ window.Lobby = (() => {
     }
   }
 
+  // ---------- Онлайн и открытие игры (лобби) ----------
+  const onlineText = (o) => (o.showTotal ? `🟢 В игре сейчас: ${o.total}` : o.dg + o.wb > 0 ? `⚔️ ${o.dg} в данжах${o.wb ? ` · 👹 ${o.wb} у мирового босса` : ''}` : o.total ? `🟢 Герои в мире: ${o.total}` : '');
+  let lsTimer = 0;
+  async function lobbyStatus() {
+    let st;
+    try { st = await (await fetch('/api/status')).json(); } catch { return; }
+    const skew = st.now - Date.now();
+    const on = onlineText(st.online);
+    $('lobbyOnline').textContent = on; $('lobbyOnline').classList.toggle('hidden', !on);
+    const box = $('lobbyLaunch');
+    const target = st.openAt || (st.brk && st.brk.at + st.brk.min * 60e3 > Date.now() + skew && st.brk.at <= Date.now() + skew ? st.brk.at + st.brk.min * 60e3 : 0);
+    clearInterval(lsTimer);
+    if (!target) { box.classList.add('hidden'); return; }
+    $('llTitle').textContent = st.openAt ? '🏰 Открытие игры через' : '🔧 Технический перерыв · до конца';
+    $('llRemind').classList.toggle('hidden', !st.openAt);
+    box.classList.remove('hidden');
+    const tick = () => {
+      const left = target - (Date.now() + skew);
+      if (left <= 0) { clearInterval(lsTimer); box.classList.add('hidden'); lobbyStatus(); return; }
+      const d = Math.floor(left / 864e5), h = Math.floor(left / 36e5) % 24, m = Math.floor(left / 6e4) % 60, sec = Math.floor(left / 1000) % 60;
+      $('llTimer').textContent = (d ? `${d} д ` : '') + `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    };
+    tick(); lsTimer = setInterval(tick, 1000);
+    $('llRemind').onclick = async () => {
+      const r = await api('/api/remind', {});
+      const b = $('llRemind');
+      if (!r.ok) { $('status').textContent = r.data.error || ''; return; }
+      b.textContent = r.data.tg ? '✅ Бот напомнит' : '✅ Запомнили'; b.classList.add('done'); b.disabled = true;
+    };
+  }
+  setInterval(() => { if (!document.hidden && !$('lobby').classList.contains('hidden')) lobbyStatus(); }, 30000);
+
   // ---------- Инициализация ----------
   async function init(o) {
     if (window.Sfx) Sfx.music('lobby'); // музыка лобби (заиграет после первого касания, если браузер не даёт раньше)
@@ -774,6 +806,7 @@ window.Lobby = (() => {
     buildStage();
     $('playBtn').disabled = false;
     window.splashDone?.();
+    lobbyStatus();
     // Смена героя из игры (меню «Игра» → «Сменить героя»): сразу входим выбранным
     if (opts.store.get('autoStart') === '1') { opts.store.set('autoStart', ''); if (order[0]) setTimeout(() => opts.onStart(order[0], playerName()), 300); }
 

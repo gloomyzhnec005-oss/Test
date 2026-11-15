@@ -721,8 +721,8 @@ module.exports = function createDungeons(d) {
       const gold = Math.round((boss ? 60 : 20) * h.dg.lv[1] * (0.6 + Math.min(1, Math.max(part, 0.1) * 3) * 0.4));
       pr.gold += gold;
       d.addPassXp(pr, boss ? 25 : 10);
-      d.quest(p.uid, 'dungeon');
-      if (boss) d.quest(p.uid, 'boss');
+      d.quest(p.uid, 'dungeon', 1, { zone: m.zone, rank: m.rank });
+      if (boss) d.quest(p.uid, 'boss', 1, { zone: m.zone });
       pr.dungeonClears = pr.dungeonClears || {};
       const key = `${h.z.town}:${h.z.dgIndex}`;
       const first = boss && !pr.dungeonClears[key];
@@ -813,7 +813,7 @@ module.exports = function createDungeons(d) {
       pr.gold += gold;
       d.addPassXp(pr, 5);
       pr.survivalBest = Math.max(pr.survivalBest || 0, s.wave);
-      d.quest(o.uid, 'survival', s.wave);
+      d.quest(o.uid, 'survival', s.wave, { town: s.z.town });
       o.socket.emit('chat', { sys: true, text: `Волна ${s.wave} пройдена! +${gold} 💰 · рекорд: ${pr.survivalBest}` });
       if (s.wave % 5 === 0 || Math.random() < 0.25) d.giveLoot(o, pr, d.rollItem(z.tier, s.wave % 5 === 0 ? C.DROPS.boss[z.tier] : C.DROPS.weights[z.tier], null, o.heroId), o);
       d.markDirty(o);
@@ -1036,6 +1036,7 @@ module.exports = function createDungeons(d) {
         p.socket.emit('chat', { sys: true, text: `🏆 ${place} место по урону по мировому боссу! Редкие ресурсы: ${Object.entries(mats).map(([k, n]) => `${I.MATS[k].icon} ${I.MATS[k].name}${n > 1 ? ' ×' + n : ''}`).join(', ')}` });
       }
     }
+    for (const uid of Object.keys(m.contrib)) if (d.quest) d.quest(uid, 'worldPart', 1, { town }); // участие — для заданий у NPC
     if (top.length) d.broadcast(`🏆 Лучшие по урону: ${top.slice(0, 3).map((uid, i) => `${['🥇', '🥈', '🥉'][i]} ${d.getProfile(uid).name || 'Герой'}`).join(' · ')}`);
     // Рейтинг недели «Мировые боссы»: урон всех участников (server/index.js → рейтинги)
     if (d.wbWeek) for (const [uid, dmg] of Object.entries(m.contrib)) d.wbWeek(uid, dmg);
