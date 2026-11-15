@@ -1488,3 +1488,7 @@ canvas.skin { object-fit: contain; }
 .stats .row.small { justify-content: flex-start; gap: 10px; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
 .stats .row.small > span { display: inline-flex; align-items: center; }
 .stats .row.small { margin-left: -46px; overflow: visible; }
+
+/* Значки лобби (ИК-1): глобус у выбора языка, перо у смены имени */
+#menuLang.lang-sel { background-image: url(../assets/ui/ic_lang.webp); background-repeat: no-repeat; background-size: 1.3em; background-position: 8px center; padding-left: 2.3em !important; padding-right: 0.3em !important; text-align: left; text-align-last: left; font-size: 14px !important; }
+#lpRename .ui-ic { width: 18px; height: 18px; margin: 0; vertical-align: -3px; }

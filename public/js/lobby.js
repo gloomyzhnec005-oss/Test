@@ -180,7 +180,7 @@ window.Lobby = (() => {
     $('heroPrev').classList.toggle('hidden', list.length < 2);
     $('heroNext').classList.toggle('hidden', list.length < 2);
     $('menuRoster').classList.toggle('hidden', list.length < 1); // кнопка выбора героя видна всегда
-    $('menuRoster').textContent = `👥 Герои · ${list.length}`;
+    $('menuRoster').innerHTML = `<img class="ui-ic" src="assets/ui/nav_hero.webp" alt=""><span>Герои</span> · ${list.length}`;
     box.innerHTML = '';
     list.forEach((id) => box.appendChild(chip(id)));
     markRoster();
@@ -362,10 +362,10 @@ window.Lobby = (() => {
       <div class="tw-tabs wb-tabs"><button class="tw-tab ${banner === 'event' ? 'on' : ''}" data-b="event">🌟 Избранный${ev.mythic ? ': ' + heroes[ev.mythic].name : ''}</button><button class="tw-tab ${banner === 'standard' ? 'on' : ''}" data-b="standard">⭐ Зал героев</button></div>
       ${head}
       <div class="reel-wrap"><div class="reel-marker"></div><div id="reel" class="reel"></div></div>
-      <div class="spin-wallet"><div><b>${profile.paidSpins || 0}</b><span>🔮 печати призыва</span></div><div><b>${w.gems || 0}</b><span>💎 самоцветы · ${W().gemsPerWish || 160} = призыв</span></div><div><b>${w.glitter || 0}</b><span>✨ осколки душ</span></div></div>
+      <div class="spin-wallet"><div><b>${profile.paidSpins || 0}</b><span>🔮 печати призыва</span></div><div><b>${w.gems || 0}</b><span>💎 самоцветы · ${W().gemsPerWish || 160} = призыв</span></div><div><b>${w.glitter || 0}</b><span><img class="ui-ic" src="assets/ui/ic_shards.webp" alt=""><span>осколки душ</span></span></div></div>
       <div class="btn-row wb-btns"><button id="spinBtn" class="l2-btn spin-btn" data-n="1">Призыв ×1<small>${costLabel(1)}</small></button><button class="l2-btn spin-btn" data-n="10">Призыв ×10<small>${costLabel(10)}</small></button></div>
       <p class="chances">Мифический герой — не позже чем через ${st.mythicIn} · легендарный или выше — через ${st.legIn}${banner === 'event' && ev.guarM ? ' · <b class="ok">следующий мифический — избранный недели</b>' : ''}${banner === 'event' && ev.guarL ? ' · <b class="ok">следующий легендарный — спутник недели</b>' : ''}</p>
-      <div class="btn-row wb-links"><button class="l2-btn" data-a="hist">📜 История</button><button class="l2-btn" data-a="glitter">✨ Обмен осколков</button><button class="l2-btn" data-a="buy">🔮 Печати</button></div>
+      <div class="btn-row wb-links"><button class="l2-btn" data-a="hist">📜 История</button><button class="l2-btn" data-a="glitter"><img class="ui-ic" src="assets/ui/ic_shards.webp" alt=""><span>Обмен осколков</span></button><button class="l2-btn" data-a="buy">🔮 Печати</button></div>
       <p class="sheet-hint">Повторный герой — дубликат (сильнее, до 10 копий) и осколки душ. 160 💎 = один призыв. Чем выше редкость, тем сильнее герой и быстрее растёт.</p>
       <div class="sheet-sub">Все герои · получено ${profile.heroes.length} из ${Object.keys(heroes).length}</div>
       <div class="hero-grid"></div>`;
@@ -830,7 +830,7 @@ window.Lobby = (() => {
     }, { passive: true });
     $('menuAdmin').onclick = () => { location.href = '/admin.html'; };
     // Язык игры: перезагрузка с переводом
-    $('menuLang').innerHTML = Object.entries(I18N.LANGS).map(([k, n]) => `<option value="${k}"${k === I18N.lang ? ' selected' : ''}>🌐 ${n}</option>`).join('');
+    $('menuLang').innerHTML = Object.entries(I18N.LANGS).map(([k, n]) => `<option value="${k}"${k === I18N.lang ? ' selected' : ''}>${n}</option>`).join('');
     $('menuLang').onchange = () => I18N.set($('menuLang').value);
     $('sheetClose').onclick = closeSheet;
     $('sheet').onclick = (e) => { if (e.target === $('sheet')) closeSheet(); };
