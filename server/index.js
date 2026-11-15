@@ -977,7 +977,8 @@ function pvpHit(p, m, raw, opt) {
   if (!p.match && p.party && p.party === victim.party) return 0; // по своей группе не бьём
   let crit = opt.crit ?? false;
   if (opt.basic && p.nextCritUntil > Date.now()) { crit = true; p.nextCritUntil = 0; }
-  const dmg = opt.fixed ? raw * PVP_K : raw * dmgMult(p) * (0.85 + Math.random() * 0.3) * (crit ? 1.6 : 1) * PVP_K
+  // «Добивания» по монстрам (казнь, жертва, раскол льда…) наносят здоровье цели целиком — по героям не больше 25% их здоровья
+  const dmg = opt.fixed ? Math.min(raw * PVP_K, victim.maxHp * 0.25) : raw * dmgMult(p) * (0.85 + Math.random() * 0.3) * (crit ? 1.6 : 1) * PVP_K
     * (!opt.basic && !opt.pet && p.gear && p.gear.skill ? 1 + p.gear.skill / 100 : 1);
   const before = victim.hp;
   victim.lastPvpBy = p.id; victim.lastPvpAt = Date.now();

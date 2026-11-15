@@ -39,7 +39,7 @@ const SHOP = {
   itemSpin: { price: 15, price10: 135 }, // Telegram Stars
   freeItemSpins: 1, freeItemSpinsSub: 2, // бесплатно каждый день
   pity: 50, // гарантированный легендарный предмет каждые 50 круток
-  gemsPerWish: 160, // самоцветов за один призыв, если печатей нет
+  gemsPerWish: 100, // самоцветов за один призыв снаряжения, если печатей нет (≈ цене печати в ⭐; призыв героя — 160, server/wish.js)
   gems: { gems1: { gems: 330, amount: 50 }, gems2: { gems: 1090, amount: 150 }, gems3: { gems: 2240, amount: 300 }, gems4: { gems: 6480, amount: 800 } }, // пачки самоцветов за Stars
   pass: { levels: 30, xpPerLevel: 100, days: 30 },
   // Сезонные ордена (Telegram Stars): каждый следующий включает все бонусы предыдущих, доплата — только разница в цене
@@ -298,7 +298,7 @@ module.exports = function createMeta(deps) {
     if (id === 'chestSet') {
       const cls = I.CLASSES[d.cls] ? d.cls : I.classOf(p.heroId);
       const roll = Math.random();
-      const res = grant(pr, I.createSetItem(cls, t, roll < 0.02 ? 'mythic' : roll < 0.17 ? 'legendary' : 'epic'));
+      const res = grant(pr, I.createSetItem(cls, t, roll < 0.03 ? 'mythic' : roll < 0.28 ? 'legendary' : 'epic'));
       return grantMsg(res);
     }
     return null;
@@ -1001,7 +1001,7 @@ module.exports = function createMeta(deps) {
     bagEpic: { n: 1, amount: 199, bag: 'epic', title: 'Рюкзак искателя', description: 'Эпическая сумка: +20 ячеек инвентаря' },
     bagLegend: { n: 1, amount: 499, bag: 'legendary', title: 'Сума гномьего торговца', description: 'Легендарная сумка: +35 ячеек инвентаря' },
     kitSmith: { n: 1, amount: 49, title: 'Сундук кузнеца', description: '30 руды, 15 эссенции и 2 свитка мастера' },
-    chestSet: { n: 1, amount: 99, title: 'Ларец комплекта', description: 'Вещь комплекта вашего класса: эпическая, 15% легендарная, 2% мифическая' },
+    chestSet: { n: 1, amount: 99, title: 'Ларец комплекта', description: 'Вещь комплекта вашего класса: эпическая, 25% легендарная, 3% мифическая' },
     chestSet5: { n: 5, amount: 449, title: 'Ларцы комплекта ×5', description: 'Пять ларцов комплекта со скидкой 10%' },
     chestLegend: { n: 1, amount: 149, title: 'Ларец грандмастера', description: '2 свитка грандмастера и редкий материал' },
     // Особые предложения (своя витрина в магазине)
@@ -1020,7 +1020,7 @@ module.exports = function createMeta(deps) {
     ...Object.fromEntries(Object.entries(CHESTS).map(([k, c]) => [k, { title: c.title, description: c.description, amount: c.amount }])),
     ispin: { title: 'Призыв предмета', description: 'Одна крутка призыва предметов', amount: SHOP.itemSpin.price },
     ispin10: { title: 'Призыв предметов ×10', description: 'Десять круток призыва предметов', amount: SHOP.itemSpin.price10 },
-    ...Object.fromEntries(Object.entries(SHOP.gems).map(([k, g]) => [k, { title: `Самоцветы ×${g.gems}`, description: `${g.gems} самоцветов: 160 = один призыв героя или снаряжения`, amount: g.amount }])),
+    ...Object.fromEntries(Object.entries(SHOP.gems).map(([k, g]) => [k, { title: `Самоцветы ×${g.gems}`, description: `${g.gems} самоцветов: 160 = призыв героя, 100 = призыв снаряжения`, amount: g.amount }])),
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
   };
 

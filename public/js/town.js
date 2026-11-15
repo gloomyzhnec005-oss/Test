@@ -381,7 +381,7 @@ window.Town = (() => {
         ${s.sub ? `<small class="ok">Активна до ${new Date(s.sub).toLocaleDateString('ru-RU')}</small>` : ''}
         <button class="l2-btn" data-buy="sub">${s.sub ? 'Продлить' : 'Оформить'} · ${s.subPrice} ⭐</button></div>
       <div class="tw-banner hero"><b>✨ Внешний вид</b><small>Цвет имени и сияние под героем — видно всем игрокам; особые рамки портрета. За самоцветы</small><button class="l2-btn" id="openLooks">Открыть</button></div>
-      <div class="tw-banner hero gems-row"><b>💎 Самоцветы · у вас ${s.gems || 0}</b><small>160 самоцветов = один призыв героя или снаряжения</small>
+      <div class="tw-banner hero gems-row"><b>💎 Самоцветы · у вас ${s.gems || 0}</b><small>160 самоцветов = призыв героя, 100 = призыв снаряжения</small>
         <div class="gem-packs">${(s.gemPacks || []).map((g) => `<button class="gem-pack" data-buy="${g.id}"><img src="assets/ui/shop/${g.id}.webp" alt=""><b>${g.gems}</b><span>${g.amount} ⭐</span></button>`).join('')}</div></div>
       <div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/gems4.webp" alt=""><b>🔮 Печати призыва</b><small>Призыв героев: Избранный недели и Зал героев</small>
         <div class="btn-row"><button class="l2-btn" data-buy="spin">+1 · 25 ⭐</button><button class="l2-btn" data-buy="spin10">+10 · 225 ⭐</button></div></div>

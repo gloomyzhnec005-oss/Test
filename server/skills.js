@@ -380,7 +380,7 @@ const SKILLS = {
   shadowStrike(ctx, p, t, now) {
     if (!t) return 'Нет цели рядом';
     const hidden = p.stealthUntil > now;
-    const unaware = t.target !== p.id;
+    const unaware = !t.pvpOf && t.target !== p.id; // на арене герой-соперник всегда «видит» Кассиана
     const reap = 1 + 0.2 * (p.reapStacks || 0);
     p.reapStacks = 0;
     const lethal = hidden && unaware;
@@ -405,7 +405,7 @@ const SKILLS = {
     if (t.hp / t.maxHp < threshold) {
       ctx.pushFx({ t: 'skill', s: 'execution', from: p.id, x: t.x, y: t.y, ok: true });
       ctx.damageMonster(p, t, t.hp + 1, { fixed: true, crit: true });
-      p.skillNoCd = true; // успешная казнь — навык сразу готов снова
+      if (!t.pvpOf) p.skillNoCd = true; // успешная казнь — навык сразу готов снова (на арене — нет)
     } else {
       ctx.pushFx({ t: 'skill', s: 'execution', from: p.id, x: t.x, y: t.y, ok: false });
       ctx.damageMonster(p, t, p.dmg * 1.5);
@@ -1899,7 +1899,7 @@ const PASSIVES = {
 
   // Кассиан: жнец — удары в спину и по не заметившему монстру сильнее; убийства заряжают «Удар из тени»
   reaper: {
-    targetMult: (p, m) => (m.target !== p.id || (m.face && Math.sign(p.x - m.x) === -m.face) ? 1.5 : 1),
+    targetMult: (p, m) => (!m.pvpOf && (m.target !== p.id || (m.face && Math.sign(p.x - m.x) === -m.face)) ? 1.5 : 1),
     onKill(ctx, p) { p.reapStacks = Math.min(5, (p.reapStacks || 0) + 1); p.dirty = true; },
     note: (p) => `жатва ${p.reapStacks || 0}/5${p.stealthUntil > Date.now() ? ' · в тени' : ''}`,
   },
