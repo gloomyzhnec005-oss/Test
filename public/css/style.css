@@ -1459,7 +1459,7 @@ canvas.skin { object-fit: contain; }
 .wk-t td:first-child { min-width: 92px; }
 /* Поручители (задания у NPC) */
 .npc-head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
-.npc-head img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; object-position: center 15%; border: 2px solid #c9a24a; background: #1a1410; flex: 0 0 64px; }
+.npc-head img { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; object-position: center 20%; border: 2px solid #c9a24a; background: #1a1410; flex: 0 0 76px; }
 .npc-head b { color: #ffd77a; font-size: 15px; }
 .npc-head p { margin: 4px 0 0; font-style: italic; color: #d8c8a4; font-size: 12.5px; line-height: 1.4; }
 .npc-q { padding: 10px; border-radius: 10px; background: rgba(20, 14, 8, .82); border: 1px solid #6a5130; }

@@ -734,7 +734,8 @@ window.Town = (() => {
     const v = view || await Bag.act('npcView', { npc: id });
     if (!v || v.error) { toast((v && v.error) || 'NPC недоступен'); return; }
     const sk = window.Skins && Skins.get(v.skin), q = v.quest;
-    const box = el(`<div class="npc-head">${sk && sk.portrait ? `<img src="${sk.portrait}" alt="">` : ''}<div><b>${v.name} ${v.title}</b><p>«${v.hello}»</p></div></div>
+    const pic = `assets/npc/portrait_${id}.webp?v=1`; // нарисованный портрет поручителя; нет — портрет героя
+    const box = el(`<div class="npc-head"><img src="${pic}" alt="" onerror="${sk && sk.portrait ? `this.onerror=null;this.src='${sk.portrait}'` : 'this.remove()'}"><div><b>${v.name} ${v.title}</b><p>«${v.hello}»</p></div></div>
       ${q ? `<div class="npc-q ${q.ready ? 'ready' : ''}"><div class="npc-qt">${q.daily ? '🔁 Поручение дня' : `📜 Поручение ${v.step} из ${v.total}`}</div>
         <b>${q.name}</b><p>${q.desc}</p>
         ${q.acc || q.collect ? `<div class="tw-prog"><i style="width:${Math.min(100, q.prog / q.goal * 100)}%"></i><em>${q.prog} / ${q.goal}</em></div>` : ''}
