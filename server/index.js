@@ -705,7 +705,7 @@ function resolveUid(initData, guestId) {
   return { uid: 'guest_' + String(guestId).replace(/[^\w-]/g, '').slice(0, 40), name: null, tg: false };
 }
 
-const xpForLevel = (lvl) => Math.round(40 * Math.pow(lvl, 1.6));
+const xpForLevel = (lvl) => MOBX.XP_NEED(lvl); // server/mobs.js: с 15-го уровня прокачка медленнее
 // Статы героя: уровень + экипировка (pr.equip) + дубликаты героя (+5% за копию)
 const statsFor = (heroId, lvl, pr = null) => {
   const b = C.HEROES[heroId];

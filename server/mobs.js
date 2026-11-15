@@ -13,6 +13,10 @@ const XP_LEVEL = (L) => Math.round(40 * Math.pow(L, 1.6)); // как xpForLevel 
 // обычных убийств на уровень: первые уровни короче (5-й уровень — ~15 минут, 10-й — ~час), дальше 200 + 12·L
 const KILLS_PER_LEVEL = (L) => Math.min(200 + 12 * L, 40 + 28 * L);
 const MAX_LEVEL = 50;
+// Опыт на уровень героя: с 15-го уровня растёт быстрее, чем опыт с монстров (к 30-му — ×3,5),
+// поэтому дальние уровни идут дольше, а золото с монстров (оно считается от их опыта) не меняется.
+const LEVEL_SLOW = (L) => (L < 15 ? 1 : Math.min(3.5, 1 + 2.5 * (L - 15) / 15));
+const XP_NEED = (L) => Math.round(XP_LEVEL(L) * LEVEL_SLOW(L));
 
 // Базовые параметры классов: hpK, dmgK, перезарядка атаки, скорость, дальность (0 — ближний бой)
 const CLASS = {
@@ -215,4 +219,4 @@ function statsAt(def, L, rank = def.rank, affixes = []) {
   return { hp: Math.round(hp), dmg: Math.max(1, Math.round(dmg)), cd: Math.round(cd), speed: Math.round(speed), xp: Math.max(0.1, Math.round(xp * 10) / 10) }; // дробный: на первых уровнях монстр даёт меньше 1 опыта, на сервере округляется случайно
 }
 
-module.exports = { MOBS: M, CLASS, CLASS_NAMES, RANK, AFFIXES, DUNGEONS, WORLD_BOSSES, WORLD_BOSS_RESPAWN, TURN, PD, PH, XP_LEVEL, KILLS_PER_LEVEL, MAX_LEVEL, statsAt };
+module.exports = { MOBS: M, CLASS, CLASS_NAMES, RANK, AFFIXES, DUNGEONS, WORLD_BOSSES, WORLD_BOSS_RESPAWN, TURN, PD, PH, XP_LEVEL, XP_NEED, KILLS_PER_LEVEL, MAX_LEVEL, statsAt };

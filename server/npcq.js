@@ -6,7 +6,7 @@ const MSK = 3 * 36e5;
 const dayKey = () => new Date(Date.now() + MSK).toISOString().slice(0, 10);
 
 module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPlayer, notifyUid, save }) {
-  const xpAt = (L) => Math.round(X.XP_LEVEL(Math.max(1, L)) * 0.12); // ~12% уровня за поручение
+  const xpAt = (L) => Math.round(X.XP_NEED(Math.max(1, L)) * 0.12); // ~12% уровня за поручение
   const TOWN_TIER = { town1: 1, town2: 2, town3: 3 };
   const mobName = (id) => (X.MOBS[id] ? X.MOBS[id].name : id);
 
