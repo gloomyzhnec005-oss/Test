@@ -335,13 +335,17 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
     const x0 = z.ox - M * T, y0 = z.oy - M * T;
     // Небесный мир (город, логово): вместо тумана за краем — море облаков под парящим городом, край карты мягко тонет в них
-    const sea = z.theme === 'sky' && !z.fog && this.textures.exists('sky_clouds');
+    // Морграт: за краем — та же фиолетовая бездна с разломами, что и в городе (город висит над Бездной)
+    const seaTex = !z.fog && (z.theme === 'sky' ? 'sky_clouds' : z.theme === 'abyss' ? 'gnd_abyss_water' : null);
+    const sea = !!seaTex && this.textures.exists(seaTex);
     const objs = [this.add.image(x0, y0, 'fogmask').setOrigin(0, 0).setScale(T / R).setDepth(2400).setAlpha(sea ? 0.55 : 1)];
     const clouds = [];
     if (sea) {
-      [[1.6, 1, 7, 2], [2.6, 0.55, -4, 3]].forEach(([sc, a, vx, vy], i) => {
-        const ts = this.add.tileSprite(x0, y0, W * T / sc, H * T / sc, 'sky_clouds').setOrigin(0, 0).setScale(sc).setAlpha(a).setDepth(-20 + i);
-        if (i) ts.setBlendMode(Phaser.BlendModes.SCREEN);
+      const abyss = z.theme === 'abyss';
+      (abyss ? [[1.4, 1, 3, 1.5], [2.2, 0.45, -5, 2]] : [[1.6, 1, 7, 2], [2.6, 0.55, -4, 3]]).forEach(([sc, a, vx, vy], i) => {
+        const ts = this.add.tileSprite(x0, y0, W * T / sc, H * T / sc, seaTex).setOrigin(0, 0).setScale(sc).setAlpha(a).setDepth(-20 + i);
+        if (i) ts.setBlendMode(abyss ? Phaser.BlendModes.ADD : Phaser.BlendModes.SCREEN);
+        if (abyss && i) this.tweens.add({ targets: ts, alpha: 0.15, duration: 2600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' }); // разломы пульсируют
         ts.vx = vx; ts.vy = vy; objs.push(ts); clouds.push(ts);
       });
     }
@@ -359,7 +363,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
     this.fog = { tex, ctx, img, grid, M, W, H, R, objs, clouds, tmp: new Uint8Array(W * R * H * R) };
     this.paintFog();
-    this.cameras.main.setBackgroundColor(sea ? '#a9cdee' : pal.hex); // дальше полей — ровный цвет тумана (у небесного — небо)
+    this.cameras.main.setBackgroundColor(sea ? (z.theme === 'abyss' ? '#160a24' : '#a9cdee') : pal.hex); // дальше полей — ровный цвет тумана (у небесного — небо)
   }
 
   // Перерисовать маску тумана: тайлы → пиксели, затем размытие по горизонтали и вертикали (скользящее окно)
