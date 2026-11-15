@@ -2934,4 +2934,9 @@
 "＋ Выставить предмет":"＋ Vendre un objet",
 "+20% опыта на 30 минут.":"+20 % d'expérience pendant 30 minutes.",
 "+40% золота с монстров на 30 минут.":"+40 % d'or des monstres pendant 30 minutes.",
-"Предметы и материалы падают на 15% чаще 30 минут.":"Objets et matériaux tombent 15 % plus souvent pendant 30 minutes."}
+"Предметы и материалы падают на 15% чаще 30 минут.":"Objets et matériaux tombent 15 % plus souvent pendant 30 minutes.",
+"+8% опыта и золота":"+8 % d'XP et d'or",
+"+15% опыта и золота":"+15 % d'XP et d'or",
+"+30% опыта и золота":"+30 % d'XP et d'or",
+"Мифический предмет на 30 уровне":"Objet mythique au niveau 30",
+"Мифический предмет на 30 уровне — в Ордене Чемпиона · автобой с Золотого ордена":"Objet mythique au niveau 30 — dans l'Ordre du Champion · combat auto dès l'Ordre d'or"}

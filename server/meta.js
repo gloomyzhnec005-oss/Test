@@ -47,12 +47,12 @@ const SHOP = {
   passFree: { tier: 0, id: 'free', icon: '🎖️', name: 'Орден Странника', price: 0, perks: ['Бесплатные награды всех 30 уровней сезона', '+5% опыта и золота'] },
   passTiers: [
     { tier: 1, id: 'bronze', icon: '🥉', name: 'Бронзовый орден', price: 149, perks: ['Премиум-награды всех 30 уровней сезона'] },
-    { tier: 2, id: 'silver', icon: '🥈', name: 'Серебряный орден', price: 299, perks: ['Опыт пропуска +50%', '+1 бесплатный призыв снаряжения в день'] },
-    { tier: 3, id: 'gold', icon: '🥇', name: 'Золотой орден', price: 599, perks: ['Автобой в данжах (пока игра открыта)', '+10% опыта и золота'] },
-    { tier: 4, id: 'champion', icon: '👑', name: 'Орден Чемпиона', price: 1199, perks: ['Премиум-награды ×2', '+20% опыта и золота'] },
+    { tier: 2, id: 'silver', icon: '🥈', name: 'Серебряный орден', price: 299, perks: ['Опыт пропуска +50%', '+1 бесплатный призыв снаряжения в день', '+8% опыта и золота'] },
+    { tier: 3, id: 'gold', icon: '🥇', name: 'Золотой орден', price: 599, perks: ['Автобой в данжах (пока игра открыта)', '+15% опыта и золота'] },
+    { tier: 4, id: 'champion', icon: '👑', name: 'Орден Чемпиона', price: 1199, perks: ['Премиум-награды ×2', 'Мифический предмет на 30 уровне', '+30% опыта и золота'] },
   ],
   autofarmTier: 3, // с какого ордена доступен автобой
-  passXpGold: { 0: 0.05, 1: 0.05, 2: 0.05, 3: 0.1, 4: 0.2 }, // бонус к опыту и золоту в бою по ордену (не складывается — берётся свой)
+  passXpGold: { 0: 0.05, 1: 0.05, 2: 0.08, 3: 0.15, 4: 0.3 }, // бонус к опыту и золоту в бою по ордену (не складывается — берётся свой)
   sub: { price: 250, days: 30, xpBonus: 0.25, goldBonus: 0.25 },
   ads: { perDay: 5, cooldownMs: 30000 },
   arena: { perDay: 5, perDaySub: 8 },
@@ -82,7 +82,7 @@ const passSeason = () => Math.floor(Date.now() / (SHOP.pass.days * DAY));
 const PASS_REWARDS = Array.from({ length: SHOP.pass.levels }, (_, i) => {
   const lvl = i + 1;
   const free = lvl % 10 === 0 ? { heroSpins: 1 } : lvl % 5 === 0 ? { itemSpins: 1 } : lvl % 3 === 0 ? { gems: 80 } : { gold: 80 + lvl * 20 };
-  const RARE = { 5: 'rare', 10: 'epic', 15: 'epic', 20: 'legendary', 25: 'legendary', 30: 'mythic' };
+  const RARE = { 5: 'rare', 10: 'epic', 15: 'epic', 20: 'legendary', 25: 'legendary', 30: 'legendary' }; // мифик на 30-м — только Орден Чемпиона (passClaim)
   const MATS = { 3: { scrollE: 1 }, 7: { ore: 20, ess: 10 }, 9: { scrollE: 1 }, 12: { core: 2 }, 17: { scrollE: 2 }, 21: { scrollL: 1 }, 24: { core: 3 }, 27: { scrollL: 1 }, 29: { scrollM: 1 } };
   const prem = RARE[lvl] ? { item: RARE[lvl] } : MATS[lvl] ? { mats: MATS[lvl] } : lvl % 2 ? { gold: 250 + lvl * 50 } : { itemSpins: 1 };
   return { lvl, free, prem };
@@ -825,7 +825,8 @@ module.exports = function createMeta(deps) {
       if (ps[track].includes(lvl)) return { error: 'Уже получено' };
       ps[track].push(lvl);
       let msg = reward(pr, rw[track], tierOf(p));
-      if (track === 'prem' && ps.tier >= 4) msg += ' ×2 · ' + reward(pr, rw[track], tierOf(p)); // Орден Чемпиона: премиум-награды дважды
+      // Орден Чемпиона: премиум-награды дважды, а на 30 уровне вторая награда — мифический предмет
+      if (track === 'prem' && ps.tier >= 4) msg += ' · ' + reward(pr, lvl === SHOP.pass.levels ? { item: 'mythic' } : rw[track], tierOf(p));
       refreshPlayer(p);
       return { toast: `Награда: ${msg}` };
     },

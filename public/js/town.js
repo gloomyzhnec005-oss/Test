@@ -388,7 +388,7 @@ window.Town = (() => {
       <div class="tw-banner items has-art"><img class="tw-art" src="assets/ui/shop/gems3.webp" alt=""><b>🎁 Печати снаряжения</b><small>Гарантированный легендарный предмет каждые 50 круток</small>
         <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · ${s.itemSpin.price} ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · ${s.itemSpin.price10} ⭐</button></div></div>
       <div class="tw-banner pass has-art"><img class="tw-art" src="assets/ui/shop/pass.webp" alt=""><b>🎟️ Сезонные ордена</b>
-        <small>${s.passTiers.map((t) => `${orderIc(t, 'sm')} ${t.name} · ${t.price} ⭐`).join('<br>')}<br>Мифический предмет на 30 уровне · автобой с Золотого ордена</small>
+        <small>${s.passTiers.map((t) => `${orderIc(t, 'sm')} ${t.name} · ${t.price} ⭐`).join('<br>')}<br>Мифический предмет на 30 уровне — в Ордене Чемпиона · автобой с Золотого ордена</small>
         ${s.passTier ? `<small class="ok">${orderIc(s.passTiers[s.passTier - 1], 'sm')} ${s.passTiers[s.passTier - 1].name} активен</small>` : ''}
         <button class="l2-btn" id="openOrders">${s.passTier >= 4 ? 'Награды сезона' : s.passTier ? 'Улучшить орден' : 'Выбрать орден'}</button></div>
       <div class="tw-banner pass"><b>⚗️ Великие эликсиры · 1 час</b><small>Намного сильнее эликсиров из лавки и действуют вместе с ними. Попадают в сумку — выпейте, когда нужно. Сгорают при гибели героя.</small></div>
