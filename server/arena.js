@@ -15,6 +15,7 @@ const MODES = {
 const LEVELS = { town1: [1, 20], town2: [15, 35], town3: [30, 99] };
 // Турнир недели: очки за бои на арене (победа в дуэли или командах — 3, поражение — 1, победа в свободной схватке — 1).
 // В понедельник 00:00 UTC тройка лидеров прошлой недели получает награды
+const PAIR_MAX = 3; // рейтинговых боёв в день с одним и тем же соперником
 const TOUR_PTS = { win: 3, loss: 1, kill: 1 };
 const TOUR_PRIZE = [{ gems: 1600, gold: 20000, title: '🥇' }, { gems: 960, gold: 12000, title: '🥈' }, { gems: 480, gold: 6000, title: '🥉' }];
 const weekKey = (t = Date.now()) => { const x = new Date(t), dd = (x.getUTCDay() + 6) % 7; return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate() - dd)).toISOString().slice(0, 10); };
@@ -151,18 +152,25 @@ module.exports = function createArena(d) {
       const win = side === winSide, draw = winSide == null;
       const exp = 1 / (1 + 10 ** (((side ? rA : rB) - (side ? rB : rA)) / 400));
       const delta = draw ? 0 : Math.round(28 * ((win ? 1 : 0) - exp));
+      const foes = m.teams[1 - side].map((o) => o.uid);
       for (const p of tm) {
         if (!players.has(p.id)) continue;
         const pr = d.getProfile(p.uid), a = arenaOf(pr);
-        a.rating = Math.max(0, a.rating + delta); if (!draw) { if (win) a.wins++; else a.losses++; }
-        addPoints(pr, win ? TOUR_PTS.win : TOUR_PTS.loss);
+        // Против одних и тех же соперников рейтинг, очки турнира и золото — только первые PAIR_MAX боёв за день (защита от договорных боёв)
+        if (a.pairDay !== dayKey()) { a.pairDay = dayKey(); a.pairs = {}; }
+        const counted = foes.every((u) => (a.pairs[u] || 0) < PAIR_MAX);
+        for (const u of foes) a.pairs[u] = (a.pairs[u] || 0) + 1;
+        const dlt = counted ? delta : 0;
+        a.rating = Math.max(0, a.rating + dlt); if (!draw) { if (win) a.wins++; else a.losses++; }
+        if (counted) addPoints(pr, win ? TOUR_PTS.win : TOUR_PTS.loss);
         a.hero = p.heroId; a.name = p.name;
-        const gold = win ? 40 * (world.byId.get(m.town).tier || 1) : draw ? 15 : 10;
+        const gold = !counted ? 0 : win ? 40 * (world.byId.get(m.town).tier || 1) : draw ? 15 : 10;
         pr.gold += gold;
         d.addPassXp(pr, win ? 8 : 3);
         d.quest(p.uid, 'arena');
-        p.socket.emit('matchEnd', { mode: M.name, win, draw, delta, rating: a.rating, gold, why });
-        p.socket.emit('chat', { sys: true, text: `${draw ? '🤝 Ничья' : win ? '🏆 Победа' : '💀 Поражение'} · ${M.name}${why ? ` (${why})` : ''} · рейтинг ${delta >= 0 ? '+' : ''}${delta} → ${a.rating} · +${gold} 💰` });
+        p.socket.emit('matchEnd', { mode: M.name, win, draw, delta: dlt, rating: a.rating, gold, why });
+        p.socket.emit('chat', { sys: true, text: `${draw ? '🤝 Ничья' : win ? '🏆 Победа' : '💀 Поражение'} · ${M.name}${why ? ` (${why})` : ''} · рейтинг ${dlt >= 0 ? '+' : ''}${dlt} → ${a.rating} · +${gold} 💰` });
+        if (!counted) p.socket.emit('chat', { sys: true, text: 'С этим соперником сегодня уже было 3 боя — дальше без рейтинга, очков турнира и золота' });
       }
     });
     setTimeout(() => close(m), 3500);

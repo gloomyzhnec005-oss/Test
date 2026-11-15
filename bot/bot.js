@@ -97,7 +97,7 @@ module.exports = function startBot({ onPaid, isValidPayload, onNotify, profiles,
 
   // Оплата в Telegram Stars
   bot.on('pre_checkout_query', (ctx) => {
-    const ok = !isValidPayload || isValidPayload(ctx.preCheckoutQuery.invoice_payload);
+    const ok = !isValidPayload || isValidPayload(ctx.preCheckoutQuery.invoice_payload, true);
     return ctx.answerPreCheckoutQuery(ok, ok ? undefined : 'Товар недоступен');
   });
   bot.on('successful_payment', (ctx) => {

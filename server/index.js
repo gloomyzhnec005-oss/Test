@@ -367,9 +367,15 @@ app.post('/api/ton/status', async (req, res) => {
 });
 
 // Проверка и зачисление оплаты (вызывается ботом)
-function isValidPayload(payload) {
+function isValidPayload(payload, beforePay = false) {
   const [kind, uid, id] = String(payload).split(':');
   if (!uid) return false;
+  // Перед оплатой (pre_checkout): не брать деньги за то, что уже нельзя получить (второй набор новичка, орден не выше купленного)
+  if (beforePay) {
+    const pr = profiles[uid];
+    if (pr && kind === 'starter' && pr.starterBought) return false;
+    if (pr && /^pass[1-4]$/.test(kind) && meta.passTier(pr) >= +kind[4]) return false;
+  }
   if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass[1-4]$/.test(kind)) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
 }
@@ -377,6 +383,13 @@ function onPaid(payload, info = {}) {
   if (!isValidPayload(payload)) return false;
   const [kind, uid, id] = String(payload).split(':');
   const pr = getProfile(uid);
+  // Telegram может прислать одно и то же сообщение об оплате повторно (повтор доставки после сбоя) — выдаём покупку один раз
+  if (info.charge) {
+    pr.charges ??= [];
+    if (pr.charges.includes(info.charge)) { admin.log('pay', `${pr.name || uid}: повтор оплаты ${info.charge} — пропущен`); return true; }
+    pr.charges.push(info.charge);
+    if (pr.charges.length > 300) pr.charges.splice(0, pr.charges.length - 300);
+  }
   // Журнал покупок игрока: нужен поддержке (/paysupport) и для возврата Stars (/refund)
   (pr.payments ??= []).push({ t: Date.now(), kind, id: id || undefined, amount: info.amount, cur: info.currency || 'XTR', charge: info.charge });
   if (pr.payments.length > 50) pr.payments.splice(0, pr.payments.length - 50);
