@@ -426,7 +426,8 @@ const Q = createQuests({
 const NQ = require('./npcq')({ X: MOBX, I, getProfile: (uid) => getProfile(uid), grantXp: (...a) => grantXp(...a), refreshPlayer: (p) => refreshPlayer(p), notifyUid: (uid, t) => notifyUid(uid, t), save: () => saveProfiles() });
 // События игры → задания NPC: убийства и элита по зоне, полубосс/босс данжа (всем участникам), выживание, мировой босс
 const npcTrack = (uid, type, n, info = {}) => {
-  if (type === 'kill' || type === 'elite') return NQ.track(uid, type, n, info);
+  if (type === 'kill') return NQ.track(uid, type, n, info);
+  if (type === 'elite') { if (info.rank === 'rare') NQ.track(uid, 'rare', n, info); return; }
   if (type === 'dungeon' && info.rank === 'mini') return NQ.track(uid, 'mini', 1, info);
   if (type === 'boss' && info.zone) return NQ.track(uid, 'boss', 1, info);
   if (type === 'survival') return NQ.track(uid, 'survival', n, info);
@@ -1072,7 +1073,7 @@ function damageMonster(p, m, raw, opt = {}) {
     safe('onKilled', () => D.onKilled(m, p));
     const zt = (world.byId.get(m.zone) || {}).tier;
     Q.track(p.uid, 'kill', 1, { tier: zt, zone: m.zone });
-    if (['magic', 'rare', 'mini'].includes(m.rank)) Q.track(p.uid, 'elite', 1, { zone: m.zone });
+    if (['magic', 'rare', 'mini'].includes(m.rank)) Q.track(p.uid, 'elite', 1, { zone: m.zone, rank: m.rank });
     if (m.rank === 'boss' && !m.hall) Q.track(p.uid, 'boss'); // боссы данжей засчитываются всем участникам (server/dungeon.js)
     if (m.rank === 'world') Q.track(p.uid, 'world');
   }

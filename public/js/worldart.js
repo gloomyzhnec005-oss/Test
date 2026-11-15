@@ -53,6 +53,7 @@ window.WorldArt = (() => {
     for (const o of PORTALS) img(`ptl_${th}_${o}`, `${base(th)}/portals/${o}.png`);
     for (const o of DECO[th] || []) img(`deco_${th}_${o}`, `${base(th)}/deco/${o}.png`);
     for (const g of GROUND[th] || []) img(`gnd_${th}_${g}`, `${base(th)}/ground/${g}.png`);
+    if (th === 'sky') img('sky_clouds', `${base(th)}/ground/clouds.png`); // облака под парящим городом (за краем карты)
     for (const d of DUN_DECALS) img(`dun_${th}_${d}`, `${base(th)}/dungeon/${d}.png`);
     scene.textures.generate(`gnd_${th}_loaded`, { data: ['1'], pixelWidth: 1 }); // метка «мир загружен»
     return true;

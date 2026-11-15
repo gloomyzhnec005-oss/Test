@@ -332,23 +332,20 @@ function buildWorld() {
     const wb = town.abs(24, 37.2);
     objs.push({ id: 'worldboss', kind: 'portal', to: `wb_${w.id}`, name: 'Мировой босс', lv: [WORLD_BOSSES[w.id].lv, WORLD_BOSSES[w.id].lv], icon: '👹', x: wb.x, y: wb.y, world: true, mobs: WORLD_BOSSES[w.id].list });
     // Поручители (задания у NPC) — у площади, рядом с местом появления героя
-    for (const [k, skin, name, tx, ty] of [['cap', 'valerian', 'Капитан стражи', 20.5, 24], ['herb', 'nimue', 'Травница', 27.5, 24], ['track', 'faelin', 'Следопыт', 24, 14.5]]) {
+    // Капитан — у аллеи порталов на севере, Травница — у лавки эликсиров на западе, Следопыт — у Данжа выживания на востоке
+    for (const [k, skin, name, tx, ty] of [['cap', 'valerian', 'Капитан стражи', 17.2, 6.2], ['herb', 'nimue', 'Травница', 7.6, 22.6], ['track', 'faelin', 'Следопыт', 34.6, 14.2]]) {
       const pos = town.abs(tx, ty);
       objs.push({ id: `${w.id}_${k}`, kind: 'npc', npc: `${w.id}_${k}`, skin, name, x: pos.x, y: pos.y });
     }
-    // Жители и стража: ходят по дорогам. Позицию в каждый момент считает клиент по времени сервера — у всех одинаково, без трафика
+    // Стража: ходит по дорогам (жители не ходят — только стражники). Позицию в каждый момент считает клиент по времени сервера — у всех одинаково, без трафика
     const A = (tx, ty) => { const q = town.abs(tx, ty); return [Math.round(q.x), Math.round(q.y)]; };
     const ring = [A(9.5, 7.5), A(38.5, 7.5), A(38.5, 35), A(9.5, 35)];
     town.npcs = [
       { id: 'g1', role: 'guard', skin: 'brendan', name: 'Стражник', route: ring, loop: true, speed: 52, phase: 0 },
-      { id: 'g2', role: 'guard', skin: 'gardin', name: 'Стражник', route: [...ring].reverse(), loop: true, speed: 52, phase: 0.5 },
+      { id: 'g2', role: 'guard', skin: 'brendan', name: 'Стражник', route: [...ring].reverse(), loop: true, speed: 52, phase: 0.5 },
       { id: 'g3', role: 'guard', skin: 'brendan', name: 'Стражник', route: [A(6, 4), A(42, 4)], speed: 40, phase: 0.2 },
-      { id: 'g4', role: 'guard', skin: 'talmira', name: 'Стражница', route: [A(9.5, 20), A(16, 20)], speed: 34, phase: 0.6 },
-      { id: 'g5', role: 'guard', skin: 'gardin', name: 'Стражник', route: [A(32, 20), A(38.5, 20)], speed: 34, phase: 0.1 },
-      { id: 'v1', role: 'citizen', skin: 'taliesin', name: 'Горожанин', route: [A(9.5, 11), A(9.5, 31)], speed: 30, phase: 0.35 },
-      { id: 'v2', role: 'citizen', skin: 'medea', name: 'Горожанка', route: [A(38.5, 30), A(38.5, 11)], speed: 28, phase: 0.7 },
-      { id: 'v3', role: 'citizen', skin: 'kelto', name: 'Торговец', route: [A(12, 35), A(36, 35)], speed: 26, phase: 0.15 },
-      { id: 'v4', role: 'citizen', skin: 'ingrid', name: 'Горожанка', route: [A(23.5, 27), A(23.5, 34)], speed: 24, phase: 0.55 },
+      { id: 'g4', role: 'guard', skin: 'brendan', name: 'Стражник', route: [A(9.5, 20), A(16, 20)], speed: 34, phase: 0.6 },
+      { id: 'g5', role: 'guard', skin: 'brendan', name: 'Стражник', route: [A(32, 20), A(38.5, 20)], speed: 34, phase: 0.1 },
     ];
   });
   // Арены мировых боссов: общие для всех игроков мира

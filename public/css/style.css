@@ -1484,3 +1484,7 @@ canvas.skin { object-fit: contain; }
   background: rgba(14, 18, 10, .72); border: 1px solid #6a8a4a; color: #d8f0c0; font-family: Georgia, serif; pointer-events: none; white-space: nowrap; }
 .brk-banner { position: absolute; left: 50%; top: calc(198px + env(safe-area-inset-top)); transform: translateX(-50%); padding: 5px 12px; border-radius: 12px; font-size: 12px; max-width: 86%; text-align: center;
   background: rgba(70, 40, 6, .9); border: 1px solid #ffb340; color: #ffe2a8; font-family: Georgia, serif; pointer-events: none; }
+/* Золото и самоцветы — одной строкой внутри панели героя (урон — в окне «Характеристики») */
+.stats .row.small { justify-content: flex-start; gap: 10px; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
+.stats .row.small > span { display: inline-flex; align-items: center; }
+.stats .row.small { margin-left: -46px; overflow: visible; }

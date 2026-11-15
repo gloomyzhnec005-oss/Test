@@ -334,9 +334,18 @@ window.GameScene = class GameScene extends Phaser.Scene {
       grid[y * W + x] = !inside || (ex && !ex.has(my * z.w + mx)) ? 1 : 0;
     }
     const x0 = z.ox - M * T, y0 = z.oy - M * T;
-    const objs = [this.add.image(x0, y0, 'fogmask').setOrigin(0, 0).setScale(T / R).setDepth(2400)];
+    // Небесный мир (город, логово): вместо тумана за краем — море облаков под парящим городом, край карты мягко тонет в них
+    const sea = z.theme === 'sky' && !z.fog && this.textures.exists('sky_clouds');
+    const objs = [this.add.image(x0, y0, 'fogmask').setOrigin(0, 0).setScale(T / R).setDepth(2400).setAlpha(sea ? 0.55 : 1)];
     const clouds = [];
-    if (this.sys.game.renderer.type === Phaser.WEBGL) {
+    if (sea) {
+      [[1.6, 1, 7, 2], [2.6, 0.55, -4, 3]].forEach(([sc, a, vx, vy], i) => {
+        const ts = this.add.tileSprite(x0, y0, W * T / sc, H * T / sc, 'sky_clouds').setOrigin(0, 0).setScale(sc).setAlpha(a).setDepth(-20 + i);
+        if (i) ts.setBlendMode(Phaser.BlendModes.SCREEN);
+        ts.vx = vx; ts.vy = vy; objs.push(ts); clouds.push(ts);
+      });
+    }
+    if (!sea && this.sys.game.renderer.type === Phaser.WEBGL) {
       const maskImg = this.make.image({ x: x0, y: y0, key: 'fogmask', add: false }).setOrigin(0, 0).setScale(T / R);
       const mask = maskImg.createBitmapMask();
       objs.push(maskImg);
@@ -350,7 +359,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
     this.fog = { tex, ctx, img, grid, M, W, H, R, objs, clouds, tmp: new Uint8Array(W * R * H * R) };
     this.paintFog();
-    this.cameras.main.setBackgroundColor(pal.hex); // дальше полей — ровный цвет тумана
+    this.cameras.main.setBackgroundColor(sea ? '#a9cdee' : pal.hex); // дальше полей — ровный цвет тумана (у небесного — небо)
   }
 
   // Перерисовать маску тумана: тайлы → пиксели, затем размытие по горизонтали и вертикали (скользящее окно)
