@@ -22,7 +22,7 @@ module.exports = function createDungeons(d) {
     const hp = Math.round(st.hp * (opts.hpMult || 1));
     const m = {
       id: seq++, type, x: pos.x, y: pos.y, homeX: pos.x, homeY: pos.y, zone: z.id, tier: z.tier, level, rank, affixes,
-      hp, maxHp: hp, dmg: Math.max(1, Math.round(st.dmg * (opts.dmgMult || 1))), cd: st.cd, speed: st.speed, xp: Math.round(st.xp * (opts.xpMult || 1)), range: def.range || 0,
+      hp, maxHp: hp, dmg: Math.max(1, Math.round(st.dmg * (opts.dmgMult || 1))), cd: st.cd, speed: st.speed, xp: Math.round(st.xp * (opts.xpMult || 1) * 10) / 10, range: def.range || 0,
       aggro: opts.aggro || (rank === 'boss' || rank === 'world' ? 340 : 250), size: (def.look && def.look.sz || 1) * X.RANK[rank].size,
       target: null, lastAttack: 0, abAt: Date.now() + 1500 + Math.random() * ((def.ab && def.ab.cd) || 4000),
       undead: !!def.undead, boss: rank === 'boss' || rank === 'world', mini: rank === 'mini',

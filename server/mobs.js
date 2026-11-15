@@ -10,7 +10,8 @@ const TURN = 2000;
 const PD = (L) => 20 * (1 + 0.1 * (L - 1)) * (1 + 0.025 * (L - 1));
 const PH = (L) => 140 * (1 + 0.12 * (L - 1)) * (1 + 0.022 * (L - 1));
 const XP_LEVEL = (L) => Math.round(40 * Math.pow(L, 1.6)); // как xpForLevel на сервере
-const KILLS_PER_LEVEL = (L) => 200 + 12 * L; // обычных убийств на уровень
+// обычных убийств на уровень: первые уровни короче (5-й уровень — ~15 минут, 10-й — ~час), дальше 200 + 12·L
+const KILLS_PER_LEVEL = (L) => Math.min(200 + 12 * L, 40 + 28 * L);
 const MAX_LEVEL = 50;
 
 // Базовые параметры классов: hpK, dmgK, перезарядка атаки, скорость, дальность (0 — ближний бой)
@@ -211,7 +212,7 @@ function statsAt(def, L, rank = def.rank, affixes = []) {
   for (const a of affixes) { const A = AFFIXES[a]; if (A.dmg) dmg *= A.dmg; if (A.cd) cd *= A.cd; if (A.speed) speed *= A.speed; }
   // Опыт: доля уровня героя (KILLS_PER_LEVEL обычных убийств на уровень) × ранг (миньоны и призванные — меньше)
   const xp = XP_LEVEL(L) / KILLS_PER_LEVEL(L) * (R.xp + (def.cls === 'tank' && rank === 'normal' ? 0.5 : 0));
-  return { hp: Math.round(hp), dmg: Math.max(1, Math.round(dmg)), cd: Math.round(cd), speed: Math.round(speed), xp: Math.max(1, Math.round(xp)) };
+  return { hp: Math.round(hp), dmg: Math.max(1, Math.round(dmg)), cd: Math.round(cd), speed: Math.round(speed), xp: Math.max(0.1, Math.round(xp * 10) / 10) }; // дробный: на первых уровнях монстр даёт меньше 1 опыта, на сервере округляется случайно
 }
 
 module.exports = { MOBS: M, CLASS, CLASS_NAMES, RANK, AFFIXES, DUNGEONS, WORLD_BOSSES, WORLD_BOSS_RESPAWN, TURN, PD, PH, XP_LEVEL, KILLS_PER_LEVEL, MAX_LEVEL, statsAt };

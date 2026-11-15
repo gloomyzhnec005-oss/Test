@@ -1071,8 +1071,8 @@ function damageMonster(p, m, raw, opt = {}) {
     // Монстры намного ниже уровнем дают меньше опыта
     const diff = p.char.level - (m.level || 1);
     const baseXp = m.xp * (diff > 4 ? Math.max(0.1, 1 - 0.15 * (diff - 4)) : 1);
-    const xp = Math.round(baseXp * rw.xp);
-    const gold = Math.round(baseXp / 3 * (0.5 + Math.random()) * rw.gold);
+    const xpF = baseXp * rw.xp, xp = Math.floor(xpF) + (Math.random() < xpF % 1 ? 1 : 0); // дробный опыт — случайным округлением
+    const gold = Math.round((baseXp / 3 + 1) * (0.5 + Math.random()) * rw.gold); // +1: на первых уровнях хоть немного золота
     fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp, gold, by: p.id, contract: !!rw.contract });
     monsters.delete(m.id);
     corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type, zone: m.zone, level: m.level, maxHp: m.maxHp, dmg: m.dmg, speed: m.speed });
