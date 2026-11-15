@@ -2,7 +2,6 @@
 "(группа: {0})":"(party: {0})",
 "(у героя {0})":"(hero has {0})",
 "+1 бесплатный призыв снаряжения в день":"+1 free gear summon per day",
-"+10% золота с монстров на 30 минут.":"+10% gold from monsters for 30 minutes.",
 "+10% опыта и золота":"+10% XP and Gold",
 "+10% скорости атаки и +5% шанса крита на 30 минут.":"+10% attack speed and +5% crit chance for 30 minutes.",
 "+10% урона на 30 минут.":"+10% damage for 30 minutes.",
@@ -18,7 +17,6 @@
 "+25% опыта и золота, скидка комиссии рынка, больше сумка":"+25% XP and Gold, lower Market fee, bigger Bag",
 "+30 токсичности":"+30 toxicity",
 "+5% опыта и золота":"+5% XP and Gold",
-"+5% опыта на 30 минут.":"+5% experience for 30 minutes.",
 "+50% опыта на 1 час":"+50% experience for 1 hour",
 "+50% опыта на 1 час.":"+50% experience for 1 hour.",
 "+50% опыта на 30 минут.":"+50% XP for 30 minutes.",
@@ -1828,7 +1826,6 @@
 "Предметы и материалы падают на 30% чаще 1 час":"Items and materials drop 30% more often for 1 hour",
 "Предметы и материалы падают на 30% чаще 1 час.":"Items and materials drop 30% more often for 1 hour.",
 "Предметы и материалы падают на 30% чаще 30 минут.":"Items and materials drop 30% more often for 30 minutes.",
-"Предметы и материалы падают на 5% чаще 30 минут.":"Items and materials drop 5% more often for 30 minutes.",
 "Премиум батл-пасс":"Premium Battle Pass",
 "Премиум-награды ×2":"Premium rewards ×2",
 "Премиум-награды всех 30 уровней сезона":"Premium rewards for all 30 season levels",
@@ -3213,4 +3210,7 @@
 "🪽 Взлёт!":"🪽 Take Flight!",
 "＋ Выставить лот":"＋ List Lot",
 "＋ Выставить материалы":"＋ List Materials",
-"＋ Выставить предмет":"＋ List Item"}
+"＋ Выставить предмет":"＋ List Item",
+"+20% опыта на 30 минут.":"+20% experience for 30 minutes.",
+"+40% золота с монстров на 30 минут.":"+40% gold from monsters for 30 minutes.",
+"Предметы и материалы падают на 15% чаще 30 минут.":"Items and materials drop 15% more often for 30 minutes."}

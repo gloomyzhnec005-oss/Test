@@ -25,14 +25,20 @@ module.exports = {
   DROPS: {
     chance: 0.06,
     weights: {
-      1: { common: 72, rare: 23, epic: 4.4, legendary: 0.55, mythic: 0.05 },
-      2: { common: 50, rare: 35, epic: 12, legendary: 2.6, mythic: 0.4 },
-      3: { common: 30, rare: 40, epic: 22, legendary: 6.5, mythic: 1.5 },
+      1: { common: 72, rare: 23, epic: 4.5, legendary: 0.25, mythic: 0.01 },
+      2: { common: 52, rare: 35, epic: 11.5, legendary: 1.1, mythic: 0.08 },
+      3: { common: 33, rare: 42, epic: 21, legendary: 2.6, mythic: 0.25 },
+    },
+    // Полубоссы (1 вещь, каждый час): чуть лучше обычных монстров, но не как босс
+    mini: {
+      1: { rare: 78, epic: 20, legendary: 1.8, mythic: 0.1 },
+      2: { rare: 62, epic: 32, legendary: 5.5, mythic: 0.4 },
+      3: { rare: 45, epic: 45, legendary: 9, mythic: 1 },
     },
     boss: {
       1: { rare: 70, epic: 25, legendary: 4.6, mythic: 0.4 },
-      2: { rare: 50, epic: 37, legendary: 11, mythic: 2 },
-      3: { rare: 30, epic: 45, legendary: 20, mythic: 5 },
+      2: { rare: 50, epic: 38, legendary: 10.5, mythic: 1.5 },
+      3: { rare: 32, epic: 46, legendary: 18.5, mythic: 3.5 },
     },
   },
 

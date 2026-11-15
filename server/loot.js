@@ -29,7 +29,7 @@ function rollMats(m, tier, dungeon, luck = 1) {
     const td = TIER_DROP[tier] || 1;
     if (chance(0.22 * k * td)) add(`ore${tier}`, 1);
     if (chance(0.08 * k * td)) add(`ess${tier}`, 1);
-    if (chance(0.02 * k)) add('scrollR');
+    if (chance(0.01 * k)) add('scrollR');
     if (chance([0.003, 0.01, 0.015][tier - 1] * k)) add('scrollE');
     if (tier === 3 && chance(0.0005 * k)) add('scrollL');
     if (chance(0.03 * k)) add('potHp');

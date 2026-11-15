@@ -10,11 +10,11 @@
 
 const RARITY_ORDER = ['common', 'rare', 'epic', 'legendary', 'mythic'];
 const ITEM_RARITIES = {
-  common:    { name: 'Обычный',     color: '#b8c4d6', mult: 1,   attrs: [1, 1], sockets: 1, sell: 15 },
-  rare:      { name: 'Редкий',      color: '#4da3ff', mult: 1.6, attrs: [1, 2], sockets: 1, sell: 60 },
-  epic:      { name: 'Эпический',   color: '#b86bff', mult: 2.5, attrs: [2, 3], sockets: 2, sell: 250 },
-  legendary: { name: 'Легендарный', color: '#ffb340', mult: 4,   attrs: [3, 3], sockets: 2, sell: 1000 },
-  mythic:    { name: 'Мифический',  color: '#ff4d6a', mult: 6.5, attrs: [3, 4], sockets: 3, sell: 4000 },
+  common:    { name: 'Обычный',     color: '#b8c4d6', mult: 1,   attrs: [1, 1], sockets: 1, sell: 10 },
+  rare:      { name: 'Редкий',      color: '#4da3ff', mult: 1.5, attrs: [1, 2], sockets: 1, sell: 40 },
+  epic:      { name: 'Эпический',   color: '#b86bff', mult: 2.2, attrs: [2, 3], sockets: 2, sell: 150 },
+  legendary: { name: 'Легендарный', color: '#ffb340', mult: 3,   attrs: [3, 3], sockets: 2, sell: 600 },
+  mythic:    { name: 'Мифический',  color: '#ff4d6a', mult: 4,   attrs: [3, 4], sockets: 3, sell: 2500 },
 };
 const TIER_MULT = { 1: 1, 2: 2.2, 3: 4.5 }; // базовые статы и цены предметов мира 1 / 2 / 3
 const TIER_ATTR = { 1: 1, 2: 1.5, 3: 2.2 }; // сила случайных атрибутов
@@ -351,12 +351,12 @@ Object.assign(MATS, {
   elxDef: { name: 'Эликсир стойкости', icon: '🛡️', color: '#c8d8e8', kind: 'elixir', buff: 'def', desc: '+8% защиты и +10% здоровья на 30 минут.', price: 900, buy: 120 },
   elxAgi: { name: 'Эликсир ловкости', icon: '🌀', color: '#7ad8a0', kind: 'elixir', buff: 'agi', desc: '+10% скорости атаки и +5% шанса крита на 30 минут.', price: 900, buy: 120 },
   elxMind: { name: 'Эликсир мудрости', icon: '🔮', color: '#b88aff', kind: 'elixir', buff: 'mind', desc: '+12% силы умений и −5% перезарядки на 30 минут.', price: 900, buy: 120 },
-  elxXp: { name: 'Эликсир опыта', icon: '📘', color: '#8ad3ff', kind: 'elixir', buff: 'xp', desc: '+5% опыта на 30 минут.', price: 1200, buy: 150 },
-  elxLuck: { name: 'Эликсир удачи', icon: '🍀', color: '#7dff8a', kind: 'elixir', buff: 'luck', desc: 'Предметы и материалы падают на 5% чаще 30 минут.', price: 1500, buy: 180 },
+  elxXp: { name: 'Эликсир опыта', icon: '📘', color: '#8ad3ff', kind: 'elixir', buff: 'xp', desc: '+20% опыта на 30 минут.', price: 1200, buy: 150 },
+  elxLuck: { name: 'Эликсир удачи', icon: '🍀', color: '#7dff8a', kind: 'elixir', buff: 'luck', desc: 'Предметы и материалы падают на 15% чаще 30 минут.', price: 1500, buy: 180 },
   elxWind: { name: 'Эликсир ветра', icon: '🪶', color: '#bfe8ff', kind: 'elixir', buff: 'wind', desc: '+12% скорости бега на 30 минут.', price: 800, buy: 100 },
   elxVamp: { name: 'Эликсир вампира', icon: '🩸', color: '#d0304a', kind: 'elixir', buff: 'vamp', desc: '3% нанесённого урона лечит героя, 30 минут.', price: 1300, buy: 160 },
   elxFury: { name: 'Эликсир ярости', icon: '💢', color: '#ff5a2a', kind: 'elixir', buff: 'fury', desc: '+20% критического урона на 30 минут.', price: 1100, buy: 140 },
-  elxGold: { name: 'Эликсир богатства', icon: '🪙', color: '#ffd36a', kind: 'elixir', buff: 'gold', desc: '+10% золота с монстров на 30 минут.', price: 1000, buy: 130 },
+  elxGold: { name: 'Эликсир богатства', icon: '🪙', color: '#ffd36a', kind: 'elixir', buff: 'gold', desc: '+40% золота с монстров на 30 минут.', price: 600, buy: 130 },
   // Великие эликсиры (Telegram Stars или GRAM, магазин): 1 час, сильнее обычных; действуют вместе с ними
   elxXp2: { name: 'Великий эликсир опыта', icon: '📗', color: '#4dffb0', kind: 'elixir', buff: 'xp2', mins: 60, desc: '+50% опыта на 1 час.', price: 0, buy: 0 },
   elxLuck2: { name: 'Великий эликсир удачи', icon: '☘️', color: '#3aff6a', kind: 'elixir', buff: 'luck2', mins: 60, desc: 'Предметы и материалы падают на 30% чаще 1 час.', price: 0, buy: 0 },
@@ -370,10 +370,10 @@ Object.assign(MATS, {
 });
 // Бонусы эликсиров (добавляются к статам экипировки, пока действуют)
 const BUFF_STATS = { atk: { atkP: 10 }, def: { def: 8, hpP: 10 }, agi: { aspd: 10, crit: 5 }, mind: { skill: 12, cdr: 5 },
-  xp: { xp: 5 }, wind: { ms: 12 }, vamp: { ls: 3 }, fury: { critDmg: 20 }, gold: { gold: 10 },
+  xp: { xp: 20 }, wind: { ms: 12 }, vamp: { ls: 3 }, fury: { critDmg: 20 }, gold: { gold: 40 },
   xp2: { xp: 50 }, hero: { atkP: 15, hpP: 15, crit: 5, aspd: 10 }, titan: { def: 15, hpP: 25, ls: 2 } };
 // Удача эликсиров: прибавка к шансу добычи
-const BUFF_LUCK = { luck: 0.05, luck2: 0.3 };
+const BUFF_LUCK = { luck: 0.15, luck2: 0.3 };
 const buffLuck = (pr, now = Date.now()) => 1 + Object.entries(BUFF_LUCK).reduce((s, [k, v]) => s + ((pr.buffs || {})[k] > now ? v : 0), 0);
 // Эликсир по ключу баффа (значок в HUD)
 const ELIXIR_OF = Object.fromEntries(Object.entries(MATS).filter(([, m]) => m.kind === 'elixir').map(([id, m]) => [m.buff, id]));
@@ -513,7 +513,7 @@ const TREE = {
 };
 const TREE_MAX = 25;
 const treeReq = (L) => 2 * (L + 1);                                   // уровень героя для следующего уровня узла
-const treeCost = (L) => Math.round(150 * Math.pow(L + 1, 1.5) / 10) * 10; // золото за следующий уровень
+const treeCost = (L) => Math.round(80 * Math.pow(L + 1, 1.5) / 10) * 10; // золото за следующий уровень
 // Пассивка: 1 уровень — как есть; каждый следующий усиливает её множители на 4% и даёт +1% урона и здоровья
 const PAS_MAX = 25, PAS_STEP = 0.04;
 const pasReq = (L) => 2 * L;                                          // L — текущий уровень пассивки

@@ -2,7 +2,6 @@
 "(группа: {0})":"(grupo: {0})",
 "(у героя {0})":"(el héroe tiene {0})",
 "+1 бесплатный призыв снаряжения в день":"+1 invocación de equipo gratis al día",
-"+10% золота с монстров на 30 минут.":"+10% de oro de monstruos durante 30 minutos.",
 "+10% опыта и золота":"+10% de EXP y oro",
 "+10% скорости атаки и +5% шанса крита на 30 минут.":"+10% de velocidad de ataque y +5% de prob. de crítico durante 30 minutos.",
 "+10% урона на 30 минут.":"+10% de daño durante 30 minutos.",
@@ -18,7 +17,6 @@
 "+25% опыта и золота, скидка комиссии рынка, больше сумка":"+25% de XP y Oro, menor comisión del Mercado, Bolsa más grande",
 "+30 токсичности":"+30 de toxicidad",
 "+5% опыта и золота":"+5% de EXP y oro",
-"+5% опыта на 30 минут.":"+5% de experiencia durante 30 minutos.",
 "+50% опыта на 1 час":"+50% de experiencia durante 1 hora",
 "+50% опыта на 1 час.":"+50% de experiencia durante 1 hora.",
 "+50% опыта на 30 минут.":"+50% de XP durante 30 minutos.",
@@ -1828,7 +1826,6 @@
 "Предметы и материалы падают на 30% чаще 1 час":"Objetos y materiales caen un 30% más durante 1 hora",
 "Предметы и материалы падают на 30% чаще 1 час.":"Objetos y materiales caen un 30% más durante 1 hora.",
 "Предметы и материалы падают на 30% чаще 30 минут.":"Objetos y materiales caen un 30% más durante 30 minutos.",
-"Предметы и материалы падают на 5% чаще 30 минут.":"Objetos y materiales caen un 5% más durante 30 minutos.",
 "Премиум батл-пасс":"Pase de batalla prémium",
 "Премиум-награды ×2":"Recompensas premium ×2",
 "Премиум-награды всех 30 уровней сезона":"Recompensas premium de los 30 niveles de la temporada",
@@ -3213,4 +3210,7 @@
 "🪽 Взлёт!":"🪽 ¡Al vuelo!",
 "＋ Выставить лот":"＋ Publicar lote",
 "＋ Выставить материалы":"＋ Publicar materiales",
-"＋ Выставить предмет":"＋ Publicar objeto"}
+"＋ Выставить предмет":"＋ Publicar objeto",
+"+20% опыта на 30 минут.":"+20% de experiencia durante 30 minutos.",
+"+40% золота с монстров на 30 минут.":"+40% de oro de monstruos durante 30 minutos.",
+"Предметы и материалы падают на 15% чаще 30 минут.":"Objetos y materiales caen un 15% más durante 30 minutos."}

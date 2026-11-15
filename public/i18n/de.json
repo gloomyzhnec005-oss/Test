@@ -2,7 +2,6 @@
 "(группа: {0})":"(Gruppe: {0})",
 "(у героя {0})":"(Held hat {0})",
 "+1 бесплатный призыв снаряжения в день":"+1 kostenlose Ausrüstungsbeschwörung pro Tag",
-"+10% золота с монстров на 30 минут.":"+10 % Gold von Monstern für 30 Minuten.",
 "+10% опыта и золота":"+10% EP und Gold",
 "+10% скорости атаки и +5% шанса крита на 30 минут.":"+10% Angriffstempo und +5% Krit-Chance für 30 Minuten.",
 "+10% урона на 30 минут.":"+10% Schaden für 30 Minuten.",
@@ -18,7 +17,6 @@
 "+25% опыта и золота, скидка комиссии рынка, больше сумка":"+25% EP und Gold, niedrigere Marktgebühr, größere Tasche",
 "+30 токсичности":"+30 Toxizität",
 "+5% опыта и золота":"+5% EP und Gold",
-"+5% опыта на 30 минут.":"+5 % Erfahrung für 30 Minuten.",
 "+50% опыта на 1 час":"+50 % Erfahrung für 1 Stunde",
 "+50% опыта на 1 час.":"+50 % Erfahrung für 1 Stunde.",
 "+50% опыта на 30 минут.":"+50% EP für 30 Minuten.",
@@ -1828,7 +1826,6 @@
 "Предметы и материалы падают на 30% чаще 1 час":"Gegenstände und Materialien droppen 1 Stunde 30 % häufiger",
 "Предметы и материалы падают на 30% чаще 1 час.":"Gegenstände und Materialien droppen 1 Stunde 30 % häufiger.",
 "Предметы и материалы падают на 30% чаще 30 минут.":"Gegenstände und Materialien droppen 30 Minuten lang 30% öfter.",
-"Предметы и материалы падают на 5% чаще 30 минут.":"Gegenstände und Materialien droppen 30 Minuten 5 % häufiger.",
 "Премиум батл-пасс":"Premium-Battle-Pass",
 "Премиум-награды ×2":"Premium-Belohnungen ×2",
 "Премиум-награды всех 30 уровней сезона":"Premium-Belohnungen aller 30 Saisonstufen",
@@ -3213,4 +3210,7 @@
 "🪽 Взлёт!":"🪽 Abheben!",
 "＋ Выставить лот":"＋ Angebot einstellen",
 "＋ Выставить материалы":"＋ Materialien einstellen",
-"＋ Выставить предмет":"＋ Gegenstand einstellen"}
+"＋ Выставить предмет":"＋ Gegenstand einstellen",
+"+20% опыта на 30 минут.":"+20 % Erfahrung für 30 Minuten.",
+"+40% золота с монстров на 30 минут.":"+40 % Gold von Monstern für 30 Minuten.",
+"Предметы и материалы падают на 15% чаще 30 минут.":"Gegenstände und Materialien droppen 30 Minuten 15 % häufiger."}
