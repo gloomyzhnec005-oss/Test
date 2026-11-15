@@ -742,7 +742,6 @@
 "Жрица луны":"Mondpriesterin",
 "Жрица света, исцеляющая раны и изгоняющая тьму словом веры. Не воин, но её молитвы способны обратить ход боя. Добра и сострадательна — но к нечестивым беспощадна.":"Eine Priesterin des Lichts, die Wunden heilt und die Finsternis mit Worten des Glaubens vertreibt. Keine Kriegerin, doch ihre Gebete können das Blatt wenden. Gütig und mitfühlend – doch gnadenlos gegenüber Frevlern.",
 "Жрица тайного культа луны, черпающая силу из ночного светила. Служит лунной богине и вершит её волю. Загадочна, спокойна и опасна — её магия растёт вместе с луной.":"Priesterin eines geheimen Mondkults, die ihre Kraft aus dem Nachtgestirn schöpft. Sie dient der Mondgöttin und vollstreckt ihren Willen. Rätselhaft, ruhig und gefährlich – ihre Magie wächst mit dem Mond.",
-"Жёлтые точки — порталы и здания, красные — монстры. Удачной охоты!":"Gelbe Punkte sind Portale und Gebäude, rote sind Monster. Weidmannsheil!",
 "За каждого зверя рядом: +8% урона и +6% скорости атаки (до +24% / +18%). Звери всегда возвращаются и не погибают навсегда.":"Für jedes Tier in der Nähe: +8% Schaden und +6% Angriffstempo (bis +24% / +18%). Tiere kehren immer zurück und sterben nie endgültig.",
 "За уровень: {0}":"Pro Stufe: {0}",
 "Забрать":"Abholen",
@@ -2948,4 +2947,9 @@
 "Найти группу, спросить совет, сообщить об ошибке":"Gruppe finden, Rat fragen, Fehler melden",
 "Обмен осколков":"Splittertausch",
 "осколки душ":"Seelensplitter",
-"Герои":"Helden"}
+"Герои":"Helden",
+"Масштаб карты":"Kartenzoom",
+"Дальше":"Weiter",
+"Ближе":"Näher",
+"Сколько карты видно вокруг героя — в городе и в данжах":"Wie viel Karte du um deinen Helden siehst – in Städten und Dungeons",
+"Жёлтые ромбы — здания, фиолетовые кольца — порталы, «!» — жители с заданиями, красные точки — монстры. Удачной охоты!":"Goldene Rauten sind Gebäude, violette Ringe Portale, „!“ Bewohner mit Aufträgen, rote Punkte Monster. Gute Jagd!"}

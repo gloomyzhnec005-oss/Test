@@ -337,17 +337,26 @@
       } else if (o.kind === 'place') {
         const r = 2.4 * k; ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath();
         ctx.fillStyle = '#ffd36a'; ctx.fill(); ctx.lineWidth = Math.max(1, k * 0.8); ctx.strokeStyle = '#3a2408'; ctx.stroke();
+      } else if (o.kind === 'npc') {
+        // Поручитель с заданиями: значок с «!» (новое задание), «?» (сдать) или «…» (в процессе)
+        const st = ((window.gameScene && window.gameScene.npcMarks) || {})[o.npc];
+        const ch = st === 'ready' ? '?' : st === 'prog' ? '…' : '!';
+        const col = st === 'ready' ? '#7dff6a' : st === 'prog' || st === 'low' ? '#c8c0b0' : '#ffd23a';
+        const r = (st === 'new' || st === 'ready' ? 3.4 + Math.sin(now / 260) * 0.4 : 3) * k;
+        dot(x, y, r, '#2a1a08', col);
+        ctx.font = `bold ${Math.round(r * 1.6)}px Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = col; ctx.fillText(ch, x, y + r * 0.08); ctx.textBaseline = 'alphabetic';
       }
     }
     // На большой карте — подписи зданий и порталов
     if (k >= 3) {
       ctx.font = `${Math.round(4.6 * k)}px Georgia, serif`; ctx.textAlign = 'center'; ctx.lineJoin = 'round';
       for (const o of map.objs || []) {
-        if (o.kind !== 'place' && o.kind !== 'portal' || !o.name) continue;
+        if (o.kind !== 'place' && o.kind !== 'portal' && o.kind !== 'npc' || !o.name) continue;
         const [x0, y] = P(o), t = o.num ? ['I', 'II', 'III', 'IV', 'V', 'VI'][o.num - 1] : window.I18N ? I18N.tr(o.name) : o.name; // данжи — номером, как на порталах
         const half = ctx.measureText(t).width / 2 + 2, x = Math.max(half, Math.min(ctx.canvas.width - half, x0));
         ctx.lineWidth = 1.2 * k; ctx.strokeStyle = 'rgba(10,6,2,.9)'; ctx.strokeText(t, x, y + 7.5 * k);
-        ctx.fillStyle = o.kind === 'portal' ? '#e6ccff' : '#ffe7a8'; ctx.fillText(t, x, y + 7.5 * k);
+        ctx.fillStyle = o.kind === 'portal' ? '#e6ccff' : o.kind === 'npc' ? '#ffd23a' : '#ffe7a8'; ctx.fillText(t, x, y + 7.5 * k);
       }
     }
     // Монстры: обычные — красные точки, полубоссы и боссы — крупнее, с золотой каймой
@@ -900,6 +909,12 @@
         }
         {
           const sel = document.createElement('select'); sel.className = 'set-sel';
+          for (const [v, n] of [['far', 'Дальше'], ['normal', 'Обычный'], ['near', 'Ближе']]) { const o = document.createElement('option'); o.value = v; o.textContent = n; o.selected = (Settings.get('mapZoom') || 'normal') === v; sel.append(o); }
+          sel.onchange = () => Settings.set('mapZoom', sel.value);
+          row('Масштаб карты', 'Сколько карты видно вокруг героя — в городе и в данжах', sel);
+        }
+        {
+          const sel = document.createElement('select'); sel.className = 'set-sel';
           for (const [v, n] of [['auto', 'Авто'], ['full', 'Полные'], ['lite', 'Упрощённые']]) { const o = document.createElement('option'); o.value = v; o.textContent = n; o.selected = Settings.get('fx') === v; sel.append(o); }
           sel.onchange = () => Settings.set('fx', sel.value);
           row('Эффекты', 'Авто — в больших боях игра сама убирает лишние частицы, тряску и чужие цифры; «Упрощённые» — всегда, для слабых телефонов', sel);
@@ -1114,6 +1129,7 @@
         if (k === 'names' && sc) for (const m of [sc.players, sc.monsters, sc.pets]) if (m) for (const e of m.values()) if (e.label) e.label.setVisible(v);
         if (k === 'lowFps') { const L = game.loop; L.sleep(); L.fpsLimit = v ? 30 : 0; L.hasFpsLimit = !!v; L._limitRate = v ? 1000 / 30 : 0; L.wake(true); }
         if (k === 'hints') document.body.classList.toggle('no-hints', !v);
+        if (k === 'mapZoom' && sc && sc.resize) sc.resize();
       });
       w.myHero = selected; // свой герой грузится сразу, остальные — по мере появления
       game.scene.add('Game', window.GameScene, true, { socket, welcome: w, ui, input });

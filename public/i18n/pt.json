@@ -808,7 +808,6 @@
 "Жрица света, исцеляющая раны и изгоняющая тьму словом веры. Не воин, но её молитвы способны обратить ход боя. Добра и сострадательна — но к нечестивым беспощадна.":"Sacerdotisa da luz que cura feridas e expulsa a escuridão com palavras de fé. Não é guerreira, mas suas preces podem virar a batalha. Bondosa e compassiva — mas impiedosa com os ímpios.",
 "Жрица тайного культа луны, черпающая силу из ночного светила. Служит лунной богине и вершит её волю. Загадочна, спокойна и опасна — её магия растёт вместе с луной.":"Sacerdotisa de um culto lunar secreto que tira poder do astro noturno. Serve à deusa da lua e cumpre sua vontade. Misteriosa, calma e perigosa — sua magia cresce com a lua.",
 "Жёлтая метка":"Yellow mark",
-"Жёлтые точки — порталы и здания, красные — монстры. Удачной охоты!":"Pontos amarelos são portais e prédios; vermelhos são monstros. Boa caçada!",
 "За каждого зверя рядом: +8% урона и +6% скорости атаки (до +24% / +18%). Звери всегда возвращаются и не погибают навсегда.":"Para cada fera por perto: +8% de dano e +6% de velocidade de ataque (até +24% / +18%). As feras sempre voltam e nunca morrem de vez.",
 "За уровень: {0}":"Por nível: {0}",
 "Забрать":"Coletar",
@@ -3227,4 +3226,9 @@
 "Найти группу, спросить совет, сообщить об ошибке":"Encontre um grupo, peça conselhos, relate um erro",
 "Обмен осколков":"Troca de fragmentos",
 "осколки душ":"fragmentos de alma",
-"Герои":"Heróis"}
+"Герои":"Heróis",
+"Масштаб карты":"Zoom do mapa",
+"Дальше":"Mais longe",
+"Ближе":"Mais perto",
+"Сколько карты видно вокруг героя — в городе и в данжах":"Quanto do mapa você vê ao redor do herói — nas cidades e masmorras",
+"Жёлтые ромбы — здания, фиолетовые кольца — порталы, «!» — жители с заданиями, красные точки — монстры. Удачной охоты!":"Losangos dourados são prédios, anéis violeta são portais, «!» marca moradores com missões, pontos vermelhos são monstros. Boa caçada!"}

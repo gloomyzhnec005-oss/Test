@@ -808,7 +808,6 @@
 "Жрица света, исцеляющая раны и изгоняющая тьму словом веры. Не воин, но её молитвы способны обратить ход боя. Добра и сострадательна — но к нечестивым беспощадна.":"Yaraları iyileştiren, inanç sözleriyle karanlığı kovan bir ışık rahibesi. Savaşçı değil, ama duaları savaşın gidişatını değiştirebilir. İyi kalpli ve merhametli — ama kâfirlere acımasız.",
 "Жрица тайного культа луны, черпающая силу из ночного светила. Служит лунной богине и вершит её волю. Загадочна, спокойна и опасна — её магия растёт вместе с луной.":"Gücünü gece yıldızından alan gizli bir ay tarikatının rahibesi. Ay tanrıçasına hizmet eder ve onun iradesini yerine getirir. Gizemli, sakin ve tehlikeli — büyüsü ayla birlikte büyür.",
 "Жёлтая метка":"Yellow mark",
-"Жёлтые точки — порталы и здания, красные — монстры. Удачной охоты!":"Sarı noktalar portallar ve binalar, kırmızılar canavarlar. İyi avlar!",
 "За каждого зверя рядом: +8% урона и +6% скорости атаки (до +24% / +18%). Звери всегда возвращаются и не погибают навсегда.":"Yakındaki her hayvan için: +%8 hasar ve +%6 saldırı hızı (en fazla +%24 / +%18). Hayvanlar hep geri döner, asla kalıcı olarak ölmez.",
 "За уровень: {0}":"Seviye başına: {0}",
 "Забрать":"Al",
@@ -3227,4 +3226,9 @@
 "Найти группу, спросить совет, сообщить об ошибке":"Grup bul, tavsiye iste, hata bildir",
 "Обмен осколков":"Parça Takası",
 "осколки душ":"ruh parçaları",
-"Герои":"Kahramanlar"}
+"Герои":"Kahramanlar",
+"Масштаб карты":"Harita yakınlaştırma",
+"Дальше":"Daha uzak",
+"Ближе":"Daha yakın",
+"Сколько карты видно вокруг героя — в городе и в данжах":"Kahramanın etrafında haritanın ne kadarını gördüğün — şehirlerde ve zindanlarda",
+"Жёлтые ромбы — здания, фиолетовые кольца — порталы, «!» — жители с заданиями, красные точки — монстры. Удачной охоты!":"Altın baklavalar binalar, mor halkalar portallar, «!» görevli kasaba halkı, kırmızı noktalar canavarlar. İyi avlar!"}

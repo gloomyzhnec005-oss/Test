@@ -808,7 +808,6 @@
 "Жрица света, исцеляющая раны и изгоняющая тьму словом веры. Не воин, но её молитвы способны обратить ход боя. Добра и сострадательна — но к нечестивым беспощадна.":"A priestess of light who heals wounds and banishes darkness with words of faith. No warrior, yet her prayers can turn the tide of battle. Kind and compassionate — but merciless to the wicked.",
 "Жрица тайного культа луны, черпающая силу из ночного светила. Служит лунной богине и вершит её волю. Загадочна, спокойна и опасна — её магия растёт вместе с луной.":"A priestess of a secret moon cult who draws power from the night's luminary. She serves the moon goddess and carries out her will. Mysterious, calm and dangerous — her magic grows with the moon.",
 "Жёлтая метка":"Yellow mark",
-"Жёлтые точки — порталы и здания, красные — монстры. Удачной охоты!":"Yellow dots are portals and buildings, red ones are monsters. Happy hunting!",
 "За каждого зверя рядом: +8% урона и +6% скорости атаки (до +24% / +18%). Звери всегда возвращаются и не погибают навсегда.":"For each beast nearby: +8% damage and +6% attack speed (up to +24% / +18%). Beasts always come back and never die for good.",
 "За уровень: {0}":"Per level: {0}",
 "Забрать":"Claim",
@@ -3227,4 +3226,9 @@
 "Найти группу, спросить совет, сообщить об ошибке":"Find a party, ask for advice, report a bug",
 "Обмен осколков":"Shard Exchange",
 "осколки душ":"soul shards",
-"Герои":"Heroes"}
+"Герои":"Heroes",
+"Масштаб карты":"Map zoom",
+"Дальше":"Farther",
+"Ближе":"Closer",
+"Сколько карты видно вокруг героя — в городе и в данжах":"How much of the map you see around your hero — in towns and dungeons",
+"Жёлтые ромбы — здания, фиолетовые кольца — порталы, «!» — жители с заданиями, красные точки — монстры. Удачной охоты!":"Gold diamonds are buildings, violet rings are portals, “!” marks townsfolk with quests, red dots are monsters. Good hunting!"}

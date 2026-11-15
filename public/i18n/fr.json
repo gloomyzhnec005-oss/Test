@@ -808,7 +808,6 @@
 "Жрица света, исцеляющая раны и изгоняющая тьму словом веры. Не воин, но её молитвы способны обратить ход боя. Добра и сострадательна — но к нечестивым беспощадна.":"Prêtresse de lumière qui soigne les blessures et chasse les ténèbres par la parole de la foi. Pas une guerrière, mais ses prières peuvent renverser le cours du combat. Bonne et compatissante — mais impitoyable envers les impies.",
 "Жрица тайного культа луны, черпающая силу из ночного светила. Служит лунной богине и вершит её волю. Загадочна, спокойна и опасна — её магия растёт вместе с луной.":"Prêtresse d'un culte lunaire secret qui puise sa force dans l'astre de la nuit. Elle sert la déesse lunaire et accomplit sa volonté. Mystérieuse, calme et dangereuse — sa magie croît avec la lune.",
 "Жёлтая метка":"Yellow mark",
-"Жёлтые точки — порталы и здания, красные — монстры. Удачной охоты!":"Points jaunes : portails et bâtiments, rouges : monstres. Bonne chasse !",
 "За каждого зверя рядом: +8% урона и +6% скорости атаки (до +24% / +18%). Звери всегда возвращаются и не погибают навсегда.":"Pour chaque bête proche : +8% de dégâts et +6% de vitesse d'attaque (jusqu'à +24% / +18%). Les bêtes reviennent toujours et ne meurent jamais pour de bon.",
 "За уровень: {0}":"Par niveau : {0}",
 "Забрать":"Récupérer",
@@ -3227,4 +3226,9 @@
 "Найти группу, спросить совет, сообщить об ошибке":"Trouver un groupe, demander conseil, signaler un bug",
 "Обмен осколков":"Échange d'éclats",
 "осколки душ":"éclats d’âme",
-"Герои":"Héros"}
+"Герои":"Héros",
+"Масштаб карты":"Zoom de la carte",
+"Дальше":"Plus loin",
+"Ближе":"Plus près",
+"Сколько карты видно вокруг героя — в городе и в данжах":"Quelle partie de la carte vous voyez autour du héros — en ville et en donjon",
+"Жёлтые ромбы — здания, фиолетовые кольца — порталы, «!» — жители с заданиями, красные точки — монстры. Удачной охоты!":"Losanges dorés : bâtiments, anneaux violets : portails, « ! » : habitants avec quêtes, points rouges : monstres. Bonne chasse !"}

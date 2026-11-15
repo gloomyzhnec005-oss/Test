@@ -310,14 +310,17 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // На телефоне показываем примерно 11-13 тайлов по короткой стороне
     const town = this.zone && this.zone.kind === 'town';
     const dpr = window.GAME_DPR || 1; // холст в физических пикселях — зум умножается на плотность экрана
-    // Сколько плиток видно по короткой стороне: в городе — шире (17), в данже — ближе (12)
-    const target = town ? 17 : 12, side = Math.min(w, h);
-    const raw = Phaser.Math.Clamp(side / (target * this.T), (town ? 0.8 : 1) * dpr, 3 * dpr);
+    // Сколько плиток видно по короткой стороне: в городе — шире (18), в данже — ближе (12).
+    // Одинаково при любой чёткости (раньше при пониженном разрешении город был заметно ближе).
+    // Настройка «Масштаб карты»: дальше — больше плиток, ближе — меньше
+    const k = { far: 1.2, normal: 1, near: 0.8 }[window.Settings && Settings.get('mapZoom')] || 1;
+    const target = (town ? 18 : 12) * k, side = Math.min(w, h);
+    const raw = Phaser.Math.Clamp(side / (target * this.T), (town ? 0.55 : 0.75) * dpr, 3 * dpr);
     // Холст в полном разрешении экрана — целый масштаб: каждый пиксель рисунка ровно N пикселей экрана, без «плывущих»
     // пикселей в движении. Если ради плавности разрешение снижено (авто-качество) — точный масштаб, чтобы вид не менялся
     let zoom = raw;
     const full = dpr >= Math.min(3, window.devicePixelRatio || 1) - 0.01;
-    if (full) { const n = Math.round(raw); if (n >= 1 && Math.abs(side / (n * this.T) - target) / target <= 0.3) zoom = n; }
+    if (full) { const n = Math.round(raw); if (n >= 1 && Math.abs(side / (n * this.T) - target) / target <= 0.1) zoom = n; }
     this.cameras.main.setZoom(zoom);
   }
 
@@ -2694,6 +2697,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (!this.givers || !this.givers.size || !this.zone || this.zone.kind !== 'town') return;
     this.net.emit('act', { op: 'npcMarks' }, (m) => {
       if (!m || m.error) return;
+      this.npcMarks = m; // и для мини-карты
       for (const [id, e] of this.givers) {
         if (!e.mark || !e.mark.scene) continue;
         const k = m[id];
