@@ -172,6 +172,8 @@ window.WorldArt = (() => {
       if (t === 1) paintLayer('rgba(0,0,0,1)', makeMask((v) => v === 1, 0.16, 0.12), 0.35); // тёмный берег
       paintLayer(pattern(o, src, t, rnd, scene, z.theme), makeMask((v) => v === t));
     }
+    // Маска воды (в Морграте — разломы Бездны) для живого слоя поверх: вода течёт, разломы пульсируют
+    if (count[1]) { const wm = makeMask((v) => v === 1, 0.12, -0.04), c = document.createElement('canvas'); c.width = mw; c.height = mh; c.getContext('2d').drawImage(wm, 0, 0); out.waterMask = c; out.maskScale = T / K; }
     if (high.length) {
       // Тень стен и скал: та же маска, сдвинутая вниз
       const m = makeMask((v) => HIGH.has(v), 0.2, 0.05);

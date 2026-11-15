@@ -450,6 +450,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.layer = this.tilemap.createLayer(0, ts, z.ox, z.oy).setDepth(0);
     // Нарисованные миры: земля одной картинкой с плавными переходами (WorldArt.terrain), сетка тайлов скрыта
     if (this.terrainImg) { this.terrainImg.destroy(); if (this.textures.exists('terrain')) this.textures.remove('terrain'); this.terrainImg = null; }
+    if (this.liveWater) { this.liveWater.objs.forEach((o) => o.destroy()); this.liveWater = null; if (this.textures.exists('watermask')) this.textures.remove('watermask'); }
     // Арена мирового босса — одна нарисованная картинка; внутренний край стен совпадает с краем проходимого круга
     if (art && (z.kind === 'worldboss' || z.kind === 'pvp') && this.textures.exists('arena_' + z.theme)) {
       const R = (Math.min(z.w, z.h) / 2 - 1) * T, size = R / 0.39;
@@ -457,9 +458,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.layer.setVisible(false);
     } else if (art) {
       try {
-        this.textures.addCanvas('terrain', WorldArt.terrain(this, z, data2d));
+        const ter = WorldArt.terrain(this, z, data2d);
+        this.textures.addCanvas('terrain', ter);
         this.terrainImg = this.add.image(z.ox, z.oy, 'terrain').setOrigin(0, 0).setDepth(0);
         this.layer.setVisible(false);
+        this.buildLiveWater(z, ter);
       } catch (e) { console.warn('terrain', e); }
     }
     this.solid = new Set(z.solid);
@@ -2687,6 +2690,28 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
     });
   }
+  // Живая вода: поверх нарисованной земли, только там, где вода, медленно плывёт копия текстуры воды и блик.
+  // Эльдмир и Аэлион — течение и мерцание, Морграт — разломы Бездны дрейфуют и пульсируют (как за краем карты)
+  buildLiveWater(z, ter) {
+    const key = `gnd_${z.theme}_water`;
+    if (!ter.waterMask || !this.textures.exists(key) || this.sys.game.renderer.type !== Phaser.WEBGL) return;
+    this.textures.addCanvas('watermask', ter.waterMask);
+    const W = z.w * this.T, H = z.h * this.T, k = ter.maskScale;
+    const maskImg = this.make.image({ x: z.ox, y: z.oy, key: 'watermask', add: false }).setOrigin(0, 0).setScale(k);
+    const mask = maskImg.createBitmapMask();
+    const abyss = z.theme === 'abyss';
+    const layers = abyss ? [[1, 0.85, 3, 1.5, null], [1.6, 0.4, -5, 2, 'ADD']] : [[1, 0.55, 6, 3, null], [1.7, 0.28, -4, 5, 'ADD']];
+    const objs = [maskImg], items = [];
+    if (Settings.get('fx') === 'lite') layers.length = 1; // упрощённые эффекты — без второго слоя
+    layers.forEach(([sc, a, vx, vy, bm], i) => {
+      const ts = this.add.tileSprite(z.ox, z.oy, W / sc, H / sc, key).setOrigin(0, 0).setScale(sc).setAlpha(a).setDepth(1 + i * 0.1).setMask(mask);
+      if (bm) ts.setBlendMode(Phaser.BlendModes[bm]);
+      ts.tilePositionX = 37 * (i + 1); ts.tilePositionY = 53 * (i + 1); ts.vx = vx; ts.vy = vy;
+      if (i) this.tweens.add({ targets: ts, alpha: abyss ? 0.1 : 0.08, duration: abyss ? 2600 : 1900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      objs.push(ts); items.push(ts);
+    });
+    this.liveWater = { objs, items };
+  }
   // Анимации, чьи объекты уже удалены (свечение порталов прошлой карты, эффекты погибших монстров), продолжали крутиться
   // бесконечно и копились при каждом переходе между мирами — через час фарма FPS падал даже в городе. Убираем их.
   sweepTweens() {
@@ -2886,6 +2911,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.checkNear();
     this.revealFog();
     if (this.fog) for (const c of this.fog.clouds) { c.tilePositionX += c.vx * dt; c.tilePositionY += c.vy * dt; } // туман медленно плывёт
+    if (this.liveWater) for (const c of this.liveWater.items) { c.tilePositionX += c.vx * dt; c.tilePositionY += c.vy * dt; } // вода течёт
     const walking = len > 0 && !me.data.dead && !this.myStats.rooted && !held;
     // Шаги: по одному на шаг анимации, чередуются чуть разной высотой (левая/правая нога)
     if (walking && window.Sfx && time - (this.stepAt || 0) > 340 / (this.myStats.haste ? 1.25 : 1)) { this.stepAt = time; this.stepFoot = !this.stepFoot; Sfx.play('step', { pitch: this.stepFoot ? 1.06 : 0.94 }); }
