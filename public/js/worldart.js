@@ -21,6 +21,8 @@ window.WorldArt = (() => {
   // Свои бесшовные текстуры земли (assets/world/<тема>/ground/<имя>.png, любой размер) заменяют тайл 32×32 —
   // повтор квадратов исчезает. Номер тайла → имя файла; в GROUND — какие файлы у мира уже есть
   const GROUND_NAMES = { 2: 'tree', 0: 'grass', 15: 'grass', 10: 'grass2', 11: 'moss', 17: 'floor2', 1: 'water', 3: 'path', 4: 'flowers', 5: 'dirt', 6: 'rock', 7: 'wall', 8: 'plaza', 12: 'ruins', 13: 'floor', 14: 'dwall' };
+  // Версия текстур земли: поменяли картинку — увеличьте число, иначе телефон покажет старую из кеша
+  const GROUND_V = { sky: 2 };
   const GROUND = { green: ['grass', 'path', 'plaza', 'water', 'floor', 'floor2', 'dwall'], abyss: ['grass', 'path', 'plaza', 'water', 'floor', 'floor2', 'dwall'], sky: ['grass', 'path', 'plaza', 'water', 'floor', 'floor2', 'dwall', 'flowers'] };
   // Пятна на полу данжей (assets/world/<тема>/dungeon/): решётки, кровь, руны, кости — с мягкими краями
   const DUN_DECALS = ['bones', 'grate', 'blood', 'rune'];
@@ -52,7 +54,7 @@ window.WorldArt = (() => {
     for (const o of OBJECTS[th]) img(`obj_${th}_${o}`, `${base(th)}/objects/${o}.png`);
     for (const o of PORTALS) img(`ptl_${th}_${o}`, `${base(th)}/portals/${o}.png`);
     for (const o of DECO[th] || []) img(`deco_${th}_${o}`, `${base(th)}/deco/${o}.png`);
-    for (const g of GROUND[th] || []) img(`gnd_${th}_${g}`, `${base(th)}/ground/${g}.png`);
+    for (const g of GROUND[th] || []) img(`gnd_${th}_${g}`, `${base(th)}/ground/${g}.png?v=${GROUND_V[th] || 1}`);
     if (th === 'sky') img('sky_clouds', `${base(th)}/ground/clouds.png`); // облака под парящим городом (за краем карты)
     for (const d of DUN_DECALS) img(`dun_${th}_${d}`, `${base(th)}/dungeon/${d}.png`);
     scene.textures.generate(`gnd_${th}_loaded`, { data: ['1'], pixelWidth: 1 }); // метка «мир загружен»
