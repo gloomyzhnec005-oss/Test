@@ -2931,7 +2931,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
 };
 // Цвета тумана по мирам: base — плотная дымка (скрывает неразведанное), cloud — светлые клубы поверх
 // Города с нарисованными NPC: id → версия картинок (заменили картинки — увеличьте)
-window.GameScene.NPC_ART = { town1: 1 };
+window.GameScene.NPC_ART = { town1: 1, town2: 1, town3: 1 };
 window.GameScene.FOG = {
   green: { hex: '#3a4744', base: [58, 71, 68], cloud: [176, 192, 186] },
   abyss: { hex: '#2a2234', base: [42, 34, 52], cloud: [128, 108, 160] },
