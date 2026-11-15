@@ -67,7 +67,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Догрузка по ходу игры: колбэки срабатывают, когда очередь загрузчика опустела
     this.lazyDone = [];
     this.load.on('complete', () => { const cbs = this.lazyDone; this.lazyDone = []; cbs.forEach((f) => f()); });
-    this.load.on('loaderror', (f) => console.warn('asset load failed', f.key));
+    this.load.on('loaderror', (f) => {
+      console.warn('asset load failed', f.key);
+      // Лист героя не скачался (обрыв связи) — через 4 с разрешаем повторную загрузку (onState попросит её снова)
+      const m = /^(?:skin|atk|fx|bskin)_(.+)$/.exec(f.key || '');
+      if (m && this.heroQueued) setTimeout(() => this.heroQueued.delete(m[1]), 4000);
+    });
 
     // Текстуры
     const addTex = (key, cnv) => { if (!this.textures.exists(key)) this.textures.addCanvas(key, cnv); };
@@ -793,6 +798,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
         }
       }
       this.trackPos(e, p.x, p.y, s.ts);
+      // Герой сменился (смена героя без перезахода) или его нарисованный лист ещё не готов — догрузить и переодеть.
+      // Без этого другие игроки видели заглушку, пока владелец не перезайдёт
+      if (!p.form && (e.heroId !== p.hero || !e.skinOn)) {
+        if (this.textures.exists('skin_' + p.hero)) { if (e.heroId !== p.hero || !e.skinOn) { e.attacking = false; this.applySkin(e, p.hero); } }
+        else this.needHero(p.hero);
+        e.heroId = p.hero;
+      }
       e.data = p;
       e.label.setText(`${p.tag ? `[${p.tag}] ` : ''}${p.name} [${p.lvl}]`); // тег клана перед именем
       // Спутник рядом с героем (виден всем)
