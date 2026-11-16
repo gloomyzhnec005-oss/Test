@@ -71,8 +71,9 @@ const bagBonus = (pr) => { const b = pr.equip && pr.equip.bag && I.findItem(pr, 
 const bagSize = (pr) => (isSub(pr) ? SHOP.bagSub : SHOP.bag) + bagBonus(pr);
 // Склад: улучшается за золото (и самоцветы на последних уровнях)
 const WH_UPGRADES = [
-  { slots: 50, gold: 25000 }, { slots: 50, gold: 80000 }, { slots: 50, gold: 200000 },
-  { slots: 50, gold: 0, stars: 149, kind: 'whUp4' }, { slots: 50, gold: 0, stars: 299, kind: 'whUp5' }, // последние уровни — только за Stars
+  { slots: 50, gold: 25000 }, // первый уровень — за золото, дальше — только за Stars
+  { slots: 50, gold: 0, stars: 99, kind: 'whUp2' }, { slots: 50, gold: 0, stars: 149, kind: 'whUp3' },
+  { slots: 50, gold: 0, stars: 199, kind: 'whUp4' }, { slots: 50, gold: 0, stars: 249, kind: 'whUp5' },
 ];
 const whSize = (pr) => SHOP.wh + WH_UPGRADES.slice(0, pr.whLvl || 0).reduce((s, u) => s + u.slots, 0);
 const inBagCount = (pr) => (pr.items || []).filter((i) => i.loc !== 'wh').length;
@@ -979,7 +980,7 @@ module.exports = function createMeta(deps) {
 
   // Покупки за Stars (зачисляются ботом после оплаты)
   function onPaid(kind, pr) {
-    if (kind === 'whUp4' || kind === 'whUp5') { const lv = +kind[4] - 1; if ((pr.whLvl || 0) === lv) pr.whLvl = lv + 1; return true; }
+    if (/^whUp[2-5]$/.test(kind)) { const lv = +kind[4] - 1; if ((pr.whLvl || 0) === lv) pr.whLvl = lv + 1; return true; }
     if (kind === 'ispin') pr.itemSpins = (pr.itemSpins || 0) + 1;
     else if (kind === 'ispin10') pr.itemSpins = (pr.itemSpins || 0) + 10;
     else if (SHOP.gems[kind]) pr.gems = (pr.gems || 0) + SHOP.gems[kind].gems;
@@ -990,7 +991,7 @@ module.exports = function createMeta(deps) {
       pr.starterBought = true;
       pr.gems = (pr.gems || 0) + 300; pr.paidSpins = (pr.paidSpins || 0) + 3; pr.itemSpins = (pr.itemSpins || 0) + 5;
       grant(pr, I.createBag('epic', 1));
-      I.addMat(pr, 'elxHero', 2); I.addMat(pr, 'elxTitan', 1); I.addMat(pr, 'potHp2', 10);
+      I.addMat(pr, 'elxXp2', 2); I.addMat(pr, 'elxHero', 1); I.addMat(pr, 'potHp2', 10);
     } else if (kind === 'card30') {
       pr.gems = (pr.gems || 0) + 300;
       pr.card = { until: Math.max(Date.now(), (pr.card && pr.card.until) || 0) + 30 * DAY, last: (pr.card && pr.card.last) || '' };
@@ -1009,21 +1010,25 @@ module.exports = function createMeta(deps) {
     chestSet5: { n: 5, amount: 449, title: 'Ларцы комплекта ×5', description: 'Пять ларцов комплекта со скидкой 10%' },
     chestLegend: { n: 1, amount: 149, title: 'Ларец грандмастера', description: '2 свитка грандмастера и редкий материал' },
     // Особые предложения (своя витрина в магазине)
-    starter: { special: true, amount: 99, title: 'Набор новичка', description: '300 💎, 3 печати призыва, 5 печатей снаряжения, эпическая сумка, 2 эликсира героя, эликсир титана, 10 больших зелий' },
+    starter: { special: true, amount: 99, title: 'Набор новичка', description: '300 💎, 3 печати призыва, 5 печатей снаряжения, эпическая сумка, 2 великих эликсира опыта, эликсир героя, 10 больших зелий' },
     card30: { special: true, amount: 199, title: 'Карта месяца', description: '300 💎 сразу и ещё 100 💎 каждый день 30 дней — всего 3300 💎' },
     // Великие эликсиры — в сумку, пьются оттуда (1 час)
+    elxXp2: { n: 1, amount: 49, elixir: true, title: 'Великий эликсир опыта', description: '+50% опыта на 1 час' },
+    elxXp2x5: { n: 5, amount: 199, elixir: true, title: 'Великий эликсир опыта ×5', description: '5 эликсиров: +50% опыта на 1 час каждый, скидка 20%' },
+    elxGold2: { n: 1, amount: 49, elixir: true, title: 'Великий эликсир богатства', description: '+50% золота с монстров на 1 час' },
+    elxLuck2: { n: 1, amount: 59, elixir: true, title: 'Великий эликсир удачи', description: 'Предметы и материалы падают на 30% чаще 1 час' },
     elxHero: { n: 1, amount: 69, elixir: true, title: 'Эликсир героя', description: '+15% урона и здоровья, +5% крита, +10% скорости атаки на 1 час' },
     elxTitan: { n: 1, amount: 59, elixir: true, title: 'Эликсир титана', description: '+15% защиты, +25% здоровья, 2% вампиризма на 1 час' },
   };
   CHESTS.chestSet5.mat = 'chestSet';
+  CHESTS.elxXp2x5.mat = 'elxXp2';
   const INVOICES = {
     ...Object.fromEntries(Object.entries(CHESTS).map(([k, c]) => [k, { title: c.title, description: c.description, amount: c.amount }])),
     ispin: { title: 'Призыв предмета', description: 'Одна крутка призыва предметов', amount: SHOP.itemSpin.price },
     ispin10: { title: 'Призыв предметов ×10', description: 'Десять круток призыва предметов', amount: SHOP.itemSpin.price10 },
     ...Object.fromEntries(Object.entries(SHOP.gems).map(([k, g]) => [k, { title: `Самоцветы ×${g.gems}`, description: `${g.gems} самоцветов: 160 = призыв героя, 100 = призыв снаряжения`, amount: g.amount }])),
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
-    whUp4: { title: 'Склад: уровень 4', description: '+50 ячеек склада навсегда', amount: 149 },
-    whUp5: { title: 'Склад: уровень 5', description: '+50 ячеек склада навсегда', amount: 299 },
+    ...Object.fromEntries(WH_UPGRADES.filter((u) => u.stars).map((u) => [u.kind, { title: `Склад: уровень ${u.kind.slice(4)}`, description: '+50 ячеек склада навсегда', amount: u.stars }])),
   };
 
   // Сила лучшего героя игрока (рейтинг «Сила»)

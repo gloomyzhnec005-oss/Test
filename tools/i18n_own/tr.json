@@ -2954,7 +2954,12 @@
 "💀 Вы погибли: −{0} опыта{1}. Слабость на 5 минут: урон −30%, получаемый опыт −30%":"💀 Öldün: −{0} TP{1}. 5 dakika zayıflık: hasar −%30, kazanılan TP −%30",
 "Эликсиры сгорают при гибели. Одинаковые эффекты не складываются — продлевается время. Автозелье (Настройки) пьёт само, когда здоровья мало. В данже выживания зелья запрещены. Гибель: −15% опыта уровня и слабость на 5 минут (урон и получаемый опыт −30%); время слабости идёт только пока вы в игре.":"İksirler ölünce yanar. Aynı etkiler birikmez — süre uzar. Otomatik iksir (Ayarlar) can azalınca kendisi içer. Hayatta kalma zindanında iksir yasaktır. Ölüm: seviye XP'sinin −%15'i ve 5 dakika zayıflık (hasar ve kazanılan XP −%30); süre yalnızca oyundayken işler.",
 "В данже выживания зелья запрещены — только сила героя":"Hayatta kalma zindanında iksir yasak — yalnızca kahramanın gücü",
-"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×2, урон ×1.25. Победите себя!":"🪞 Klon dövüşü: kopyan senden güçlü — can ×2, hasar ×1,25. Kendini yen!",
 "💎 самоцветы · 100 = призыв":"💎 mücevher · 100 = çağırma",
 "Отборные вещи: свойства на 25% сильнее и одно дополнительное — в лавке таких нет":"Seçkin eşyalar: özellikler %25 daha güçlü ve bir ek özellik — dükkânda yok",
-"Такая руна уже стоит в этом оружии — нужны разные руны":"Bu rün zaten bu silahta — farklı rünler kullan"}
+"Такая руна уже стоит в этом оружии — нужны разные руны":"Bu rün zaten bu silahta — farklı rünler kullan",
+"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×1.6, урон ×1.15. Победите себя!":"🪞 Klon dövüşü: kopyan senden güçlü — can ×1.6, hasar ×1,15. Kendini yen!",
+"Великий эликсир богатства":"Büyük Zenginlik İksiri",
+"+50% золота с монстров на 1 час.":"1 saat canavarlardan +%50 altın.",
+"+50% золота с монстров на 1 час":"1 saat canavarlardan +%50 altın",
+"+50 ячеек склада навсегда":"Kalıcı +50 depo yuvası",
+"Этот уровень склада — за {0} ⭐":"Bu depo seviyesi {0} ⭐"}

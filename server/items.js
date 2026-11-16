@@ -358,8 +358,9 @@ Object.assign(MATS, {
   elxFury: { name: 'Эликсир ярости', icon: '💢', color: '#ff5a2a', kind: 'elixir', buff: 'fury', desc: '+20% критического урона на 30 минут.', price: 1100, buy: 140 },
   elxGold: { removed: true, name: 'Эликсир богатства', icon: '🪙', color: '#ffd36a', kind: 'elixir', buff: 'gold', desc: '+40% золота с монстров на 30 минут.', price: 600, buy: 130 },
   // Великие эликсиры (Telegram Stars или GRAM, магазин): 1 час, сильнее обычных; действуют вместе с ними
-  elxXp2: { removed: true, name: 'Великий эликсир опыта', icon: '📗', color: '#4dffb0', kind: 'elixir', buff: 'xp2', mins: 60, desc: '+50% опыта на 1 час.', price: 0, buy: 0 },
-  elxLuck2: { removed: true, name: 'Великий эликсир удачи', icon: '☘️', color: '#3aff6a', kind: 'elixir', buff: 'luck2', mins: 60, desc: 'Предметы и материалы падают на 30% чаще 1 час.', price: 0, buy: 0 },
+  elxXp2: { name: 'Великий эликсир опыта', icon: '📗', color: '#4dffb0', kind: 'elixir', buff: 'xp2', mins: 60, desc: '+50% опыта на 1 час.', price: 0, buy: 0 },
+  elxLuck2: { name: 'Великий эликсир удачи', icon: '☘️', color: '#3aff6a', kind: 'elixir', buff: 'luck2', mins: 60, desc: 'Предметы и материалы падают на 30% чаще 1 час.', price: 0, buy: 0 },
+  elxGold2: { name: 'Великий эликсир богатства', icon: '💰', color: '#ffd36a', kind: 'elixir', buff: 'gold2', mins: 60, desc: '+50% золота с монстров на 1 час.', price: 0, buy: 0 },
   elxHero: { name: 'Эликсир героя', icon: '👑', color: '#ffb340', kind: 'elixir', buff: 'hero', mins: 60, desc: '+15% урона, +15% здоровья, +5% крита и +10% скорости атаки на 1 час.', price: 0, buy: 0 },
   elxTitan: { name: 'Эликсир титана', icon: '🗿', color: '#c8b89a', kind: 'elixir', buff: 'titan', mins: 60, desc: '+15% защиты, +25% здоровья и 2% вампиризма на 1 час.', price: 0, buy: 0 },
   tpScroll: { name: 'Свиток возвращения', icon: '🌀', color: '#5fd1c8', kind: 'scrollTp', desc: 'Мгновенно переносит в город текущего мира.', price: 60, buy: 10 },
@@ -371,7 +372,7 @@ Object.assign(MATS, {
 // Бонусы эликсиров (добавляются к статам экипировки, пока действуют)
 const BUFF_STATS = { atk: { atkP: 10 }, def: { def: 8, hpP: 10 }, agi: { aspd: 10, crit: 5 }, mind: { skill: 12, cdr: 5 },
   xp: { xp: 20 }, wind: { ms: 12 }, vamp: { ls: 3 }, fury: { critDmg: 20 }, gold: { gold: 40 },
-  xp2: { xp: 50 }, hero: { atkP: 15, hpP: 15, crit: 5, aspd: 10 }, titan: { def: 15, hpP: 25, ls: 2 } };
+  xp2: { xp: 50 }, gold2: { gold: 50 }, hero: { atkP: 15, hpP: 15, crit: 5, aspd: 10 }, titan: { def: 15, hpP: 25, ls: 2 } };
 // Удача эликсиров: прибавка к шансу добычи
 const BUFF_LUCK = { luck: 0.15, luck2: 0.3 };
 const buffLuck = (pr, now = Date.now()) => 1 + Object.entries(BUFF_LUCK).reduce((s, [k, v]) => s + ((pr.buffs || {})[k] > now ? v : 0), 0);

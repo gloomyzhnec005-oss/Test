@@ -3232,7 +3232,12 @@
 "💀 Вы погибли: −{0} опыта{1}. Слабость на 5 минут: урон −30%, получаемый опыт −30%":"💀 Du bist gestorben: −{0} EP{1}. Schwäche für 5 Minuten: Schaden −30 %, erhaltene EP −30 %",
 "Эликсиры сгорают при гибели. Одинаковые эффекты не складываются — продлевается время. Автозелье (Настройки) пьёт само, когда здоровья мало. В данже выживания зелья запрещены. Гибель: −15% опыта уровня и слабость на 5 минут (урон и получаемый опыт −30%); время слабости идёт только пока вы в игре.":"Elixiere verfallen beim Tod. Gleiche Effekte stapeln nicht – die Zeit wird verlängert. Der Autotrank (Einstellungen) trinkt selbst bei wenig Leben. Im Überlebens-Dungeon sind Tränke verboten. Tod: −15 % der Stufen-EP und 5 Minuten Schwäche (Schaden und erhaltene EP −30 %); die Zeit läuft nur, solange du spielst.",
 "В данже выживания зелья запрещены — только сила героя":"Im Überlebens-Dungeon sind Tränke verboten – nur die Kraft des Helden zählt",
-"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×2, урон ×1.25. Победите себя!":"🪞 Klonkampf: Deine Kopie ist stärker als du – Leben ×2, Schaden ×1,25. Besiege dich selbst!",
 "💎 самоцветы · 100 = призыв":"💎 Edelsteine · 100 = Beschwörung",
 "Отборные вещи: свойства на 25% сильнее и одно дополнительное — в лавке таких нет":"Auserlesene Gegenstände: Werte 25 % stärker und ein zusätzlicher – so etwas gibt es im Laden nicht",
-"Такая руна уже стоит в этом оружии — нужны разные руны":"Diese Rune steckt schon in der Waffe – nimm verschiedene Runen"}
+"Такая руна уже стоит в этом оружии — нужны разные руны":"Diese Rune steckt schon in der Waffe – nimm verschiedene Runen",
+"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×1.6, урон ×1.15. Победите себя!":"🪞 Klonkampf: Deine Kopie ist stärker als du – Leben ×1.6, Schaden ×1,15. Besiege dich selbst!",
+"Великий эликсир богатства":"Großes Elixier des Reichtums",
+"+50% золота с монстров на 1 час.":"+50 % Gold von Monstern für 1 Stunde.",
+"+50% золота с монстров на 1 час":"+50 % Gold von Monstern für 1 Stunde",
+"+50 ячеек склада навсегда":"+50 Lagerplätze für immer",
+"Этот уровень склада — за {0} ⭐":"Diese Lagerstufe kostet {0} ⭐"}

@@ -2954,7 +2954,12 @@
 "💀 Вы погибли: −{0} опыта{1}. Слабость на 5 минут: урон −30%, получаемый опыт −30%":"💀 Vous êtes mort : −{0} XP{1}. Faiblesse 5 minutes : dégâts −30 %, XP gagnée −30 %",
 "Эликсиры сгорают при гибели. Одинаковые эффекты не складываются — продлевается время. Автозелье (Настройки) пьёт само, когда здоровья мало. В данже выживания зелья запрещены. Гибель: −15% опыта уровня и слабость на 5 минут (урон и получаемый опыт −30%); время слабости идёт только пока вы в игре.":"Les élixirs disparaissent à la mort. Les effets identiques ne se cumulent pas : la durée est prolongée. L'auto-potion (Paramètres) boit seule quand la vie est basse. Les potions sont interdites dans le donjon de survie. Mort : −15 % de l'XP du niveau et 5 minutes de faiblesse (dégâts et XP gagnée −30 %) ; le temps ne s'écoule qu'en jeu.",
 "В данже выживания зелья запрещены — только сила героя":"Pas de potions dans le donjon de survie — seule la force du héros compte",
-"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×2, урон ×1.25. Победите себя!":"🪞 Combat contre le clone : votre copie est plus forte que vous — vie ×2, dégâts ×1,25. Battez-vous vous-même !",
 "💎 самоцветы · 100 = призыв":"💎 gemmes · 100 = invocation",
 "Отборные вещи: свойства на 25% сильнее и одно дополнительное — в лавке таких нет":"Objets d’élite : caractéristiques 25 % plus fortes et une de plus — introuvables en boutique",
-"Такая руна уже стоит в этом оружии — нужны разные руны":"Cette rune est déjà dans l’arme — utilisez des runes différentes"}
+"Такая руна уже стоит в этом оружии — нужны разные руны":"Cette rune est déjà dans l’arme — utilisez des runes différentes",
+"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×1.6, урон ×1.15. Победите себя!":"🪞 Combat contre le clone : votre copie est plus forte que vous — vie ×1.6, dégâts ×1,15. Battez-vous vous-même !",
+"Великий эликсир богатства":"Grand élixir de richesse",
+"+50% золота с монстров на 1 час.":"+50 % d’or des monstres pendant 1 heure.",
+"+50% золота с монстров на 1 час":"+50 % d’or des monstres pendant 1 heure",
+"+50 ячеек склада навсегда":"+50 emplacements d’entrepôt pour toujours",
+"Этот уровень склада — за {0} ⭐":"Ce niveau d’entrepôt coûte {0} ⭐"}

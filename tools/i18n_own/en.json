@@ -3232,7 +3232,12 @@
 "💀 Вы погибли: −{0} опыта{1}. Слабость на 5 минут: урон −30%, получаемый опыт −30%":"💀 You died: −{0} XP{1}. Weakness for 5 minutes: damage −30%, XP gained −30%",
 "Эликсиры сгорают при гибели. Одинаковые эффекты не складываются — продлевается время. Автозелье (Настройки) пьёт само, когда здоровья мало. В данже выживания зелья запрещены. Гибель: −15% опыта уровня и слабость на 5 минут (урон и получаемый опыт −30%); время слабости идёт только пока вы в игре.":"Elixirs burn out when you die. Identical effects don't stack — the time is extended. Auto-potion (Settings) drinks by itself when health is low. Potions are not allowed in the Survival dungeon. Death: −15% of the level's XP and 5 minutes of weakness (damage and XP gained −30%); the weakness timer only runs while you are in the game.",
 "В данже выживания зелья запрещены — только сила героя":"Potions are not allowed in the Survival dungeon — only your hero's strength",
-"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×2, урон ×1.25. Победите себя!":"🪞 Clone fight: your copy is stronger than you — health ×2, damage ×1.25. Defeat yourself!",
 "💎 самоцветы · 100 = призыв":"💎 gems · 100 = summon",
 "Отборные вещи: свойства на 25% сильнее и одно дополнительное — в лавке таких нет":"Select items: stats 25% stronger plus one extra — the shop has nothing like them",
-"Такая руна уже стоит в этом оружии — нужны разные руны":"This rune is already in this weapon — use different runes"}
+"Такая руна уже стоит в этом оружии — нужны разные руны":"This rune is already in this weapon — use different runes",
+"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×1.6, урон ×1.15. Победите себя!":"🪞 Clone fight: your copy is stronger than you — health ×1.6, damage ×1.15. Defeat yourself!",
+"Великий эликсир богатства":"Great Elixir of Wealth",
+"+50% золота с монстров на 1 час.":"+50% gold from monsters for 1 hour.",
+"+50% золота с монстров на 1 час":"+50% gold from monsters for 1 hour",
+"+50 ячеек склада навсегда":"+50 warehouse slots forever",
+"Этот уровень склада — за {0} ⭐":"This warehouse level costs {0} ⭐"}

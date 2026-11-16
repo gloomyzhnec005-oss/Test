@@ -2954,7 +2954,12 @@
 "💀 Вы погибли: −{0} опыта{1}. Слабость на 5 минут: урон −30%, получаемый опыт −30%":"💀 Has muerto: −{0} de experiencia{1}. Debilidad 5 minutos: daño −30%, experiencia −30%",
 "Эликсиры сгорают при гибели. Одинаковые эффекты не складываются — продлевается время. Автозелье (Настройки) пьёт само, когда здоровья мало. В данже выживания зелья запрещены. Гибель: −15% опыта уровня и слабость на 5 минут (урон и получаемый опыт −30%); время слабости идёт только пока вы в игре.":"Los elixires se pierden al morir. Los efectos iguales no se acumulan: se alarga el tiempo. La autopoción (Ajustes) bebe sola con poca salud. En la mazmorra de supervivencia no se permiten pociones. Muerte: −15% de la EXP del nivel y 5 minutos de debilidad (daño y EXP obtenida −30%); el tiempo solo corre mientras juegas.",
 "В данже выживания зелья запрещены — только сила героя":"En la mazmorra de supervivencia no hay pociones: solo la fuerza del héroe",
-"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×2, урон ×1.25. Победите себя!":"🪞 Duelo contra el clon: tu copia es más fuerte que tú: salud ×2, daño ×1.25. ¡Vénce a ti mismo!",
 "💎 самоцветы · 100 = призыв":"💎 gemas · 100 = invocación",
 "Отборные вещи: свойства на 25% сильнее и одно дополнительное — в лавке таких нет":"Objetos selectos: atributos un 25% más fuertes y uno adicional; no los hay en la tienda",
-"Такая руна уже стоит в этом оружии — нужны разные руны":"Esta runa ya está en el arma: usa runas distintas"}
+"Такая руна уже стоит в этом оружии — нужны разные руны":"Esta runa ya está en el arma: usa runas distintas",
+"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×1.6, урон ×1.15. Победите себя!":"🪞 Duelo contra el clon: tu copia es más fuerte que tú: salud ×1.6, daño ×1.15. ¡Vénce a ti mismo!",
+"Великий эликсир богатства":"Gran elixir de riqueza",
+"+50% золота с монстров на 1 час.":"+50% de oro de monstruos durante 1 hora.",
+"+50% золота с монстров на 1 час":"+50% de oro de monstruos durante 1 hora",
+"+50 ячеек склада навсегда":"+50 casillas de almacén para siempre",
+"Этот уровень склада — за {0} ⭐":"Este nivel de almacén cuesta {0} ⭐"}

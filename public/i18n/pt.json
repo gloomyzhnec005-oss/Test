@@ -3232,7 +3232,12 @@
 "💀 Вы погибли: −{0} опыта{1}. Слабость на 5 минут: урон −30%, получаемый опыт −30%":"💀 Você morreu: −{0} de experiência{1}. Fraqueza por 5 minutos: dano −30%, experiência −30%",
 "Эликсиры сгорают при гибели. Одинаковые эффекты не складываются — продлевается время. Автозелье (Настройки) пьёт само, когда здоровья мало. В данже выживания зелья запрещены. Гибель: −15% опыта уровня и слабость на 5 минут (урон и получаемый опыт −30%); время слабости идёт только пока вы в игре.":"Os elixires se perdem ao morrer. Efeitos iguais não se acumulam — o tempo é estendido. A autopoção (Configurações) bebe sozinha com pouca vida. Na masmorra de sobrevivência poções são proibidas. Morte: −15% da XP do nível e 5 minutos de fraqueza (dano e XP ganho −30%); o tempo só corre enquanto você joga.",
 "В данже выживания зелья запрещены — только сила героя":"Na masmorra de sobrevivência não há poções — só a força do herói",
-"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×2, урон ×1.25. Победите себя!":"🪞 Luta contra o clone: sua cópia é mais forte que você — vida ×2, dano ×1,25. Derrote a si mesmo!",
 "💎 самоцветы · 100 = призыв":"💎 gemas · 100 = invocação",
 "Отборные вещи: свойства на 25% сильнее и одно дополнительное — в лавке таких нет":"Itens seletos: atributos 25% mais fortes e um extra — a loja não tem iguais",
-"Такая руна уже стоит в этом оружии — нужны разные руны":"Esta runa já está nesta arma — use runas diferentes"}
+"Такая руна уже стоит в этом оружии — нужны разные руны":"Esta runa já está nesta arma — use runas diferentes",
+"🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×1.6, урон ×1.15. Победите себя!":"🪞 Luta contra o clone: sua cópia é mais forte que você — vida ×1.6, dano ×1,15. Derrote a si mesmo!",
+"Великий эликсир богатства":"Grande elixir da riqueza",
+"+50% золота с монстров на 1 час.":"+50% de ouro dos monstros por 1 hora.",
+"+50% золота с монстров на 1 час":"+50% de ouro dos monstros por 1 hora",
+"+50 ячеек склада навсегда":"+50 espaços de armazém para sempre",
+"Этот уровень склада — за {0} ⭐":"Este nível do armazém custa {0} ⭐"}

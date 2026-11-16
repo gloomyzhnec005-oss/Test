@@ -382,7 +382,7 @@ function isValidPayload(payload, beforePay = false) {
     const pr = profiles[uid];
     if (pr && kind === 'starter' && pr.starterBought) return false;
     if (pr && /^pass[1-4]$/.test(kind) && meta.passTier(pr) >= +kind[4]) return false;
-    if (pr && /^whUp[45]$/.test(kind) && (pr.whLvl || 0) !== +kind[4] - 1) return false; // уровень склада — строго следующий
+    if (pr && /^whUp[2-5]$/.test(kind) && (pr.whLvl || 0) !== +kind[4] - 1) return false; // уровень склада — строго следующий
   }
   if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass[1-4]$/.test(kind)) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
