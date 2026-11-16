@@ -5,6 +5,7 @@ const { MOBS, AFFIXES, TURN } = X;
 const I = require('./items');
 
 module.exports = function createDungeons(d) {
+  const BIG_RANK = new Set(['mini', 'boss', 'world']); // ранги, которых не лечат и не прикрывают щитом другие монстры
   const { C, world, monsters, players, pets } = d;
   const fx = (f) => d.pushFx(f);
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -236,7 +237,8 @@ module.exports = function createDungeons(d) {
       }
       case 'heal': {
         let best = null;
-        for (const o of monsters.values()) if (o.zone === m.zone && o !== m && dist(o, m) <= ab.r && o.hp < o.maxHp * 0.8 && (!best || o.hp / o.maxHp < best.hp / best.maxHp)) best = o;
+        // Боссов, полубоссов и мировых боссов знахари не лечат: процент от их огромного здоровья — слишком много
+        for (const o of monsters.values()) if (o.zone === m.zone && o !== m && !BIG_RANK.has(o.rank) && !o.pvpOf && dist(o, m) <= ab.r && o.hp < o.maxHp * 0.8 && (!best || o.hp / o.maxHp < best.hp / best.maxHp)) best = o;
         if (!best) return false;
         best.hp = Math.min(best.maxHp, best.hp + best.maxHp * ab.frac);
         fx({ t: 'mheal', from: m.id, x: best.x, y: best.y, fx: m.x, fy: m.y });
@@ -245,7 +247,7 @@ module.exports = function createDungeons(d) {
       case 'buff': case 'shieldAlly': {
         let n = 0;
         for (const o of monsters.values()) if (o.zone === m.zone && dist(o, m) <= ab.r) {
-          if (ab.type === 'shieldAlly') o.shieldHp = Math.max(o.shieldHp || 0, o.maxHp * ab.frac);
+          if (ab.type === 'shieldAlly') { if (!BIG_RANK.has(o.rank) || o === m) o.shieldHp = Math.max(o.shieldHp || 0, o.maxHp * ab.frac); } // чужой щит боссам не ставится
           else if (ab.stat === 'atk') { o.atkBuff = ab.mult; o.atkBuffUntil = now + ab.ms; } else { o.spdBuff = ab.mult; o.spdBuffUntil = now + ab.ms; }
           n++;
         }

@@ -112,7 +112,7 @@ module.exports = {
       style: 'Средняя и дальняя дистанция, магия стихий и поддержка. Ослабляет врагов проклятиями, лечит союзников и призывает духов. Хрупок в ближнем бою — держится на расстоянии.',
       hp: 100, dmg: 22, range: 220, cooldown: 950, speed: 145, projectile: 'spirit',
       color: 0x4fd1e0,
-      resource: { name: 'Энергия', max: 150, regen: 8, color: '#4fd1e0' },
+      resource: { name: 'Энергия', max: 150, regen: 7.5, color: '#4fd1e0' },
       skills: [
         { id: 'spiritWrath', name: 'Гнев духов', icon: '👻', cost: 45, cooldown: 9000,
           desc: 'Духи предков трижды обрушиваются на область вокруг цели и проклинают врагов: их урон −40% на 4 с.' },
@@ -132,7 +132,7 @@ module.exports = {
       hp: 150, dmg: 16, range: 180, cooldown: 850, speed: 160, projectile: 'spear',
       color: 0x8a6a3a,
       pets: true, // волк Клык, медведь Бурый и сокол Сокол — см. server/pets.js
-      resource: { name: 'Энергия', max: 120, regen: 7, color: '#f0b429' },
+      resource: { name: 'Энергия', max: 120, regen: 4.5, color: '#f0b429' },
       skills: [
         { id: 'sic', name: 'Натравливание', icon: '🐺', cost: 30, cooldown: 8000,
           desc: 'Все звери бросаются на цель: первый укус каждого — урон ×2.5 и оглушение на 1.5 с.' },
@@ -152,7 +152,7 @@ module.exports = {
       race: 'Светлый эльф',
       hp: 105, dmg: 16, range: 130, cooldown: 610, speed: 190, projectile: 'dagger',
       color: 0x7ab8e0,
-      resource: { name: 'Энергия', max: 100, regen: 10, color: '#f0b429' },
+      resource: { name: 'Энергия', max: 100, regen: 5, color: '#f0b429' },
       skills: [
         { id: 'markPrey', name: 'Метка жертвы', icon: '🎯', cost: 15, cooldown: 6000,
           desc: 'Помечает цель на 15 с. За убийство помеченного врага — вдвое больше золота, +50% опыта и +30 энергии.' },
@@ -172,7 +172,7 @@ module.exports = {
       race: 'Тёмный эльф', tagline: 'Возмездие из тени',
       hp: 135, dmg: 17, range: 170, cooldown: 750, speed: 165, projectile: 'shadow',
       color: 0x6a2a9a,
-      resource: { name: 'Мана', max: 130, regen: 7, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 130, regen: 5.5, color: '#4d8dff' },
       skills: [
         { id: 'punishSeal', name: 'Печать кары', icon: '⛓️', cost: 20, cooldown: 8000,
           desc: 'Проклинает цель на 12 с: каждый её удар по Карателю отражает 50% урона обратно.' },
@@ -193,7 +193,7 @@ module.exports = {
       hp: 175, dmg: 24, range: 58, cooldown: 800, speed: 150, projectile: null,
       color: 0x3fbf7a,
       summons: true, // поднятые скелеты-слуги — временные спутники (server/pets.js)
-      resource: { name: 'Руны', max: 100, regen: 6, color: '#3fbf7a' },
+      resource: { name: 'Руны', max: 100, regen: 5, color: '#3fbf7a' },
       skills: [
         { id: 'lifeSteal', name: 'Похищение жизни', icon: '🩸', cost: 30, cooldown: 8000,
           desc: 'Высасывает здоровье у цели (до 200): урон ×1.8 и лечение на всю его величину.' },
@@ -213,7 +213,7 @@ module.exports = {
       tagline: 'Несокрушимый страж',
       hp: 230, dmg: 17, range: 56, cooldown: 900, speed: 125, projectile: null,
       color: 0x4d8dff,
-      resource: { name: 'Стойкость', max: 100, regen: 6, color: '#8ad3ff' },
+      resource: { name: 'Стойкость', max: 100, regen: 4, color: '#8ad3ff' },
       skills: [
         { id: 'shieldWall', name: 'Стена щитов', icon: '🛡️', cost: 35, cooldown: 14000,
           desc: 'Барьер на 8 с себе и союзникам в радиусе 150: поглощает урон, равный 25% здоровья Брендана.' },
@@ -233,7 +233,7 @@ module.exports = {
       tagline: 'Ловкая плутовка',
       hp: 100, dmg: 13, range: 50, cooldown: 450, speed: 195, projectile: null,
       color: 0xd9822b,
-      resource: { name: 'Энергия', max: 100, regen: 11, color: '#f0b429' },
+      resource: { name: 'Энергия', max: 100, regen: 5, color: '#f0b429' },
       skills: [
         { id: 'exposeStrike', name: 'Удар в уязвимость', icon: '🎯', cost: 25, cooldown: 6000,
           desc: 'Точный удар по слабому месту: гарантированный критический урон, защита монстра пробита на 6 с (он получает +25% урона от всех).' },
@@ -253,7 +253,7 @@ module.exports = {
       tagline: 'Бесшумная смерть',
       hp: 115, dmg: 20, range: 52, cooldown: 650, speed: 180, projectile: null,
       color: 0x8a1a2a,
-      resource: { name: 'Энергия', max: 100, regen: 9, color: '#f0b429' },
+      resource: { name: 'Энергия', max: 100, regen: 4.5, color: '#f0b429' },
       skills: [
         { id: 'shadowStrike', name: 'Удар из тени', icon: '🌘', cost: 30, cooldown: 7000,
           desc: 'Удар ×2; из невидимости или по не заметившему его монстру — ×4, а если и то и другое — смертельный (боссу ×6).' },
@@ -273,7 +273,7 @@ module.exports = {
       race: 'Орк', tagline: 'Повелительница духов',
       hp: 115, dmg: 22, range: 240, cooldown: 1000, speed: 145, projectile: 'darkfire',
       color: 0x7a2ab0,
-      resource: { name: 'Энергия', max: 140, regen: 7, color: '#b06aff' },
+      resource: { name: 'Энергия', max: 140, regen: 5, color: '#b06aff' },
       skills: [
         { id: 'darkFlame', name: 'Тёмное пламя', icon: '🔥', cost: 35, cooldown: 6000,
           desc: 'Сгусток чёрного огня: урон ×1.6 по области вокруг цели и поджог на 4 с.' },
@@ -294,7 +294,7 @@ module.exports = {
       hp: 120, dmg: 20, range: 210, cooldown: 900, speed: 150, projectile: 'leaf',
       color: 0x5fd17a,
       summons: true, // духи леса — временные спутники (server/pets.js)
-      resource: { name: 'Мана', max: 140, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 140, regen: 5.5, color: '#4d8dff' },
       skills: [
         { id: 'naturesThorns', name: 'Шипы природы', icon: '🌵', cost: 35, cooldown: 8000,
           desc: 'Корни и шипы вокруг цели: урон ×1.3 всем в области и обездвиживание на 2 с.' },
@@ -315,7 +315,7 @@ module.exports = {
       hp: 95, dmg: 22, range: 220, cooldown: 900, speed: 160, projectile: 'illusion',
       color: 0xd04aa0,
       summons: true, // двойники — временные спутники (server/pets.js)
-      resource: { name: 'Мана', max: 140, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 140, regen: 5, color: '#4d8dff' },
       skills: [
         { id: 'decoy', name: 'Двойник', icon: '👯', cost: 35, cooldown: 12000,
           desc: 'Иллюзорная копия на 8 с: монстры вокруг переключаются на неё и бьют её вместо Ле Блан.' },
@@ -340,7 +340,7 @@ module.exports = {
         beast: { name: 'Зверь', range: 56, cooldown: 550, speed: 185, projectile: null },
       },
       color: 0x7a9a4a,
-      resource: { name: 'Энергия', max: 110, regen: 8, color: '#f0b429' },
+      resource: { name: 'Энергия', max: 110, regen: 3.5, color: '#f0b429' },
       skills: [
         { id: 'shapeshift', name: 'Перевоплощение', icon: '🐺', cost: 0, costLabel: 'бесплатно', cooldown: 4000,
           forms: { human: { name: 'Облик зверя', icon: '🐺' }, beast: { name: 'Облик друида', icon: '🧙' } },
@@ -371,7 +371,7 @@ module.exports = {
         earth: { name: 'Земля', icon: '🪨', projectile: 'stone' },
       },
       color: 0x4a6aff,
-      resource: { name: 'Мана', max: 160, regen: 9, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 160, regen: 6, color: '#4d8dff' },
       skills: [
         { id: 'elementSwap', name: 'Смена стихии', icon: '🔄', cost: 0, costLabel: 'бесплатно', cooldown: 2500,
           forms: { fire: { name: 'Стихия: Огонь', icon: '🔥' }, ice: { name: 'Стихия: Лёд', icon: '❄️' },
@@ -398,7 +398,7 @@ module.exports = {
       hp: 200, dmg: 24, range: 58, cooldown: 850, speed: 140, projectile: null,
       vows: { protection: 'Защита', retribution: 'Кара', mercy: 'Милосердие' }, // обеты по кругу, в начале — защита
       color: 0xffe08a,
-      resource: { name: 'Вера', max: 100, regen: 6, color: '#ffe08a' },
+      resource: { name: 'Вера', max: 100, regen: 4, color: '#ffe08a' },
       skills: [
         { id: 'holyVow', name: 'Святой обет', icon: '🙏', cost: 0, costLabel: 'бесплатно', cooldown: 3000,
           forms: { protection: { name: 'Обет: Защита', icon: '🛡️' }, retribution: { name: 'Обет: Кара', icon: '⚔️' }, mercy: { name: 'Обет: Милосердие', icon: '💛' } },
@@ -421,7 +421,7 @@ module.exports = {
       tagline: 'Голос света',
       hp: 95, dmg: 18, range: 260, cooldown: 950, speed: 145, projectile: 'holy',
       color: 0xfff0b0,
-      resource: { name: 'Мана', max: 160, regen: 9, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 160, regen: 6, color: '#4d8dff' },
       skills: [
         { id: 'healingPrayer', name: 'Молитва исцеления', icon: '🙏', cost: 35, cooldown: 9000,
           desc: 'Лечит 25% здоровья себе и союзникам в радиусе 180 и снимает с них ослабления.' },
@@ -442,7 +442,7 @@ module.exports = {
       hp: 115, dmg: 15, range: 180, cooldown: 800, speed: 155, projectile: 'note',
       songs: { inspire: 'Вдохновение', lullaby: 'Колыбельная', mock: 'Насмешка' }, // песня звучит постоянно, в начале — вдохновение
       color: 0xe8a040,
-      resource: { name: 'Энергия', max: 110, regen: 8, color: '#f0b429' },
+      resource: { name: 'Энергия', max: 110, regen: 3.5, color: '#f0b429' },
       skills: [
         { id: 'songSwap', name: 'Боевая мелодия', icon: '🎵', cost: 0, costLabel: 'бесплатно', cooldown: 2000,
           forms: { inspire: { name: 'Песнь: Вдохновение', icon: '🎺' }, lullaby: { name: 'Песнь: Колыбельная', icon: '🌙' }, mock: { name: 'Песнь: Насмешка', icon: '🤡' } },
@@ -484,7 +484,7 @@ module.exports = {
       race: 'Белый эльф', tagline: 'Снайпер света',
       hp: 105, dmg: 19, range: 330, cooldown: 800, speed: 155, projectile: 'arrow',
       color: 0xf2f0e0,
-      resource: { name: 'Энергия', max: 110, regen: 9, color: '#f0b429' },
+      resource: { name: 'Энергия', max: 110, regen: 5.5, color: '#f0b429' },
       skills: [
         { id: 'starShot', name: 'Звёздный выстрел', icon: '🌟', cost: 25, cooldown: 6000,
           desc: 'Освящённая стрела: урон ×2 и звёздная метка на 12 с (⭐) — по помеченной цели урон +30%, она не может убежать в страхе или раствориться в мороке.' },
@@ -504,7 +504,7 @@ module.exports = {
       tagline: 'Учёный тайных искусств',
       hp: 95, dmg: 21, range: 280, cooldown: 950, speed: 145, projectile: 'arcane',
       color: 0x8a6aff,
-      resource: { name: 'Мана', max: 170, regen: 7, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 170, regen: 6, color: '#4d8dff' },
       skills: [
         { id: 'arcaneVolley', name: 'Арканный залп', icon: '🔮', cost: 35, cooldown: 7000, castTime: 500,
           desc: 'Подготовка 0.5 с, затем пять снарядов в цель: по ×0.6 урона и по ×0.3 монстрам рядом с ней.' },
@@ -524,7 +524,7 @@ module.exports = {
       race: 'Ведьмак', tagline: 'Мутант с двумя клинками',
       hp: 165, dmg: 18, range: 56, cooldown: 600, speed: 165, projectile: null,
       color: 0xc9b060,
-      resource: { name: 'Энергия', max: 100, regen: 9, color: '#f0b429' },
+      resource: { name: 'Энергия', max: 100, regen: 5, color: '#f0b429' },
       skills: [
         { id: 'elixir', name: 'Эликсир', icon: '🧪', cost: 0, costLabel: '+30 токсичности', cooldown: 2500, formKey: 'potion',
           forms: { thunder: { name: 'Эликсир: Гром', icon: '⚡' }, blizzard: { name: 'Эликсир: Пурга', icon: '🌨️' },
@@ -548,7 +548,7 @@ module.exports = {
       hp: 130, dmg: 18, range: 210, cooldown: 900, speed: 140, projectile: 'bolt',
       color: 0xd8902a,
       summons: true, // турели — постоянные механизмы (server/pets.js)
-      resource: { name: 'Детали', max: 120, regen: 8, color: '#c9a64d' },
+      resource: { name: 'Детали', max: 120, regen: 6, color: '#c9a64d' },
       skills: [
         { id: 'buildTurret', name: 'Турель', icon: '🔫', cost: 40, cooldown: 10000,
           desc: 'Строит турель (до 3): стреляет по монстрам в радиусе 190, следует за Ингрид, а сломавшись — чинится сама за 6 с. На максимуме — полностью чинит самую повреждённую.' },
@@ -568,7 +568,7 @@ module.exports = {
       tagline: 'Дева битвы',
       hp: 135, dmg: 23, range: 70, cooldown: 700, speed: 175, projectile: null,
       color: 0xe8e8ff,
-      resource: { name: 'Энергия', max: 110, regen: 9, color: '#f0b429' },
+      resource: { name: 'Энергия', max: 110, regen: 5, color: '#f0b429' },
       skills: [
         { id: 'heavenSpear', name: 'Небесное копьё', icon: '🔱', cost: 25, cooldown: 6000,
           desc: 'Метает копьё света: урон ×1.8 и пригвождение к земле на 2.5 с.' },
@@ -588,7 +588,7 @@ module.exports = {
       tagline: 'Кровавый жрец',
       hp: 175, dmg: 17, range: 190, cooldown: 900, speed: 150, projectile: 'blood',
       color: 0xa0101a,
-      resource: { name: 'Мана', max: 100, regen: 6, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 100, regen: 3, color: '#4d8dff' },
       skills: [
         { id: 'bloodSpike', name: 'Кровавый шип', icon: '🩸', cost: 0, hpCost: 0.05, cooldown: 4000,
           desc: 'Шип из застывшей крови: урон ×1.8 и кровоточащая рана на 5 с.' },
@@ -610,7 +610,7 @@ module.exports = {
       aspects: { fire: { name: 'Пламя', projectile: 'fireball' }, ice: { name: 'Лёд', projectile: 'frost' },
         poison: { name: 'Яд', projectile: 'venom' }, lightning: { name: 'Молния', projectile: 'spark' } },
       color: 0xd84a2a,
-      resource: { name: 'Энергия', max: 120, regen: 9, color: '#f0b429' },
+      resource: { name: 'Энергия', max: 120, regen: 6.5, color: '#f0b429' },
       skills: [
         { id: 'dragonBreath', name: 'Дыхание дракона', icon: '🐉', cost: 30, cooldown: 5000,
           forms: { fire: { name: 'Дыхание: Пламя', icon: '🔥' }, ice: { name: 'Дыхание: Лёд', icon: '❄️' },
@@ -653,7 +653,7 @@ module.exports = {
       tagline: 'Ожившая скала',
       hp: 260, dmg: 24, range: 58, cooldown: 1100, speed: 115, projectile: null,
       color: 0x8a8580,
-      resource: { name: 'Сила камня', max: 100, regen: 6, color: '#c9a66b' },
+      resource: { name: 'Сила камня', max: 100, regen: 5.5, color: '#c9a66b' },
       skills: [
         { id: 'stoneFist', name: 'Каменный кулак', icon: '👊', cost: 25, cooldown: 6000,
           desc: 'Сокрушительный удар: урон ×2.2 и оглушение на 1.5 с.' },
@@ -674,7 +674,7 @@ module.exports = {
       hp: 110, dmg: 22, range: 240, cooldown: 900, speed: 150, projectile: 'moon',
       phases: { waxing: 'Растущая', full: 'Полная', waning: 'Убывающая', newmoon: 'Новолуние' }, // в начале — растущая
       color: 0xc8d0ff,
-      resource: { name: 'Мана', max: 150, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 150, regen: 5, color: '#4d8dff' },
       skills: [
         { id: 'moonBeam', name: 'Лунный луч', icon: '🌙', cost: 25, cooldown: 4000,
           forms: { waxing: { name: 'Луч: урон', icon: '🌒' }, full: { name: 'Луч: исцеление', icon: '🌕' },
@@ -700,7 +700,7 @@ module.exports = {
       race: 'Ааракоа', tagline: 'Голос барханов',
       hp: 115, dmg: 19, range: 230, cooldown: 900, speed: 150, projectile: 'sand',
       color: 0xd8b878,
-      resource: { name: 'Мана', max: 140, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 140, regen: 6.5, color: '#4d8dff' },
       skills: [
         { id: 'sandVortex', name: 'Песчаный вихрь', icon: '🌪️', cost: 30, cooldown: 6000,
           desc: 'Вихрь у цели: урон ×1.4 в радиусе 80 и ослепление (монстры бьют на 40% слабее) на 4 с. Оставляет песчаную зону на 12 с (до 4 зон).' },
@@ -720,7 +720,7 @@ module.exports = {
       race: 'Огненный джинн', tagline: 'Живое пламя',
       hp: 120, dmg: 20, range: 200, cooldown: 850, speed: 155, projectile: 'fireball',
       color: 0xff6a1a,
-      resource: { name: 'Мана', max: 130, regen: 9, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 130, regen: 7, color: '#4d8dff' },
       skills: [
         { id: 'blazeBall', name: 'Огненный шар', icon: '🔥', cost: 20, cooldown: 4000,
           desc: 'Сгусток пламени: урон ×1.8 и поджог на 4 с. Жар +15.' },
@@ -740,7 +740,7 @@ module.exports = {
       race: 'Дварф', tagline: 'Резчик судьбы',
       hp: 175, dmg: 17, range: 120, cooldown: 850, speed: 135, projectile: 'rune',
       color: 0x5fb0ff,
-      resource: { name: 'Мана', max: 130, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 130, regen: 7.5, color: '#4d8dff' },
       skills: [
         { id: 'carveRune', name: 'Вырезать руну', icon: '🔥', cost: 25, cooldown: 3000, formKey: 'rune',
           forms: { fire: { name: 'Руна огня', icon: '🔥' }, ward: { name: 'Руна защиты', icon: '🛡️' }, heal: { name: 'Руна лечения', icon: '💚' } },
@@ -762,7 +762,7 @@ module.exports = {
       hp: 110, dmg: 21, range: 230, cooldown: 900, speed: 150, projectile: 'soul',
       color: 0x8ad8ff,
       summons: true, // духи-помощники (server/pets.js)
-      resource: { name: 'Мана', max: 140, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 140, regen: 4.5, color: '#4d8dff' },
       skills: [
         { id: 'gatherSouls', name: 'Сбор душ', icon: '👻', cost: 15, cooldown: 4000,
           desc: 'Собирает души всех монстров, павших в радиусе 260 за последние 15 с (+1 душа за каждого, до 20).' },
@@ -782,7 +782,7 @@ module.exports = {
       race: 'Человек', tagline: 'Шепчущий в бездну',
       hp: 120, dmg: 20, range: 240, cooldown: 900, speed: 145, projectile: 'dark',
       color: 0x8a2a5a,
-      resource: { name: 'Мана', max: 140, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 140, regen: 7, color: '#4d8dff' },
       skills: [
         { id: 'darkPrayer', name: 'Тёмная молитва', icon: '🕯️', cost: 25, cooldown: 4000,
           desc: 'Урон ×1.6 цели и монстрам рядом с ней (радиус 70) и проклятие на 8 с: проклятые получают на 20% больше урона (+2% за каждый заряд тьмы).' },
@@ -803,7 +803,7 @@ module.exports = {
       hp: 140, dmg: 19, range: 210, cooldown: 900, speed: 145, projectile: 'water',
       color: 0x3a9ad8,
       summons: true, // морские духи (server/pets.js)
-      resource: { name: 'Мана', max: 140, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 140, regen: 6, color: '#4d8dff' },
       skills: [
         { id: 'deepWave', name: 'Волна глубин', icon: '🌊', cost: 30, cooldown: 7000,
           desc: 'Волна вперёд на 200: урон ×1.6 всем на пути и отбрасывание.' },
@@ -824,7 +824,7 @@ module.exports = {
       hp: 110, dmg: 21, range: 230, cooldown: 900, speed: 150, projectile: 'sonic',
       color: 0x6ad8c8,
       summons: true, // утопленники-слуги (server/pets.js)
-      resource: { name: 'Мана', max: 150, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 150, regen: 5.5, color: '#4d8dff' },
       skills: [
         { id: 'sirenSong', name: 'Песнь сирены', icon: '🎶', cost: 35, cooldown: 12000,
           desc: 'Очаровывает монстров в радиусе 200 на 4 с: они перестают атаковать и идут к ней. С 3+ зарядами песни очарованные монстры ещё и дерутся друг с другом.' },
@@ -844,7 +844,7 @@ module.exports = {
       race: 'Полярный эльф', tagline: 'Холод севера',
       hp: 105, dmg: 23, range: 280, cooldown: 950, speed: 145, projectile: 'frost',
       color: 0x8ad3ff,
-      resource: { name: 'Мана', max: 150, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 150, regen: 7, color: '#4d8dff' },
       skills: [
         { id: 'iceArrow', name: 'Ледяная стрела', icon: '🧊', cost: 20, cooldown: 3000,
           desc: 'Копьё льда в цель: урон ×1.7 и +35 мороза.' },
@@ -865,7 +865,7 @@ module.exports = {
       hp: 115, dmg: 21, range: 220, cooldown: 900, speed: 150, projectile: 'fireball',
       flames: { spark: 'Искра', bonfire: 'Костёр', avalanche: 'Лавина' }, // в начале — костёр
       color: 0xffa020,
-      resource: { name: 'Мана', max: 140, regen: 9, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 140, regen: 4.5, color: '#4d8dff' },
       skills: [
         { id: 'flameShift', name: 'Смена формы', icon: '🔄', cost: 0, costLabel: 'бесплатно', cooldown: 3000,
           forms: { spark: { name: 'Форма: Искра', icon: '✨' }, bonfire: { name: 'Форма: Костёр', icon: '🔥' }, avalanche: { name: 'Форма: Лавина', icon: '🌋' } },
@@ -888,7 +888,7 @@ module.exports = {
       hp: 240, dmg: 26, range: 58, cooldown: 1050, speed: 120, projectile: null,
       color: 0xff5a1a,
       fireImmune: true,
-      resource: { name: 'Мана', max: 120, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 120, regen: 6, color: '#4d8dff' },
       skills: [
         { id: 'lavaStrike', name: 'Лавовый удар', icon: '👊', cost: 20, cooldown: 4000,
           desc: 'Раскалённый кулак: урон ×2, поджог на 4 с и лужа лавы под целью на 6 с.' },
@@ -908,7 +908,7 @@ module.exports = {
       race: 'Дварф', tagline: 'Голос глубин',
       hp: 170, dmg: 17, range: 210, cooldown: 950, speed: 135, projectile: 'stone',
       color: 0xa07a4a,
-      resource: { name: 'Мана', max: 130, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 130, regen: 6.5, color: '#4d8dff' },
       skills: [
         { id: 'stoneSpike', name: 'Каменный шип', icon: '🗻', cost: 20, cooldown: 4000,
           desc: 'Шип из-под земли: урон ×1.8, монстр подброшен и оглушён на 1.2 с.' },
@@ -928,7 +928,7 @@ module.exports = {
       race: 'Горгона', tagline: 'Взгляд медузы',
       hp: 120, dmg: 20, range: 220, cooldown: 900, speed: 145, projectile: 'venom',
       color: 0x7ad84a,
-      resource: { name: 'Мана', max: 140, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 140, regen: 7, color: '#4d8dff' },
       skills: [
         { id: 'gorgonGaze', name: 'Взгляд горгоны', icon: '👁️', cost: 30, cooldown: 7000,
           desc: 'Конус на 200 вперёд: монстры замирают на 1.2 с, получают +50 окаменения и урон каждую секунду 4 с.' },
@@ -948,7 +948,7 @@ module.exports = {
       race: 'Лесной тролль', tagline: 'Живая кора',
       hp: 270, dmg: 23, range: 60, cooldown: 1100, speed: 115, projectile: null,
       color: 0x6a9a3a,
-      resource: { name: 'Мана', max: 120, regen: 8, color: '#4d8dff' },
+      resource: { name: 'Мана', max: 120, regen: 5, color: '#4d8dff' },
       skills: [
         { id: 'rootLash', name: 'Хлыст корней', icon: '🌿', cost: 20, cooldown: 5000,
           desc: 'Корни хлещут цель до 200: урон ×1.5 и притягивают монстра к троллю.' },

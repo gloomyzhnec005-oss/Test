@@ -589,6 +589,10 @@
       let autoPotNext = 0, noPotWarned = false;
       setInterval(async () => {
         const sc = window.gameScene, d = sc && sc.me && sc.me.data;
+        // В данже выживания зелья запрещены — кнопки нет, автозелье молчит
+        const surv = !!(sc && sc.zone && sc.zone.kind === 'survival');
+        if ($('potBtn').classList.contains('no-surv') !== surv) { $('potBtn').classList.toggle('no-surv', surv); $('potBtn').style.display = surv ? 'none' : ''; }
+        if (surv) return;
         if (!Settings.get('autoPot') || !d || d.dead || !d.maxHp || Date.now() < autoPotNext) return;
         if (d.hp / d.maxHp * 100 >= Settings.get('autoPotAt')) { noPotWarned = false; return; }
         autoPotNext = Date.now() + 1000;

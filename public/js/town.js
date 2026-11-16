@@ -154,10 +154,13 @@ window.Town = (() => {
     // Улучшение склада: +50 ячеек за уровень
     const nx = inv.whNext;
     box.insertAdjacentHTML('beforeend', nx
-      ? `<div class="tw-ev wh-up"><div><b>⬆️ Улучшить склад · ур. ${inv.whLvl} → ${inv.whLvl + 1}</b><small>+${nx.slots} ячеек (станет ${inv.whSize + nx.slots}) · ${nx.gold.toLocaleString('ru-RU')} 💰${nx.gems ? ` + ${nx.gems} 💎` : ''}</small></div><button class="l2-btn" id="whUp">Улучшить</button></div>`
+      ? `<div class="tw-ev wh-up"><div><b>⬆️ Улучшить склад · ур. ${inv.whLvl} → ${inv.whLvl + 1}</b><small>+${nx.slots} ячеек (станет ${inv.whSize + nx.slots}) · ${nx.stars ? `${nx.stars} ⭐` : `${nx.gold.toLocaleString('ru-RU')} 💰`}${nx.gems ? ` + ${nx.gems} 💎` : ''}</small></div><button class="l2-btn" id="whUp">${nx.stars ? `${nx.stars} ⭐` : 'Улучшить'}</button></div>`
       : `<div class="tw-ev wh-up"><div><b>📦 Склад улучшен до максимума</b><small>Уровень ${inv.whLvl} из ${inv.whMax}</small></div></div>`);
     const up = box.querySelector('#whUp');
-    if (up) up.onclick = async () => { const r = await Bag.act('whUpgrade'); toast(r.error || r.toast); if (!r.error) warehousePanel(); };
+    if (up) up.onclick = async () => {
+      if (nx.stars) { buyStars(nx.kind, warehousePanel); return; } // последние уровни склада — за Stars
+      const r = await Bag.act('whUpgrade'); toast(r.error || r.toast); if (!r.error) warehousePanel();
+    };
     box.append(Bag.grid(wh, move, { empty: 'Склад пуст' }));
     open('📦 Склад', box);
   }
@@ -291,12 +294,13 @@ window.Town = (() => {
         <div><b>${inv.heroSpins || 0}</b><span>🔮 печати героев</span></div>
         <div><b>${inv.itemSpins}</b><span>🎁 печати снаряжения</span></div>
         <div class="${inv.freeItemSpins ? 'ok' : ''}"><b>${inv.freeItemSpins}</b><span>бесплатно сегодня</span></div>
-        <div><b>${inv.gems}</b><span>💎 самоцветы · 160 = призыв</span></div>
+        <div><b>${inv.gems}</b><span>💎 самоцветы · 100 = призыв</span></div>
       </div>
       <div class="tw-banner hero"><b>🔮 Призыв героев</b><small>Избранный недели и Зал героев · мифический герой гарантирован не позже 80-го призыва</small><button class="l2-btn" id="twHeroSpin">Открыть призыв</button></div>
       <div class="tw-banner items"><b>🎁 Призыв снаряжения</b>
         <small>Комплект недели: <b>${inv.gearBanner.name}</b> — половина легендарных и мифических вещей из него · экипировка мира ${ROMAN[ctx.zone.tier]}<br>
         эпический и выше — не реже раза в 10 призывов<br>
+        <b class="ok">Отборные вещи: свойства на 25% сильнее и одно дополнительное — в лавке таких нет</b><br>
         Гарант легендарного: <b>${inv.pity} / ${inv.pityMax}</b></small>
         <div class="btn-row"><button class="l2-btn" data-n="1">Призвать ×1</button><button class="l2-btn" data-n="10">×10</button></div>
         <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · 15 ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · 135 ⭐</button></div></div>`);

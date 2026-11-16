@@ -29,7 +29,7 @@ const LOGIN_REWARDS = [
   { gold: 2500, mats: { elxAtk: 1, elxDef: 1 } },
   { itemSpins: 1, mats: { dust: 2 } },
   { gems: 60, mats: { luckStone: 1 } },
-  { heroSpins: 1, gems: 100, mats: { elxXp2: 1, skillCrystal: 1 } },
+  { heroSpins: 1, gems: 100, mats: { elxHero: 1, skillCrystal: 1 } },
 ];
 
 // ---------- Баланс монетизации ----------
@@ -71,8 +71,8 @@ const bagBonus = (pr) => { const b = pr.equip && pr.equip.bag && I.findItem(pr, 
 const bagSize = (pr) => (isSub(pr) ? SHOP.bagSub : SHOP.bag) + bagBonus(pr);
 // Склад: улучшается за золото (и самоцветы на последних уровнях)
 const WH_UPGRADES = [
-  { slots: 50, gold: 10000 }, { slots: 50, gold: 30000 }, { slots: 50, gold: 75000 },
-  { slots: 50, gold: 150000, gems: 300 }, { slots: 50, gold: 300000, gems: 800 },
+  { slots: 50, gold: 25000 }, { slots: 50, gold: 80000 }, { slots: 50, gold: 200000 },
+  { slots: 50, gold: 0, stars: 149, kind: 'whUp4' }, { slots: 50, gold: 0, stars: 299, kind: 'whUp5' }, // последние уровни — только за Stars
 ];
 const whSize = (pr) => SHOP.wh + WH_UPGRADES.slice(0, pr.whLvl || 0).reduce((s, u) => s + u.slots, 0);
 const inBagCount = (pr) => (pr.items || []).filter((i) => i.loc !== 'wh').length;
@@ -176,7 +176,8 @@ module.exports = function createMeta(deps) {
 
   // ---------- Витрины магазинов (обновляются раз в день, свои в каждом мире) ----------
   const shopCache = new Map();
-  const ITEM_PRICE = { common: 120, rare: 450, epic: 2200 };
+  const ITEM_PRICE = { common: 400, rare: 2000, epic: 9000 }; // лавка — запасной вариант: хорошие вещи дают боссы, кузница и призыв
+  const RUNE_PRICE = { common: 800, rare: 3500, epic: 12000 };
   function offers(kind, tier, cls = null) {
     if (kind !== 'equip') cls = null; // снаряжение — под класс героя, остальное одинаково для всех
     const key = `${dayKey()}:${kind}:${tier}:${cls || ''}`;
@@ -189,16 +190,15 @@ module.exports = function createMeta(deps) {
       // Только то, что может надеть класс героя
       const mk = (cat, rar) => { const fit = I.TEMPLATES[cat] && Object.keys(I.TEMPLATES[cat]).filter((t) => !I.TEMPLATES[cat][t].setCls && (!cls || I.canWear({ cat, tpl: t }, I.CLASSES[cls].heroes[0]))); return I.createItem(cat, rar, tier, fit && fit.length ? fit[Math.floor(Math.random() * fit.length)] : null); };
       for (const cat of I.WEAR_CATS) for (const rar of ['common', 'rare']) list.push({ oid: list.length, item: mk(cat, rar), price: price(rar) });
-      for (let i = 0; i < 2; i++) list.push({ oid: list.length, item: mk(I.WEAR_CATS[Math.floor(Math.random() * I.WEAR_CATS.length)], 'epic'), price: price('epic') });
-      list.push({ oid: list.length, item: I.createBag('rare', tier), price: Math.round(15000 * F(tier)) }); // сумка — дорогое удовольствие
+      list.push({ oid: list.length, item: I.createBag('rare', tier), price: Math.round(40000 * F(tier)) }); // сумка — дорогое удовольствие
     } else if (kind === 'runes') {
-      for (const rar of ['common', 'common', 'common', 'rare', 'rare', 'rare', 'epic']) list.push({ oid: list.length, item: I.createItem('rune', rar, tier), price: price(rar) });
+      for (const rar of ['common', 'common', 'common', 'rare', 'rare', 'rare', 'epic']) list.push({ oid: list.length, item: I.createItem('rune', rar, tier), price: Math.round(RUNE_PRICE[rar] * F(tier)) });
     } else if (kind === 'smith') {
       // Руду и эссенцию продают только в Эльдмире: материалы Морграта и Аэлиона — только фармом
       if (tier === 1) { matOffer('ore1'); matOffer('ess1'); }
       matOffer('scrollR'); matOffer('scrollE');
     } else {
-      for (const m of ['potHp', 'potHp2', 'potRes', 'elxAtk', 'elxDef', 'elxAgi', 'elxMind', 'elxWind', 'elxFury', 'elxVamp', 'elxGold', 'elxXp', 'elxLuck']) matOffer(m); // свиток возвращения убран: в город ведёт кнопка навигации
+      for (const m of ['potHp', 'potHp2', 'potRes', 'elxAtk', 'elxDef', 'elxAgi', 'elxMind', 'elxWind', 'elxFury', 'elxVamp']) matOffer(m); // свиток возвращения убран: в город ведёт кнопка навигации
     }
     shopCache.set(key, list);
     return list;
@@ -298,7 +298,7 @@ module.exports = function createMeta(deps) {
     if (id === 'chestSet') {
       const cls = I.CLASSES[d.cls] ? d.cls : I.classOf(p.heroId);
       const roll = Math.random();
-      const res = grant(pr, I.createSetItem(cls, t, roll < 0.03 ? 'mythic' : roll < 0.28 ? 'legendary' : 'epic'));
+      const res = grant(pr, I.refineItem(I.createSetItem(cls, t, roll < 0.03 ? 'mythic' : roll < 0.28 ? 'legendary' : 'epic'))); // за Stars — отборная
       return grantMsg(res);
     }
     return null;
@@ -536,6 +536,7 @@ module.exports = function createMeta(deps) {
       let msg = '', healed = 0;
       if (m.kind === 'potion') {
         if (p.dead) return { error: 'Герой повержен' };
+        if (/^surv\d/.test(String(p.zone))) return { error: 'В данже выживания зелья запрещены — только сила героя' };
         if (now < (p.potionAt || 0)) return { error: `Зелье будет готово через ${Math.ceil((p.potionAt - now) / 1000)} с` };
         if (m.heal && !m.res && p.hp >= p.maxHp) return { error: 'Здоровье и так полное' }; // не тратим зелье впустую
         p.potionAt = now + 8000;
@@ -571,6 +572,7 @@ module.exports = function createMeta(deps) {
       if (!rune || rune.cat !== 'rune') return { error: 'Выберите руну' };
       w.runes ??= [];
       if (w.runes.length >= I.ITEM_RARITIES[w.rar].sockets) return { error: 'Все гнёзда заняты' };
+      if (w.runes.some((r) => r.tpl === rune.tpl)) return { error: 'Такая руна уже стоит в этом оружии — нужны разные руны' };
       pr.items = pr.items.filter((i) => i !== rune);
       delete rune.loc;
       w.runes.push(rune);
@@ -593,6 +595,7 @@ module.exports = function createMeta(deps) {
     whUpgrade(p, d, pr) {
       const lvl = pr.whLvl || 0, u = WH_UPGRADES[lvl];
       if (!u) return { error: 'Склад уже улучшен до максимума' };
+      if (u.stars) return { error: `Этот уровень склада — за ${u.stars} ⭐`, buy: u.kind };
       if ((pr.gold || 0) < u.gold) return { error: `Нужно ${u.gold.toLocaleString('ru-RU')} 💰` };
       if (u.gems && (pr.gems || 0) < u.gems) return { error: `Нужно ${u.gems} 💎` };
       pr.gold -= u.gold;
@@ -709,7 +712,7 @@ module.exports = function createMeta(deps) {
         const hi = I.RARITY_ORDER.indexOf(rar) >= 3;
         const setPiece = hi ? Math.random() < 0.5 : I.RARITY_ORDER.indexOf(rar) >= 2 && Math.random() < 0.25;
         const cls = hi ? feat.cls : Math.random() < 0.5 ? I.classOf(p.heroId) : null;
-        const res = grant(pr, setPiece ? I.createSetItem(cls, tierOf(p), rar) : I.rollItem(tierOf(p), { [rar]: 1 }, null, p.heroId));
+        const res = grant(pr, I.refineItem(setPiece ? I.createSetItem(cls, tierOf(p), rar) : I.rollItem(tierOf(p), { [rar]: 1 }, null, p.heroId)));
         results.push({ ...I.itemView(res.item), dupe: res.dupe });
       }
       addPassXp(pr, 5 * n);
@@ -976,6 +979,7 @@ module.exports = function createMeta(deps) {
 
   // Покупки за Stars (зачисляются ботом после оплаты)
   function onPaid(kind, pr) {
+    if (kind === 'whUp4' || kind === 'whUp5') { const lv = +kind[4] - 1; if ((pr.whLvl || 0) === lv) pr.whLvl = lv + 1; return true; }
     if (kind === 'ispin') pr.itemSpins = (pr.itemSpins || 0) + 1;
     else if (kind === 'ispin10') pr.itemSpins = (pr.itemSpins || 0) + 10;
     else if (SHOP.gems[kind]) pr.gems = (pr.gems || 0) + SHOP.gems[kind].gems;
@@ -986,7 +990,7 @@ module.exports = function createMeta(deps) {
       pr.starterBought = true;
       pr.gems = (pr.gems || 0) + 300; pr.paidSpins = (pr.paidSpins || 0) + 3; pr.itemSpins = (pr.itemSpins || 0) + 5;
       grant(pr, I.createBag('epic', 1));
-      I.addMat(pr, 'elxXp2', 2); I.addMat(pr, 'elxHero', 1); I.addMat(pr, 'potHp2', 10);
+      I.addMat(pr, 'elxHero', 2); I.addMat(pr, 'elxTitan', 1); I.addMat(pr, 'potHp2', 10);
     } else if (kind === 'card30') {
       pr.gems = (pr.gems || 0) + 300;
       pr.card = { until: Math.max(Date.now(), (pr.card && pr.card.until) || 0) + 30 * DAY, last: (pr.card && pr.card.last) || '' };
@@ -1005,16 +1009,12 @@ module.exports = function createMeta(deps) {
     chestSet5: { n: 5, amount: 449, title: 'Ларцы комплекта ×5', description: 'Пять ларцов комплекта со скидкой 10%' },
     chestLegend: { n: 1, amount: 149, title: 'Ларец грандмастера', description: '2 свитка грандмастера и редкий материал' },
     // Особые предложения (своя витрина в магазине)
-    starter: { special: true, amount: 99, title: 'Набор новичка', description: '300 💎, 3 печати призыва, 5 печатей снаряжения, эпическая сумка, 2 великих эликсира опыта, эликсир героя, 10 больших зелий' },
+    starter: { special: true, amount: 99, title: 'Набор новичка', description: '300 💎, 3 печати призыва, 5 печатей снаряжения, эпическая сумка, 2 эликсира героя, эликсир титана, 10 больших зелий' },
     card30: { special: true, amount: 199, title: 'Карта месяца', description: '300 💎 сразу и ещё 100 💎 каждый день 30 дней — всего 3300 💎' },
     // Великие эликсиры — в сумку, пьются оттуда (1 час)
-    elxXp2: { n: 1, amount: 49, elixir: true, title: 'Великий эликсир опыта', description: '+50% опыта на 1 час' },
-    elxXp2x5: { n: 5, amount: 199, elixir: true, title: 'Великий эликсир опыта ×5', description: '5 эликсиров: +50% опыта на 1 час каждый, скидка 20%' },
-    elxLuck2: { n: 1, amount: 59, elixir: true, title: 'Великий эликсир удачи', description: 'Предметы и материалы падают на 30% чаще 1 час' },
     elxHero: { n: 1, amount: 69, elixir: true, title: 'Эликсир героя', description: '+15% урона и здоровья, +5% крита, +10% скорости атаки на 1 час' },
     elxTitan: { n: 1, amount: 59, elixir: true, title: 'Эликсир титана', description: '+15% защиты, +25% здоровья, 2% вампиризма на 1 час' },
   };
-  CHESTS.elxXp2x5.mat = 'elxXp2';
   CHESTS.chestSet5.mat = 'chestSet';
   const INVOICES = {
     ...Object.fromEntries(Object.entries(CHESTS).map(([k, c]) => [k, { title: c.title, description: c.description, amount: c.amount }])),
@@ -1022,6 +1022,8 @@ module.exports = function createMeta(deps) {
     ispin10: { title: 'Призыв предметов ×10', description: 'Десять круток призыва предметов', amount: SHOP.itemSpin.price10 },
     ...Object.fromEntries(Object.entries(SHOP.gems).map(([k, g]) => [k, { title: `Самоцветы ×${g.gems}`, description: `${g.gems} самоцветов: 160 = призыв героя, 100 = призыв снаряжения`, amount: g.amount }])),
     sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
+    whUp4: { title: 'Склад: уровень 4', description: '+50 ячеек склада навсегда', amount: 149 },
+    whUp5: { title: 'Склад: уровень 5', description: '+50 ячеек склада навсегда', amount: 299 },
   };
 
   // Сила лучшего героя игрока (рейтинг «Сила»)

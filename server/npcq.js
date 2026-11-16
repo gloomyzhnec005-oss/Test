@@ -43,7 +43,7 @@ module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPl
       ['ore', `ore${t}`, 8, { gold: 300 * t, mats: { potHp: 5, potRes: 3 } }],
       ['ess', `ess${t}`, 5, { gold: 500 * t, mats: { elxAtk: 1, elxDef: 1 } }],
       ['ore2', `ore${t}`, 15, { gold: 700 * t, mats: { potHp2: 3, elxAgi: 1 } }],
-      ['core', `core${t}`, 1, { gold: 900 * t, mats: { elxMind: 1, elxLuck: 1 }, gems: 15 }],
+      ['core', `core${t}`, 1, { gold: 900 * t, mats: { elxMind: 1, elxDef: 1 }, gems: 15 }],
       ['ess2', `ess${t}`, 12, { gold: 1200 * t, mats: { elxFury: 1, elxVamp: 1, luckStone: 1 }, gems: 20 }],
     ];
     herb.forEach(([k, mat, n, reward], i) => add(`${town}_herb`, { id: `${town}_herb_${k}`, name: `Сбор: ${I.MATS[mat].name}`,
@@ -63,7 +63,7 @@ module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPl
   const daily = (g) => {
     const t = TOWN_TIER[g.town], last = X.DUNGEONS[g.town][5];
     if (g.id.endsWith('_cap')) return { id: `${g.id}_daily`, name: 'Ночной дозор', desc: 'Уничтожьте 40 монстров в любых данжах этого мира.', type: 'kill', town: g.town, goal: 40, reward: { gold: 600 * t, xp: xpAt(last.lv[1]), gems: 10 } };
-    if (g.id.endsWith('_herb')) return { id: `${g.id}_daily`, name: 'Пополнить кладовую', desc: `Принесите 10 × ${I.MATS[`ore${t}`].name}.`, type: 'collect', mat: `ore${t}`, goal: 10, reward: { gold: 500 * t, mats: { potHp2: 2, elxLuck: 1 }, gems: 10 } };
+    if (g.id.endsWith('_herb')) return { id: `${g.id}_daily`, name: 'Пополнить кладовую', desc: `Принесите 10 × ${I.MATS[`ore${t}`].name}.`, type: 'collect', mat: `ore${t}`, goal: 10, reward: { gold: 500 * t, mats: { potHp2: 2, elxAtk: 1 }, gems: 10 } };
     return { id: `${g.id}_daily`, name: 'Свежий след', desc: 'Победите 2 редких монстра (жёлтые имена) в данжах этого мира.', type: 'rare', goal: 2, town: g.town, reward: { gold: 700 * t, xp: xpAt(last.lv[1]), mats: { dust: 1 }, gems: 10 } };
   };
 

@@ -196,7 +196,7 @@ app.get('/api/wiki', (req, res) => {
       itemRar: I.ITEM_RARITIES, rarOrder: I.RARITY_ORDER, drops: C.DROPS, slots: I.SLOT_NAMES, attrs: I.ATTRS, caps: I.CAPS,
       wish: { rates: Wish.RATES, soft: Wish.SOFT, hard: Wish.HARD, legEvery: Wish.LEG_EVERY, gemsPerWish: Wish.GEMS_PER_WISH, dupeMax: C.GACHA.heroDupeMax },
       gear: { pity: meta.SHOP.pity, free: meta.SHOP.freeItemSpins, freeSub: meta.SHOP.freeItemSpinsSub, gemsPerWish: meta.SHOP.gemsPerWish },
-      craft: I.WORLD_CRAFT, luck: I.LUCK_STONE, upgrade: I.UPGRADE, craftSlots: I.CRAFT_SLOTS, mats: Object.fromEntries(Object.entries(I.MATS).map(([k, m]) => [k, { name: m.name, icon: m.icon, kind: m.kind, desc: m.desc, buy: m.buy }])),
+      craft: I.WORLD_CRAFT, luck: I.LUCK_STONE, upgrade: I.UPGRADE, craftSlots: I.CRAFT_SLOTS, mats: Object.fromEntries(Object.entries(I.MATS).filter(([, m]) => !m.removed).map(([k, m]) => [k, { name: m.name, icon: m.icon, kind: m.kind, desc: m.desc, buy: m.buy }])),
       runes: Object.entries(I.TEMPLATES.rune).map(([id, r]) => ({ id, name: r.name, icon: r.icon, base: r.base })),
       tree: I.TREE, treeMax: I.TREE_MAX, pasMax: I.PAS_MAX, pasStep: I.PAS_STEP,
       dungeons: Object.fromEntries(Object.entries(MOBX.DUNGEONS).map(([t, list]) => [t, list.map((d) => ({ name: d.name, lv: d.lv, boss: d.bossName || nm(d.boss), minis: (d.minis || []).map(nm), pool: d.pool.map(nm) }))])),
@@ -382,6 +382,7 @@ function isValidPayload(payload, beforePay = false) {
     const pr = profiles[uid];
     if (pr && kind === 'starter' && pr.starterBought) return false;
     if (pr && /^pass[1-4]$/.test(kind) && meta.passTier(pr) >= +kind[4]) return false;
+    if (pr && /^whUp[45]$/.test(kind) && (pr.whLvl || 0) !== +kind[4] - 1) return false; // уровень склада — строго следующий
   }
   if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass[1-4]$/.test(kind)) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
@@ -723,7 +724,7 @@ const statsFor = (heroId, lvl, pr = null) => {
   return {
     maxHp: Math.round((b.hp * R.base * (1 + 0.12 * R.grow * (lvl - 1)) + (g.hp || 0)) * (1 + (g.hpP || 0) / 100) * dk),
     dmg: Math.round((b.dmg * R.base * (1 + 0.1 * R.grow * (lvl - 1)) + (g.atk || 0)) * (1 + (g.atkP || 0) / 100) * dk),
-    resMax: Math.round(b.resource.max * (1 + 0.05 * (lvl - 1))),
+    resMax: Math.round(b.resource.max * (1 + 0.02 * (lvl - 1))), // запас растёт медленно: к 50 ур. ×2 (умения не дешевеют — зелья маны нужны)
   };
 };
 // Сколько умений героя открыто: по уровню или по дубликатам (C.SKILL_UNLOCK), либо выдано из админки (pr.skillGrant)
@@ -822,7 +823,7 @@ const pasK = (p) => 1 + I.PAS_STEP * (((p.char && p.char.pasLv) || 1) - 1);
 const pasScale = (p, m) => (m === 1 ? 1 : 1 + (m - 1) * pasK(p));
 const pasScaleTaken = (p, m) => (m >= 1 ? m : Math.max(0.3, 1 - (1 - m) * pasK(p))); // снижение получаемого урона — сильнее, но не меньше ×0,3
 // Штраф за гибель (кроме PvP-арены, матчей и данжа выживания): −10% опыта уровня и «Слабость» на 2 минуты
-const DEATH = { xpLoss: 0.1, ms: 2 * 60000, dmg: 0.2, xp: 0.2 };
+const DEATH = { xpLoss: 0.15, ms: 5 * 60000, dmg: 0.3, xp: 0.3 }; // слабость после гибели идёт только пока игрок в игре
 function deathPenalty(p) {
   const pr = getProfile(p.uid), need = xpForLevel(p.char.level);
   const lost = Math.min(p.char.xp, Math.round(need * DEATH.xpLoss)); // уровень не теряется
@@ -831,7 +832,7 @@ function deathPenalty(p) {
   const lostElx = Object.values(pr.buffs || {}).some((t) => t > Date.now());
   pr.buffs = {}; // эликсиры сгорают при гибели
   p.gear = I.gearStats(pr, p.heroId); p.buffSig = '';
-  p.socket.emit('chat', { sys: true, text: `💀 Вы погибли: −${lost} опыта${lostElx ? ', действие эликсиров закончилось' : ''}. Слабость на 2 минуты: урон −20%, получаемый опыт −20%` });
+  p.socket.emit('chat', { sys: true, text: `💀 Вы погибли: −${lost} опыта${lostElx ? ', действие эликсиров закончилось' : ''}. Слабость на 5 минут: урон −30%, получаемый опыт −30%` });
   p.lastStats = 0;
 }
 // ---------- Эффекты на герое: значки под полоской здоровья (тап — описание) ----------
@@ -852,7 +853,7 @@ const FX_TIMED = [
   ['reflectShieldUntil', 1, 'shield', 'Отражение', 'Часть урона возвращается врагу'], ['shieldUntil', 1, 'shield', 'Щит', 'Поглощает урон'],
   ['regenUntil', 1, 'regen', 'Регенерация', 'Здоровье восстанавливается'], ['feralLeechUntil', 1, 'regen', 'Звериная жажда', 'Удары лечат героя'],
   ['slowUntil', 0, 'slow', 'Замедление', 'Скорость снижена'], ['weakUntil', 0, 'weak', 'Проклятие слабости', 'Урон −30%'],
-  ['deathUntil', 0, 'curse', 'Слабость после гибели', 'Урон −20%, получаемый опыт −20%'],
+  ['deathUntil', 0, 'curse', 'Слабость после гибели', 'Урон −30%, получаемый опыт −30%'],
 ];
 const FX_CC = { stun: ['stun', 'Оглушение', 'Нельзя действовать'], freeze: ['freeze', 'Заморозка', 'Нельзя действовать'],
   fear: ['fear', 'Страх', 'Герой бежит и не слушается'], root: ['root', 'Корни', 'Нельзя двигаться'], taunt: ['taunt', 'Провокация', 'Атакуете только провокатора'],
@@ -1493,7 +1494,7 @@ io.on('connection', (socket) => {
     // Подарок основателя: всем, кто вошёл в первые 3 дня после открытия (один раз на аккаунт)
     if (S.openAt && Date.now() >= S.openAt && Date.now() < S.openAt + 3 * 864e5 && !prj.founder) {
       prj.founder = Date.now();
-      prj.gems = (prj.gems || 0) + 300; prj.paidSpins = (prj.paidSpins || 0) + 2; prj.itemSpins = (prj.itemSpins || 0) + 3; I.addMat(prj, 'elxXp2', 1);
+      prj.gems = (prj.gems || 0) + 300; prj.paidSpins = (prj.paidSpins || 0) + 2; prj.itemSpins = (prj.itemSpins || 0) + 3; I.addMat(prj, 'elxHero', 1);
       setTimeout(() => socket.emit('chat', { sys: true, text: '🎁 Подарок основателя: 300 💎, 2 печати призыва героев, 3 печати снаряжения и Великий эликсир опыта. Спасибо, что вы с нами с первых дней!' }), 2500);
     }
     if (!C.HEROES[heroId] || !getProfile(uid).heroes.includes(heroId)) {
@@ -1522,7 +1523,9 @@ io.on('connection', (socket) => {
     };
     p.hp = p.maxHp;
     p.res = startRes(p);
-    p.deathUntil = prj.deathUntil || 0; // слабость после гибели переживает перезаход
+    // Слабость после гибели переживает перезаход и идёт только в игре: вне игры остаток «замораживается»
+    p.deathUntil = prj.deathLeft > 0 ? Date.now() + prj.deathLeft : prj.deathUntil || 0;
+    prj.deathUntil = p.deathUntil; prj.deathLeft = 0;
     p.god = !!(prj.test || {}).god; p.oneShot = !!(prj.test || {}).oneShot; // тестовые режимы из админки
     prj.name = p.name; prj.lastSeen = Date.now();
     if (['ru', 'en', 'es', 'pt', 'de', 'fr', 'tr'].includes(data.lang)) prj.lang = data.lang; // уведомления бота — на языке игры
@@ -1857,6 +1860,7 @@ io.on('connection', (socket) => {
     leaveParty(p);
     players.delete(socket.id);
     getProfile(p.uid).lastSeen = Date.now();
+    { const pr = getProfile(p.uid), left = (p.deathUntil || 0) - Date.now(); pr.deathLeft = left > 0 ? left : 0; } // остаток слабости — до следующего входа
     (p.pets || []).forEach((pet) => pets.delete(pet.id));
     io.emit('chat', { sys: true, text: `${p.name} покинул мир` });
     saveProfiles();

@@ -174,7 +174,7 @@ const TEMPLATES = {
     ringPow:{ name: 'Кольцо силы', icon: '💍', base: { atk: 2, critDmg: 3 } },
     ringAgi:{ name: 'Кольцо ловкости', icon: '💍', base: { crit: 2, aspd: 2 } },
     ringWind:{ name: 'Кольцо ветра', icon: '💍', base: { ms: 2, aspd: 2 } },
-    bracer: { name: 'Браслет удачи', icon: '🧿', base: { gold: 4, xp: 4 } },
+    bracer: { name: 'Браслет удачи', icon: '🧿', base: { crit: 1.5, critDmg: 3 } },
     ringLife: { name: 'Кольцо жизни', icon: '💍', base: { hp: 12, hpP: 1.5 }, art: 'ring_ringPow' },
     ringMind: { name: 'Перстень мудреца', icon: '💍', base: { skill: 3, cdr: 1 }, art: 'ring_ringWind' },
     ringBlood:{ name: 'Кольцо вампира', icon: '💍', base: { atk: 1.5, ls: 1 }, art: 'ring_ringAgi' },
@@ -188,8 +188,8 @@ const TEMPLATES = {
     amuFury: { name: 'Амулет ярости', icon: '📿', base: { atk: 2, crit: 1.5 }, art: 'amulet_amuBlood' },
     amuWind: { name: 'Амулет ветра', icon: '📿', base: { ms: 2, aspd: 2 }, art: 'amulet_amuMind' },
     amuGuard:{ name: 'Оберег стража', icon: '📿', base: { hp: 15, def: 2 }, art: 'amulet_amuLife' },
-    amuStar: { name: 'Звёздный кулон', icon: '📿', base: { critDmg: 6, xp: 3 }, art: 'amulet_amuMind' },
-    amuGold: { name: 'Кулон торговца', icon: '🪙', base: { gold: 6, hp: 8 }, art: 'amulet_amuLife' },
+    amuStar: { name: 'Звёздный кулон', icon: '📿', base: { critDmg: 6, crit: 1 }, art: 'amulet_amuMind' },
+    amuGold: { name: 'Кулон торговца', icon: '🪙', base: { hp: 14, def: 1 }, art: 'amulet_amuLife' },
   },
   // Плащ (всем классам), пояс (по типу брони), серьги (всем)
   cloak: {
@@ -201,7 +201,7 @@ const TEMPLATES = {
   belt: {
     warBelt:     { name: 'Боевой пояс', icon: '🎗️', base: { hp: 14, def: 1 } },
     leatherBelt: { name: 'Кожаный пояс', icon: '🎗️', base: { hp: 10, aspd: 1.5 } },
-    pouchBelt:   { name: 'Пояс с подсумками', icon: '🎗️', base: { hp: 9, ms: 1.5, gold: 2 } },
+    pouchBelt:   { name: 'Пояс с подсумками', icon: '🎗️', base: { hp: 11, ms: 1.5 } },
     sash:        { name: 'Кушак мага', icon: '🎗️', base: { hp: 8, skill: 2.5 } },
   },
   earring: {
@@ -225,7 +225,7 @@ const TEMPLATES = {
     time:   { name: 'Руна времени', icon: '⏳', base: { cdr: 2 } },
     stone:  { name: 'Руна стойкости', icon: '⚫', base: { def: 2 } },
     wind:   { name: 'Руна ветра', icon: '⚪', base: { ms: 2 } },
-    fortune:{ name: 'Руна удачи', icon: '🟣', base: { gold: 5, xp: 3 } },
+    fortune:{ name: 'Руна удачи', icon: '🟣', base: { crit: 1, critDmg: 4 } },
   },
 };
 
@@ -343,23 +343,23 @@ const skillMul = (L) => 1 + SKILL_UP.per * (Math.max(1, L) - 1);
 MATS.luckStone = { name: 'Камень удачи', icon: '🔷', color: '#5ad8ff', kind: 'mat', desc: 'Кладётся в кузнице к рецепту: +10% к шансу успешной ковки (до 3 камней). Редко падает с полубоссов, боссов и мировых боссов.', price: 0, buy: 500 };
 // Расходники
 Object.assign(MATS, {
-  potHp: { name: 'Зелье здоровья', icon: '🧪', color: '#ff6a6a', kind: 'potion', heal: 0.35, desc: 'Сразу восстанавливает 35% здоровья. Раз в 8 с.', price: 30, buy: 6 },
-  potHp2: { name: 'Большое зелье здоровья', icon: '⚗️', color: '#ff3a3a', kind: 'potion', heal: 0.7, desc: 'Сразу восстанавливает 70% здоровья. Раз в 8 с.', price: 120, buy: 24 },
-  potRes: { name: 'Зелье энергии', icon: '🫙', color: '#5a9aff', kind: 'potion', res: 0.5, desc: 'Восстанавливает 50% маны, энергии или ярости. Раз в 8 с.', price: 40, buy: 8 },
+  potHp: { name: 'Зелье здоровья', icon: '🧪', color: '#ff6a6a', kind: 'potion', heal: 0.35, desc: 'Сразу восстанавливает 35% здоровья. Раз в 8 с.', price: 90, buy: 6 },
+  potHp2: { name: 'Большое зелье здоровья', icon: '⚗️', color: '#ff3a3a', kind: 'potion', heal: 0.7, desc: 'Сразу восстанавливает 70% здоровья. Раз в 8 с.', price: 360, buy: 24 },
+  potRes: { name: 'Зелье энергии', icon: '🫙', color: '#5a9aff', kind: 'potion', res: 0.5, desc: 'Восстанавливает 50% маны, энергии или ярости. Раз в 8 с.', price: 150, buy: 8 },
   // Эликсиры за золото (лавка эликсиров): 30 минут, сгорают при гибели
   elxAtk: { name: 'Эликсир силы', icon: '🍷', color: '#ff8a5a', kind: 'elixir', buff: 'atk', desc: '+10% урона на 30 минут.', price: 900, buy: 120 },
   elxDef: { name: 'Эликсир стойкости', icon: '🛡️', color: '#c8d8e8', kind: 'elixir', buff: 'def', desc: '+8% защиты и +10% здоровья на 30 минут.', price: 900, buy: 120 },
   elxAgi: { name: 'Эликсир ловкости', icon: '🌀', color: '#7ad8a0', kind: 'elixir', buff: 'agi', desc: '+10% скорости атаки и +5% шанса крита на 30 минут.', price: 900, buy: 120 },
   elxMind: { name: 'Эликсир мудрости', icon: '🔮', color: '#b88aff', kind: 'elixir', buff: 'mind', desc: '+12% силы умений и −5% перезарядки на 30 минут.', price: 900, buy: 120 },
-  elxXp: { name: 'Эликсир опыта', icon: '📘', color: '#8ad3ff', kind: 'elixir', buff: 'xp', desc: '+20% опыта на 30 минут.', price: 1200, buy: 150 },
-  elxLuck: { name: 'Эликсир удачи', icon: '🍀', color: '#7dff8a', kind: 'elixir', buff: 'luck', desc: 'Предметы и материалы падают на 15% чаще 30 минут.', price: 1500, buy: 180 },
+  elxXp: { removed: true, name: 'Эликсир опыта', icon: '📘', color: '#8ad3ff', kind: 'elixir', buff: 'xp', desc: '+20% опыта на 30 минут.', price: 1200, buy: 150 },
+  elxLuck: { removed: true, name: 'Эликсир удачи', icon: '🍀', color: '#7dff8a', kind: 'elixir', buff: 'luck', desc: 'Предметы и материалы падают на 15% чаще 30 минут.', price: 1500, buy: 180 },
   elxWind: { name: 'Эликсир ветра', icon: '🪶', color: '#bfe8ff', kind: 'elixir', buff: 'wind', desc: '+12% скорости бега на 30 минут.', price: 800, buy: 100 },
   elxVamp: { name: 'Эликсир вампира', icon: '🩸', color: '#d0304a', kind: 'elixir', buff: 'vamp', desc: '3% нанесённого урона лечит героя, 30 минут.', price: 1300, buy: 160 },
   elxFury: { name: 'Эликсир ярости', icon: '💢', color: '#ff5a2a', kind: 'elixir', buff: 'fury', desc: '+20% критического урона на 30 минут.', price: 1100, buy: 140 },
-  elxGold: { name: 'Эликсир богатства', icon: '🪙', color: '#ffd36a', kind: 'elixir', buff: 'gold', desc: '+40% золота с монстров на 30 минут.', price: 600, buy: 130 },
+  elxGold: { removed: true, name: 'Эликсир богатства', icon: '🪙', color: '#ffd36a', kind: 'elixir', buff: 'gold', desc: '+40% золота с монстров на 30 минут.', price: 600, buy: 130 },
   // Великие эликсиры (Telegram Stars или GRAM, магазин): 1 час, сильнее обычных; действуют вместе с ними
-  elxXp2: { name: 'Великий эликсир опыта', icon: '📗', color: '#4dffb0', kind: 'elixir', buff: 'xp2', mins: 60, desc: '+50% опыта на 1 час.', price: 0, buy: 0 },
-  elxLuck2: { name: 'Великий эликсир удачи', icon: '☘️', color: '#3aff6a', kind: 'elixir', buff: 'luck2', mins: 60, desc: 'Предметы и материалы падают на 30% чаще 1 час.', price: 0, buy: 0 },
+  elxXp2: { removed: true, name: 'Великий эликсир опыта', icon: '📗', color: '#4dffb0', kind: 'elixir', buff: 'xp2', mins: 60, desc: '+50% опыта на 1 час.', price: 0, buy: 0 },
+  elxLuck2: { removed: true, name: 'Великий эликсир удачи', icon: '☘️', color: '#3aff6a', kind: 'elixir', buff: 'luck2', mins: 60, desc: 'Предметы и материалы падают на 30% чаще 1 час.', price: 0, buy: 0 },
   elxHero: { name: 'Эликсир героя', icon: '👑', color: '#ffb340', kind: 'elixir', buff: 'hero', mins: 60, desc: '+15% урона, +15% здоровья, +5% крита и +10% скорости атаки на 1 час.', price: 0, buy: 0 },
   elxTitan: { name: 'Эликсир титана', icon: '🗿', color: '#c8b89a', kind: 'elixir', buff: 'titan', mins: 60, desc: '+15% защиты, +25% здоровья и 2% вампиризма на 1 час.', price: 0, buy: 0 },
   tpScroll: { name: 'Свиток возвращения', icon: '🌀', color: '#5fd1c8', kind: 'scrollTp', desc: 'Мгновенно переносит в город текущего мира.', price: 60, buy: 10 },
@@ -410,8 +410,10 @@ const round1 = (v) => Math.round(v * 10) / 10;
 let seq = Date.now() % 1e7;
 const newId = () => 'i' + (seq++).toString(36) + Math.floor(Math.random() * 36 * 36).toString(36);
 
+// Золото и опыт с вещей убраны (только боевые свойства); старые такие свойства не действуют и не показываются
+const NO_ITEM_ATTR = new Set(['gold', 'xp']);
 function rollAttr(rar, tier, exclude = []) {
-  const keys = Object.keys(ATTRS).filter((k) => !exclude.includes(k));
+  const keys = Object.keys(ATTRS).filter((k) => !exclude.includes(k) && !NO_ITEM_ATTR.has(k));
   const k = pick(keys);
   const [, , lo, hi] = ATTRS[k];
   const r = RARITY_ORDER.indexOf(rar);
@@ -429,11 +431,20 @@ const rollAttrs = (rar, tier) => {
 function createItem(cat, rar, tier = 1, tpl = null, cls = null) {
   const fit = cls && !tpl && tplsForClass(cat, cls);
   tpl = tpl || (fit && fit.length && Math.random() < 0.75 ? pick(fit) : pick(plainTpls(cat)));
-  const item = { id: newId(), cat, tpl, rar, tier, attrs: cat === 'bag' ? [] : rollAttrs(rar, tier), dupes: 0 };
+  const item = { id: newId(), cat, tpl, rar, tier, attrs: cat === 'bag' || cat === 'rune' ? [] : rollAttrs(rar, tier), dupes: 0 };
   if (cat === 'weapon') item.runes = [];
   return item;
 }
 // Вещь комплекта: класс (или случайный), слот (или случайный)
+// Вещь из призыва снаряжения — «отборная»: случайные свойства на 25% сильнее и одно дополнительное (до 4).
+// Так лучшие вещи дают призыв, боссы и кузница, а не лавка
+function refineItem(it) {
+  if (!it || it.cat === 'bag' || it.cat === 'rune') return it;
+  for (const a of it.attrs) a.v = round1(a.v * 1.25);
+  if (it.attrs.length < 4) { const a = rollAttr(it.rar, it.tier, it.attrs.map((x) => x.k)); a.v = round1(a.v * 1.25); it.attrs.push(a); }
+  it.fine = true;
+  return it;
+}
 function createSetItem(cls, tier, rar = 'epic', slot = null) {
   cls = cls || pick(CLASS_ORDER);
   return createItem(slot || pick(SET_SLOTS), rar, tier, `set_${cls}`);
@@ -460,9 +471,10 @@ function itemStats(it) {
   for (const [key, v] of Object.entries(t.base)) {
     // Абсолютные статы (атака, здоровье) растут сильнее, проценты — мягче
     const flat = key === 'atk' || key === 'hp';
+    if (NO_ITEM_ATTR.has(key)) continue;
     add(key, v * (flat ? ITEM_RARITIES[it.rar].mult * TIER_MULT[it.tier] : 1 + 0.5 * RARITY_ORDER.indexOf(it.rar) + 0.4 * (it.tier - 1)) * k);
   }
-  for (const a of it.attrs) add(a.k, a.v * (1 + DUPE_STEP * (it.dupes || 0)));
+  if (it.cat !== 'rune') for (const a of it.attrs) if (!NO_ITEM_ATTR.has(a.k)) add(a.k, a.v * (1 + DUPE_STEP * (it.dupes || 0))); // у рун старые доп. свойства не действуют
   return out;
 }
 
@@ -487,18 +499,18 @@ function setState(pr, heroId) {
 // Спутники героя: маленькое существо рядом с героем (видно всем) и небольшой бонус. Кадры — public/assets/pets/c_<id>.png.
 // art: true — картинка готова (редкие появятся после листа К-2). w×h — размер кадра листа.
 const COMPANIONS = {
-  dragon: { name: 'Огненный дракончик', bonus: { atkP: 3 }, rare: false, price: 1500, art: true, w: 53, h: 38 },
-  fox: { name: 'Лисёнок-светлячок', bonus: { gold: 5 }, rare: false, price: 1500, art: true, w: 49, h: 33 },
-  owl: { name: 'Сова-мудрец', bonus: { xp: 5 }, rare: false, price: 1500, art: true, w: 57, h: 38 },
-  golem: { name: 'Каменный голем', bonus: { def: 3 }, rare: false, price: 1500, art: true, w: 48, h: 40 },
-  cat: { name: 'Призрачный кот', bonus: { crit: 3 }, rare: false, price: 1500, art: true, w: 52, h: 33 },
-  wolf: { name: 'Ледяной волчонок', bonus: { ms: 3 }, rare: false, price: 1500, art: true, w: 54, h: 36 },
-  phoenix: { name: 'Феникс', bonus: { atkP: 6 }, rare: true, price: 5000, art: true, w: 60, h: 40 },
-  unicorn: { name: 'Единорог', bonus: { hpP: 8 }, rare: true, price: 5000, art: true, w: 56, h: 40 },
-  shadow: { name: 'Теневой дракончик', bonus: { crit: 6 }, rare: true, price: 5000, art: true, w: 60, h: 38 },
-  griffin: { name: 'Золотой грифон', bonus: { gold: 10 }, rare: true, price: 5000, art: true, w: 56, h: 40 },
-  fairy: { name: 'Лесная фея', bonus: { xp: 10 }, rare: true, price: 5000, art: true, w: 52, h: 40 },
-  beetle: { name: 'Механический жук', bonus: { aspd: 6 }, rare: true, price: 5000, art: true, w: 57, h: 36 },
+  dragon: { name: 'Огненный дракончик', bonus: { atkP: 3 }, rare: false, price: 5000, art: true, w: 53, h: 38 },
+  fox: { name: 'Лисёнок-светлячок', bonus: { gold: 5 }, rare: false, price: 5000, art: true, w: 49, h: 33 },
+  owl: { name: 'Сова-мудрец', bonus: { xp: 5 }, rare: false, price: 5000, art: true, w: 57, h: 38 },
+  golem: { name: 'Каменный голем', bonus: { def: 3 }, rare: false, price: 5000, art: true, w: 48, h: 40 },
+  cat: { name: 'Призрачный кот', bonus: { crit: 3 }, rare: false, price: 5000, art: true, w: 52, h: 33 },
+  wolf: { name: 'Ледяной волчонок', bonus: { ms: 3 }, rare: false, price: 5000, art: true, w: 54, h: 36 },
+  phoenix: { name: 'Феникс', bonus: { atkP: 6 }, rare: true, price: 15000, art: true, w: 60, h: 40 },
+  unicorn: { name: 'Единорог', bonus: { hpP: 8 }, rare: true, price: 15000, art: true, w: 56, h: 40 },
+  shadow: { name: 'Теневой дракончик', bonus: { crit: 6 }, rare: true, price: 15000, art: true, w: 60, h: 38 },
+  griffin: { name: 'Золотой грифон', bonus: { gold: 10 }, rare: true, price: 15000, art: true, w: 56, h: 40 },
+  fairy: { name: 'Лесная фея', bonus: { xp: 10 }, rare: true, price: 15000, art: true, w: 52, h: 40 },
+  beetle: { name: 'Механический жук', bonus: { aspd: 6 }, rare: true, price: 15000, art: true, w: 57, h: 36 },
 };
 const companionOf = (pr) => { const id = pr && pr.comp && pr.comp.active; return id && Object.hasOwn(COMPANIONS, id) ? COMPANIONS[id] : null; };
 // ---------- Зал мастеров: ветка характеристик и мастерство пассивки (у каждого героя своё) ----------
@@ -533,7 +545,8 @@ function gearStats(pr, heroId = null) {
     const it = findItem(pr, pr.equip?.[slot]);
     if (!it || (heroId && !usable(it, heroId, pr))) continue; // не для класса или уровня этого героя — без статов
     add(itemStats(it));
-    for (const r of it.runes || []) add(itemStats(r));
+    const seenRune = new Set();
+    for (const r of it.runes || []) { if (seenRune.has(r.tpl)) continue; seenRune.add(r.tpl); add(itemStats(r)); } // одинаковые руны не складываются
   }
   if (heroId) for (const b of setState(pr, heroId).active) add(b.stats);
   const now = Date.now();
@@ -694,7 +707,7 @@ function worldRecipes(tier) {
 const findRecipe = (id) => { const t = +String(id).slice(1, 2); return worldRecipes(t).find((r) => r.id === id) || null; };
 
 module.exports = {
-  LUCK_STONE, WORLD_CRAFT, worldRecipes, findRecipe, CRAFT_SLOTS,
+  LUCK_STONE, WORLD_CRAFT, worldRecipes, findRecipe, CRAFT_SLOTS, refineItem,
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, SET_SLOTS, WEAR_CATS, slotCat, TIER_MULT, DUPE_MAX, DUPE_STEP,
   SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF, COMPANIONS, TREE, TREE_MAX, treeReq, treeCost, PAS_MAX, PAS_STEP, pasReq, pasCost, CAPS, BUFF_LUCK,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,

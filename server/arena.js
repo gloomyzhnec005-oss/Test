@@ -1,7 +1,7 @@
 // Режимы PvP-арены (бой в реальном времени, механика целей-двойников — в server/index.js, раздел «PvP-арена»):
 //   duel     — дуэль 1×1 по очереди, рейтинг;
 //   team     — команда на команду 2×2 (группа из двух встаёт в очередь вместе), рейтинг;
-//   clone    — бой со своим клоном: копия героя с вашими здоровьем и уроном;
+//   clone    — бой со своим клоном: копия героя сильнее вас (здоровье ×2, урон ×1.25);
 //   champion — бой с тенью чемпиона: копия героя лучшего по рейтингу игрока;
 //   brawl    — свободная схватка всех против всех (общая арена мира, server/world.js pvp_<город>).
 // Матч идёт на отдельной копии арены; павшие ждут конца боя; по времени побеждает сторона с большим запасом здоровья.
@@ -207,8 +207,8 @@ module.exports = function createArena(d) {
     prep(p);
     let foe;
     if (mode === 'clone') {
-      foe = copyFighter(z, place(z, 1, 0, 1), p.heroId, p, `Клон: ${p.hero.name}`, p.char.level, { hp: 1.5, dmg: 0.9 });
-      p.socket.emit('chat', { sys: true, text: '🪞 Бой с клоном: перед вами ваша копия — то же здоровье (×1.5) и урон. Победите себя!' });
+      foe = copyFighter(z, place(z, 1, 0, 1), p.heroId, p, `Клон: ${p.hero.name}`, p.char.level, { hp: 2, dmg: 1.25 }); // клон сильнее игрока
+      p.socket.emit('chat', { sys: true, text: '🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×2, урон ×1.25. Победите себя!' });
     } else {
       // Тень чемпиона: герой и сила лучшего игрока по рейтингу (не вы); если чемпиона нет — усиленный клон
       const pr = d.getProfile(p.uid);
@@ -218,10 +218,10 @@ module.exports = function createArena(d) {
         const [uid, o] = top, lvl = (o.chars[o.arena.hero] || { level: 1 }).level, st = d.statsFor(o.arena.hero, lvl, o);
         // Сила тени подстраивается под ваш уровень, чтобы бой был честным
         const k = (d.statsFor(p.heroId, p.char.level, pr).maxHp / Math.max(1, st.maxHp)) ** 0.5;
-        foe = copyFighter(z, place(z, 1, 0, 1), o.arena.hero, { maxHp: st.maxHp * k, dmg: st.dmg * k }, `Тень: ${o.arena.name || 'чемпион'} · ${C.HEROES[o.arena.hero].name}`, p.char.level, { hp: 1.7, dmg: 1 });
+        foe = copyFighter(z, place(z, 1, 0, 1), o.arena.hero, { maxHp: st.maxHp * k, dmg: st.dmg * k }, `Тень: ${o.arena.name || 'чемпион'} · ${C.HEROES[o.arena.hero].name}`, p.char.level, { hp: 1.9, dmg: 1.2 });
         p.socket.emit('chat', { sys: true, text: `👤 Тень чемпиона: ${o.arena.name || 'чемпион'} (рейтинг ${o.arena.rating}) — ${C.HEROES[o.arena.hero].name}. Уровень тени подстроен под ваш.` });
       } else {
-        foe = copyFighter(z, place(z, 1, 0, 1), p.heroId, p, `Тень: ${p.hero.name}`, p.char.level, { hp: 1.9, dmg: 1.05 });
+        foe = copyFighter(z, place(z, 1, 0, 1), p.heroId, p, `Тень: ${p.hero.name}`, p.char.level, { hp: 2.2, dmg: 1.35 });
         p.socket.emit('chat', { sys: true, text: '👤 Чемпиона пока нет — сражайтесь с усиленной тенью себя.' });
       }
     }
