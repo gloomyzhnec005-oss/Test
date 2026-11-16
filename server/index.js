@@ -12,6 +12,8 @@ const C = require('./config');
 const { buildWorld, ZONE_STRIDE } = require('./world');
 const { verifyInitData } = require('./auth');
 const { SKILLS, PASSIVES, NEEDS_TARGET, skillRange } = require('./skills');
+// Для клиента: id умения → дальность, если без цели рядом оно не сработает
+const SKILL_TARGET = Object.fromEntries(Object.values(C.HEROES).flatMap((h) => h.skills.filter((s) => NEEDS_TARGET.has(s.id)).map((s) => [s.id, skillRange(s.id, h)])));
 const { createPets, createSummon, rescalePets, updatePets, hurtPet } = require('./pets');
 const I = require('./items');
 const MOBX = require('./mobs');
@@ -1555,6 +1557,7 @@ io.on('connection', (socket) => {
       skillUnlock: C.SKILL_UNLOCK,
       heroes: C.HEROES,
       monsters: C.MONSTERS,
+      skillTarget: SKILL_TARGET, // умения, которым нужна цель, и их дальность — клиент не играет звук впустую
       stats: privateStats(p),
       pDef: P_DEF, // поля героев, которых нет в пакете состояния, — со значениями отсюда
       x: p.x, y: p.y, // место героя (для повторного входа после долгого обрыва — без перезагрузки страницы)

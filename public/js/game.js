@@ -12,6 +12,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.heroes = data.welcome.heroes;
     this.myStats = data.welcome.stats;
     this.monsterDefs = data.welcome.monsters;
+    this.skillTarget = data.welcome.skillTarget || {};
     this.players = new Map();
     this.monsters = new Map();
     this.targetId = null;
@@ -2482,6 +2483,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (!sk || !me.e || idx >= (this.myStats.unlocked ?? 1)) return; // умение ещё закрыто — сервер откажет
     const now = performance.now(), last = (this.skillAt ??= {})[id] || 0;
     if (now - last < (sk.cooldown || 0) * 0.85 || (this.myStats.res ?? 1e9) < (sk.cost || 0)) return;
+    // Умению нужна цель, а рядом никого — сервер откажет «Нет цели рядом»: без звука и надписи (на арене цели — герои, не проверяем)
+    const need = this.skillTarget[id];
+    if (need && !(this.zone && this.zone.kind === 'pvp')) {
+      let any = false;
+      for (const e of this.monsters.values()) if (e.data && e.data.hp > 0 && !e.killAt && Math.hypot(e.c.x - me.x, e.c.y - me.y) <= need) { any = true; break; }
+      if (!any) return;
+    }
     this.skillAt[id] = now;
     this.localSkill = { s: id, at: now };
     this.floatText(me.e.c.x, me.e.c.y - 44, sk.icon + ' ' + sk.name, '#ffe08a', 12);

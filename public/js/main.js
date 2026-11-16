@@ -513,7 +513,8 @@
     socket.on('passTier', (t) => { passTier = t; });
     // Сервер сократил перезарядку (убийство Найри) — обновляем таймеры кнопок
     socket.on('skillCds', (cds) => Object.entries(cds).forEach(([id, c]) => startSkillCd(id, c.left, c.total)));
-    socket.on('skillFail', hudToast);
+    // Отказ сервера: локальная отметка «умение только что нажато» сбрасывается, чтобы следующее нажатие снова дало отклик
+    socket.on('skillFail', (msg) => { hudToast(msg); if (window.gameScene) window.gameScene.skillAt = {}; });
     // Обрыв связи: игра не останавливается, сверху — значок; через 2 минуты без связи сервер отпустит героя
     socket.on('disconnect', () => { if (game) $('netBadge').classList.remove('hidden'); });
     socket.on('resumed', (d) => { $('netBadge').classList.add('hidden'); if (window.gameScene && window.gameScene.me) { window.gameScene.me.x = d.x; window.gameScene.me.y = d.y; } });
