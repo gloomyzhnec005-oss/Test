@@ -215,7 +215,7 @@ window.Town = (() => {
     const cats = { set: 'Комплекты', ...WEAR_RU };
     const box = el(`${balLine(r.bal)}<p class="sheet-hint">Все вещи от эпических за GRAM — экипировка мира ${ROMAN[r.tier] || r.tier}. Выберите слот или комплект и класс героя, для которого покупаете.<br>Основные свойства — как на карточке, дополнительные выпадают случайно при покупке. Отборные вещи (свойства +25% и одно дополнительное) — только в призыве снаряжения.</p>
       <div class="gram-cats">${Object.entries(cats).map(([k, n]) => `<button class="l2-btn ${k === r.cat ? 'on' : ''}" data-cat="${k}">${n}</button>`).join('')}</div>
-      ${r.cat !== 'rune' ? `<div class="gram-cats cls">${r.classes.map((c) => `<button class="l2-btn ${c.id === r.cls ? 'on' : ''}" data-cls="${c.id}"><img class="ui-ic" src="assets/items/crest_${c.id}.webp" alt="">${c.name}${c.id === r.own ? ' · ваш' : ''}</button>`).join('')}</div>` : ''}
+      ${r.cat !== 'rune' ? `<div class="gram-cats cls">${r.classes.map((c) => `<button class="l2-btn ${c.id === r.cls ? 'on' : ''}" data-cls="${c.id}"><img class="ui-ic" src="assets/ui/cls_${c.id}.webp" alt="">${c.name}${c.id === r.own ? ' · ваш' : ''}</button>`).join('')}</div>` : ''}
       ${r.set ? `<div class="tw-banner pass"><b>${r.set.name}</b><small>${r.set.bonus.map(([n, st]) => `${n} вещи: ${Object.entries(st).map(([k, v]) => (Bag.statLine ? Bag.statLine(k, v) : `${k} +${v}`)).join(', ')}`).join('<br>')}</small></div>` : ''}`);
     bindWallet(box);
     box.querySelectorAll('[data-cat]').forEach((b) => { b.onclick = () => gramMarketPanel(b.dataset.cat, r.cls); });

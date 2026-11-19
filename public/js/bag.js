@@ -41,7 +41,8 @@ window.Bag = (() => {
   const fitsClass = (it) => !it.classes || !inv || !inv.hero || !inv.hero.cls || it.classes.includes(inv.hero.cls);
   const fitsLevel = (it) => !it.reqLevel || !inv || !inv.hero || inv.hero.level >= it.reqLevel;
   const fitsHero = (it) => fitsClass(it) && fitsLevel(it);
-  const clsNames = (it) => (it.classes || []).map((c) => (inv && inv.classNames && inv.classNames[c]) || c).join(', ');
+  const clsPlain = (it) => (it.classes || []).map((c) => (inv && inv.classNames && inv.classNames[c]) || c).join(', ');
+  const clsNames = (it) => (it.classes || []).map((c) => `<img class="ui-ic" src="assets/ui/cls_${c}.webp" alt="">${String((inv && inv.classNames && inv.classNames[c]) || c).replace(/^[^\p{L}]+/u, '')}`).join(', '); // значки классов (КЛ-1) вместо эмодзи
   const cell = (it, extra = '') => `<button class="it ${extra} ${!/other/.test(extra) && !fitsHero(it) ? 'nofit' : ''} ${it.set ? 'set' : ''} ${it.rar ? 'fr-' + it.rar : ''}" data-id="${it.id}" style="--rc:${it.color}">
       <span>${art(it)}</span>${it.dupes ? `<em title="Усилен дубликатами: +${it.dupes * 5}% к статам">★${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}${isEquipped(it) ? '<i class="eq-tag">✔ надето</i>' : ''}${it.runes && it.runes.length ? `<b>${it.runes.map(mini).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}</button>`;
   function grid(items, onTap, opts = {}) {
@@ -132,7 +133,7 @@ window.Bag = (() => {
     if (it.cat === 'weapon' && it.sockets) acts.push([`💠 Руны · ${(it.runes || []).length} / ${it.sockets}`, () => { $('itemCard').classList.add('hidden'); Town.openPlace('runes', it.id); }]);
     if (it.cat !== 'rune') {
       if (isEquipped(it)) acts.push(['Снять', () => run('unequip', { slot: slotOf(it) }, ctx.after)]);
-      else if (!fitsClass(it)) acts.push([`🔒 Только для: ${clsNames(it)}`, () => toast('Эту вещь может носить только другой класс')]);
+      else if (!fitsClass(it)) acts.push([`🔒 Только для: ${clsPlain(it)}`, () => toast('Эту вещь может носить только другой класс')]);
       else if (!fitsLevel(it)) acts.push([`🔒 Нужен ${it.reqLevel} уровень`, () => toast(`Вещь откроется на ${it.reqLevel} уровне героя`)]);
       else acts.push(['Надеть', () => run('equip', { id: it.id, slot: ctx.slot }, ctx.after)]);
     }
