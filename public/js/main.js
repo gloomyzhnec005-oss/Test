@@ -794,8 +794,9 @@
       let lastOnline = null, brk = null;
       const showOnline = () => {
         const o = lastOnline, el = $('townOnline');
-        if (!o || !zone || zone.kind !== 'town') { el.classList.add('hidden'); return; }
-        const t = o.showTotal ? `🟢 В игре: ${o.total}` : o.dg + o.wb > 0 ? `⚔️ ${o.dg} в данжах${o.wb ? ` · 👹 ${o.wb} у босса` : ''}` : '';
+        // Строка онлайна — в окне чата (под вкладками), а не посреди экрана
+        if (!o) { el.classList.add('hidden'); return; }
+        const t = [o.showTotal ? `🟢 В игре: ${o.total}` : '', o.dg ? `⚔️ ${o.dg} в данжах` : '', o.wb ? `👹 ${o.wb} у мирового босса` : ''].filter(Boolean).join(' · ');
         el.textContent = t; el.classList.toggle('hidden', !t);
       };
       socket.on('online', (o) => { lastOnline = o; showOnline(); });

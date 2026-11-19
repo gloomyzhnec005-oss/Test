@@ -1480,7 +1480,6 @@ canvas.skin { object-fit: contain; }
 .lobby-launch .l2-btn.done { opacity: .6; }
 .lobby-online { position: absolute; z-index: 4; left: 10px; right: 130px; top: calc(76% + 50px); text-align: center; color: #bfe8a0; font-size: 12.5px; text-shadow: 0 1px 2px #000; font-family: Georgia, serif; }
 /* В городе: онлайн и плашка перерыва */
-.town-online { position: absolute; left: 50%; top: calc(172px + env(safe-area-inset-top)); transform: translateX(-50%); padding: 3px 11px; border-radius: 12px; font-size: 11.5px;
   background: rgba(14, 18, 10, .72); border: 1px solid #6a8a4a; color: #d8f0c0; font-family: Georgia, serif; pointer-events: none; white-space: nowrap; }
 .brk-banner { position: absolute; left: 50%; top: calc(198px + env(safe-area-inset-top)); transform: translateX(-50%); padding: 5px 12px; border-radius: 12px; font-size: 12px; max-width: 86%; text-align: center;
   background: rgba(70, 40, 6, .9); border: 1px solid #ffb340; color: #ffe2a8; font-family: Georgia, serif; pointer-events: none; }
@@ -1505,3 +1504,6 @@ canvas.skin { object-fit: contain; }
 .gram-perks { margin: 4px 0 6px 16px; padding: 0; font-size: 12px; color: #e8dcc0; }
 .gram-net { display: block; margin: 4px 0 8px; color: #bfe0ff; }
 .sel { user-select: all; -webkit-user-select: all; word-break: break-all; }
+
+/* Онлайн — строкой в окне чата под вкладками */
+.chat-online { padding: 3px 10px 4px; font-size: 11.5px; color: #bfe8a0; text-align: center; border-bottom: 1px solid rgba(138,109,59,.35); font-family: Georgia, serif; }
