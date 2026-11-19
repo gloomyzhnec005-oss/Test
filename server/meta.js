@@ -862,7 +862,8 @@ module.exports = function createMeta(deps) {
   }
 
   // Торговля за золото закрыта: оставшиеся лоты рынка и аукциона — продавцам, ставки — тем, кто ставил (один раз)
-  if ((market.lots || []).length || (market.auctions || []).length) {
+  // Запускается после полной загрузки сервера (уведомления игрокам ещё не готовы в момент создания меты) и не может его уронить
+  if ((market.lots || []).length || (market.auctions || []).length) setImmediate(() => { try {
     let n = 0;
     for (const l of market.lots || []) { giveLot(getProfile(l.seller), l); notifyUid(l.seller, 'Рынок за золото закрыт — ваш лот вернулся в сумку. Торговля теперь за GRAM в Торговом доме'); n++; }
     for (const a of market.auctions || []) {
@@ -872,7 +873,7 @@ module.exports = function createMeta(deps) {
     market.lots = []; market.auctions = [];
     console.log(`[meta] рынок и аукцион за золото закрыты: возвращено лотов ${n}`);
     save();
-  }
+  } catch (e) { console.error('[meta] возврат лотов рынка и аукциона:', e); } });
 
   // Эликсир закончился — пересчитать статы героя
   setInterval(() => {
