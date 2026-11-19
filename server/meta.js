@@ -721,78 +721,7 @@ module.exports = function createMeta(deps) {
       return { results };
     },
 
-    // ---------- Рынок: фиксированная цена, комиссия с продавца. Продаются предметы и стопки материалов ----------
-    market(p, d, pr) {
-      return { lots: market.lots.map((l) => ({ id: l.id, item: lotView(l), price: l.price, seller: l.sellerName, mine: l.seller === p.uid })),
-        fee: isSub(pr) ? SHOP.marketFeeSub : SHOP.marketFee, slots: isSub(pr) ? SHOP.marketSlotsSub : SHOP.marketSlots };
-    },
-    marketSell(p, d, pr) {
-      const price = Math.floor(Number(d.price));
-      if (!(price >= 10 && price <= 1e8)) return { error: 'Цена от 10 золота' };
-      if (market.lots.filter((l) => l.seller === p.uid).length >= (isSub(pr) ? SHOP.marketSlotsSub : SHOP.marketSlots)) return { error: 'Все прилавки заняты' };
-      const lot = takeForLot(pr, d);
-      if (lot.error) return lot;
-      market.lots.push({ id: market.seq++, seller: p.uid, sellerName: p.name, ...lot, price, at: Date.now() });
-      return { toast: 'Выставлено на рынок' };
-    },
-    marketBuy(p, d, pr) {
-      const l = market.lots.find((x) => x.id === d.id);
-      if (!l) return { error: 'Лот уже продан' };
-      if (l.seller === p.uid) return { error: 'Это ваш лот' };
-      if (pr.gold < l.price) return { error: 'Не хватает золота' };
-      pr.gold -= l.price;
-      market.lots = market.lots.filter((x) => x !== l);
-      const seller = getProfile(l.seller);
-      const fee = isSub(seller) ? SHOP.marketFeeSub : SHOP.marketFee;
-      const income = Math.floor(l.price * (1 - fee));
-      seller.gold += income;
-      notifyUid(l.seller, `Рынок: продано «${lotView(l).name}» за ${l.price} 💰 (вам ${income} после комиссии)`);
-      return { toast: giveLot(pr, l) };
-    },
-    marketCancel(p, d, pr) {
-      const l = market.lots.find((x) => x.id === d.id && x.seller === p.uid);
-      if (!l) return { error: 'Лот не найден' };
-      market.lots = market.lots.filter((x) => x !== l);
-      giveLot(pr, l);
-      return { toast: 'Лот снят' };
-    },
-
-    // ---------- Аукцион: ставки, лот уходит лучшей ставке ----------
-    auction(p) {
-      return { lots: market.auctions.map((a) => ({ id: a.id, item: lotView(a), start: a.start, bid: a.bid, bidder: a.bidderName || null,
-        mineBid: a.bidder === p.uid, mine: a.seller === p.uid, seller: a.sellerName, left: a.endsAt - Date.now() })), fee: SHOP.auctionFee };
-    },
-    auctionSell(p, d, pr) {
-      const start = Math.floor(Number(d.start)), hours = [2, 8, 24].includes(+d.hours) ? +d.hours : 8;
-      if (!(start >= 10 && start <= 1e8)) return { error: 'Стартовая цена от 10 золота' };
-      if (market.auctions.filter((a) => a.seller === p.uid).length >= SHOP.auctionSlots) return { error: `Не больше ${SHOP.auctionSlots} лотов` };
-      const lot = takeForLot(pr, d);
-      if (lot.error) return lot;
-      market.auctions.push({ id: market.seq++, seller: p.uid, sellerName: p.name, ...lot, start, bid: 0, bidder: null, endsAt: Date.now() + hours * 36e5 });
-      return { toast: `Лот выставлен на ${hours} ч` };
-    },
-    auctionBid(p, d, pr) {
-      const a = market.auctions.find((x) => x.id === d.id);
-      if (!a) return { error: 'Торги завершены' };
-      if (a.seller === p.uid) return { error: 'Это ваш лот' };
-      if (a.bidder === p.uid) return { error: 'Ваша ставка и так лучшая' };
-      const min = a.bid ? Math.ceil(a.bid * 1.05) : a.start;
-      const amount = Math.max(min, Math.floor(Number(d.amount) || 0));
-      if (pr.gold < amount) return { error: `Нужно ${amount} золота` };
-      pr.gold -= amount; // ставка замораживается
-      if (a.bidder) { getProfile(a.bidder).gold += a.bid; notifyUid(a.bidder, `Аукцион: вашу ставку на «${lotView(a).name}» перебили, золото возвращено`); }
-      a.bid = amount; a.bidder = p.uid; a.bidderName = p.name;
-      if (a.endsAt - Date.now() < 60000) a.endsAt = Date.now() + 60000; // защита от ставок в последнюю секунду
-      return { toast: `Ставка ${amount} 💰 принята` };
-    },
-    auctionCancel(p, d, pr) {
-      const a = market.auctions.find((x) => x.id === d.id && x.seller === p.uid);
-      if (!a) return { error: 'Лот не найден' };
-      if (a.bidder) return { error: 'На лот уже есть ставки' };
-      market.auctions = market.auctions.filter((x) => x !== a);
-      giveLot(pr, a);
-      return { toast: 'Лот снят' };
-    },
+    // Рынок и аукцион за золото убраны: торговля — за GRAM (server/trade.js: Рынок и Торговый дом)
 
     // ---------- Профиль другого игрока (тап по персонажу на карте) ----------
     inspect(p, d) {
@@ -932,28 +861,18 @@ module.exports = function createMeta(deps) {
     return grantMsg(put(pr, l.item));
   }
 
-  // Завершение аукционов
-  setInterval(() => {
-    const now = Date.now();
-    const done = market.auctions.filter((a) => a.endsAt <= now);
-    if (!done.length) return;
-    market.auctions = market.auctions.filter((a) => a.endsAt > now);
-    for (const a of done) {
-      const name = lotView(a).name;
-      if (a.bidder) {
-        const buyer = getProfile(a.bidder), seller = getProfile(a.seller);
-        giveLot(buyer, a);
-        const income = Math.floor(a.bid * (1 - (isSub(seller) ? SHOP.marketFeeSub : SHOP.auctionFee)));
-        seller.gold += income;
-        notifyUid(a.bidder, `Аукцион: вы выиграли «${name}» за ${a.bid} 💰`);
-        notifyUid(a.seller, `Аукцион: «${name}» продан за ${a.bid} 💰 (вам ${income})`);
-      } else {
-        giveLot(getProfile(a.seller), a);
-        notifyUid(a.seller, `Аукцион: на «${name}» не было ставок, предмет вернулся`);
-      }
+  // Торговля за золото закрыта: оставшиеся лоты рынка и аукциона — продавцам, ставки — тем, кто ставил (один раз)
+  if ((market.lots || []).length || (market.auctions || []).length) {
+    let n = 0;
+    for (const l of market.lots || []) { giveLot(getProfile(l.seller), l); notifyUid(l.seller, 'Рынок за золото закрыт — ваш лот вернулся в сумку. Торговля теперь за GRAM в Торговом доме'); n++; }
+    for (const a of market.auctions || []) {
+      if (a.bidder) { getProfile(a.bidder).gold += a.bid; notifyUid(a.bidder, 'Аукцион закрыт — ваша ставка вернулась'); }
+      giveLot(getProfile(a.seller), a); notifyUid(a.seller, 'Аукцион закрыт — ваш лот вернулся в сумку. Торговля теперь за GRAM в Торговом доме'); n++;
     }
+    market.lots = []; market.auctions = [];
+    console.log(`[meta] рынок и аукцион за золото закрыты: возвращено лотов ${n}`);
     save();
-  }, 5000);
+  }
 
   // Эликсир закончился — пересчитать статы героя
   setInterval(() => {
@@ -973,7 +892,7 @@ module.exports = function createMeta(deps) {
     if (p.name && pr.arena) pr.arena.name = p.name;
     const res = fn(p, d, pr) || {};
     if (!res.error && ['equip', 'buy', 'socket'].includes(d.op)) deps.quest(p.uid, d.op); // шаги сюжета
-    if (!res.error && !['inv', 'inspect', 'buys', 'market', 'auction', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo', 'recipes', 'login'].includes(d.op)) save();
+    if (!res.error && !['inv', 'inspect', 'buys', 'shop', 'pass', 'shopInfo', 'arena', 'craftInfo', 'recipes', 'login'].includes(d.op)) save();
     res.gold = pr.gold;
     return res;
   }
@@ -1027,7 +946,7 @@ module.exports = function createMeta(deps) {
     ispin: { title: 'Призыв предмета', description: 'Одна крутка призыва предметов', amount: SHOP.itemSpin.price },
     ispin10: { title: 'Призыв предметов ×10', description: 'Десять круток призыва предметов', amount: SHOP.itemSpin.price10 },
     ...Object.fromEntries(Object.entries(SHOP.gems).map(([k, g]) => [k, { title: `Самоцветы ×${g.gems}`, description: `${g.gems} самоцветов: 160 = призыв героя, 100 = призыв снаряжения`, amount: g.amount }])),
-    sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, скидка комиссии рынка, больше сумка', amount: SHOP.sub.price },
+    sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, +3 лота в Торговом доме, больше сумка', amount: SHOP.sub.price },
     ...Object.fromEntries(WH_UPGRADES.filter((u) => u.stars).map((u) => [u.kind, { title: `Склад: уровень ${u.kind.slice(4)}`, description: '+50 ячеек склада навсегда', amount: u.stars }])),
   };
 

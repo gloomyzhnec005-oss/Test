@@ -1492,3 +1492,16 @@ canvas.skin { object-fit: contain; }
 /* Значки лобби (ИК-1): глобус у выбора языка, перо у смены имени */
 #menuLang.lang-sel { background-image: url(../assets/ui/ic_lang.webp); background-repeat: no-repeat; background-size: 1.3em; background-position: 8px center; padding-left: 2.3em !important; padding-right: 0.3em !important; text-align: left; text-align-last: left; font-size: 14px !important; }
 #lpRename .ui-ic { width: 18px; height: 18px; margin: 0; vertical-align: -3px; }
+
+/* Торговля за GRAM: баланс, категории Рынка, условия вывода, привилегии орденов */
+.gram-bal { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; margin-bottom: 6px; border: 1px solid #8a6d3b; border-radius: 8px; background: rgba(40,60,120,.35); }
+.gram-bal b { font-size: 15px; color: #bfe0ff; }
+.gram-cats { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+.gram-cats .l2-btn { flex: 1 1 28%; min-width: 0; padding: 6px 4px; font-size: 12px; }
+.gram-cats .l2-btn.on { border-color: #ffd36a; color: #ffe9a8; box-shadow: 0 0 6px rgba(255,211,106,.5); }
+.gram-req { list-style: none; margin: 4px 0 8px; padding: 0; font-size: 13px; }
+.gram-req li { padding: 3px 0; }
+.gram-req li.bad { color: #ff9a8a; }
+.gram-perks { margin: 4px 0 6px 16px; padding: 0; font-size: 12px; color: #e8dcc0; }
+.gram-net { display: block; margin: 4px 0 8px; color: #bfe0ff; }
+.sel { user-select: all; -webkit-user-select: all; word-break: break-all; }

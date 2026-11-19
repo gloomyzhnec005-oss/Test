@@ -130,5 +130,36 @@ window.Pay = (() => {
     }
   }
 
-  return { buy, tonInfo };
+  // ---------- Пополнение GRAM-баланса ----------
+  // Реквизиты: адрес кошелька игры и личный комментарий игрока (с ним перевод зачисляется на баланс)
+  async function depositInfo(amount) {
+    const { ok, data } = await api('/api/gram/deposit', { amount: amount || 0 });
+    return ok ? data : { error: data.error || 'Пополнение недоступно' };
+  }
+  // Адрес подключённого кошелька (для вывода) — без окна подключения
+  async function walletAddress() {
+    await tonInit();
+    if (!tc || !tc.connected || !tc.wallet) return '';
+    try { return TON_CONNECT_UI.toUserFriendlyAddress(tc.wallet.account.address); } catch { return ''; }
+  }
+  async function deposit(amount, { toast = (t) => (window.Town ? Town.toast(t) : alert(t)), onDone } = {}) {
+    const d = await depositInfo(amount);
+    if (d.error) return toast(d.error);
+    let ui;
+    try { ui = await tonConnect(); } catch (e) { return toast(e.message); }
+    if (!ui) return toast('Кошелёк не подключён');
+    const before = (await api('/api/gram/check', {})).data;
+    try {
+      await ui.sendTransaction({ validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: d.address, amount: d.amount, payload: d.payload }] });
+    } catch { return toast('Пополнение отменено'); }
+    toast('Перевод отправлен — ждём подтверждение сети (обычно до минуты)…');
+    for (let i = 0; i < 45; i++) {
+      await sleep(4000);
+      const r = (await api('/api/gram/check', {})).data;
+      if (r && before && r.total > before.total) { toast(`Баланс пополнен: ${((r.total - before.total) / 1e9).toFixed(2)} GRAM`); if (onDone) onDone(); return; }
+    }
+    toast('Сеть ещё не подтвердила перевод — GRAM зачислятся сами, как только он пройдёт');
+  }
+
+  return { buy, tonInfo, deposit, depositInfo, walletAddress };
 })();

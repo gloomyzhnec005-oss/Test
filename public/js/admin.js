@@ -71,7 +71,7 @@
     document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
     document.querySelectorAll('main > section').forEach((s) => s.classList.toggle('hidden', s.id !== 'tab-' + t));
     clearInterval(timer);
-    ({ overview: drawOverview, players: drawPlayers, world: drawWorld, econ: drawEcon, settings: drawSettings, log: drawLog })[t]();
+    ({ overview: drawOverview, players: drawPlayers, world: drawWorld, econ: drawEcon, gram: drawGram, settings: drawSettings, log: drawLog })[t]();
     if (t === 'overview') timer = setInterval(drawOverview, 4000);
   }
 
@@ -166,6 +166,45 @@
     a.download = `saves-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+
+  // ---------- GRAM: заявки на вывод и журнал ----------
+  const G = (n) => (Number(n || 0) / 1e9).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  const GKIND = { deposit: 'пополнение', shop: 'Рынок', buy: 'покупка в ТД', sale: 'продажа в ТД', fee: 'комиссия ТД', withdraw: 'заявка на вывод', payout: 'выплачено', refund: 'возврат', admin: 'администрация' };
+  async function drawGram() {
+    const o = await api('gram');
+    const box = $('tab-gram');
+    if (o.error) { box.innerHTML = `<div class="card">${esc(o.error)}</div>`; return; }
+    const t = o.totals;
+    const msk = (ts) => new Date(ts + 3 * 36e5).toISOString().slice(5, 16).replace('T', ' ');
+    box.innerHTML = `
+      <div class="card"><small class="muted">Выплаты — вручную, ежедневно с 20:00 до 24:00 МСК: переведите «К выплате» на адрес из своего кошелька (Tonkeeper) и нажмите «Выплачено» (можно вставить хеш перевода). Сначала — заявки с орденами (⭐). «Отклонить» возвращает GRAM игроку к выводу.</small></div>
+      <div class="tiles">
+        <div class="tile"><b>${G(t.all)}</b><span>GRAM на балансах игроков всего</span></div>
+        <div class="tile"><b>${G(t.dep)}</b><span>пополнено (вывести нельзя)</span></div>
+        <div class="tile"><b>${G(t.free)} / ${G(t.hold)}</b><span>с продаж: доступно / удерживается 3 дня</span></div>
+        <div class="tile"><b style="color:${t.waitNet ? 'var(--red)' : 'inherit'}">${G(t.waitNet)}</b><span>ждут выплаты (${o.wait.length} заявок)</span></div>
+        <div class="tile"><b>${t.lots}</b><span>лотов в Торговом доме</span></div>
+      </div>
+      <div class="card"><h3>Заявки на вывод (${o.wait.length})</h3>
+        ${o.wait.map((w) => `<div class="row"><span class="grow"><b>${w.prio ? '⭐ ' : ''}${esc(w.name)}</b> · №${w.id} · ${msk(w.at)}<br>
+          <b>К выплате: ${G(w.net)} GRAM</b> <small class="muted">(заявка ${G(w.gross)}, комиссия ${G(w.fee)})</small><br>
+          <code class="sel">${esc(w.address)}</code> <button class="btn small" data-copy="${esc(w.address)}">Копировать адрес</button></span>
+          <button class="btn small primary" data-pay="${w.id}">Выплачено</button><button class="btn small danger" data-rej="${w.id}">Отклонить</button></div>`).join('') || '<p class="muted">Заявок нет</p>'}
+      </div>
+      <div class="card"><h3>Обработанные</h3><table><tr><th>№</th><th>Игрок</th><th>GRAM</th><th>Статус</th></tr>
+        ${o.done.map((w) => `<tr><td>${w.id}</td><td>${esc(w.name)}</td><td>${G(w.net)}</td><td>${w.status === 'paid' ? '✅ выплачено' + (w.tx ? ' · ' + esc(w.tx.slice(0, 12)) + '…' : '') : '↩ отклонено' + (w.reason ? ': ' + esc(w.reason) : '')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">—</td></tr>'}</table></div>
+      <div class="card"><h3>Корректировка баланса</h3><small class="muted">Плюс — начислить (как пополнение, вывести нельзя), минус — списать. Например, компенсация или возврат по обращению.</small>
+        <div class="row"><input id="gAdjUid" placeholder="uid игрока (tg…)"><input id="gAdjSum" type="number" step="0.01" placeholder="GRAM, напр. 5 или -2"><input id="gAdjText" class="wide" placeholder="Причина"><button class="btn primary" id="gAdjGo">Применить</button></div></div>
+      <div class="card"><h3>Журнал GRAM (последние 200)</h3><table><tr><th>Когда (МСК)</th><th>Игрок</th><th>Что</th><th>GRAM</th></tr>
+        ${o.log.map((e) => `<tr><td>${msk(e.t)}</td><td>${esc(e.name)}</td><td>${esc(GKIND[e.kind] || e.kind)}<br><small class="muted">${esc(e.text)}</small></td><td style="color:${e.a < 0 ? 'var(--red)' : 'inherit'}">${e.a ? (e.a > 0 ? '+' : '') + G(e.a) : '—'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Пока пусто</td></tr>'}</table></div>`;
+    box.onclick = async (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.copy) { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Адрес скопирован'); } catch { prompt('Адрес:', b.dataset.copy); } return; }
+      if (b.dataset.pay) { const tx = prompt('Хеш перевода (необязательно):', '') ?? null; if (tx === null) return; const r = await api('gramPay', { id: +b.dataset.pay, tx }); toast(r.error || r.text, !!r.error); drawGram(); }
+      if (b.dataset.rej) { const reason = prompt('Причина отказа (игрок увидит):', ''); if (reason === null) return; const r = await api('gramReject', { id: +b.dataset.rej, reason }); toast(r.error || r.text, !!r.error); drawGram(); }
+      if (b.id === 'gAdjGo') { const r = await api('gramAdjust', { uid: $('gAdjUid').value.trim(), gram: Number($('gAdjSum').value), text: $('gAdjText').value }); toast(r.error || r.text, !!r.error); if (!r.error) drawGram(); }
+    };
   }
 
   // ---------- Экономика ----------
@@ -335,6 +374,7 @@
 
       <div class="card"><h3>💰 Ресурсы</h3>
         <div class="row"><label>Золото: <b>${fmtNum(p.gold)}</b></label><input id="goldVal" type="number" value="10000"><button class="btn" data-a="goldAdd">Добавить</button><button class="btn" data-a="goldSet">Установить</button></div>
+        ${p.gram ? `<div class="row"><label>GRAM: <b>${G(p.gram.total)}</b> <small class="muted">(пополнено ${G(p.gram.dep)}, к выводу ${G(p.gram.free)}, удерживается ${G(p.gram.hold)})${p.tOrder ? ' · орден ' + esc(p.tOrder.id) + ' до ' + new Date(p.tOrder.until).toLocaleDateString('ru-RU') : ''}</small> — изменить во вкладке GRAM</label></div>` : ''}
         <div class="row"><label>Самоцветы: <b>${fmtNum(p.gems || 0)}</b></label><input id="gemsVal" type="number" value="1000"><button class="btn" data-a="gemsAdd">Добавить</button><button class="btn" data-a="gemsSet">Установить</button></div>
         <div class="row"><label>Крутки героев</label><input id="spinsVal" type="number" value="${p.paidSpins}"><button class="btn" data-a="spins">Сохранить</button>
           <button class="btn" data-a="freeSpin" ${p.freeSpinUsed ? '' : 'disabled'}>Вернуть бесплатную</button></div>

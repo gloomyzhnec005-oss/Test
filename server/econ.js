@@ -35,6 +35,8 @@ module.exports = function createEcon({ store, profiles }) {
     add(d.buys, kind, 1);
   }
   function active(uid) { day().players[uid] = 1; }
+  // GRAM: пополнения, покупки на Рынке и в Торговом доме, комиссии, выводы (нано-GRAM)
+  function gram(kind, a) { const d = day(); d.gram ??= {}; add(d.gram, kind, Math.abs(a)); }
   function online(n) { const d = day(); if (n > d.peak) d.peak = n; }
   // Сверка: изменение суммы у всех игроков минус учтённое = «прочее»
   const totals = () => { let g = 0, s = 0; for (const pr of Object.values(profiles())) { g += pr.gold || 0; s += pr.gems || 0; } return { g, s }; };
@@ -56,5 +58,5 @@ module.exports = function createEcon({ store, profiles }) {
     const keys = Object.keys(st.days).sort().slice(-days).reverse();
     return keys.map((k) => { const d = st.days[k]; return { day: k, ...d, players: Object.keys(d.players).length }; });
   }
-  return { gold, gems, measure, item, paid, active, online, reconcile, view };
+  return { gold, gems, measure, item, paid, active, online, reconcile, view, gram };
 };

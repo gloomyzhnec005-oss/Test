@@ -16,7 +16,7 @@
 const crypto = require('crypto');
 const { Address, beginCell } = require('@ton/core');
 
-module.exports = function createTon({ store, onPaid, log }) {
+module.exports = function createTon({ store, onPaid, onDeposit, log }) {
   const TESTNET = process.env.TON_TESTNET === 'true';
   const API = TESTNET ? 'https://testnet.toncenter.com/api/v2' : 'https://toncenter.com/api/v2';
   const KEY = process.env.TONCENTER_API_KEY || '';
@@ -28,6 +28,8 @@ module.exports = function createTon({ store, onPaid, log }) {
   const walletStr = () => wallet.toString({ bounceable: false, testOnly: TESTNET });
 
   const state = store.readJSON('ton.json', { orders: {}, seen: [] });
+  state.dep ??= {}; // пополнение GRAM-баланса: постоянный комментарий игрока → uid
+  let depActiveUntil = 0; // кто-то открыл пополнение — чаще проверяем входящие
   const seen = new Set(state.seen);
   const save = () => {
     state.seen = [...seen].slice(-3000); // хеши уже обработанных переводов — чтобы не выдать покупку дважды
@@ -50,12 +52,26 @@ module.exports = function createTon({ store, onPaid, log }) {
     return { id, address: walletStr(), amount: state.orders[id].nano, payload: body, ton, comment, title };
   }
 
+  // Пополнение GRAM-баланса: у каждого игрока постоянный комментарий MHD-…; любой перевод с ним зачисляется на баланс
+  function depositInfo(uid, gram) {
+    let comment = Object.keys(state.dep).find((k) => state.dep[k] === uid);
+    if (!comment) { comment = `MHD-${crypto.randomBytes(5).toString('hex')}`; state.dep[comment] = uid; save(); }
+    depActiveUntil = Date.now() + 30 * 60e3;
+    const body = beginCell().storeUint(0, 32).storeStringTail(comment).endCell().toBoc().toString('base64');
+    return { address: walletStr(), comment, payload: body, amount: gram ? toNano(gram) : null };
+  }
+
   // Входящий перевод → заказ. Возвращает, что сделали (для журнала и тестов)
   function applyTx(tx) {
     const hash = tx.transaction_id && tx.transaction_id.hash, m = tx.in_msg;
     if (!hash || seen.has(hash) || !m || !m.source) return null;
     seen.add(hash);
     const text = String(m.message || '').trim();
+    if (state.dep[text] && onDeposit) { // пополнение баланса: зачисляем сколько пришло
+      const ok = onDeposit(state.dep[text], Number(BigInt(m.value || '0')), hash);
+      log('pay', `TON: пополнение ${Number(BigInt(m.value || '0')) / 1e9} GRAM · ${state.dep[text]}${ok ? '' : ' — НЕ ЗАЧИСЛЕНО'}`);
+      return ok ? 'deposit' : 'error';
+    }
     const o = Object.values(state.orders).find((x) => x.comment === text);
     if (!o || o.status === 'paid') return null;
     const value = BigInt(m.value || '0');
@@ -73,7 +89,8 @@ module.exports = function createTon({ store, onPaid, log }) {
   let polling = false, lastPoll = 0;
   async function poll() {
     if (!enabled() || polling || Date.now() - lastPoll < 3000) return;
-    if (!Object.values(state.orders).some((o) => o.status === 'wait' && Date.now() - o.at < ORDER_TTL)) return; // ждать нечего
+    // Ждать нечего: нет неоплаченных заказов, никто не открывал пополнение — проверяем входящие раз в 5 минут (переводы на баланс вручную)
+    if (!Object.values(state.orders).some((o) => o.status === 'wait' && Date.now() - o.at < ORDER_TTL) && Date.now() > depActiveUntil && Date.now() - lastPoll < 300e3) return;
     polling = true; lastPoll = Date.now();
     try {
       const url = `${API}/getTransactions?address=${encodeURIComponent(walletStr())}&limit=50&archival=true${KEY ? `&api_key=${KEY}` : ''}`;
@@ -96,7 +113,7 @@ module.exports = function createTon({ store, onPaid, log }) {
   };
 
   return {
-    enabled, tonPrice, createOrder, poll, status, applyTx,
+    enabled, tonPrice, createOrder, poll, status, applyTx, depositInfo, rate: () => RATE,
     info: () => ({ enabled: enabled(), testnet: TESTNET, rate: RATE, returnUrl: process.env.TON_TWA_RETURN_URL || null }),
     orders: () => Object.values(state.orders),
   };

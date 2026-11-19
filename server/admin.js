@@ -120,7 +120,7 @@ module.exports = function createAdmin(ctx) {
     for (const it of pr.items) byRar[it.rar] = (byRar[it.rar] || 0) + 1;
     const pass = ctx.meta.passOf(pr);
     return {
-      uid, name: pr.name || null, lastSeen: pr.lastSeen || 0, gold: pr.gold, gems: pr.gems || 0, paidSpins: pr.paidSpins, itemSpins: pr.itemSpins || 0,
+      uid, name: pr.name || null, lastSeen: pr.lastSeen || 0, gold: pr.gold, gems: pr.gems || 0, gram: ctx.trade ? ctx.trade.bal(pr) : null, tOrder: pr.tOrder && pr.tOrder.until > Date.now() ? pr.tOrder : null, paidSpins: pr.paidSpins, itemSpins: pr.itemSpins || 0,
       freeSpinUsed: !!pr.freeSpinUsed, heroes, items: pr.items.length, itemsByRar: byRar, subUntil: pr.subUntil || 0,
       pass: { tier: ctx.meta.passTier(pr), xp: pass.xp, level: Math.floor(pass.xp / ctx.meta.SHOP.pass.xpPerLevel) },
       arena: pr.arena ? pr.arena.rating : 1000, banned: pr.banned || null, test: pr.test || {},
@@ -400,6 +400,11 @@ module.exports = function createAdmin(ctx) {
   };
   // Экономика по дням: приход и расход золота и самоцветов, мифики, покупки (server/econ.js)
   r.post('/econ', act(() => { ctx.econ.reconcile(); return { days: ctx.econ.view(14) }; }));
+  // GRAM: балансы игроков, заявки на вывод (выплата вручную), журнал движений (server/trade.js)
+  r.post('/gram', act(() => ctx.trade.adminView()));
+  r.post('/gramPay', act((d) => ctx.trade.adminPay(d.id, d.tx), (d) => `выплата GRAM по заявке №${d.id}`));
+  r.post('/gramReject', act((d) => ctx.trade.adminReject(d.id, d.reason), (d) => `отказ в выводе №${d.id}`));
+  r.post('/gramAdjust', act((d) => (ctx.profiles[d.uid] ? ctx.trade.adminAdjust(d.uid, d.gram, d.text) : { error: 'Игрок не найден' }), (d) => `баланс GRAM ${d.uid} ${d.gram}`));
   r.post('/snapshots', aact(async () => ({ db: store.db, list: await store.listSnapshots() })));
   r.post('/snapshotNow', aact(async () => {
     if (!store.db) return { error: 'Снимки в базе доступны только с Postgres — используйте «Скачать всё»' };

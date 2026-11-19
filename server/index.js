@@ -202,7 +202,7 @@ app.get('/api/wiki', (req, res) => {
       dungeons: Object.fromEntries(Object.entries(MOBX.DUNGEONS).map(([t, list]) => [t, list.map((d) => ({ name: d.name, lv: d.lv, boss: d.bossName || nm(d.boss), minis: (d.minis || []).map(nm), pool: d.pool.map(nm) }))])),
       worldBosses: Object.fromEntries(Object.entries(MOBX.WORLD_BOSSES).map(([t, w]) => [t, { lv: w.lv, list: w.list.map(nm) }])), wbTime: D.wbTimeText(),
       bossTimes: String(process.env.DUNGEON_BOSS_TIMES || '12:00,18:00,23:00'), overLv: D.OVER_LV, death: DEATH,
-      market: { fee: meta.SHOP.marketFee, feeSub: meta.SHOP.marketFeeSub, auction: meta.SHOP.auctionFee, slots: meta.SHOP.marketSlots, slotsSub: meta.SHOP.marketSlotsSub },
+      trade: { fee: Trade.CFG.fee, wFee: Trade.CFG.wFee, hold: Trade.CFG.holdDays, wLevel: Trade.CFG.wLevel, wAge: Trade.CFG.wAgeDays, wMin: Trade.CFG.wMin, slots: Trade.CFG.slots, orders: Object.values(Trade.CFG.orders).map((o) => ({ name: o.name, icon: o.icon, stars: o.stars, perks: o.perks })) },
       bag: meta.SHOP.bag, bagSub: meta.SHOP.bagSub, wh: meta.SHOP.wh,
       companions: Object.entries(I.COMPANIONS).filter(([, c]) => c.art).map(([id, c]) => ({ id, name: c.name, rare: !!c.rare, price: c.price, bonus: c.bonus })),
       warPts: WAR_PTS, passDays: meta.SHOP.pass.days, passLevels: meta.SHOP.pass.levels,
@@ -333,7 +333,7 @@ function buildInvoice(who, item, bgId) {
 const FIRST_BUY_OFF = 0.5;
 
 // ---------- Оплата в TON (server/ton.js): заказ → перевод из кошелька игрока → проверка в блокчейне ----------
-const ton = require('./ton')({ store, onPaid: (payload, info) => onPaid(payload, info), log: (k, t) => admin.log(k, t) });
+const ton = require('./ton')({ store, onPaid: (payload, info) => onPaid(payload, info), onDeposit: (uid, nano, hash) => Trade.onDeposit(uid, nano, hash), log: (k, t) => admin.log(k, t) });
 app.get('/api/ton/info', (req, res) => res.json(ton.info()));
 // Манифест TON Connect: кошелёк показывает игроку название и значок игры
 // Кошелёк скачивает его до подключения: нужен CORS (иначе вечная загрузка «Продолжите в Telegram…»),
@@ -365,6 +365,21 @@ app.post('/api/ton/order', (req, res) => {
   const inv = buildInvoice(who, req.body.item, req.body.bgId);
   if (inv.error) return res.status(400).json({ error: inv.error });
   res.json(ton.createOrder(who.uid, inv.invoice.payload, inv.stars, inv.invoice.title));
+});
+// Пополнение GRAM-баланса: адрес кошелька игры и личный комментарий игрока (перевод с ним зачисляется на баланс)
+app.post('/api/gram/deposit', (req, res) => {
+  if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в GRAM выключена' });
+  const who = tonWho(req);
+  if (!who) return res.status(403).json({ error: 'Пополнение доступно только в Telegram' });
+  const g = Number(req.body.amount) || 0;
+  if (g && g < Trade.CFG.depMin) return res.status(400).json({ error: `Минимум ${Trade.CFG.depMin} GRAM` });
+  res.json(ton.depositInfo(who.uid, g));
+});
+app.post('/api/gram/check', async (req, res) => {
+  const who = tonWho(req);
+  if (!who) return res.status(403).json({ error: 'Нет игрока' });
+  await ton.poll();
+  res.json({ total: Trade.bal(getProfile(who.uid)).total });
 });
 app.post('/api/ton/status', async (req, res) => {
   const who = tonWho(req);
@@ -405,6 +420,7 @@ function onPaid(payload, info = {}) {
   Econ.paid(kind, info.amount, info.currency || 'XTR');
   if (kind === 'spin') pr.paidSpins += 1;
   else if (kind === 'spin10') pr.paidSpins += 10;
+  else if (Trade.isOrder(kind)) { Trade.grantOrder(pr, kind); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
   else if (meta.INVOICES[kind]) { meta.onPaid(kind, pr); refreshUid(uid); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
   else if (kind === 'pass' || /^pass[1-4]$/.test(kind)) {
     meta.onPaid(kind, pr);
@@ -467,6 +483,14 @@ const meta = createMeta({
   // Свиток возвращения: в город текущего мира
   toTown: (p) => { const z = world.byId.get(p.zone); const home = z && world.byId.get(z.town || z.id); if (!home || home.id === p.zone) return false; moveToZone(p, home.id); return true; },
 });
+// Торговля за GRAM: баланс, Рынок (вещи игры), Торговый дом (между игроками), вывод, торговые ордена (server/trade.js)
+const Trade = require('./trade')({
+  I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
+  bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
+  rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), alertAdmins: (t) => adminAlert(t),
+});
+Object.assign(meta.INVOICES, Trade.invoices()); // торговые ордена — покупка за Stars или GRAM
+admin.ctx.trade = Trade;
 
 // Бой монстров, данжи-лабиринты, выживание и мировые боссы (server/dungeon.js)
 const D = createDungeons({
@@ -1738,7 +1762,7 @@ io.on('connection', (socket) => {
     const op = d && typeof d.op === 'string' ? d.op : '';
     const src = /^(quest|story)/.test(op) ? 'quests' : /^npc/.test(op) ? 'npc' : op;
     try {
-      const res = Econ.measure(src, getProfile(p.uid), () => (/^(quest|story)/.test(op) ? Q.handle(p, d) : op === 'npcMarks' ? NQ.marks(p, p.zone) : /^npc/.test(op) ? NQ.act(p, d) : meta.handle(p, d || {})));
+      const res = Econ.measure(src, getProfile(p.uid), () => (/^(quest|story)/.test(op) ? Q.handle(p, d) : op === 'npcMarks' ? NQ.marks(p, p.zone) : /^npc/.test(op) ? NQ.act(p, d) : Trade.isOp(op) ? Trade.act(p, d) : meta.handle(p, d || {})));
       if (op === 'itemSpin' && res && res.results) for (const x of res.results) Econ.item(x.rar, 'gearSummon');
       cb(res); markDirty(p);
     } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
@@ -2206,10 +2230,11 @@ admin.setSendFile(async (buf, filename, caption) => {
   return n;
 });
 // Новые ошибки сервера — администраторам (ADMIN_TG_IDS) в Telegram, не чаще раза в 10 минут
-admin.setAlert((text) => {
+function adminAlert(text) {
   if (!bot) return;
   for (const id of String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean)) bot.telegram.sendMessage(id, text.slice(0, 4000), { disable_notification: true }).catch((e) => console.error('admin-alert', id, e.message));
-});
+}
+admin.setAlert(adminAlert);
 
 if (!store.db) process.on('SIGINT', () => { saveProfiles(); process.exit(0); });
 // Остановка сервера: server/boot.js вызывает это, дописывает всё в хранилище (базу) и только потом выходит

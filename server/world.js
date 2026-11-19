@@ -180,7 +180,7 @@ const PLACES = {
   gacha: { name: 'Алтарь призыва', icon: '🎰' },
   runes: { name: 'Рунная мастерская', icon: '💠' },
   trainer: { name: 'Зал мастеров', icon: '📖' },
-  auction: { name: 'Аукционный дом', icon: '🏛️' },
+  auction: { name: 'Торговый дом', icon: '🏛️' }, // торговля между игроками за GRAM (server/trade.js)
   market: { name: 'Рынок', icon: '🏪' },
   events: { name: 'Доска событий', icon: '📜' },
   arena: { name: 'PvP-арена', icon: '🏟️' },

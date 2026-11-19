@@ -194,97 +194,180 @@ window.Town = (() => {
   }
   const runesPanel = (weaponId) => open('💠 Рунная мастерская', tabs([['Вставить руну', () => runesBody(weaponId)], ['Купить руны', () => shopList('runes')]]));
 
-  // ---------- Рынок (фиксированная цена) ----------
-  async function marketPanel(tab = 0) {
-    const r = await Bag.act('market');
+  // ---------- Торговля за GRAM (server/trade.js) ----------
+  // Суммы приходят в нано-GRAM; показываем до сотых
+  const gfmt = (n) => (Number(n || 0) / 1e9).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  const WEAR_RU = { weapon: 'Оружие', helm: 'Шлем', armor: 'Доспех', cloak: 'Плащ', gloves: 'Перчатки', belt: 'Пояс', boots: 'Сапоги', ring: 'Кольцо', amulet: 'Амулет', earring: 'Серьги', rune: 'Руны' };
+  // Подтверждение траты GRAM (в Telegram — родное окно)
+  const askGram = (text) => new Promise((res) => {
+    const W = window.Telegram && Telegram.WebApp;
+    if (W && W.showConfirm) { try { W.showConfirm(text, (ok) => res(!!ok)); return; } catch { /* старый Telegram */ } }
+    res(window.confirm(text));
+  });
+  const balLine = (b) => `<div class="gram-bal"><b>💎 ${gfmt(b.total)} GRAM</b><button class="l2-btn" data-wallet="1">Кошелёк</button></div>`;
+  const bindWallet = (box) => box.querySelectorAll('[data-wallet]').forEach((b) => { b.onclick = () => walletPanel(0); });
+
+  // Рынок: вещи игры от эпических за GRAM
+  async function gramMarketPanel(cat = 'weapon') {
+    const r = await Bag.act('gmShop');
+    if (r.error) return toast(r.error);
+    const box = el(`${balLine(r.bal)}<p class="sheet-hint">Вещи от эпических за GRAM · новая витрина каждый день · экипировка мира ${ROMAN[r.tier] || r.tier} под ваш класс.<br>Отборные вещи (свойства +25% и одно дополнительное) — только в призыве снаряжения.</p>
+      <div class="gram-cats">${Object.entries(WEAR_RU).map(([k, n]) => `<button class="l2-btn ${k === cat ? 'on' : ''}" data-cat="${k}">${n}</button>`).join('')}</div>`);
+    bindWallet(box);
+    box.querySelectorAll('[data-cat]').forEach((b) => { b.onclick = () => gramMarketPanel(b.dataset.cat); });
+    for (const o of r.offers.filter((x) => x.item.cat === cat)) {
+      box.append(row(o.item, o.item.name, `${o.item.rarName}${o.sold ? ' · куплено сегодня' : ''}`, o.sold ? 'Куплено' : `${gfmt(o.price)} GRAM`, async () => {
+        if (!(await askGram(`Купить «${o.item.name}» за ${gfmt(o.price)} GRAM?`))) return;
+        const res = await Bag.act('gmBuy', { oid: o.oid });
+        toast(res.error || res.toast);
+        if (res.needGram) return walletPanel(0);
+        gramMarketPanel(cat);
+      }, o.sold));
+    }
+    open('🏪 Рынок', box);
+  }
+
+  // Торговый дом: продажа между игроками за GRAM
+  const TRADE_RAR = ['epic', 'legendary', 'mythic'];
+  const tradableItem = (it) => TRADE_RAR.includes(it.rar) && (it.cat === 'rune' || Object.hasOwn(WEAR_RU, it.cat));
+  async function tradeHousePanel(tab = 0) {
+    const r = await Bag.act('th');
+    if (r.error) return toast(r.error);
+    const badge = (l) => (l.badge === 'magnate' ? '👑 ' : l.badge === 'merchant' ? '🟢 ' : '');
     const buyTab = () => {
-      const box = el(`<p class="sheet-hint">Товары игроков · комиссия продавца ${Math.round(r.fee * 100)}% · 💰 ${r.gold}</p>`);
+      const box = el(`${balLine(r.bal)}<p class="sheet-hint">Товары игроков за GRAM. Покупка — сразу с баланса, предмет приходит в сумку.</p>`);
+      bindWallet(box);
       const lots = r.lots.filter((l) => !l.mine);
-      if (!lots.length) box.insertAdjacentHTML('beforeend', soon('Прилавки пусты'));
-      for (const l of lots) box.append(row(l.item, l.item.name, `${l.item.rarName} · продавец ${l.seller}`, `${l.price} 💰`, async () => { const res = await Bag.act('marketBuy', { id: l.id }); toast(res.error || res.toast); marketPanel(0); }));
+      if (!lots.length) box.insertAdjacentHTML('beforeend', soon('Лотов пока нет'));
+      for (const l of lots) box.append(row(l.item, l.item.name, `${l.item.rarName || ''} · ${badge(l)}${l.seller}`, `${gfmt(l.price)} GRAM`, async () => {
+        if (!(await askGram(`Купить «${l.item.name}» у ${l.seller} за ${gfmt(l.price)} GRAM?`))) return;
+        const res = await Bag.act('thBuy', { id: l.id });
+        toast(res.error || res.toast);
+        if (res.needGram) return walletPanel(0);
+        tradeHousePanel(0);
+      }));
       return box;
     };
     const myTab = () => {
       const mine = r.lots.filter((l) => l.mine);
-      const box = el(`<p class="sheet-hint">Ваши лоты ${mine.length} / ${r.slots} · деньги приходят даже когда вы не в игре</p>`);
-      for (const l of mine) box.append(row(l.item, l.item.name, `за ${l.price} 💰`, 'Снять', async () => { const res = await Bag.act('marketCancel', { id: l.id }); toast(res.error || res.toast); marketPanel(1); }));
+      const box = el(`<p class="sheet-hint">Ваши лоты ${mine.length} / ${r.slots} · комиссия ${Math.round(r.fee * 100)}% · деньги с продажи можно вывести через 3 дня.<br>Продаются вещи и руны от эпических (с заточкой и рунами — дороже) и ценные материалы. Минимальная цена считается от цен Рынка.</p>`);
+      for (const l of mine) box.append(row(l.item, l.item.name, `за ${gfmt(l.price)} GRAM · до ${new Date(l.until).toLocaleDateString('ru-RU')}`, 'Снять', async () => { const res = await Bag.act('thCancel', { id: l.id }); toast(res.error || res.toast); tradeHousePanel(1); }));
       const add = document.createElement('button');
       add.className = 'l2-btn wide'; add.textContent = '＋ Выставить предмет';
-      add.onclick = () => Bag.pick('Что продаём?', () => true, (it) => priceForm(it, 'Цена', (price) => Bag.act('marketSell', { id: it.id, price }), () => marketPanel(1)));
+      add.onclick = () => Bag.pick('Что продаём?', tradableItem, async (it) => {
+        const q = await Bag.act('thQuote', { id: it.id });
+        if (q.error) return toast(q.error);
+        gramPriceForm(it, it.name, q, (price) => Bag.act('thSell', { id: it.id, price }), () => tradeHousePanel(1));
+      });
       const addM = document.createElement('button');
       addM.className = 'l2-btn wide'; addM.textContent = '＋ Выставить материалы';
-      addM.onclick = () => pickMat((m) => matForm(m, 'Цена за всю стопку', (price, n) => Bag.act('marketSell', { mat: m.mat, n, price }), () => marketPanel(1)));
+      addM.onclick = () => pickMat(async (m) => {
+        const q = await Bag.act('thQuote', { mat: m.mat, n: m.n });
+        if (q.error) return toast(q.error);
+        gramPriceForm(m, `${m.name} ×${m.n}`, q, (price) => Bag.act('thSell', { mat: m.mat, n: m.n, price }), () => tradeHousePanel(1));
+      });
       box.append(add, addM);
       return box;
     };
-    open('🏪 Рынок', tabs([['Купить', buyTab], ['Мой прилавок', myTab]], tab));
+    open('🏛️ Торговый дом', tabs([['Купить', buyTab], ['Мои лоты', myTab]], tab));
   }
-  function priceForm(it, label, submit, done, extra = '') {
-    const box = el(`<div class="tw-form"><input type="number" min="10" inputmode="numeric" placeholder="${label}, 💰" value="${it.sell * 2}">${extra}</div><button class="l2-btn wide">Подтвердить</button>`);
-    box.prepend(row(it, it.name, it.rarName, null));
+  function gramPriceForm(it, name, q, submit, done) {
+    const min = q.min / 1e9, max = q.max / 1e9;
+    const box = el(`<div class="tw-form"><input type="number" min="${min}" max="${max}" step="0.01" inputmode="decimal" value="${(Math.ceil(min * 1.5 * 100) / 100).toFixed(2)}"></div>
+      <p class="sheet-hint">Цена в GRAM: от ${gfmt(q.min)} до ${gfmt(q.max)}. После продажи вы получите цену минус комиссию.</p><button class="l2-btn wide">Выставить</button>`);
+    box.prepend(row(it.cat ? it : it, name, it.rarName || '', null));
     box.querySelector('button.l2-btn.wide').onclick = async () => {
-      const v = box.querySelector('input').value, sel = box.querySelector('select');
-      const res = await submit(Number(v), sel ? sel.value : null);
+      const res = await submit(Number(box.querySelector('input').value));
       toast(res.error || res.toast);
       if (!res.error) done();
     };
-    open('Цена', box);
+    open('Цена в GRAM', box);
   }
 
-  // Выбор материала и формы «количество + цена»
+  // GRAM-кошелёк: баланс, пополнение, вывод, торговые ордена, история
+  async function walletPanel(tab = 0) {
+    const r = await Bag.act('gramInfo');
+    if (r.error) return toast(r.error);
+    const g = r.gram;
+    const balTab = () => {
+      const box = el(`<div class="spin-wallet">
+          <div><b>${gfmt(g.total)}</b><span>💎 GRAM всего</span></div>
+          <div><b>${gfmt(g.dep)}</b><span>пополнено — только в игре</span></div>
+          <div class="${g.free ? 'ok' : ''}"><b>${gfmt(g.free)}</b><span>с продаж — к выводу</span></div>
+          <div><b>${gfmt(g.hold)}</b><span>удерживается${g.next ? ' до ' + new Date(g.next).toLocaleDateString('ru-RU') : ''}</span></div>
+        </div>
+        <p class="sheet-hint">Пополнение — переводом GRAM с вашего кошелька. Пополненные GRAM тратятся на Рынке и в Торговом доме; вывести можно только деньги с продаж — через ${g.holdDays} дня после продажи.</p>
+        <div class="gram-cats">${[1, 5, 10, 25].map((v) => `<button class="l2-btn" data-dep="${v}">+${v} GRAM</button>`).join('')}</div>
+        <div class="tw-form"><input type="number" min="${g.depMin}" step="0.1" inputmode="decimal" placeholder="Своя сумма, GRAM"></div>
+        <button class="l2-btn wide" data-dep="custom">Пополнить</button>
+        <button class="l2-btn wide" data-manual="1">Перевести вручную (адрес и комментарий)</button>`);
+      const dep = async (v) => {
+        if (!(v >= g.depMin)) return toast(`Минимум ${g.depMin} GRAM`);
+        await Pay.deposit(v, { toast, onDone: () => walletPanel(0) });
+      };
+      box.querySelectorAll('[data-dep]').forEach((b) => { b.onclick = () => dep(b.dataset.dep === 'custom' ? Number(box.querySelector('input').value) : Number(b.dataset.dep)); });
+      box.querySelector('[data-manual]').onclick = async () => {
+        const d = await Pay.depositInfo();
+        if (d.error) return toast(d.error);
+        const m = el(`<p class="sheet-hint">Переведите любую сумму GRAM на адрес игры <b>с этим комментарием</b> — она зачислится на ваш баланс (обычно в течение нескольких минут). Без комментария перевод не найти!</p>
+          <div class="tw-ev"><div><b>Адрес</b><small class="sel">${d.address}</small></div><button class="l2-btn" data-c="${d.address}">Копировать</button></div>
+          <div class="tw-ev"><div><b>Комментарий</b><small class="sel">${d.comment}</small></div><button class="l2-btn" data-c="${d.comment}">Копировать</button></div>`);
+        m.querySelectorAll('[data-c]').forEach((b) => { b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.c); toast('Скопировано'); } catch { toast(b.dataset.c); } }; });
+        open('Пополнение вручную', m);
+      };
+      return box;
+    };
+    const wdTab = () => {
+      const okLv = g.level >= g.wLevel, okAge = g.ageDays >= g.wAgeDays, okSum = g.free >= g.wMin;
+      const req = (ok, t) => `<li class="${ok ? 'ok' : 'bad'}">${ok ? '✅' : '⛔'} ${t}</li>`;
+      const box = el(`<ul class="gram-req">${req(okLv, `Герой ${g.wLevel}+ уровня (у вас ${g.level})`)}${req(okAge, `Аккаунту ${g.wAgeDays}+ дней (вам ${g.ageDays})`)}${req(okSum, `К выводу не меньше ${gfmt(g.wMin)} GRAM (у вас ${gfmt(g.free)})`)}</ul>
+        <p class="sheet-hint">Комиссия вывода ${Math.round(g.wFee * 100)}%. Выплаты — вручную, ежедневно с 20:00 до 24:00 МСК. Одна заявка за раз.</p>
+        <div class="tw-form"><input class="amt" type="number" min="${g.wMin / 1e9}" max="${g.free / 1e9}" step="0.01" inputmode="decimal" value="${(Math.floor(g.free / 1e7) / 100).toFixed(2)}" placeholder="Сумма, GRAM">
+          <input class="addr" type="text" placeholder="Адрес кошелька (UQ… / EQ…)" value="${g.wallet || ''}"></div>
+        <small class="gram-net"></small>
+        <button class="l2-btn wide" data-w="1" ${okLv && okAge && okSum ? '' : 'disabled'}>Подать заявку на вывод</button>
+        <div class="ic-sec">Мои заявки</div>`);
+      const amt = box.querySelector('.amt'), net = box.querySelector('.gram-net');
+      const upd = () => { const a = Number(amt.value) || 0; net.textContent = `Вы получите: ${(a * (1 - g.wFee)).toFixed(2)} GRAM (комиссия ${(a * g.wFee).toFixed(2)})`; };
+      amt.oninput = upd; upd();
+      if (!g.wallet) Pay.walletAddress().then((a) => { if (a && !box.querySelector('.addr').value) box.querySelector('.addr').value = a; }).catch(() => {});
+      box.querySelector('[data-w]').onclick = async () => {
+        const a = Number(amt.value), addr = box.querySelector('.addr').value.trim();
+        if (!(await askGram(`Вывести ${a} GRAM на ${addr.slice(0, 6)}…${addr.slice(-4)}? Комиссия ${Math.round(g.wFee * 100)}%.`))) return;
+        const res = await Bag.act('gramWithdraw', { amount: a, address: addr });
+        toast(res.error || res.toast);
+        if (!res.error) walletPanel(1);
+      };
+      const ST = { wait: '⏳ ждёт выплаты', paid: '✅ выплачено', rejected: '↩ отклонено' };
+      for (const w of g.wd) box.insertAdjacentHTML('beforeend', `<div class="tw-ev"><div><b>№${w.id} · ${gfmt(w.net)} GRAM</b><small>${new Date(w.at).toLocaleString('ru-RU')} · ${ST[w.status] || w.status}${w.reason ? ': ' + w.reason : ''}</small></div></div>`);
+      if (!g.wd.length) box.insertAdjacentHTML('beforeend', soon('Заявок пока нет'));
+      return box;
+    };
+    const ordTab = () => {
+      const box = el(`<p class="sheet-hint">Торговые ордена на 30 дней: меньше комиссии в Торговом доме и при выводе. Покупка того же ордена продлевает его.${g.order ? `<br><b class="ok">Активен: ${g.order.icon} ${g.order.name} до ${new Date(g.order.until).toLocaleDateString('ru-RU')}</b>` : ''}</p>`);
+      for (const o of g.orders) box.insertAdjacentHTML('beforeend', `<div class="tw-banner pass"><b>${o.icon} ${o.name}</b><ul class="gram-perks">${o.perks.map((x) => `<li>${x}</li>`).join('')}</ul>
+        <button class="l2-btn" data-buy="${o.kind}">${o.stars} ⭐ / ${o.gram} GRAM</button></div>`);
+      box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, () => walletPanel(2)); });
+      return box;
+    };
+    const KIND = { deposit: 'Пополнение', shop: 'Рынок', buy: 'Покупка', sale: 'Продажа', fee: 'Комиссия', withdraw: 'Вывод', payout: 'Выплата', refund: 'Возврат', admin: 'Администрация' };
+    const logTab = () => {
+      const box = el('');
+      for (const e of g.log) box.insertAdjacentHTML('beforeend', `<div class="tw-ev"><div><b>${KIND[e.kind] || e.kind}${e.a ? ` · ${e.a > 0 ? '+' : ''}${gfmt(e.a)} GRAM` : ''}</b><small>${new Date(e.t).toLocaleString('ru-RU')} · ${e.text}</small></div></div>`);
+      if (!g.log.length) box.innerHTML = soon('Операций пока нет');
+      return box;
+    };
+    open('💎 GRAM-кошелёк', tabs([['Баланс', balTab], ['Вывод', wdTab], ['Ордена', ordTab], ['История', logTab]], tab));
+  }
+
+  // Выбор материала для продажи
   async function pickMat(onPick) {
     const inv = await Bag.refresh();
-    const box = el('<p class="sheet-hint">Какие материалы, свитки или зелья продаём?</p>');
+    const box = el('<p class="sheet-hint">Какие материалы продаём? В Торговом доме продаются ценные: сердца, свитки мастера и выше, чертежи, камни удачи, пыль, кристаллы, ларцы и великие эликсиры.</p>');
     box.append(Bag.grid(inv.mats, onPick, { empty: 'Ресурсов нет', keepOrder: true }));
     open('Что продаём?', box);
   }
-  function matForm(m, label, submit, done, extra = '') {
-    const box = el(`<div class="tw-form"><input class="qty" type="number" min="1" max="${m.n}" inputmode="numeric" value="${m.n}" placeholder="Количество (до ${m.n})">
-      <input class="price" type="number" min="10" inputmode="numeric" placeholder="${label}, 💰" value="${Math.max(10, m.sell * m.n * 2)}">${extra}</div>
-      <p class="sheet-hint">Торговец купит за ${m.sell} 💰 штуку — ставьте цену выше, игроки покупают дешевле, чем в лавке</p><button class="l2-btn wide">Подтвердить</button>`);
-    box.prepend(row(m, `${m.name}`, `в наличии ${m.n}`, null));
-    box.querySelector('button.l2-btn.wide').onclick = async () => {
-      const sel = box.querySelector('select');
-      const res = await submit(Number(box.querySelector('.price').value), Number(box.querySelector('.qty').value), sel ? sel.value : null);
-      toast(res.error || res.toast);
-      if (!res.error) done();
-    };
-    open('Цена', box);
-  }
 
-  // ---------- Аукцион (ставки) ----------
-  async function auctionPanel(tab = 0) {
-    const r = await Bag.act('auction');
-    const lotsTab = () => {
-      const box = el(`<p class="sheet-hint">Ставка замораживает золото; если перебьют — оно вернётся. Комиссия продавца ${Math.round(r.fee * 100)}% · 💰 ${r.gold}</p>`);
-      const lots = r.lots.filter((l) => !l.mine);
-      if (!lots.length) box.insertAdjacentHTML('beforeend', soon('Лотов пока нет'));
-      for (const l of lots) {
-        const min = l.bid ? Math.ceil(l.bid * 1.05) : l.start;
-        box.append(row(l.item, l.item.name, `${l.bid ? `ставка ${l.bid} (${l.mineBid ? 'ваша' : l.bidder})` : `старт ${l.start}`} · ${fmtLeft(l.left)}`,
-          l.mineBid ? 'Лидер' : `${min} 💰`, async () => { const res = await Bag.act('auctionBid', { id: l.id, amount: min }); toast(res.error || res.toast); auctionPanel(0); }, l.mineBid));
-      }
-      return box;
-    };
-    const myTab = () => {
-      const mine = r.lots.filter((l) => l.mine);
-      const box = el('<p class="sheet-hint">Лот уходит лучшей ставке по окончании торгов</p>');
-      for (const l of mine) box.append(row(l.item, l.item.name, `${l.bid ? `ставка ${l.bid} от ${l.bidder}` : `старт ${l.start}, ставок нет`} · ${fmtLeft(l.left)}`,
-        l.bid ? null : 'Снять', async () => { const res = await Bag.act('auctionCancel', { id: l.id }); toast(res.error || res.toast); auctionPanel(1); }));
-      const add = document.createElement('button');
-      add.className = 'l2-btn wide'; add.textContent = '＋ Выставить лот';
-      add.onclick = () => Bag.pick('Что выставляем?', () => true, (it) => priceForm(it, 'Стартовая цена',
-        (start, hours) => Bag.act('auctionSell', { id: it.id, start, hours }), () => auctionPanel(1),
-        '<select><option value="2">2 ч</option><option value="8" selected>8 ч</option><option value="24">24 ч</option></select>'));
-      const addM = document.createElement('button');
-      addM.className = 'l2-btn wide'; addM.textContent = '＋ Выставить материалы';
-      addM.onclick = () => pickMat((m) => matForm(m, 'Стартовая цена за стопку', (start, n, hours) => Bag.act('auctionSell', { mat: m.mat, n, start, hours }), () => auctionPanel(1),
-        '<select><option value="2">2 ч</option><option value="8" selected>8 ч</option><option value="24">24 ч</option></select>'));
-      box.append(add, addM);
-      return box;
-    };
-    open('🏛️ Аукционный дом', tabs([['Торги', lotsTab], ['Мои лоты', myTab]], tab));
-  }
 
   // ---------- Призыв ----------
   async function gachaPanel() {
@@ -395,6 +478,8 @@ window.Town = (() => {
         <small>${s.passTiers.map((t) => `${orderIc(t, 'sm')} ${t.name} · ${t.price} ⭐`).join('<br>')}<br>Мифический предмет на 30 уровне — в Ордене Чемпиона · автобой с Золотого ордена</small>
         ${s.passTier ? `<small class="ok">${orderIc(s.passTiers[s.passTier - 1], 'sm')} ${s.passTiers[s.passTier - 1].name} активен</small>` : ''}
         <button class="l2-btn" id="openOrders">${s.passTier >= 4 ? 'Награды сезона' : s.passTier ? 'Улучшить орден' : 'Выбрать орден'}</button></div>
+      <div class="tw-banner items"><b>💎 GRAM-кошелёк · торговые ордена</b><small>Баланс для Рынка и Торгового дома, пополнение, вывод денег с продаж. Ордена Купца и Магната — меньше комиссии и больше лотов.</small>
+        <button class="l2-btn" id="openWallet">Открыть кошелёк</button></div>
       <div class="tw-banner pass"><b>⚗️ Великие эликсиры · 1 час</b><small>Намного сильнее эликсиров из лавки и действуют вместе с ними. Попадают в сумку — выпейте, когда нужно. Сгорают при гибели героя.</small></div>
       ${(s.chests || []).filter((c) => c.elixir).map((c) => `<div class="tw-banner items elx has-art"><img class="tw-art" src="assets/items/mat_${c.id === 'elxXp2x5' ? 'elxXp2' : c.id}.webp" alt=""><b>${c.title}</b><small>${c.desc}</small>
         <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}
@@ -402,6 +487,7 @@ window.Town = (() => {
         <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}`);
     box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, storePanel); });
     box.querySelector('#openOrders').onclick = () => passPanel();
+    box.querySelector('#openWallet').onclick = () => walletPanel(0);
     box.querySelector('#openLooks').onclick = () => looksPanel();
     const cc = box.querySelector('#cardClaim');
     if (cc) cc.onclick = async () => { const r = await Bag.act('cardClaim'); toast(r.error || r.toast); if (window.Sfx) Sfx.play(r.error ? 'error' : 'reward'); storePanel(); };
@@ -767,8 +853,9 @@ window.Town = (() => {
     smith: smithPanel,
     runes: runesPanel,
     trainer: trainerPanel,
-    auction: () => auctionPanel(),
-    market: () => marketPanel(),
+    auction: () => tradeHousePanel(),
+    market: () => gramMarketPanel(),
+    wallet: (tab) => walletPanel(tab || 0),
     events: eventsPanel,
     gacha: gachaPanel,
     teleport: teleportPanel,
