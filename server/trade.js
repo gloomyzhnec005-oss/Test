@@ -5,7 +5,8 @@
 //      dep  — пополненные GRAM: тратятся в игре, вывести нельзя;
 //      earn — деньги с продаж [{ a, at }]: вывести можно, когда наступит at (через HOLD_DAYS после продажи).
 //    Тратится сначала dep, затем ещё не созревшие продажи, затем созревшие (дольше остаётся доступное к выводу).
-//  • Рынок — вещи игры от эпических за GRAM: каждый день своя витрина под класс героя и мир (как лавки).
+//  • Рынок — полный каталог вещей игры от эпических за GRAM: каждый вид вещи каждого слота, все руны и вещи комплектов
+//    любого класса — можно собрать нужный комплект. Вещь создаётся при покупке (доп. свойства — случайные).
 //    Цена — от ожидаемой стоимости такой вещи в призыве снаряжения (×1.5: выбор слота и гарантия),
 //    чтобы крутить и выбивать оставалось интереснее. Вещи с Рынка — обычные (отборные — только из призыва).
 //  • Торговый дом — продажа между игроками за GRAM: эпические+ вещи и руны (в том числе с заточкой и рунами),
@@ -30,7 +31,7 @@ const CFG = {
   minK: 0.5,       // минимум в Торговом доме — половина цены Рынка
   maxK: 20,        // максимум — в 20 раз дороже (защита от перевода денег между аккаунтами)
   dupeK: 0.1,      // каждая заточка +10% к минимуму
-  setK: 1.2, fineK: 1.25,
+  setK: 1.5, fineK: 1.25, // вещь комплекта — в 1.5 раза дороже обычной той же редкости (сильнее и с бонусами комплекта)
   // Материалы, которые можно продавать, и их минимальная цена за штуку в ⭐ (дальше — по курсу)
   matMinStars: { core1: 20, core2: 30, core3: 45, scrollE: 10, scrollL: 60, scrollM: 250, luckStone: 30, skillCrystal: 60, dust: 10,
     kitSmith: 25, chestSet: 50, chestLegend: 75, elxXp2: 25, elxGold2: 25, elxLuck2: 30, elxHero: 35, elxTitan: 30 },
@@ -46,7 +47,7 @@ const CFG = {
 module.exports = function createTrade(deps) {
   const { I, store, getProfile, profiles, notifyUid, bagSize, isSub, tierOf, classOf, rate, Econ, log, alertAdmins } = deps;
   const st = store.readJSON('gram.json', null) || {};
-  st.lots ??= []; st.seq ??= 1; st.wd ??= []; st.log ??= []; st.shopBuys ??= {};
+  st.lots ??= []; st.seq ??= 1; st.wd ??= []; st.log ??= []; delete st.shopBuys; // витрина больше не дневная
   let saveTm = null;
   const save = () => { clearTimeout(saveTm); saveTm = setTimeout(() => { try { store.writeJSON('gram.json', st); } catch (e) { console.error('gram save', e.message); } }, 300); };
   const now = () => Date.now();
@@ -98,11 +99,11 @@ module.exports = function createTrade(deps) {
   // ---------- Цены ----------
   const isWear = (cat) => I.WEAR_CATS.includes(cat);
   const shopStars = (cat, rar, tier) => (CFG.starsK[rar] || 0) * (CFG.tierK[tier] || 1) * (cat === 'rune' ? CFG.runeK : 1);
-  const shopPrice = (cat, rar, tier) => toNano(gramOf(shopStars(cat, rar, tier)));
+  const shopPrice = (cat, rar, tier, set = false) => toNano(gramOf(shopStars(cat, rar, tier) * (set ? CFG.setK : 1)));
   function itemBounds(it) {
     const set = !!(I.TEMPLATES[it.cat] && I.TEMPLATES[it.cat][it.tpl] && I.TEMPLATES[it.cat][it.tpl].setCls);
-    const k = (1 + CFG.dupeK * (it.dupes || 0)) * (set ? CFG.setK : 1) * (it.fine ? CFG.fineK : 1);
-    const base = shopPrice(it.cat, it.rar, it.tier) * k;
+    const k = (1 + CFG.dupeK * (it.dupes || 0)) * (it.fine ? CFG.fineK : 1);
+    const base = shopPrice(it.cat, it.rar, it.tier, set) * k;
     const runes = (it.runes || []).reduce((s, r) => s + shopPrice('rune', r.rar, r.tier), 0);
     return { min: Math.ceil((base + runes) * CFG.minK / 1e7) * 1e7, max: Math.floor((base + runes) * CFG.maxK / 1e7) * 1e7 };
   }
@@ -115,21 +116,19 @@ module.exports = function createTrade(deps) {
     return '';
   }
 
-  // ---------- Рынок (вещи игры за GRAM) ----------
-  const shopCache = new Map();
-  function offers(tier, cls) {
-    const key = `${mskDay()}:${tier}:${cls || ''}`;
-    if (shopCache.has(key)) return shopCache.get(key);
-    for (const k of shopCache.keys()) if (!k.startsWith(mskDay())) shopCache.delete(k);
-    const list = [];
-    const fit = (cat) => { const t = Object.keys(I.TEMPLATES[cat]).filter((x) => !I.TEMPLATES[cat][x].setCls && (!cls || I.canWear({ cat, tpl: x }, I.CLASSES[cls].heroes[0]))); return t.length ? t[Math.floor(Math.random() * t.length)] : null; };
-    for (const cat of I.WEAR_CATS) for (const rar of RAR_OK) list.push({ oid: list.length, item: I.createItem(cat, rar, tier, fit(cat)), price: shopPrice(cat, rar, tier) });
-    const runeT = Object.keys(I.TEMPLATES.rune).sort(() => Math.random() - 0.5).slice(0, 3); // три вида рун в день
-    for (const tpl of runeT) for (const rar of RAR_OK) list.push({ oid: list.length, item: I.createItem('rune', rar, tier, tpl), price: shopPrice('rune', rar, tier) });
-    shopCache.set(key, list);
-    return list;
+  // ---------- Рынок (вещи игры за GRAM): полный каталог ----------
+  // cat — слот, 'rune' или 'set'; cls — класс (для чьих героев вещи), tier — мир героя
+  const tplOk = (cat, tpl, cls) => { const t = I.TEMPLATES[cat] && I.TEMPLATES[cat][tpl]; return !!t && !t.setCls && (!cls || I.canWear({ cat, tpl }, I.CLASSES[cls].heroes[0])); };
+  function catalog(cat, cls, tier) {
+    const out = [];
+    const add = (c, tpl, set) => { for (const rar of RAR_OK) out.push({ key: `${c}:${tpl}:${rar}`, cat: c, tpl, rar, set, price: shopPrice(c, rar, tier, set) }); };
+    if (cat === 'set') { for (const slot of I.SET_SLOTS) add(slot, `set_${cls}`, true); }
+    else if (cat === 'rune') { for (const tpl of Object.keys(I.TEMPLATES.rune)) add('rune', tpl, false); }
+    else if (isWear(cat)) { for (const tpl of Object.keys(I.TEMPLATES[cat])) if (tplOk(cat, tpl, cls)) add(cat, tpl, false); }
+    return out;
   }
-  const boughtKey = (uid, tier, oid) => `${mskDay()}:${uid}:${tier}:${oid}`;
+  // Образец для витрины: только основные свойства (доп. свойства появятся при покупке)
+  const sample = (o, tier) => ({ ...I.itemView({ id: `s:${o.key}`, cat: o.cat, tpl: o.tpl, rar: o.rar, tier, attrs: [], dupes: 0, runes: [] }), attrsN: I.ITEM_RARITIES[o.rar].attrs });
 
   // ---------- Торговый дом ----------
   const slotsOf = (pr) => CFG.slots + (isSub(pr) ? CFG.slotsSub : 0) + ((order(pr) || {}).slots || 0);
@@ -167,23 +166,27 @@ module.exports = function createTrade(deps) {
     },
     // Рынок
     gmShop(p, d, pr) {
-      const tier = tierOf(p), list = offers(tier, classOf(p.heroId));
-      return { offers: list.map((o) => ({ oid: o.oid, price: o.price, item: I.itemView(o.item), sold: !!st.shopBuys[boughtKey(p.uid, tier, o.oid)] })), bal: bal(pr), tier };
+      const tier = tierOf(p), own = classOf(p.heroId);
+      const cls = I.CLASSES[d.cls] ? d.cls : own;
+      const cat = d.cat === 'set' || d.cat === 'rune' || isWear(d.cat) ? d.cat : 'weapon';
+      const list = catalog(cat, cls, tier);
+      return { offers: list.map((o) => ({ key: o.key, price: o.price, set: o.set, item: sample(o, tier) })), bal: bal(pr), tier, cat, cls, own,
+        classes: I.CLASS_ORDER.map((c) => ({ id: c, name: I.CLASSES[c].name, icon: I.CLASSES[c].icon })),
+        set: cat === 'set' ? (() => { const S = I.SETS[`${cls}${tier}`]; return S ? { name: S.name, bonus: S.bonus } : null; })() : null };
     },
     gmBuy(p, d, pr) {
-      const tier = tierOf(p), o = offers(tier, classOf(p.heroId)).find((x) => x.oid === d.oid);
-      if (!o) return { error: 'Товар не найден' };
-      const key = boughtKey(p.uid, tier, o.oid);
-      if (st.shopBuys[key]) return { error: 'Уже куплено сегодня — витрина обновится завтра' };
+      const tier = tierOf(p), [cat, tpl, rar] = String(d.key || '').split(':');
+      const set = /^set_/.test(tpl || '');
+      const okT = I.TEMPLATES[cat] && I.TEMPLATES[cat][tpl] && RAR_OK.includes(rar) && (cat === 'rune' || isWear(cat)) && (!set || I.SET_SLOTS.includes(cat));
+      if (!okT) return { error: 'Товар не найден' };
       if (pr.items.filter((i) => i.loc !== 'wh').length >= bagSize(pr)) return { error: 'Сумка полна — освободите место' };
-      const name = I.itemView(o.item).name;
-      if (!spend(p.uid, o.price, 'shop', `Рынок: ${name}`)) return { error: `Нужно ${fmt(o.price)} GRAM — пополните баланс`, needGram: true };
-      st.shopBuys[key] = 1;
-      for (const k of Object.keys(st.shopBuys)) if (!k.startsWith(mskDay())) delete st.shopBuys[k];
-      const copy = { ...JSON.parse(JSON.stringify(o.item)), id: I.createItem(o.item.cat, o.item.rar).id };
-      I.addItem(pr, copy, bagSize(pr), false);
+      const price = shopPrice(cat, rar, tier, set);
+      const it = I.createItem(cat, rar, tier, tpl);
+      const name = I.itemView(it).name;
+      if (!spend(p.uid, price, 'shop', `Рынок: ${name}`)) return { error: `Нужно ${fmt(price)} GRAM — пополните баланс`, needGram: true };
+      I.addItem(pr, it, bagSize(pr), false);
       save();
-      return { toast: `Куплено: ${name} за ${fmt(o.price)} GRAM`, refresh: true };
+      return { toast: `Куплено: ${name} за ${fmt(price)} GRAM`, refresh: true };
     },
     // Торговый дом
     th(p, d, pr) {

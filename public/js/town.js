@@ -207,22 +207,29 @@ window.Town = (() => {
   const balLine = (b) => `<div class="gram-bal"><b>💎 ${gfmt(b.total)} GRAM</b><button class="l2-btn" data-wallet="1">Кошелёк</button></div>`;
   const bindWallet = (box) => box.querySelectorAll('[data-wallet]').forEach((b) => { b.onclick = () => walletPanel(0); });
 
-  // Рынок: вещи игры от эпических за GRAM
-  async function gramMarketPanel(cat = 'weapon') {
-    const r = await Bag.act('gmShop');
+  // Рынок: полный каталог вещей игры от эпических за GRAM — любой слот, все руны, комплекты любого класса
+  async function gramMarketPanel(cat = 'weapon', cls = null) {
+    if (!Bag.inv || !Bag.inv()) await Bag.refresh(); // названия характеристик для бонусов комплекта
+    const r = await Bag.act('gmShop', { cat, cls });
     if (r.error) return toast(r.error);
-    const box = el(`${balLine(r.bal)}<p class="sheet-hint">Вещи от эпических за GRAM · новая витрина каждый день · экипировка мира ${ROMAN[r.tier] || r.tier} под ваш класс.<br>Отборные вещи (свойства +25% и одно дополнительное) — только в призыве снаряжения.</p>
-      <div class="gram-cats">${Object.entries(WEAR_RU).map(([k, n]) => `<button class="l2-btn ${k === cat ? 'on' : ''}" data-cat="${k}">${n}</button>`).join('')}</div>`);
+    const cats = { set: 'Комплекты', ...WEAR_RU };
+    const box = el(`${balLine(r.bal)}<p class="sheet-hint">Все вещи от эпических за GRAM — экипировка мира ${ROMAN[r.tier] || r.tier}. Выберите слот или комплект и класс героя, для которого покупаете.<br>Основные свойства — как на карточке, дополнительные выпадают случайно при покупке. Отборные вещи (свойства +25% и одно дополнительное) — только в призыве снаряжения.</p>
+      <div class="gram-cats">${Object.entries(cats).map(([k, n]) => `<button class="l2-btn ${k === r.cat ? 'on' : ''}" data-cat="${k}">${n}</button>`).join('')}</div>
+      ${r.cat !== 'rune' ? `<div class="gram-cats cls">${r.classes.map((c) => `<button class="l2-btn ${c.id === r.cls ? 'on' : ''}" data-cls="${c.id}">${c.icon} ${c.name}${c.id === r.own ? ' · ваш' : ''}</button>`).join('')}</div>` : ''}
+      ${r.set ? `<div class="tw-banner pass"><b>${r.set.name}</b><small>${r.set.bonus.map(([n, st]) => `${n} вещи: ${Object.entries(st).map(([k, v]) => (Bag.statLine ? Bag.statLine(k, v) : `${k} +${v}`)).join(', ')}`).join('<br>')}</small></div>` : ''}`);
     bindWallet(box);
-    box.querySelectorAll('[data-cat]').forEach((b) => { b.onclick = () => gramMarketPanel(b.dataset.cat); });
-    for (const o of r.offers.filter((x) => x.item.cat === cat)) {
-      box.append(row(o.item, o.item.name, `${o.item.rarName}${o.sold ? ' · куплено сегодня' : ''}`, o.sold ? 'Куплено' : `${gfmt(o.price)} GRAM`, async () => {
+    box.querySelectorAll('[data-cat]').forEach((b) => { b.onclick = () => gramMarketPanel(b.dataset.cat, r.cls); });
+    box.querySelectorAll('[data-cls]').forEach((b) => { b.onclick = () => gramMarketPanel(r.cat, b.dataset.cls); });
+    if (!r.offers.length) box.insertAdjacentHTML('beforeend', soon('Для этого класса в этом слоте вещей нет'));
+    for (const o of r.offers) {
+      const extra = o.item.attrsN ? ` · +${o.item.attrsN[0]}${o.item.attrsN[1] !== o.item.attrsN[0] ? '–' + o.item.attrsN[1] : ''} случайн. свойств` : '';
+      box.append(row(o.item, o.item.name, `${o.item.rarName}${o.set ? ' · комплект' : ''}${extra}`, `${gfmt(o.price)} GRAM`, async () => {
         if (!(await askGram(`Купить «${o.item.name}» за ${gfmt(o.price)} GRAM?`))) return;
-        const res = await Bag.act('gmBuy', { oid: o.oid });
+        const res = await Bag.act('gmBuy', { key: o.key });
         toast(res.error || res.toast);
         if (res.needGram) return walletPanel(0);
-        gramMarketPanel(cat);
-      }, o.sold));
+        gramMarketPanel(r.cat, r.cls);
+      }));
     }
     open('🏪 Рынок', box);
   }
