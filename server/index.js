@@ -202,7 +202,7 @@ app.get('/api/wiki', (req, res) => {
       dungeons: Object.fromEntries(Object.entries(MOBX.DUNGEONS).map(([t, list]) => [t, list.map((d) => ({ name: d.name, lv: d.lv, boss: d.bossName || nm(d.boss), minis: (d.minis || []).map(nm), pool: d.pool.map(nm) }))])),
       worldBosses: Object.fromEntries(Object.entries(MOBX.WORLD_BOSSES).map(([t, w]) => [t, { lv: w.lv, list: w.list.map(nm) }])), wbTime: D.wbTimeText(),
       bossTimes: String(process.env.DUNGEON_BOSS_TIMES || '12:00,18:00,23:00'), overLv: D.OVER_LV, death: DEATH,
-      trade: { fee: Trade.CFG.fee, wFee: Trade.CFG.wFee, hold: Trade.CFG.holdDays, wLevel: Trade.CFG.wLevel, wAge: Trade.CFG.wAgeDays, wMin: Trade.CFG.wMin, slots: Trade.CFG.slots, orders: Object.values(Trade.CFG.orders).map((o) => ({ name: o.name, icon: o.icon, stars: o.stars, perks: o.perks })) },
+      trade: { fee: Trade.CFG.fee, wFee: Trade.CFG.wFee, hold: Trade.CFG.holdDays, wLevel: Trade.CFG.wLevel, wAge: Trade.CFG.wAgeDays, wMin: Trade.CFG.wMin, slots: Trade.CFG.slots, orders: meta.SHOP.passTiers.filter((t) => t.trade).map((o) => ({ name: o.name, icon: o.icon, stars: o.price, perks: o.perks })) },
       bag: meta.SHOP.bag, bagSub: meta.SHOP.bagSub, wh: meta.SHOP.wh,
       companions: Object.entries(I.COMPANIONS).filter(([, c]) => c.art).map(([id, c]) => ({ id, name: c.name, rare: !!c.rare, price: c.price, bonus: c.bonus })),
       warPts: WAR_PTS, passDays: meta.SHOP.pass.days, passLevels: meta.SHOP.pass.levels,
@@ -302,7 +302,7 @@ app.post('/api/invoice', async (req, res) => {
 // Счёт на товар: название, payload для зачисления (onPaid) и цена в Stars. Общий для Stars и TON
 function buildInvoice(who, item, bgId) {
   let invoice;
-  if (/^pass[1-4]$/.test(item)) { // сезонный орден: цена — разница с уже купленным
+  if (/^pass[1-6]$/.test(item)) { // сезонный орден: цена — разница с уже купленным
     const v = meta.passInvoice(getProfile(who.uid), +item[4]);
     if (v.error) return { error: v.error };
     invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
@@ -396,10 +396,10 @@ function isValidPayload(payload, beforePay = false) {
   if (beforePay) {
     const pr = profiles[uid];
     if (pr && kind === 'starter' && pr.starterBought) return false;
-    if (pr && /^pass[1-4]$/.test(kind) && meta.passTier(pr) >= +kind[4]) return false;
+    if (pr && /^pass[1-6]$/.test(kind) && meta.passTier(pr) >= +kind[4]) return false;
     if (pr && /^whUp[2-5]$/.test(kind) && (pr.whLvl || 0) !== +kind[4] - 1) return false; // уровень склада — строго следующий
   }
-  if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass[1-4]$/.test(kind)) return true;
+  if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass[1-6]$/.test(kind)) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
 }
 function onPaid(payload, info = {}) {
@@ -422,7 +422,7 @@ function onPaid(payload, info = {}) {
   else if (kind === 'spin10') pr.paidSpins += 10;
   else if (Trade.isOrder(kind)) { Trade.grantOrder(pr, kind); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
   else if (meta.INVOICES[kind]) { meta.onPaid(kind, pr); refreshUid(uid); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
-  else if (kind === 'pass' || /^pass[1-4]$/.test(kind)) {
+  else if (kind === 'pass' || /^pass[1-6]$/.test(kind)) {
     meta.onPaid(kind, pr);
     const t = meta.SHOP.passTiers[meta.passTier(pr) - 1];
     notifyUid(uid, `Покупка получена: ${t.icon} ${t.name}`);
@@ -480,6 +480,7 @@ const meta = createMeta({
   companionChanged: (uid) => { for (const o of players.values()) if (o.uid === uid) { o.cp = (getProfile(uid).comp || {}).active || null; refreshPlayer(o); markDirty(o); } },
   cosmeticsChanged: (uid) => { for (const o of players.values()) if (o.uid === uid) { Object.assign(o, { look: meta.cosmLook(getProfile(uid)) }); o.lastStats = 0; markDirty(o); } },
   statsFor: (...a) => statsFor(...a), unlockedSkills: (...a) => unlockedSkills(...a),
+  gram: { nano: (s) => Trade.nanoOf(s), spend: (uid, n, t) => Trade.spendGram(uid, n, t), fmt: (n) => Trade.fmt(n) }, // внешний вид за GRAM
   // Свиток возвращения: в город текущего мира
   toTown: (p) => { const z = world.byId.get(p.zone); const home = z && world.byId.get(z.town || z.id); if (!home || home.id === p.zone) return false; moveToZone(p, home.id); return true; },
 });
@@ -488,8 +489,12 @@ const Trade = require('./trade')({
   I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
   bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
   rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), alertAdmins: (t) => adminAlert(t),
+  // Торговые ордена — ступени сезонных орденов после Чемпиона: цена — доплата до них с учётом купленного
+  passTier: (pr) => meta.passTier(pr), passEnds: () => (Math.floor(Date.now() / (meta.SHOP.pass.days * 864e5)) + 1) * meta.SHOP.pass.days * 864e5,
+  passOrders: (pr) => { const cur = meta.passTier(pr), paid = cur ? meta.SHOP.passTiers[cur - 1].price : 0;
+    return meta.SHOP.passTiers.filter((t) => t.trade).map((t) => ({ kind: `pass${t.tier}`, tier: t.tier, id: t.id, icon: t.icon, name: t.name, perks: t.perks, price: t.price, cost: Math.max(0, t.price - paid), owned: cur >= t.tier })); },
 });
-Object.assign(meta.INVOICES, Trade.invoices()); // торговые ордена — покупка за Stars или GRAM
+Object.assign(meta.INVOICES, Trade.invoices()); // старые отдельные торговые ордена — только чтобы зачесть уже начатые оплаты (теперь это ступени сезонных орденов)
 admin.ctx.trade = Trade;
 
 // Бой монстров, данжи-лабиринты, выживание и мировые боссы (server/dungeon.js)

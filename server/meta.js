@@ -6,19 +6,23 @@ const store = require('./store');
 
 const DAY = 864e5;
 const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
-// Внешний вид за самоцветы: цвет имени и сияние видят все игроки, рамка аватара — у себя на панели. На силу не влияет
+// Внешний вид: цвет имени и сияние видят все игроки, рамка аватара — у себя на панели. На силу не влияет.
+// В каждом разделе две вещи за самоцветы (price, 💎), остальные — за GRAM (stars: цена в ⭐, в GRAM — по курсу, с GRAM-баланса)
 const COSMETICS = {
   name: {
-    gold: { name: 'Золотое имя', color: '#ffd36a', price: 500 }, crimson: { name: 'Алое имя', color: '#ff6a5a', price: 300 },
-    azure: { name: 'Лазурное имя', color: '#6ac8ff', price: 300 }, emerald: { name: 'Изумрудное имя', color: '#6aff9a', price: 300 },
-    violet: { name: 'Фиолетовое имя', color: '#c890ff', price: 300 }, rose: { name: 'Розовое имя', color: '#ff8ad8', price: 300 },
+    crimson: { name: 'Алое имя', color: '#ff6a5a', price: 900 }, azure: { name: 'Лазурное имя', color: '#6ac8ff', price: 900 },
+    emerald: { name: 'Изумрудное имя', color: '#6aff9a', stars: 120 }, violet: { name: 'Фиолетовое имя', color: '#c890ff', stars: 120 },
+    rose: { name: 'Розовое имя', color: '#ff8ad8', stars: 120 }, gold: { name: 'Золотое имя', color: '#ffd36a', stars: 200 },
   },
   aura: {
-    gold: { name: 'Золотое сияние', color: 0xffd36a, price: 400 }, frost: { name: 'Ледяное сияние', color: 0x8ad3ff, price: 400 },
-    flame: { name: 'Огненное сияние', color: 0xff6a2a, price: 400 }, shadow: { name: 'Теневое сияние', color: 0x9a5aff, price: 400 },
-    life: { name: 'Сияние жизни', color: 0x6aff8a, price: 400 },
+    frost: { name: 'Ледяное сияние', color: 0x8ad3ff, price: 1200 }, life: { name: 'Сияние жизни', color: 0x6aff8a, price: 1200 },
+    flame: { name: 'Огненное сияние', color: 0xff6a2a, stars: 160 }, shadow: { name: 'Теневое сияние', color: 0x9a5aff, stars: 160 },
+    gold: { name: 'Золотое сияние', color: 0xffd36a, stars: 200 },
   },
-  frame: { diamond: { name: 'Алмазная рамка', price: 600 }, legend: { name: 'Легендарная рамка', price: 900 } },
+  frame: {
+    diamond: { name: 'Алмазная рамка', price: 1800 }, legend: { name: 'Легендарная рамка', price: 2700 },
+    obsidian: { name: 'Обсидиановая рамка', stars: 360 }, celestial: { name: 'Небесная рамка', stars: 480 }, dragon: { name: 'Драконья рамка', stars: 600 },
+  },
 };
 // Награда за вход 7 дней подряд: день — по Москве; пропустил день — серия начинается заново, после 7-го — по кругу
 const mskDay = (t = Date.now()) => new Date(t + 3 * 36e5).toISOString().slice(0, 10);
@@ -50,9 +54,12 @@ const SHOP = {
     { tier: 2, id: 'silver', icon: '🥈', name: 'Серебряный орден', price: 299, perks: ['Опыт пропуска +50%', '+1 бесплатный призыв снаряжения в день', '+8% опыта и золота'] },
     { tier: 3, id: 'gold', icon: '🥇', name: 'Золотой орден', price: 599, perks: ['Автобой в данжах (пока игра открыта)', '+15% опыта и золота'] },
     { tier: 4, id: 'champion', icon: '👑', name: 'Орден Чемпиона', price: 1199, perks: ['Премиум-награды ×2', 'Мифический предмет на 30 уровне', '+30% опыта и золота'] },
+    // Торговые ордена — только поверх Ордена Чемпиона: в цену входят все предыдущие ордена (server/trade.js — скидки комиссий)
+    { tier: 5, id: 'merchant', icon: '🟢', name: 'Орден Купца', price: 1499, trade: true, perks: ['Включает Орден Чемпиона и все предыдущие ордена', 'Комиссия Торгового дома 15% вместо 20%', 'Комиссия вывода 8% вместо 10%', '+5 лотов в Торговом доме', 'Лоты висят 14 дней', 'Знак купца у ваших лотов', 'Выплаты — в первую очередь', '+1 печать снаряжения сразу'] },
+    { tier: 6, id: 'magnate', icon: '🏦', name: 'Орден Магната', price: 1899, trade: true, perks: ['Включает Орден Купца, Орден Чемпиона и все предыдущие ордена', 'Комиссия Торгового дома 10% вместо 20%', 'Комиссия вывода 5% вместо 10%', '+15 лотов в Торговом доме', 'Лоты висят 30 дней', 'Ваши лоты — вверху списка', 'Золотой знак магната у лотов', 'Выплаты — в первую очередь', '+3 печати снаряжения сразу'] },
   ],
   autofarmTier: 3, // с какого ордена доступен автобой
-  passXpGold: { 0: 0.05, 1: 0.05, 2: 0.08, 3: 0.15, 4: 0.3 }, // бонус к опыту и золоту в бою по ордену (не складывается — берётся свой)
+  passXpGold: { 0: 0.05, 1: 0.05, 2: 0.08, 3: 0.15, 4: 0.3, 5: 0.3, 6: 0.3 }, // бонус к опыту и золоту в бою по ордену (не складывается — берётся свой)
   sub: { price: 250, days: 30, xpBonus: 0.25, goldBonus: 0.25 },
   ads: { perDay: 5, cooldownMs: 30000 },
   arena: { perDay: 5, perDaySub: 8 },
@@ -267,7 +274,7 @@ module.exports = function createMeta(deps) {
   function cosmView(pr) {
     const C2 = pr.cosm || { owned: [] };
     return { gems: pr.gems || 0, cur: { name: C2.name || null, aura: C2.aura || null, frame: C2.frame || null },
-      list: Object.entries(COSMETICS).flatMap(([kind, L]) => Object.entries(L).map(([id, c]) => ({ id: `${kind}:${id}`, kind, key: id, name: c.name, price: c.price,
+      list: Object.entries(COSMETICS).flatMap(([kind, L]) => Object.entries(L).map(([id, c]) => ({ id: `${kind}:${id}`, kind, key: id, name: c.name, price: c.price || 0, gram: c.stars ? deps.gram.nano(c.stars) : 0,
         color: typeof c.color === 'number' ? '#' + c.color.toString(16).padStart(6, '0') : c.color || null, owned: C2.owned.includes(`${kind}:${id}`) }))) };
   }
   // Что видно другим: цвет имени и цвет сияния
@@ -333,8 +340,14 @@ module.exports = function createMeta(deps) {
       if (!c) return { error: 'Нет такого' };
       const C2 = (pr.cosm ??= { owned: [] });
       if (C2.owned.includes(d.id)) return { error: 'Уже куплено' };
-      if ((pr.gems || 0) < c.price) return { error: `Нужно ${c.price} 💎` };
-      pr.gems -= c.price; C2.owned.push(d.id); C2[kind] = id;
+      if (c.stars) { // за GRAM — с GRAM-баланса (server/trade.js)
+        const nano = deps.gram.nano(c.stars);
+        if (!deps.gram.spend(p.uid, nano, `Внешний вид: ${c.name}`)) return { error: `Нужно ${deps.gram.fmt(nano)} GRAM — пополните GRAM-кошелёк`, needGram: true };
+      } else {
+        if ((pr.gems || 0) < c.price) return { error: `Нужно ${c.price} 💎` };
+        pr.gems -= c.price;
+      }
+      C2.owned.push(d.id); C2[kind] = id;
       deps.cosmeticsChanged(p.uid);
       return { toast: `✨ ${c.name} — куплено и надето`, cosm: cosmView(pr) };
     },
@@ -905,7 +918,13 @@ module.exports = function createMeta(deps) {
     else if (kind === 'ispin10') pr.itemSpins = (pr.itemSpins || 0) + 10;
     else if (SHOP.gems[kind]) pr.gems = (pr.gems || 0) + SHOP.gems[kind].gems;
     else if (kind === 'pass') passOf(pr).tier = Math.max(passOf(pr).tier, 2); // старые счета премиум-пропуска
-    else if (/^pass[1-4]$/.test(kind)) passOf(pr).tier = Math.max(passOf(pr).tier, +kind[4]);
+    else if (/^pass[1-6]$/.test(kind)) {
+      const was = passOf(pr).tier;
+      passOf(pr).tier = Math.max(was, +kind[4]);
+      // Торговые ордена: печати снаряжения при первом получении в сезоне
+      if (passOf(pr).tier >= 5 && was < 5) pr.itemSpins = (pr.itemSpins || 0) + 1;
+      if (passOf(pr).tier >= 6 && was < 6) pr.itemSpins = (pr.itemSpins || 0) + 3;
+    }
     else if (kind === 'sub') pr.subUntil = Math.max(Date.now(), pr.subUntil || 0) + SHOP.sub.days * DAY;
     else if (kind === 'starter') {
       pr.starterBought = true;

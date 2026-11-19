@@ -351,10 +351,12 @@ window.Town = (() => {
       return box;
     };
     const ordTab = () => {
-      const box = el(`<p class="sheet-hint">Торговые ордена на 30 дней: меньше комиссии в Торговом доме и при выводе. Покупка того же ордена продлевает его.${g.order ? `<br><b class="ok">Активен: ${g.order.icon} ${g.order.name} до ${new Date(g.order.until).toLocaleDateString('ru-RU')}</b>` : ''}</p>`);
-      for (const o of g.orders) box.insertAdjacentHTML('beforeend', `<div class="tw-banner pass"><b>${o.icon} ${o.name}</b><ul class="gram-perks">${o.perks.map((x) => `<li>${x}</li>`).join('')}</ul>
-        <button class="l2-btn" data-buy="${o.kind}">${o.stars} ⭐ / ${o.gram} GRAM</button></div>`);
+      const box = el(`<p class="sheet-hint">Торговые ордена — высшие ступени сезонных орденов, после Ордена Чемпиона. В цену уже входят все предыдущие ордена (Бронзовый, Серебряный, Золотой и Чемпиона) со всеми их наградами и бонусами; если часть уже куплена — доплачиваете только разницу. Действуют до конца сезона.${g.order ? `<br><b class="ok">Активен: ${g.order.icon} ${g.order.name}${g.order.until ? ' до ' + new Date(g.order.until).toLocaleDateString('ru-RU') : ''}</b>` : ''}</p>`);
+      for (const o of g.orders) box.insertAdjacentHTML('beforeend', `<div class="tw-banner pass"><b>${orderIc(o, 'sm')} ${o.name}</b><ul class="gram-perks">${o.perks.map((x) => `<li>${x}</li>`).join('')}</ul>
+        ${o.owned ? '<small class="ok">Уже открыт в этом сезоне</small>' : `<button class="l2-btn" data-buy="${o.kind}">${o.cost < o.price ? `Доплатить ${o.cost} ⭐` : `${o.cost} ⭐`} / ${o.gram} GRAM</button>`}</div>`);
       box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, () => walletPanel(2)); });
+      box.append(el('<button class="l2-btn wide" data-pass="1">Все сезонные ордена и награды</button>'));
+      box.querySelector('[data-pass]').onclick = () => passPanel();
       return box;
     };
     const KIND = { deposit: 'Пополнение', shop: 'Рынок', buy: 'Покупка', sale: 'Продажа', fee: 'Комиссия', withdraw: 'Вывод', payout: 'Выплата', refund: 'Возврат', admin: 'Администрация' };
@@ -806,18 +808,20 @@ window.Town = (() => {
     if (!r || !r.cosm) r = await Bag.act('cosmetics');
     if (!r.cosm) return toast(r.error || 'Нет связи');
     const C = r.cosm;
-    const box = el(`<p class="sheet-hint">Видно всем игрокам: цвет имени и сияние под героем. Рамка — у вашего портрета. На силу не влияет. У вас ${C.gems} 💎</p>`);
+    const box = el(`<p class="sheet-hint">Видно всем игрокам: цвет имени и сияние под героем. Рамка — у вашего портрета. На силу не влияет. В каждом разделе две вещи за самоцветы (у вас ${C.gems} 💎), остальные — за GRAM из GRAM-кошелька.</p>`);
     const KIND = { name: 'Цвет имени', aura: 'Сияние под героем', frame: 'Рамка портрета' };
     for (const kind of ['name', 'aura', 'frame']) {
       box.append(el(`<div class="ic-sec">${KIND[kind]}</div>`));
       for (const it of C.list.filter((x) => x.kind === kind)) {
         const on = C.cur[kind] === it.key;
         const sw = kind === 'frame' ? `<img class="look-fr" src="assets/ui/ava/${it.key}.webp" alt="">` : `<i class="look-sw ${kind}" style="--c:${it.color}"></i>`;
-        const row = el(`<div class="tw-ev"><span class="tw-ev-i">${sw}</span><div><b ${kind === 'name' ? `style="color:${it.color}"` : ''}>${it.name}</b><small>${it.owned ? (on ? '✔ Надето' : 'Куплено') : `${it.price} 💎`}</small></div>
+        const row = el(`<div class="tw-ev"><span class="tw-ev-i">${sw}</span><div><b ${kind === 'name' ? `style="color:${it.color}"` : ''}>${it.name}</b><small>${it.owned ? (on ? '✔ Надето' : 'Куплено') : it.gram ? `${gfmt(it.gram)} GRAM` : `${it.price} 💎`}</small></div>
           <button class="l2-btn">${!it.owned ? 'Купить' : on ? 'Снять' : 'Надеть'}</button></div>`).firstElementChild;
         row.querySelector('button').onclick = async () => {
+          if (!it.owned && it.gram && !(await askGram(`Купить «${it.name}» за ${gfmt(it.gram)} GRAM?`))) return;
           const x = !it.owned ? await Bag.act('cosmeticBuy', { id: it.id }) : await Bag.act('cosmeticSet', { kind, id: on ? null : it.key });
           toast(x.error || x.toast); if (window.Sfx) Sfx.play(x.error ? 'error' : 'reward');
+          if (x.needGram) return walletPanel(0);
           if (x.cosm) looksPanel(x);
         };
         box.append(row);

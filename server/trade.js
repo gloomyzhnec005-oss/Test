@@ -62,7 +62,13 @@ module.exports = function createTrade(deps) {
     pr.gram.earn ??= []; pr.gram.log ??= [];
     return pr.gram;
   }
-  const order = (pr) => { const o = pr.tOrder; if (!o || o.until < now()) return null; return Object.values(CFG.orders).find((x) => x.id === o.id) || null; };
+  const byId = (id) => Object.values(CFG.orders).find((x) => x.id === id) || null;
+  const order = (pr) => {
+    const t = deps.passTier ? deps.passTier(pr) : 0; // сезонный орден 6 — Магнат, 5 — Купец
+    if (t >= 6) return byId('magnate');
+    if (t >= 5) return byId('merchant');
+    const o = pr.tOrder; return o && o.until >= now() ? byId(o.id) : null; // купленный раньше отдельно — до конца срока
+  };
   function bal(pr) {
     const g = G(pr), t = now();
     let free = 0, hold = 0, next = 0;
@@ -160,8 +166,8 @@ module.exports = function createTrade(deps) {
         dep: b.dep, free: b.free, hold: b.hold, next: b.next, total: b.total, wallet: g.wallet || '', log: g.log.slice(0, 30),
         fee: CFG.fee - ((o && o.fee) || 0), wFee: CFG.wFee - ((o && o.wFee) || 0), holdDays: CFG.holdDays, wMin: toNano(CFG.wMin), depMin: CFG.depMin,
         wLevel: CFG.wLevel, wAgeDays: CFG.wAgeDays, level: maxLevel(pr), ageDays: Math.floor((now() - (pr.created || now())) / 864e5),
-        order: o ? { ...o, until: pr.tOrder.until } : null, wd: mine,
-        orders: Object.entries(CFG.orders).map(([kind, x]) => ({ kind, ...x, gram: gramOf(x.stars) })),
+        order: o ? { ...o, until: deps.passEnds ? (deps.passTier(pr) >= 5 ? deps.passEnds() : pr.tOrder.until) : 0 } : null, wd: mine,
+        orders: deps.passOrders ? deps.passOrders(pr).map((x) => ({ ...x, gram: gramOf(x.cost) })) : [],
       } };
     },
     // Рынок
@@ -358,6 +364,8 @@ module.exports = function createTrade(deps) {
     return n;
   }
 
-  return { act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k), adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
+  // Списать GRAM за покупку вне торговли (внешний вид): сначала пополненные, затем деньги с продаж
+  const spendGram = (uid, nano, text) => { const ok = spend(uid, nano, 'shop', text); if (ok) save(); return ok; };
+  return { spendGram, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k), adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
 };
 module.exports.CFG = CFG;

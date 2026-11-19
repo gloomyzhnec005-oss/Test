@@ -236,7 +236,7 @@ module.exports = function createAdmin(ctx) {
       }
       case 'passPremium': ctx.meta.passOf(pr).tier = d.value ? 1 : 0; return { text: d.value ? 'Бронзовый орден выдан' : 'Орден снят' };
       case 'passTier': {
-        const t = Math.round(num(d.value, 0, 4));
+        const t = Math.round(num(d.value, 0, ctx.meta.SHOP.passTiers.length));
         ctx.meta.passOf(pr).tier = t;
         for (const pl of online(d.uid)) pl.socket.emit('passTier', t);
         return { text: t ? `Выдан: ${ctx.meta.SHOP.passTiers[t - 1].name}` : 'Платный орден снят (остался бесплатный)' };
