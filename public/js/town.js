@@ -814,7 +814,7 @@ window.Town = (() => {
       box.append(el(`<div class="ic-sec">${KIND[kind]}</div>`));
       for (const it of C.list.filter((x) => x.kind === kind)) {
         const on = C.cur[kind] === it.key;
-        const sw = kind === 'frame' ? `<img class="look-fr" src="assets/ui/ava/${it.key}.webp" alt="">` : `<i class="look-sw ${kind}" style="--c:${it.color}"></i>`;
+        const sw = kind === 'frame' ? `<img class="look-fr" src="assets/ui/ava/${it.key}.webp?v=2" alt="">` : `<i class="look-sw ${kind}" style="--c:${it.color}"></i>`;
         const row = el(`<div class="tw-ev"><span class="tw-ev-i">${sw}</span><div><b ${kind === 'name' ? `style="color:${it.color}"` : ''}>${it.name}</b><small>${it.owned ? (on ? '✔ Надето' : 'Куплено') : it.gram ? `${gfmt(it.gram)} GRAM` : `${it.price} 💎`}</small></div>
           <button class="l2-btn">${!it.owned ? 'Купить' : on ? 'Снять' : 'Надеть'}</button></div>`).firstElementChild;
         row.querySelector('button').onclick = async () => {

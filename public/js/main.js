@@ -247,7 +247,7 @@
     if (s.passTier !== undefined) passTier = s.passTier;
     $('lvl').textContent = s.level;
     const tier = s.frame || avaTier(s.level); // купленная рамка — вместо рамки по уровню
-    if ($('hudAvaFrame').dataset.t !== tier) { $('hudAvaFrame').dataset.t = tier; $('hudAvaFrame').style.backgroundImage = `url(assets/ui/ava/${tier}.webp)`; }
+    if ($('hudAvaFrame').dataset.t !== tier) { $('hudAvaFrame').dataset.t = tier; $('hudAvaFrame').style.backgroundImage = `url(assets/ui/ava/${tier}.webp?v=2)`; }
     $('hpFill').style.width = (100 * s.hp / s.maxHp) + '%';
     $('hpText').textContent = `${s.hp} / ${s.maxHp}${s.shield ? ` +🛡${s.shield}` : ''}`;
     if (s.resMax) {
