@@ -11,17 +11,17 @@ const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
 const COSMETICS = {
   name: {
     crimson: { name: 'Алое имя', color: '#ff6a5a', price: 900 }, azure: { name: 'Лазурное имя', color: '#6ac8ff', price: 900 },
-    emerald: { name: 'Изумрудное имя', color: '#6aff9a', stars: 120 }, violet: { name: 'Фиолетовое имя', color: '#c890ff', stars: 120 },
-    rose: { name: 'Розовое имя', color: '#ff8ad8', stars: 120 }, gold: { name: 'Золотое имя', color: '#ffd36a', stars: 200 },
+    emerald: { name: 'Изумрудное имя', color: '#6aff9a', stars: 240 }, violet: { name: 'Фиолетовое имя', color: '#c890ff', stars: 240 },
+    rose: { name: 'Розовое имя', color: '#ff8ad8', stars: 240 }, gold: { name: 'Золотое имя', color: '#ffd36a', stars: 400 },
   },
   aura: {
     frost: { name: 'Ледяное сияние', color: 0x8ad3ff, price: 1200 }, life: { name: 'Сияние жизни', color: 0x6aff8a, price: 1200 },
-    flame: { name: 'Огненное сияние', color: 0xff6a2a, stars: 160 }, shadow: { name: 'Теневое сияние', color: 0x9a5aff, stars: 160 },
-    gold: { name: 'Золотое сияние', color: 0xffd36a, stars: 200 },
+    flame: { name: 'Огненное сияние', color: 0xff6a2a, stars: 320 }, shadow: { name: 'Теневое сияние', color: 0x9a5aff, stars: 320 },
+    gold: { name: 'Золотое сияние', color: 0xffd36a, stars: 400 },
   },
   frame: {
     diamond: { name: 'Алмазная рамка', price: 1800 }, legend: { name: 'Легендарная рамка', price: 2700 },
-    obsidian: { name: 'Обсидиановая рамка', stars: 360 }, celestial: { name: 'Небесная рамка', stars: 480 }, dragon: { name: 'Драконья рамка', stars: 600 },
+    obsidian: { name: 'Обсидиановая рамка', stars: 720 }, celestial: { name: 'Небесная рамка', stars: 960 }, dragon: { name: 'Драконья рамка', stars: 1200 },
   },
 };
 // Награда за вход 7 дней подряд: день — по Москве; пропустил день — серия начинается заново, после 7-го — по кругу

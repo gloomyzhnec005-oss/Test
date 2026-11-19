@@ -343,7 +343,7 @@ function buildWorld() {
     town.npcs = [
       { id: 'g1', role: 'guard', skin: 'brendan', name: 'Стражник', route: ring, loop: true, speed: 52, phase: 0 },
       { id: 'g2', role: 'guard', skin: 'brendan', name: 'Стражник', route: [...ring].reverse(), loop: true, speed: 52, phase: 0.5 },
-      { id: 'g3', role: 'guard', skin: 'brendan', name: 'Стражник', route: [A(6, 4), A(42, 4)], speed: 40, phase: 0.2 },
+      { id: 'g3', role: 'guard', skin: 'brendan', name: 'Стражник', route: [A(6, 5.6), A(42, 5.6)], speed: 40, phase: 0.2 }, // по дороге под порталами данжей (не по ним)
       { id: 'g4', role: 'guard', skin: 'brendan', name: 'Стражник', route: [A(9.5, 20), A(16, 20)], speed: 34, phase: 0.6 },
       { id: 'g5', role: 'guard', skin: 'brendan', name: 'Стражник', route: [A(32, 20), A(38.5, 20)], speed: 34, phase: 0.1 },
     ];
