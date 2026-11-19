@@ -945,8 +945,8 @@ module.exports = function createMeta(deps) {
     bagEpic: { n: 1, amount: 199, bag: 'epic', title: 'Рюкзак искателя', description: 'Эпическая сумка: +20 ячеек инвентаря' },
     bagLegend: { n: 1, amount: 499, bag: 'legendary', title: 'Сума гномьего торговца', description: 'Легендарная сумка: +35 ячеек инвентаря' },
     kitSmith: { n: 1, amount: 49, title: 'Сундук кузнеца', description: '30 руды, 15 эссенции и 2 свитка мастера' },
-    chestSet: { n: 1, amount: 99, title: 'Ларец комплекта', description: 'Вещь комплекта вашего класса: эпическая, 25% легендарная, 3% мифическая' },
-    chestSet5: { n: 5, amount: 449, title: 'Ларцы комплекта ×5', description: 'Пять ларцов комплекта со скидкой 10%' },
+    chestSet: { n: 1, amount: 199, title: 'Ларец комплекта', description: 'Вещь комплекта вашего класса: эпическая, 25% легендарная, 3% мифическая' },
+    chestSet5: { n: 5, amount: 899, title: 'Ларцы комплекта ×5', description: 'Пять ларцов комплекта со скидкой 10%' },
     chestLegend: { n: 1, amount: 149, title: 'Ларец грандмастера', description: '2 свитка грандмастера и редкий материал' },
     // Особые предложения (своя витрина в магазине)
     starter: { special: true, amount: 99, title: 'Набор новичка', description: '300 💎, 3 печати призыва, 5 печатей снаряжения, эпическая сумка, 2 великих эликсира опыта, эликсир героя, 10 больших зелий' },

@@ -229,6 +229,7 @@
           <div class="tile"><b>${fmtNum(sum(d.gemsIn))} / ${fmtNum(sum(d.gemsOut))}</b><span>💎 пришло / потрачено</span></div>
           <div class="tile"><b>${d.stars.n} · ${fmtNum(d.stars.sum)} ⭐</b><span>покупок за Stars</span></div>
           <div class="tile"><b>${d.ton.n} · ${d.ton.sum}</b><span>покупок за TON (GRAM)</span></div>
+          ${d.gram ? `<div class="tile"><b>${G(d.gram.deposit)} / ${G(d.gram.withdraw)}</b><span>GRAM: пополнено / заявлено к выводу</span></div><div class="tile"><b>${G(d.gram.shop)} / ${G(d.gram.buy)}</b><span>GRAM: Рынок и внешний вид / оборот Торгового дома</span></div><div class="tile"><b>${G(d.gram.fee)}</b><span>GRAM: комиссии Торгового дома (ваш доход)</span></div>` : ''}
           <div class="tile"><b>${it(d, 'mythic:drop')} / ${it(d, 'legendary:drop')}</b><span>мифик / легенд. вещей с монстров</span></div>
           <div class="tile"><b>${it(d, 'mythic:gearSummon')} / ${it(d, 'legendary:gearSummon')}</b><span>мифик / легенд. из призыва снаряжения</span></div>
           <div class="tile"><b>${it(d, 'mythic:hero')} / ${it(d, 'legendary:hero')}</b><span>мифических / легенд. героев из призыва</span></div>
