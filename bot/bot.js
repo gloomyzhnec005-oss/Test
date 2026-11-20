@@ -1,6 +1,6 @@
 // Telegram-бот: открывает игру как Mini App и принимает оплату в Telegram Stars.
 // Запускается из server/index.js: require('../bot/bot')({ onPaid, isValidPayload })
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const { Telegraf, Markup } = require('telegraf');
 
 module.exports = function startBot({ onPaid, isValidPayload, onNotify, profiles, save, links } = {}) {
@@ -113,19 +113,35 @@ module.exports = function startBot({ onPaid, isValidPayload, onNotify, profiles,
     console.error('Неизвестная оплата:', payload);
   });
 
-  // Список команд в меню бота (русский — по умолчанию, английский — для остальных языков)
+  // Меню бота и запуск. Связь Railway → api.telegram.org иногда рвётся (getMe failed), а при выкладке новой версии старая
+  // ещё несколько секунд опрашивает Telegram (409 Conflict) — тогда запуск падал, и бот молчал до следующего перезапуска:
+  // не отвечал на /start и не подтверждал оплату Stars. Теперь повторяем, пока не получится (5 с, 10 с … до 60 с).
   const cmds = (r) => [['play', r ? 'Открыть игру' : 'Open the game'], ['notify', r ? 'Уведомления вкл/выкл' : 'Notifications on/off'], ['paysupport', r ? 'Помощь с покупками' : 'Purchase support'], ['terms', r ? 'Правила и конфиденциальность' : 'Terms and privacy'], ['help', r ? 'Помощь' : 'Help']].map(([command, description]) => ({ command, description }));
-  bot.telegram.setMyCommands(cmds(false)).catch((e) => console.error('setMyCommands:', e.message));
-  bot.telegram.setMyCommands(cmds(true), { language_code: 'ru' }).catch(() => {});
-  bot.telegram.setMyCommands(cmds(true), { language_code: 'uk' }).catch(() => {});
-
-  // Кнопка меню рядом с полем ввода
-  bot.telegram.setChatMenuButton({ menuButton: { type: 'web_app', text: 'Играть', web_app: { url: WEBAPP_URL } } })
-    .catch((e) => console.error('setChatMenuButton:', e.message));
-
-  bot.launch().catch((e) => console.error('Ошибка запуска бота:', e.message));
+  const setup = () => Promise.all([
+    bot.telegram.setMyCommands(cmds(false)),
+    bot.telegram.setMyCommands(cmds(true), { language_code: 'ru' }),
+    bot.telegram.setMyCommands(cmds(true), { language_code: 'uk' }),
+    bot.telegram.setChatMenuButton({ menuButton: { type: 'web_app', text: 'Играть', web_app: { url: WEBAPP_URL } } }),
+  ]);
+  let tries = 0, stopping = false, upAt = 0;
+  const start = () => {
+    if (stopping) return;
+    tries++;
+    setup().catch(() => {}); // меню — не главное, повторится со следующим запуском
+    // launch() завершается только при остановке или ошибке опроса: любая ошибка — перезапуск через паузу
+    bot.launch({ dropPendingUpdates: false }, () => { upAt = Date.now(); if (tries > 1) console.log(`Telegram-бот запущен с ${tries}-й попытки`); }).catch((e) => {
+      if (stopping) return;
+      if (upAt && Date.now() - upAt > 120e3) tries = 1; // долго работал и упал — начинаем паузы сначала
+      upAt = 0;
+      const wait = Math.min(60, 5 * tries);
+      if (tries <= 3 || tries % 10 === 0) console.error(`Ошибка запуска бота (попытка ${tries}, повтор через ${wait} с): ${e.message}`);
+      try { bot.stop('retry'); } catch {}
+      setTimeout(start, wait * 1000);
+    });
+  };
+  start();
   console.log('Telegram-бот запущен');
-  process.once('SIGINT', () => bot.stop('SIGINT'));
-  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+  process.once('SIGINT', () => { stopping = true; bot.stop('SIGINT'); });
+  process.once('SIGTERM', () => { stopping = true; bot.stop('SIGTERM'); });
   return bot;
 };

@@ -1,6 +1,6 @@
 // Запуск сервера: сначала хранилище (с DATABASE_URL — загрузка из Postgres), потом игра.
 // При остановке (деплой, перезапуск на Railway) — дописать в базу всё несохранённое и только потом выйти.
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const store = require('./store');
 global.__booted = true;
 

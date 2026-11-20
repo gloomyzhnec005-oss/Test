@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 // Запуск напрямую (node server/index.js — например, своя команда старта на Railway) при заданной базе:
 // сначала загрузчик server/boot.js подключит Postgres и загрузит данные, потом он сам запустит этот файл заново
 if ((process.env.DATABASE_URL || '').trim() && !global.__booted) { require('./boot'); return; }
@@ -2260,7 +2260,10 @@ function adminAlert(text, loud) {
   if (!bot) { console.error('admin-alert: бот не запущен —', text.slice(0, 120)); return; }
   const ids = String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean);
   if (!ids.length) console.error('admin-alert: не задан ADMIN_TG_IDS —', text.slice(0, 120));
-  for (const id of ids) bot.telegram.sendMessage(id, text.slice(0, 4000), { disable_notification: !loud }).catch((e) => console.error('admin-alert', id, e.message));
+  // Связь с Telegram иногда рвётся — до 3 попыток (через 5 и 30 с), иначе в журнал «admin-alert»
+  const send = (id, n) => bot.telegram.sendMessage(id, text.slice(0, 4000), { disable_notification: !loud })
+    .catch((e) => (n < 3 ? setTimeout(() => send(id, n + 1), n === 1 ? 5e3 : 30e3) : console.error('admin-alert', id, e.message)));
+  for (const id of ids) send(id, 1);
 }
 admin.setAlert(adminAlert);
 
