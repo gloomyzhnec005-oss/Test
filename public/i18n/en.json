@@ -2990,6 +2990,7 @@
 "⚙️ Настройки":"⚙️ Settings",
 "⚙️ Разгон!":"⚙️ Overdrive!",
 "⚠️ Нужен {0} уровень — пока герой не дорастёт, вещь не даёт статов.":"⚠️ Requires level {0} — the item gives no stats until your hero reaches it.",
+"⚠️ Только личный кошелёк — Tonkeeper, MyTonWallet, Wallet в Telegram. Не указывайте адрес биржи: без комментария (memo) биржа не зачислит перевод и деньги потеряются.":"⚠️ Personal wallets only — Tonkeeper, MyTonWallet, Wallet in Telegram. Do not use an exchange address: without a comment (memo) the exchange will not credit the transfer and the funds will be lost.",
 "⚠️ Эта вещь не для класса вашего героя — она не даёт статов. Снимите её и наденьте подходящую.":"⚠️ This item isn't for your hero's class — it gives no stats. Take it off and equip a suitable one.",
 "⚡ Гром":"⚡ Thunder",
 "⚡ Молния":"⚡ Lightning",

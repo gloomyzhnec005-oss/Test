@@ -2990,6 +2990,7 @@
 "⚙️ Настройки":"⚙️ Ayarlar",
 "⚙️ Разгон!":"⚙️ Hızlanma!",
 "⚠️ Нужен {0} уровень — пока герой не дорастёт, вещь не даёт статов.":"⚠️ {0}. seviye gerekli — kahraman ulaşana kadar eşya stat vermez.",
+"⚠️ Только личный кошелёк — Tonkeeper, MyTonWallet, Wallet в Telegram. Не указывайте адрес биржи: без комментария (memo) биржа не зачислит перевод и деньги потеряются.":"⚠️ Yalnızca kişisel cüzdan — Tonkeeper, MyTonWallet, Telegram'daki Wallet. Borsa adresi girmeyin: yorum (memo) olmadan borsa transferi hesaba geçirmez ve para kaybolur.",
 "⚠️ Эта вещь не для класса вашего героя — она не даёт статов. Снимите её и наденьте подходящую.":"⚠️ Bu eşya kahramanının sınıfı için değil — hiç stat vermez. Çıkar ve uygun olanı kuşan.",
 "⚡ Гром":"⚡ Gök Gürültüsü",
 "⚡ Молния":"⚡ Şimşek",

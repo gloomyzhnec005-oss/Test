@@ -329,6 +329,7 @@ window.Town = (() => {
       const req = (ok, t) => `<li class="${ok ? 'ok' : 'bad'}">${ok ? '✅' : '⛔'} ${t}</li>`;
       const box = el(`<ul class="gram-req">${req(okLv, `Герой ${g.wLevel}+ уровня (у вас ${g.level})`)}${req(okAge, `Аккаунту ${g.wAgeDays}+ дней (вам ${g.ageDays})`)}${req(okSum, `К выводу не меньше ${gfmt(g.wMin)} GRAM (у вас ${gfmt(g.free)})`)}</ul>
         <p class="sheet-hint">Комиссия вывода ${Math.round(g.wFee * 100)}%. Выплаты — вручную, ежедневно с 20:00 до 24:00 МСК. Одна заявка за раз.</p>
+        <p class="sheet-hint">⚠️ Только личный кошелёк — Tonkeeper, MyTonWallet, Wallet в Telegram. Не указывайте адрес биржи: без комментария (memo) биржа не зачислит перевод и деньги потеряются.</p>
         <div class="tw-form"><input class="amt" type="number" min="${g.wMin / 1e9}" max="${g.free / 1e9}" step="0.01" inputmode="decimal" value="${(Math.floor(g.free / 1e7) / 100).toFixed(2)}" placeholder="Сумма, GRAM">
           <input class="addr" type="text" placeholder="Адрес кошелька (UQ… / EQ…)" value="${g.wallet || ''}"></div>
         <small class="gram-net"></small>

@@ -2990,6 +2990,7 @@
 "⚙️ Настройки":"⚙️ Einstellungen",
 "⚙️ Разгон!":"⚙️ Overdrive!",
 "⚠️ Нужен {0} уровень — пока герой не дорастёт, вещь не даёт статов.":"⚠️ Benötigt Stufe {0} – bis dahin gibt der Gegenstand keine Werte.",
+"⚠️ Только личный кошелёк — Tonkeeper, MyTonWallet, Wallet в Telegram. Не указывайте адрес биржи: без комментария (memo) биржа не зачислит перевод и деньги потеряются.":"⚠️ Nur eigene Wallets — Tonkeeper, MyTonWallet, Wallet in Telegram. Keine Börsenadresse angeben: Ohne Kommentar (Memo) schreibt die Börse die Überweisung nicht gut und das Geld geht verloren.",
 "⚠️ Эта вещь не для класса вашего героя — она не даёт статов. Снимите её и наденьте подходящую.":"⚠️ Dieser Gegenstand passt nicht zur Klasse deines Helden – er gibt keine Werte. Lege ihn ab und rüste einen passenden aus.",
 "⚡ Гром":"⚡ Donner",
 "⚡ Молния":"⚡ Blitz",
