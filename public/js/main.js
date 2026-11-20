@@ -501,6 +501,16 @@
       socket.emit('join', { hero: selected, initData: tg ? tg.initData : '', guestId, guestName: name, lang: window.I18N && I18N.lang }); // язык — для уведомлений бота
     });
     socket.on('error_msg', (m) => { Lobby.setStatus(m); Lobby.setBusy(false); socket.disconnect(); });
+    // Тот же аккаунт вошёл в другой вкладке / на другом устройстве — эта сессия закрыта сервером
+    socket.on('kicked', (m) => {
+      socket.disconnect();
+      const ov = document.createElement('div');
+      ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(8,6,12,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;color:#f3e6c4;font:16px/1.4 inherit';
+      ov.innerHTML = `<div style="font-size:42px">🔌</div><div>${window.I18N ? I18N.tr(m) : m}</div>`;
+      const b = document.createElement('button'); b.className = 'l2-btn'; b.textContent = window.I18N ? I18N.tr('Играть здесь') : 'Играть здесь';
+      b.onclick = () => location.reload();
+      ov.appendChild(b); document.body.appendChild(ov);
+    });
     socket.on('chat', (m) => addChat(m));
     socket.on('chatHistory', (list) => { chatList.innerHTML = ''; for (const m of list || []) addChat(m, true); });
     socket.on('stats', setStats);

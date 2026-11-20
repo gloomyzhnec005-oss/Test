@@ -1528,6 +1528,12 @@ io.on('connection', (socket) => {
     const uid = who.uid;
     // Сессию после обрыва восстановить не удалось — убираем «ожидающего» героя этого игрока
     for (const o of [...players.values()]) if (o.uid === uid && o.offline) { clearTimeout(o.graceTimer); removePlayer(o.socket, o); }
+    // Один аккаунт — один герой в мире: вход с другой вкладки или устройства отключает прежнюю сессию
+    for (const o of [...players.values()]) if (o.uid === uid && !o.offline && o.socket.id !== socket.id) {
+      o.socket.emit('kicked', 'Вы вошли в игру с другого устройства или вкладки');
+      removePlayer(o.socket, o);
+      o.socket.disconnect(true);
+    }
     const heroId = String(data.hero || '');
     const prj = getProfile(uid);
     Econ.active(uid);
