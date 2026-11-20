@@ -249,6 +249,10 @@ module.exports = function createAdmin(ctx) {
       }
       case 'unban': delete pr.banned; return { text: 'Блокировка снята' };
       case 'kick': kick(uid, String(d.reason || 'Вас отключил администратор')); return { text: `Отключено сессий: ${live.length}` };
+      case 'wdTest':
+        pr.test ??= {};
+        pr.test.wdTest = !!d.value;
+        return { text: `Тест вывода: ${d.value ? 'вкл — выводить можно весь баланс без условий' : 'выкл'}` };
       case 'god': case 'oneShot': case 'tester': {
         pr.test ??= {};
         pr.test[d.action] = !!d.value;

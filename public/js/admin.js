@@ -363,6 +363,7 @@
         <label class="switch"><input type="checkbox" data-flag="god" ${p.test.god ? 'checked' : ''}> Бессмертие (монстры не наносят урон)</label>
         <label class="switch"><input type="checkbox" data-flag="oneShot" ${p.test.oneShot ? 'checked' : ''}> Убийство монстров с одного удара</label>
         <label class="switch"><input type="checkbox" data-flag="tester" ${p.test.tester ? 'checked' : ''}> Может входить во время техработ</label>
+        <label class="switch"><input type="checkbox" data-flag="wdTest" ${p.test.wdTest ? 'checked' : ''}> Тест вывода GRAM: без 30 ур., 7 дней и удержания, весь баланс (после проверки выключить!)</label>
         <div class="row" style="margin-top:8px">
           <button class="btn ok" data-a="heal">❤️ Вылечить и сбросить перезарядки</button>
           <button class="btn danger" data-a="kill">💀 Убить героя</button>

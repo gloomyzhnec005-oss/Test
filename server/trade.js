@@ -69,6 +69,9 @@ module.exports = function createTrade(deps) {
     if (t >= 5) return byId('merchant');
     const o = pr.tOrder; return o && o.until >= now() ? byId(o.id) : null; // купленный раньше отдельно — до конца срока
   };
+  // Тест вывода (админка → игрок → «Тест вывода»): без условий уровня/возраста, к выводу — весь баланс, включая
+  // пополнения и продажи на удержании. Только для проверки выплат администратором; после теста выключить.
+  const wdTest = (pr) => !!(pr.test && pr.test.wdTest);
   function bal(pr) {
     const g = G(pr), t = now();
     let free = 0, hold = 0, next = 0;
@@ -161,11 +164,11 @@ module.exports = function createTrade(deps) {
   const OPS = {
     gramInfo(p, d, pr) {
       compact(pr);
-      const b = bal(pr), o = order(pr), g = G(pr), mine = st.wd.filter((w) => w.uid === p.uid).slice(0, 10);
+      const b = bal(pr), o = order(pr), g = G(pr), mine = st.wd.filter((w) => w.uid === p.uid).slice(0, 10), tw = wdTest(pr);
       return { gram: {
-        dep: b.dep, free: b.free, hold: b.hold, next: b.next, total: b.total, wallet: g.wallet || '', log: g.log.slice(0, 30),
+        dep: b.dep, free: tw ? b.total : b.free, wdTest: tw, hold: b.hold, next: b.next, total: b.total, wallet: g.wallet || '', log: g.log.slice(0, 30),
         fee: CFG.fee - ((o && o.fee) || 0), wFee: CFG.wFee - ((o && o.wFee) || 0), holdDays: CFG.holdDays, wMin: toNano(CFG.wMin), depMin: CFG.depMin,
-        wLevel: CFG.wLevel, wAgeDays: CFG.wAgeDays, level: maxLevel(pr), ageDays: Math.floor((now() - (pr.created || now())) / 864e5),
+        wLevel: CFG.wLevel, wAgeDays: CFG.wAgeDays, level: tw ? Math.max(CFG.wLevel, maxLevel(pr)) : maxLevel(pr), ageDays: tw ? Math.max(CFG.wAgeDays, Math.floor((now() - (pr.created || now())) / 864e5)) : Math.floor((now() - (pr.created || now())) / 864e5),
         order: o ? { ...o, until: deps.passEnds ? (deps.passTier(pr) >= 5 ? deps.passEnds() : pr.tOrder.until) : 0 } : null, wd: mine,
         orders: deps.passOrders ? deps.passOrders(pr).map((x) => ({ ...x, gram: gramOf(x.cost) })) : [],
       } };
@@ -262,20 +265,22 @@ module.exports = function createTrade(deps) {
     // Вывод
     gramWithdraw(p, d, pr) {
       compact(pr);
-      if (maxLevel(pr) < CFG.wLevel) return { error: `Вывод — с ${CFG.wLevel} уровня героя` };
-      if (now() - (pr.created || now()) < CFG.wAgeDays * 864e5) return { error: `Вывод — через ${CFG.wAgeDays} дней после регистрации` };
+      const tw = wdTest(pr);
+      if (!tw && maxLevel(pr) < CFG.wLevel) return { error: `Вывод — с ${CFG.wLevel} уровня героя` };
+      if (!tw && now() - (pr.created || now()) < CFG.wAgeDays * 864e5) return { error: `Вывод — через ${CFG.wAgeDays} дней после регистрации` };
       if (st.wd.some((w) => w.uid === p.uid && w.status === 'wait')) return { error: 'Уже есть заявка на вывод — дождитесь выплаты' };
       let addr;
       try { addr = Address.parse(String(d.address || '').trim()).toString({ bounceable: false }); } catch { return { error: 'Неверный адрес кошелька' }; }
       const gross = toNano(d.amount), b = bal(pr);
       if (!(gross >= toNano(CFG.wMin))) return { error: `Минимум к выводу — ${CFG.wMin} GRAM` };
-      if (gross > b.free) return { error: `Доступно к выводу ${fmt(b.free)} GRAM (продажи — через ${CFG.holdDays} дня; пополненные GRAM выводить нельзя)` };
+      if (gross > (tw ? b.total : b.free)) return { error: `Доступно к выводу ${fmt(b.free)} GRAM (продажи — через ${CFG.holdDays} дня; пополненные GRAM выводить нельзя)` };
       const today = st.wd.filter((w) => w.uid === p.uid && mskDay(w.at) === mskDay() && w.status !== 'rejected').reduce((s, w) => s + w.gross, 0);
       if (today + gross > toNano(CFG.wMaxDay)) return { error: `Не больше ${CFG.wMaxDay} GRAM в день` };
       // Списываем только созревшие деньги
       const g = G(pr); let left = gross;
-      for (const c of g.earn) { if (!left || c.at > now()) continue; const k = Math.min(c.a, left); c.a -= k; left -= k; }
+      for (const c of g.earn) { if (!left || (c.at > now() && !tw)) continue; const k = Math.min(c.a, left); c.a -= k; left -= k; }
       g.earn = g.earn.filter((c) => c.a > 0);
+      if (left && tw) { const k = Math.min(g.dep, left); g.dep -= k; left -= k; } // тест: и из пополнений
       const o = order(pr), fee = Math.round(gross * (CFG.wFee - ((o && o.wFee) || 0)));
       const w = { id: st.seq++, uid: p.uid, name: p.name, gross, fee, net: gross - fee, address: addr, at: now(), status: 'wait', prio: o ? (o.top ? 2 : 1) : 0 };
       st.wd.unshift(w); st.wd.length = Math.min(st.wd.length, 3000);
