@@ -488,7 +488,7 @@ const meta = createMeta({
 const Trade = require('./trade')({
   I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
   bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
-  rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), alertAdmins: (t) => adminAlert(t),
+  rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), alertAdmins: (t, loud) => adminAlert(t, loud),
   // Торговые ордена — ступени сезонных орденов после Чемпиона: цена — доплата до них с учётом купленного
   passTier: (pr) => meta.passTier(pr), passEnds: () => (Math.floor(Date.now() / (meta.SHOP.pass.days * 864e5)) + 1) * meta.SHOP.pass.days * 864e5,
   passOrders: (pr) => { const cur = meta.passTier(pr), paid = cur ? meta.SHOP.passTiers[cur - 1].price : 0;
@@ -2255,9 +2255,12 @@ admin.setSendFile(async (buf, filename, caption) => {
   return n;
 });
 // Новые ошибки сервера — администраторам (ADMIN_TG_IDS) в Telegram, не чаще раза в 10 минут
-function adminAlert(text) {
-  if (!bot) return;
-  for (const id of String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean)) bot.telegram.sendMessage(id, text.slice(0, 4000), { disable_notification: true }).catch((e) => console.error('admin-alert', id, e.message));
+// loud — со звуком (заявки на вывод); ошибки сервера и прочее — беззвучно, чтобы не будить ночью
+function adminAlert(text, loud) {
+  if (!bot) { console.error('admin-alert: бот не запущен —', text.slice(0, 120)); return; }
+  const ids = String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean);
+  if (!ids.length) console.error('admin-alert: не задан ADMIN_TG_IDS —', text.slice(0, 120));
+  for (const id of ids) bot.telegram.sendMessage(id, text.slice(0, 4000), { disable_notification: !loud }).catch((e) => console.error('admin-alert', id, e.message));
 }
 admin.setAlert(adminAlert);
 

@@ -287,7 +287,7 @@ module.exports = function createTrade(deps) {
       g.wallet = addr;
       note(p.uid, 'withdraw', -gross, `Заявка на вывод №${w.id}: ${fmt(w.net)} GRAM на ${addr.slice(0, 6)}…${addr.slice(-4)} (комиссия ${fmt(fee)})`);
       save();
-      if (alertAdmins) alertAdmins(`💸 Заявка на вывод №${w.id}: ${p.name} · ${fmt(w.net)} GRAM → ${addr}\nАдминка → GRAM`);
+      if (alertAdmins) alertAdmins(`💸 Заявка на вывод №${w.id}: ${p.name} · ${fmt(w.net)} GRAM → ${addr}\nАдминка → GRAM`, true);
       return { toast: `Заявка №${w.id} принята: ${fmt(w.net)} GRAM. Выплаты — ежедневно с 20:00 до 24:00 МСК`, refresh: true };
     },
   };
