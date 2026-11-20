@@ -371,6 +371,15 @@ module.exports = function createTrade(deps) {
 
   // Списать GRAM за покупку вне торговли (внешний вид): сначала пополненные, затем деньги с продаж
   const spendGram = (uid, nano, text) => { const ok = spend(uid, nano, 'shop', text); if (ok) save(); return ok; };
-  return { spendGram, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k), adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
+  // Обнуление игроков (админка): лоты, заявки и журнал удалённых — убрать
+  function wipe(keep) {
+    const n = st.lots.length;
+    st.lots = st.lots.filter((l) => keep.has(l.seller));
+    st.wd = st.wd.filter((w) => keep.has(w.uid));
+    st.log = st.log.filter((e) => keep.has(e.uid));
+    save();
+    return n - st.lots.length;
+  }
+  return { wipe, spendGram, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k), adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
 };
 module.exports.CFG = CFG;

@@ -545,6 +545,10 @@
         <div class="row"><label>Чат</label><input id="sChat" class="wide" placeholder="@mystichorizon_chat" value="${esc(s.chat || '')}"></div></div>
       <div class="card"><h3>💬 Сообщение при входе</h3>
         <div class="row"><input id="sMotd" class="wide" placeholder="Показывается каждому игроку при входе в мир" value="${esc(s.motd)}"></div></div>
+      <div class="card"><h3>🧹 Обнуление перед стартом</h3>
+        <p class="muted">Удаляет всех игроков, кроме указанных: прогресс, предметы, GRAM-балансы, лоты Торгового дома, кланы. Перед удалением автоматически сохраняется снимок базы (Обзор → Снимки), из него можно восстановить. Игроки начнут заново при следующем входе.</p>
+        <div class="row"><label>Оставить</label><input id="sWipeKeep" class="wide" placeholder="tg80769030 (через запятую)"></div>
+        <div class="row"><button class="btn danger" id="sWipe">Обнулить всех, кроме указанных</button></div></div>
       <div class="row"><button id="sSave" class="btn primary">Сохранить настройки</button><button id="sDisk" class="btn">Записать данные игроков на диск</button></div>`;
     $('sSave').onclick = async () => {
       if ($('sMaint').checked && !s.maintenance && !confirm('Включить техработы? Все игроки, кроме тестеров, будут отключены.')) return;
@@ -552,6 +556,14 @@
       drawSettings();
     };
     $('sDisk').onclick = () => api('save');
+    $('sWipe').onclick = async () => {
+      const keep = $('sWipeKeep').value.split(/[\s,]+/).filter(Boolean);
+      if (!keep.length) return toast('Укажите, кого оставить (например tg80769030)', true);
+      const word = prompt(`Будут удалены ВСЕ игроки, кроме: ${keep.join(', ')}.\nДля подтверждения введите слово ОБНУЛИТЬ`);
+      if (word === null) return;
+      const r = await api('wipeAll', { keep, confirm: word.trim() });
+      toast(r.error || r.text, !!r.error);
+    };
     $('sOpenSet').onclick = async () => { const v = $('sOpen').value; if (!v) return toast('Выберите дату и время', true); await api('settings', { set: { openAt: new Date(v).getTime() } }); drawSettings(); };
     $('sOpenNow').onclick = async () => { if (!confirm('Открыть игру сейчас для всех?')) return; await api('settings', { set: { openAt: Date.now() } }); drawSettings(); };
     $('sOnMin').onchange = () => api('settings', { set: { onlineMin: $('sOnMin').value } });

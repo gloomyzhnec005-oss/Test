@@ -819,7 +819,7 @@ const Ranks = (() => {
     const mine = list.find((x) => x.uid === key);
     return { tab, list: list.slice(0, 50).map(({ name, val, place }) => ({ name, val, place })), me: mine ? { place: mine.place, val: mine.val } : null, weekEnds: R.weekEnds, prize: PRIZE };
   }
-  return { view, weekNo };
+  return { view, weekNo, reset: () => { cache = null; } };
 })();
 // Уведомления в Telegram (server/push.js)
 const Push = require('./push')({
@@ -1910,7 +1910,11 @@ io.on('connection', (socket) => {
     }
     removePlayer(socket, p);
   });
-  function removePlayer(socket, p) {
+  function removePlayer(socket, p) { removePlayerG(p, socket); }
+});
+// Убрать героя из мира (выход, обрыв, вход с другой вкладки, обнуление из админки)
+function removePlayerG(p, socket = p.socket) {
+  {
     Arena.leave(p);
     leaveParty(p);
     players.delete(socket.id);
@@ -1920,7 +1924,7 @@ io.on('connection', (socket) => {
     io.emit('chat', { sys: true, text: `${p.name} покинул мир` });
     saveProfiles();
   }
-});
+}
 
 // ---------- Игровой цикл ----------
 let lastTick = Date.now();
@@ -2272,6 +2276,23 @@ function adminAlert(text, loud) {
   for (const id of ids) send(id, 1);
 }
 admin.setAlert(adminAlert);
+// Обнуление перед стартом (админка → Настройки): удаляем всех, кроме keep
+admin.setWipe((keep) => {
+  for (const o of [...players.values()]) if (!keep.has(o.uid)) {
+    o.socket.emit('kicked', 'Игровой мир обновлён — войдите заново');
+    clearTimeout(o.graceTimer); removePlayerG(o); try { o.socket.disconnect(true); } catch {}
+  }
+  let nP = 0, nC = 0;
+  for (const uid of Object.keys(profiles)) if (!keep.has(uid)) { delete profiles[uid]; nP++; }
+  for (const [id, c] of Object.entries(clans)) {
+    c.members = c.members.filter((u) => keep.has(u));
+    if (!c.members.length) { delete clans[id]; nC++; continue; }
+    if (!keep.has(c.leader)) c.leader = c.members[0];
+  }
+  const lots = Trade.wipe(keep);
+  saveProfiles(); saveClans(); Ranks.reset();
+  return { players: nP, clans: nC, lots };
+});
 
 if (!store.db) process.on('SIGINT', () => { saveProfiles(); process.exit(0); });
 // Остановка сервера: server/boot.js вызывает это, дописывает всё в хранилище (базу) и только потом выходит

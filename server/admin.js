@@ -47,6 +47,7 @@ module.exports = function createAdmin(ctx) {
   // Не чаще раза в 10 минут, одним сообщением (до 5 разных ошибок, у каждой — начало текста). Повторы одной и той же ошибки не шлём.
   // Выключить: переменная ERROR_ALERTS=false. Отправку подключает index.js (setAlert) после запуска бота.
   const alertQ = [], ALERT_EVERY = 10 * 60e3;
+  let wipeFn = null;
   let alertFn = null, alertLast = 0, alertTotal = 0;
   const alertSeen = new Map(); // текст (без чисел) → когда последний раз отправляли: одну и ту же ошибку — не чаще раза в 6 ч
   setInterval(() => {
@@ -409,6 +410,20 @@ module.exports = function createAdmin(ctx) {
   r.post('/gramPay', act((d) => ctx.trade.adminPay(d.id, d.tx), (d) => `выплата GRAM по заявке №${d.id}`));
   r.post('/gramReject', act((d) => ctx.trade.adminReject(d.id, d.reason), (d) => `отказ в выводе №${d.id}`));
   r.post('/gramAdjust', act((d) => (ctx.profiles[d.uid] ? ctx.trade.adminAdjust(d.uid, d.gram, d.text) : { error: 'Игрок не найден' }), (d) => `баланс GRAM ${d.uid} ${d.gram}`));
+  // Обнуление перед стартом: удалить всех игроков, кроме keep. Сначала — снимок базы (откат через «Восстановить»)
+  r.post('/wipeAll', aact(async (d) => {
+    if (d.confirm !== 'ОБНУЛИТЬ') return { error: 'Не подтверждено: нужно ввести слово ОБНУЛИТЬ' };
+    if (!wipeFn) return { error: 'Обнуление недоступно' };
+    const keep = [...new Set((Array.isArray(d.keep) ? d.keep : []).map((x) => String(x).trim()).filter(Boolean))];
+    const missing = keep.filter((u) => !ctx.profiles[u]);
+    if (!keep.length || missing.length) return { error: `Не найдены игроки: ${missing.join(', ') || '—'}. Проверьте ID (вид tg123456789)` };
+    ctx.saveProfiles();
+    let snap = '';
+    if (store.db) { const s = await store.snapshot('prewipe'); snap = ` · снимок №${s.id} сохранён`; }
+    else { try { store.backup(['players.json', 'clans.json', 'gram.json']); snap = ' · бэкап файлов сохранён'; } catch {} }
+    const r = wipeFn(new Set(keep));
+    return { text: `Удалено игроков: ${r.players}, кланов: ${r.clans}, лотов: ${r.lots}. Оставлены: ${keep.join(', ')}${snap}` };
+  }, () => 'обнуление игроков'));
   r.post('/snapshots', aact(async () => ({ db: store.db, list: await store.listSnapshots() })));
   r.post('/snapshotNow', aact(async () => {
     if (!store.db) return { error: 'Снимки в базе доступны только с Postgres — используйте «Скачать всё»' };
@@ -575,5 +590,5 @@ module.exports = function createAdmin(ctx) {
 
   // Администратор ли этот игрок (Telegram ID в ADMIN_TG_IDS) — для кнопки админки в лобби
   const isAdminUid = (uid) => String(uid).startsWith('tg') && TG_IDS.includes(String(uid).slice(2));
-  return { router: r, settings, saveSettings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; }, setRefund: (fn) => { refundFn = fn; } };
+  return { router: r, settings, saveSettings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; }, setRefund: (fn) => { refundFn = fn; }, setWipe: (fn) => { wipeFn = fn; } };
 };
