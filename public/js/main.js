@@ -449,6 +449,8 @@
     });
   }
   function startSkillCd(id, ms, total = ms) {
+    // Точное время готовности от сервера: нажатие на перезарядке — без звука и надписи (см. game.js → predictSkill)
+    if (window.gameScene) (window.gameScene.skillReady ??= {})[id] = performance.now() + Math.max(0, ms) - 120;
     const btn = skillBtns[id];
     if (!btn) return;
     const until = performance.now() + ms;

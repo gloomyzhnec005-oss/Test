@@ -1143,10 +1143,25 @@ function knockback(m, dx, dy, distPx) {
   // Сдвигаем монстра по шагам, чтобы не проходить сквозь стены
   for (let i = 0; i < 7; i++) moveEntity(m, dx * distPx / 7, dy * distPx / 7);
 }
+// Перенос героя умением. Если точка в стене — ищем ближайшую свободную рядом (иначе герой «оставался» на месте,
+// а клиент уже показывал его у цели — и потом его откатывало назад). Возвращает точку приземления или null.
+// tp — номер переноса: шаги клиента, отправленные ещё со старого места, сервер отбрасывает (см. socket.on('move')).
 function teleport(p, x, y) {
-  if (world.isSolidAt(x, y)) return;
-  p.x = x; p.y = y; p.lastMove = Date.now();
-  p.socket.emit('correct', { x, y });
+  let at = null;
+  if (!world.isSolidAt(x, y)) at = [x, y];
+  else {
+    for (let r = 8; r <= 48 && !at; r += 8) {
+      for (let a = 0; a < 16; a++) {
+        const tx = x + Math.cos(a * Math.PI / 8) * r, ty = y + Math.sin(a * Math.PI / 8) * r;
+        if (!world.isSolidAt(tx, ty) && world.lineOfSight(x, y, tx, ty)) { at = [tx, ty]; break; } // не за стеной
+      }
+    }
+  }
+  if (!at) return null;
+  p.x = at[0]; p.y = at[1]; p.lastMove = Date.now();
+  p.tpSeq = (p.tpSeq || 0) + 1; p.tpAt = p.lastMove; p.mvBudget = 0;
+  p.socket.emit('correct', { x: p.x, y: p.y, tp: p.tpSeq });
+  return at;
 }
 // Эффекты на земле: тотем Аламариэль (лечит союзников) и осквернённая земля Кельт'о (свой tick).
 // Срабатывают раз в секунду.
@@ -1608,6 +1623,8 @@ io.on('connection', (socket) => {
     p.lastMove = now;
     const x = Number(d.x), y = Number(d.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    // Шаг отправлен до того, как клиент узнал о переносе умением, — со старого места: не принимаем, иначе героя откатит назад
+    if (p.tpSeq && (d.tp | 0) !== p.tpSeq && now - p.tpAt < 1500) return;
     if (p.rootSelfUntil > now) { socket.emit('correct', { x: p.x, y: p.y }); return; } // укоренение Ву'гажа
     const cct = D.ccActive(p, now);
     if (cct === 'stun' || cct === 'freeze' || cct === 'root') { socket.emit('correct', { x: p.x, y: p.y }); return; } // контроль от монстров
@@ -1679,7 +1696,10 @@ io.on('connection', (socket) => {
     // Цель умения — только в прямой видимости (не через стены)
     const seen = (m) => world.lineOfSight(p.x, p.y, m.x, m.y);
     let target = monsters.get(d.targetId);
-    if (!target || Math.hypot(target.x - p.x, target.y - p.y) > range || !seen(target)) {
+    // Игрок выбрал живую цель, но она дальше дальности (или за стеной) — умению с целью отказ, а не удар по другому монстру
+    if (target && target.hp > 0 && NEEDS_TARGET.has(sk.id) && (Math.hypot(target.x - p.x, target.y - p.y) > range + 30 || !seen(target))) return fail('Цель слишком далеко');
+    if (target && Math.hypot(target.x - p.x, target.y - p.y) > range + 30) target = null;
+    if (!target || target.hp <= 0 || !seen(target)) {
       target = null;
       let best = range;
       for (const m of monsters.values()) {

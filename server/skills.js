@@ -1074,13 +1074,19 @@ const SKILLS = {
   // Зефира: драконьи крылья — взлёт и падение на цель
   dragonWings(ctx, p, t, now) {
     if (!t) return 'Нет цели';
-    const asp = p.form || 'fire', pw = p.castPower || 1, x = t.x, y = t.y;
+    const asp = p.form || 'fire', pw = p.castPower || 1, tid = t.id, range = 280;
+    let x = t.x, y = t.y;
     p.flyUntil = now + 1000;
     for (const m of ctx.monsters.values()) if (m.target === p.id) m.target = null;
     ctx.pushFx({ t: 'skill', s: 'takeFlight', from: p.id, x: p.x, y: p.y, quiet: true });
     setTimeout(() => {
       if (!ctx.players.has(p.id) || p.dead) return;
-      ctx.teleport(p, x, y + 4);
+      // Пикируем туда, где цель сейчас (она могла отойти за секунду полёта), но не дальше дальности умения от героя
+      const m0 = ctx.monsters.get(tid);
+      if (m0 && m0.hp > 0 && Math.hypot(m0.x - p.x, m0.y - p.y) <= range + 60) { x = m0.x; y = m0.y; }
+      const at = ctx.teleport(p, x, y + 4);
+      if (!at) return; // некуда приземлиться (стена) — остаёмся на месте, без удара
+      x = at[0]; y = at[1] - 4;
       const tn = Date.now();
       ctx.pushFx({ t: 'skill', s: 'dragonDive', from: p.id, x, y, r: 95, asp });
       for (const m of inRadius(ctx, x, y, 95)) {

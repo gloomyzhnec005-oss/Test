@@ -184,6 +184,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.net.on('correct', (d) => {
       if (!this.me) return;
       this.me.x = d.x; this.me.y = d.y;
+      if (d.tp) { this.tpSeq = d.tp; this.walkTo = null; } // перенос умением: дальше шаги — уже от новой точки
       if (d.respawn) this.ui.onRespawn();
     });
 
@@ -1935,7 +1936,6 @@ window.GameScene = class GameScene extends Phaser.Scene {
       case 'dragonDive': {
         const col = { fire: 0xff6a1a, ice: 0x8ad3ff, poison: 0x7ad84a, lightning: 0xffe94a }[f.asp];
         this.ring(f.x, f.y, f.r, col, 500, 7); this.burst(f.x, f.y, col, 26); this.cameras.main.shake(180, 0.01);
-        if (f.from === this.myId && this.me) { this.me.x = f.x; this.me.y = f.y + 4; }
         break;
       }
       case 'beastMight':
@@ -2438,6 +2438,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   // ---------- Бой ----------
+  // Цель умения: выбранный игроком монстр, если он в дальности умения (а не ближайший другой); иначе — как для удара
+  skillTargetFor(id) {
+    const me = this.me, need = this.skillTarget[id], cur = this.targetId && this.monsters.get(this.targetId);
+    // Выбранная живая цель уходит на сервер, даже если далеко: тогда сервер ответит «Цель слишком далеко», а не ударит другого
+    if (need && cur && cur.data && cur.data.hp > 0 && !cur.killAt) return cur;
+    return this.findTarget();
+  }
+
   findTarget() {
     const me = this.me;
     const range = this.prof().range;
@@ -2483,9 +2491,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (!sk || !me.e || idx >= (this.myStats.unlocked ?? 1)) return; // умение ещё закрыто — сервер откажет
     const now = performance.now(), last = (this.skillAt ??= {})[id] || 0;
     if (now - last < (sk.cooldown || 0) * 0.85 || (this.myStats.res ?? 1e9) < (sk.cost || 0)) return;
+    if (now < ((this.skillReady || {})[id] || 0)) return; // сервер сказал: ещё на перезарядке
     // Умению нужна цель, а рядом никого — сервер откажет «Нет цели рядом»: без звука и надписи (на арене цели — герои, не проверяем)
     const need = this.skillTarget[id];
     if (need && !(this.zone && this.zone.kind === 'pvp')) {
+      const cur = this.targetId && this.monsters.get(this.targetId);
+      if (cur && cur.data && cur.data.hp > 0 && !cur.killAt && Math.hypot(cur.c.x - me.x, cur.c.y - me.y) > need + 30) return; // выбранная цель далеко — сервер откажет
       let any = false;
       for (const e of this.monsters.values()) if (e.data && e.data.hp > 0 && !e.killAt && Math.hypot(e.c.x - me.x, e.c.y - me.y) <= need) { any = true; break; }
       if (!any) return;
@@ -2952,7 +2963,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (me.sentX !== me.x || me.sentY !== me.y) {
         me.sentX = me.x; me.sentY = me.y;
         // volatile: без связи шаги не копятся (иначе после восстановления сервер получил бы пачку старых шагов и «откатил» героя)
-        this.net.volatile.emit('move', { x: Math.round(me.x * 10) / 10, y: Math.round(me.y * 10) / 10, dir: me.dir });
+        this.net.volatile.emit('move', { x: Math.round(me.x * 10) / 10, y: Math.round(me.y * 10) / 10, dir: me.dir, tp: this.tpSeq || 0 });
       }
     }
 
@@ -2964,7 +2975,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (skillId) {
       this.input_.skill = null;
       if (!me.data.dead) {
-        const t = this.findTarget();
+        const t = this.skillTargetFor(skillId);
         this.net.emit('skill', { id: skillId, targetId: t ? t.data.id : null });
         this.predictSkill(skillId);
       }
