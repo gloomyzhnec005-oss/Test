@@ -47,7 +47,9 @@ module.exports = function createWish({ C, getChar, refreshUid, addPassXp, quest 
     if (r < pM) return 'mythic';
     if (s.l + 1 >= LEG_EVERY || r < pM + pL) return 'legendary';
     if (r < pM + pL + RATES.epic) return 'epic';
-    if (r < pM + pL + RATES.epic + RATES.rare || first) return 'rare'; // первый герой — не ниже редкого
+    // Первый герой: остаток (≈83%) пополам между редким и обычным
+    if (first) return r < pM + pL + RATES.epic + (1 - pM - pL - RATES.epic) / 2 ? 'rare' : 'common';
+    if (r < pM + pL + RATES.epic + RATES.rare) return 'rare';
     return 'common';
   }
 
