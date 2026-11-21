@@ -746,6 +746,36 @@
         $('piNo').onclick = () => box.classList.add('hidden');
         vibrate('medium');
       });
+      // ---------- Пригласить друга: личная ссылка, «Скопировать», «Поделиться», кто пришёл ----------
+      const openInvite = async () => {
+        const r = await Bag.act('refInfo'), R = r && r.ref;
+        if (!R || !R.code) { Town.toast('Приглашения доступны в игре через Telegram'); return; }
+        const link = R.bot ? `https://t.me/${R.bot}/${R.app}?startapp=${R.code}` : '';
+        const box = document.createElement('div');
+        const C = R.cfg;
+        box.innerHTML = `<p class="sheet-hint">Отправьте другу свою ссылку. Он начнёт игру с подарком, а вы получите награды, пока он растёт.</p>
+          <div class="ic-sec">🎁 Другу — сразу</div><div class="tw-ev"><div><b>+${C.newGems} 💎 и ${C.newSpins} печать призыва героя</b><small>только новым игрокам, при первом входе по ссылке</small></div></div>
+          <div class="ic-sec">🏆 Вам</div>
+          <div class="tw-ev"><div><b>Друг достиг 10 уровня</b><small>+${C.l10.gems} 💎</small></div></div>
+          <div class="tw-ev"><div><b>Друг достиг 20 уровня</b><small>+${C.l20.gems} 💎 и ${C.l20.itemSpins} призыва снаряжения</small></div></div>
+          <div class="tw-ev"><div><b>Каждая покупка друга</b><small>${Math.round(C.share * 100)}% её стоимости — самоцветами, навсегда</small></div></div>
+          <div class="ic-sec">Ваша ссылка</div>
+          <div class="tw-form"><input class="addr" type="text" readonly value="${link}"></div>
+          <div class="btn-row"><button class="l2-btn" id="refCopy">📋 Скопировать</button><button class="l2-btn" id="refShare">📤 Поделиться</button></div>
+          <div class="ic-sec">Приглашено: ${R.n} · 10 ур.: ${R.l10} · 20 ур.: ${R.l20} · получено 💎 ${R.earned}</div>
+          ${(R.list || []).map((f) => `<div class="tw-ev"><div><b>${f.name}</b><small>ур. ${f.lvl}</small></div></div>`).join('') || '<div class="tw-soon">Пока никого — отправьте ссылку друзьям</div>'}`;
+        const inp = box.querySelector('input');
+        box.querySelector('#refCopy').onclick = async () => {
+          try { await navigator.clipboard.writeText(link); Town.toast('Ссылка скопирована'); } catch { inp.focus(); inp.select(); try { document.execCommand('copy'); Town.toast('Ссылка скопирована'); } catch { Town.toast('Выделите ссылку и скопируйте'); } }
+        };
+        box.querySelector('#refShare').onclick = () => {
+          const text = (window.I18N ? I18N.tr('Заходи в Mystic Horizon — MMORPG прямо в Telegram! По моей ссылке — 100 💎 и призыв героя в подарок') : 'Заходи в Mystic Horizon!');
+          const u = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+          const W = window.Telegram && window.Telegram.WebApp;
+          if (W && W.openTelegramLink) W.openTelegramLink(u); else window.open(u, '_blank');
+        };
+        Town.open('👥 Пригласить друга', box);
+      };
       const openParty = () => {
         const box = document.createElement('div');
         const me = socket.id;
@@ -1002,6 +1032,7 @@
           ['party', 'Сменить героя', 'Выбрать другого героя — без выхода через настройки', openHeroSwitch],
           ['arena', 'Рейтинг арены', 'Лучшие игроки и турнир недели · сражаться — в доме арены', () => Town.openPlace('arenaRank')],
           ['pass', 'Сезонные ордена', 'Награды сезона, бонусы и автобой', () => Town.openPlace('pass')],
+          ['party', 'Пригласить друга', 'Своя ссылка: другу — самоцветы и призыв, вам — награды за его уровни и 10% с его покупок', () => openInvite()],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
           ['market', 'GRAM-кошелёк', 'Баланс, пополнение, вывод денег с продаж, торговые ордена', () => Town.openPlace('wallet')],
           ['clan', 'Клан', 'Свой клан: участники, задания, хранилище, чат', openClan],

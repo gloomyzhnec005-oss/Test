@@ -160,11 +160,55 @@ app.use((req, res, next) => {
 });
 // Кто открыл игру: что сообщает Telegram (имя, @username, язык, Premium), устройство и откуда пришёл (start_param ссылки).
 // Номера телефона мини-приложение не получает. Видно в админке → Игроки.
+// ---------- Приглашения друзей (реферальная ссылка игрока) ----------
+// Ссылка: https://t.me/<бот>/<приложение>?startapp=r<код>, код — Telegram ID в 36-ричной записи.
+// Новичок по ссылке: +100 💎 и 1 печать призыва героя. Пригласившему: друг достиг 10 ур. — 100 💎, 20 ур. — 100 💎 и 2 призыва
+// снаряжения; с каждой покупки друга — самоцветы на 10% её стоимости (навсегда). Считается только для новых аккаунтов.
+const REF = { newGems: 100, newSpins: 1, l10: { gems: 100 }, l20: { gems: 100, itemSpins: 2 }, share: 0.1, gemsPerStar: 330 / 50 };
+const refCode = (uid) => (/^tg\d+$/.test(uid) ? 'r' + Number(uid.slice(2)).toString(36) : null);
+const refUid = (code) => (/^r[0-9a-z]{1,14}$/.test(code || '') ? 'tg' + parseInt(code.slice(1), 36) : null);
+function refJoin(uid, pr, code) {
+  const inv = refUid(code);
+  if (!inv || inv === uid || pr.refBy || (pr.heroes || []).length || !profiles[inv] || !(profiles[inv].heroes || []).length) return;
+  pr.refBy = inv; pr.refAt = Date.now();
+  pr.gems = (pr.gems || 0) + REF.newGems; pr.paidSpins = (pr.paidSpins || 0) + REF.newSpins;
+  const ip = profiles[inv]; (ip.refs ??= []).push(uid); ip.refN = (ip.refN || 0) + 1;
+  notifyUid(inv, `👥 По вашей ссылке пришёл новый игрок! Награды — когда друг достигнет 10 и 20 уровня, и 10% самоцветами с его покупок`);
+  admin.log('ref', `${uid} пришёл по приглашению ${inv}`);
+}
+function refReward(inv, r, why) {
+  const ip = profiles[inv]; if (!ip) return;
+  if (r.gems) ip.gems = (ip.gems || 0) + r.gems;
+  if (r.itemSpins) ip.itemSpins = (ip.itemSpins || 0) + r.itemSpins;
+  ip.refEarned = (ip.refEarned || 0) + (r.gems || 0);
+  notifyUid(inv, `👥 ${why}: ${r.gems ? `+${r.gems} 💎` : ''}${r.itemSpins ? ` +${r.itemSpins} призыва снаряжения` : ''}`);
+  refreshUid(inv);
+}
+function refLevel(uid, lvl) {
+  const pr = profiles[uid]; if (!pr || !pr.refBy) return;
+  const who = pr.name || 'Друг';
+  if (lvl >= 10 && !pr.refL10) { pr.refL10 = true; refReward(pr.refBy, REF.l10, `${who} достиг 10 уровня`); }
+  if (lvl >= 20 && !pr.refL20) { pr.refL20 = true; refReward(pr.refBy, REF.l20, `${who} достиг 20 уровня`); }
+}
+function refPaid(pr, info) {
+  if (!pr.refBy) return;
+  const stars = info.currency === 'GRAM' ? (Number(info.amount) || 0) / Math.max(1e-9, ton.rate()) : Number(info.amount) || 0;
+  const gems = Math.round(stars * REF.gemsPerStar * REF.share);
+  if (gems > 0) refReward(pr.refBy, { gems }, `Покупка приглашённого друга (${pr.name || 'друг'})`);
+}
+function refInfo(p) {
+  const pr = getProfile(p.uid), code = refCode(p.uid);
+  const refs = (pr.refs || []).map((u) => profiles[u]).filter(Boolean);
+  return { ref: { code, app: (process.env.APP_SHORT_NAME || 'play').trim(), bot: (bot && bot.botInfo && bot.botInfo.username) || process.env.BOT_USERNAME || null,
+    n: pr.refN || 0, l10: refs.filter((o) => o.refL10).length, l20: refs.filter((o) => o.refL20).length, earned: pr.refEarned || 0, cfg: REF,
+    list: refs.slice(-20).reverse().map((o) => ({ name: o.name || 'Новичок', lvl: Math.max(1, ...Object.values(o.chars || {}).map((c) => c.level || 1)) })) } };
+}
 function noteVisitor(uid, initData, plat) {
   try {
     const q = new URLSearchParams(initData || ''), u = JSON.parse(q.get('user') || 'null');
     if (!u) return;
     const pr = getProfile(uid), now = Date.now(), o = pr.tgInfo || { firstAt: now, visits: 0 };
+    if (!pr.tgInfo) refJoin(uid, pr, q.get('start_param')); // первый визит по чужой ссылке — новичок получает бонус
     pr.tgInfo = { ...o, first: String(u.first_name || '').slice(0, 64), last: String(u.last_name || '').slice(0, 64), user: String(u.username || '').slice(0, 64),
       lang: String(u.language_code || '').slice(0, 8), prem: !!u.is_premium, plat: String(plat || '').slice(0, 16), src: o.src || String(q.get('start_param') || '').slice(0, 64),
       chat: o.chat || String(q.get('chat_type') || '').slice(0, 16), lastAt: now, visits: (o.visits || 0) + 1 };
@@ -442,6 +486,7 @@ function onPaid(payload, info = {}) {
   if (pr.payments.length > 50) pr.payments.splice(0, pr.payments.length - 50);
   pr.paidOnce = true; // скидка на первую покупку израсходована
   try { Q.track(uid, 'purchase', 1); } catch (e) { console.error('quest purchase', e); } // недельное «Покровитель»
+  try { refPaid(pr, info); } catch (e) { console.error('ref paid', e); } // 10% пригласившему
   Econ.paid(kind, info.amount, info.currency || 'XTR');
   if (kind === 'spin') pr.paidSpins += 1;
   else if (kind === 'spin10') pr.paidSpins += 10;
@@ -506,7 +551,8 @@ const inPartyNear = (uid) => {
   return false;
 };
 { const track = Q.track; Q.track = (uid, type, n = 1, info) => { track(uid, type, n, info);
-  if ((type === 'kill' || type === 'dungeon') && inPartyNear(uid)) track(uid, type === 'kill' ? 'partyKill' : 'partyDungeon', n, info); clanTrack(uid, type, n); clanWar(uid, type); try { npcTrack(uid, type, n, info); } catch (e) { console.error('npcq', e); } }; } // + клановые задания, война кланов, NPC
+  if ((type === 'kill' || type === 'dungeon') && inPartyNear(uid)) track(uid, type === 'kill' ? 'partyKill' : 'partyDungeon', n, info);
+  if (type === 'level') try { refLevel(uid, n); } catch (e) { console.error('ref', e); } clanTrack(uid, type, n); clanWar(uid, type); try { npcTrack(uid, type, n, info); } catch (e) { console.error('npcq', e); } }; } // + клановые задания, война кланов, NPC
 // Мета-игра: предметы, рынок, аукцион, батл-пасс, подписка, арена (server/meta.js)
 const meta = createMeta({
   quest: (...a) => Q.track(...a),
@@ -1831,7 +1877,7 @@ io.on('connection', (socket) => {
     const op = d && typeof d.op === 'string' ? d.op : '';
     const src = /^(quest|story)/.test(op) ? 'quests' : /^npc/.test(op) ? 'npc' : op;
     try {
-      const res = Econ.measure(src, getProfile(p.uid), () => (/^(quest|story)/.test(op) ? Q.handle(p, d) : op === 'npcMarks' ? NQ.marks(p, p.zone) : /^npc/.test(op) ? NQ.act(p, d) : Trade.isOp(op) ? Trade.act(p, d) : meta.handle(p, d || {})));
+      const res = Econ.measure(src, getProfile(p.uid), () => (/^(quest|story)/.test(op) ? Q.handle(p, d) : op === 'npcMarks' ? NQ.marks(p, p.zone) : op === 'refInfo' ? refInfo(p) : /^npc/.test(op) ? NQ.act(p, d) : Trade.isOp(op) ? Trade.act(p, d) : meta.handle(p, d || {})));
       if (op === 'itemSpin' && res && res.results) for (const x of res.results) Econ.item(x.rar, 'gearSummon');
       cb(res); markDirty(p);
     } catch (e) { console.error('act', d && d.op, e); cb({ error: 'Ошибка сервера' }); }
