@@ -60,7 +60,7 @@ window.Lobby = (() => {
   async function api(url, body) {
     const r = await (url === '/api/profile' ? fetchRetry : fetch)(url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ initData: opts.tg ? opts.tg.initData : '', guestId: opts.guestId, ...body }),
+      body: JSON.stringify({ initData: opts.tg ? opts.tg.initData : '', guestId: opts.guestId, plat: opts.tg ? opts.tg.platform : 'web', ...body }),
     });
     const data = await r.json().catch(() => ({}));
     return { ok: r.ok, status: r.status, data };

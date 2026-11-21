@@ -121,7 +121,7 @@ module.exports = function createAdmin(ctx) {
     for (const it of pr.items) byRar[it.rar] = (byRar[it.rar] || 0) + 1;
     const pass = ctx.meta.passOf(pr);
     return {
-      uid, name: pr.name || null, lastSeen: pr.lastSeen || 0, gold: pr.gold, gems: pr.gems || 0, gram: ctx.trade ? ctx.trade.bal(pr) : null, tOrder: pr.tOrder && pr.tOrder.until > Date.now() ? pr.tOrder : null, paidSpins: pr.paidSpins, itemSpins: pr.itemSpins || 0,
+      uid, name: pr.name || null, tgInfo: pr.tgInfo || null, lastSeen: pr.lastSeen || 0, gold: pr.gold, gems: pr.gems || 0, gram: ctx.trade ? ctx.trade.bal(pr) : null, tOrder: pr.tOrder && pr.tOrder.until > Date.now() ? pr.tOrder : null, paidSpins: pr.paidSpins, itemSpins: pr.itemSpins || 0,
       freeSpinUsed: !!pr.freeSpinUsed, heroes, items: pr.items.length, itemsByRar: byRar, subUntil: pr.subUntil || 0,
       pass: { tier: ctx.meta.passTier(pr), xp: pass.xp, level: Math.floor(pass.xp / ctx.meta.SHOP.pass.xpPerLevel) },
       arena: pr.arena ? pr.arena.rating : 1000, banned: pr.banned || null, test: pr.test || {},
@@ -522,9 +522,9 @@ module.exports = function createAdmin(ctx) {
     const q = String(d.q || '').toLowerCase();
     const live = new Set([...ctx.players.values()].map((p) => p.uid));
     const list = Object.entries(ctx.profiles).map(([uid, pr]) => ({
-      uid, name: pr.name || null, online: live.has(uid), lastSeen: pr.lastSeen || 0, gold: pr.gold || 0, banned: !!pr.banned,
+      uid, name: pr.name || (pr.tgInfo ? [pr.tgInfo.first, pr.tgInfo.last].filter(Boolean).join(' ') || null : null), tg: pr.tgInfo || null, online: live.has(uid), lastSeen: pr.lastSeen || 0, gold: pr.gold || 0, banned: !!pr.banned,
       heroes: (pr.heroes || []).length, maxLevel: Math.max(0, ...Object.values(pr.chars || {}).map((c) => c.level || 0)),
-    })).filter((p) => !q || p.uid.toLowerCase().includes(q) || (p.name || '').toLowerCase().includes(q));
+    })).filter((p) => !q || p.uid.toLowerCase().includes(q) || (p.name || '').toLowerCase().includes(q) || ((p.tg && p.tg.user) || '').toLowerCase().includes(q));
     list.sort((a, b) => b.online - a.online || b.lastSeen - a.lastSeen);
     return { total: list.length, players: list.slice(0, 300) };
   }));

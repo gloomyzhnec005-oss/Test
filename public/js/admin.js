@@ -8,6 +8,9 @@
   let META = null, tab = 'overview', timer = null;
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Что Telegram сообщил о посетителе (server/index.js → noteVisitor)
+const PLAT = { ios: '📱 iPhone', android: '📱 Android', android_x: '📱 Android', tdesktop: '💻 Telegram Desktop', macos: '💻 macOS', weba: '🌐 Telegram Web', webk: '🌐 Telegram Web', web: '🌐 браузер', unigram: '💻 Unigram' };
+const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang}` : '', t.prem ? '⭐ Premium' : '', t.src ? `пришёл по ссылке «${t.src}»` : 'пришёл: напрямую в бота', t.firstAt ? `впервые ${new Date(t.firstAt).toLocaleString('ru-RU')}` : '', t.visits ? `заходов ${t.visits}` : ''].filter(Boolean).map((x) => esc(x)).join(' · ');
   const fmtNum = (n) => Number(n || 0).toLocaleString('ru-RU');
   const ago = (t) => {
     if (!t) return 'никогда';
@@ -297,7 +300,7 @@
     if (r.error) return;
     $('pTotal').textContent = `Найдено: ${r.total}${r.total > r.players.length ? ` (показаны ${r.players.length})` : ''}`;
     $('pList').innerHTML = r.players.map((p) => `<div class="item" data-uid="${esc(p.uid)}"><span class="dot ${p.online ? 'on' : ''}"></span>
-      <div class="main"><b>${esc(p.name || 'без имени')}</b><small>${esc(p.uid)} · героев ${p.heroes} · макс. ${p.maxLevel} ур. · 💰 ${fmtNum(p.gold)} · ${p.online ? 'в игре' : ago(p.lastSeen)}</small></div>
+      <div class="main"><b>${esc(p.name || 'без имени')}${p.tg && p.tg.user ? ` <small>@${esc(p.tg.user)}</small>` : ''}</b><small>${esc(p.uid)} · героев ${p.heroes} · макс. ${p.maxLevel} ур. · 💰 ${fmtNum(p.gold)} · ${p.online ? 'в игре' : ago(p.lastSeen)}</small>${p.tg ? `<small>${tgLine(p.tg)}</small>` : ''}</div>
       ${p.banned ? '<span class="tag red">бан</span>' : ''}</div>`).join('') || '<p class="muted">Никого не найдено</p>';
   }
 
@@ -355,6 +358,7 @@
     const opt = (o, sel) => Object.entries(o).map(([k, v]) => `<option value="${esc(k)}" ${k === sel ? 'selected' : ''}>${esc(v)}</option>`).join('');
     $('sheetBody').innerHTML = `
       <div class="card">
+        ${p.tgInfo ? `<div class="row"><small class="grow">👤 ${esc([p.tgInfo.first, p.tgInfo.last].filter(Boolean).join(' ') || '—')}${p.tgInfo.user ? ` · <a href="https://t.me/${esc(p.tgInfo.user)}" target="_blank">@${esc(p.tgInfo.user)}</a>` : ' · без @username'}<br>${tgLine(p.tgInfo)}</small></div>` : (p.uid.startsWith('tg') ? '<div class="row"><small class="muted grow">Данных Telegram пока нет — появятся, когда игрок снова откроет бота</small></div>' : '')}
         <div class="row"><span class="dot ${s ? 'on' : ''}"></span><b class="grow">${s ? `В игре: ${esc(s.heroName)} ${s.level} ур. · ${esc(s.zoneName)} · ❤️ ${s.hp}/${s.maxHp}` : 'Не в игре · ' + ago(p.lastSeen)}</b>
           ${p.banned ? `<span class="tag red">бан: ${esc(p.banned.reason)}</span>` : ''}</div>
       </div>

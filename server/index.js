@@ -158,10 +158,23 @@ app.use((req, res, next) => {
   const d = new Date(S.openAt + 3 * 36e5).toISOString();
   res.status(403).json({ error: `Игра откроется ${d.slice(8, 10)}.${d.slice(5, 7)} в ${d.slice(11, 16)} МСК — тогда станут доступны призыв и покупки` });
 });
+// Кто открыл игру: что сообщает Telegram (имя, @username, язык, Premium), устройство и откуда пришёл (start_param ссылки).
+// Номера телефона мини-приложение не получает. Видно в админке → Игроки.
+function noteVisitor(uid, initData, plat) {
+  try {
+    const q = new URLSearchParams(initData || ''), u = JSON.parse(q.get('user') || 'null');
+    if (!u) return;
+    const pr = getProfile(uid), now = Date.now(), o = pr.tgInfo || { firstAt: now, visits: 0 };
+    pr.tgInfo = { ...o, first: String(u.first_name || '').slice(0, 64), last: String(u.last_name || '').slice(0, 64), user: String(u.username || '').slice(0, 64),
+      lang: String(u.language_code || '').slice(0, 8), prem: !!u.is_premium, plat: String(plat || '').slice(0, 16), src: o.src || String(q.get('start_param') || '').slice(0, 64),
+      chat: o.chat || String(q.get('chat_type') || '').slice(0, 16), lastAt: now, visits: (o.visits || 0) + 1 };
+  } catch { /* необязательно */ }
+}
 app.post('/api/profile', (req, res) => {
   const { initData, guestId } = req.body || {};
   const who = resolveUid(initData, guestId);
   if (!who) return res.status(403).json({ error: 'Откройте игру через Telegram-бота' });
+  if (who.tg) noteVisitor(who.uid, initData, req.body.plat);
   const ban = getProfile(who.uid).banned;
   if (ban) return res.status(403).json({ error: `Вы заблокированы: ${ban.reason}` });
   res.json(profileView(who));
