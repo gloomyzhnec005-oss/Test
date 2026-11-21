@@ -189,7 +189,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tpSeq = d.tp; this.walkTo = null; // перенос умением: дальше шаги — уже от новой точки
         // Рывок, а не телепорт: логика героя сразу в новой точке, а на экране он «летит» туда за 0,12–0,22 с со шлейфом
         const dist = Math.hypot(d.x - fx0, d.y - fy0);
-        if (dist > 20 && dist < 700) { this.myDash = { fx: fx0, fy: fy0, t0: performance.now(), dur: Math.min(220, Math.max(120, dist * 0.6)) }; this.dashTrail(this.me.e, fx0, fy0, d.x, d.y); }
+        if (dist > 20 && dist < 700) { this.myDash = { fx: fx0, fy: fy0, t0: performance.now(), dur: Math.min(260, Math.max(160, dist * 0.7)) }; this.dashTrail(this.me.e, fx0, fy0, d.x, d.y); }
       }
       if (d.respawn) this.ui.onRespawn();
     });
@@ -2613,6 +2613,17 @@ window.GameScene = class GameScene extends Phaser.Scene {
     c.at = now;
   }
   // Упрощённые эффекты: настройка «Упрощённые» или «Авто» в большом бою (много монстров рядом / телефон уже снизил чёткость)
+  // Рывок сущности (другой игрок, монстр): цель отскочила дальше порога — летим к ней за 0,16–0,26 с по времени,
+  // а не по кадрам (при 20 FPS бросок «по кадрам» занимал 2–3 кадра и выглядел телепортом). true — рывок идёт
+  dashStep(e, gx, gy, gap, min, now) {
+    if (!e.dash && gap > min) { e.dash = { fx: e.c.x, fy: e.c.y, t0: now, dur: Math.min(260, Math.max(160, gap * 0.7)) }; this.dashTrail(e, e.c.x, e.c.y, gx, gy); }
+    const D = e.dash;
+    if (!D) return false;
+    const k = Math.min(1, (now - D.t0) / D.dur), q = 1 - (1 - k) ** 3;
+    e.c.x = D.fx + (gx - D.fx) * q; e.c.y = D.fy + (gy - D.fy) * q;
+    if (k >= 1) e.dash = null;
+    return true;
+  }
   // Шлейф рывка: 4 тающие тени героя вдоль пути и полоса пыли — глаз видит бросок, а не исчезновение
   dashTrail(e, fx, fy, tx, ty) {
     if (!e || !e.sprite || !e.sprite.texture) return;
@@ -2860,9 +2871,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
         mx = gx - e.c.x; my = gy - e.c.y;
         const gap = Math.hypot(mx, my);
         // Рывок умением (до ~700): быстрый бросок со шлейфом за ~0,15 с, а не телепорт; дальше — настоящий перенос
-        if (gap > 700) { e.c.x = gx; e.c.y = gy; }
-        else if (gap > 110) { if (!e.dashing) { e.dashing = true; this.dashTrail(e, e.c.x, e.c.y, gx, gy); } const kk = Math.min(1, dt * 16); e.c.x += mx * kk; e.c.y += my * kk; }
-        else { e.dashing = false; const kk = Math.min(1, dt * 30); e.c.x += mx * kk; e.c.y += my * kk; }
+        if (gap > 700) { e.c.x = gx; e.c.y = gy; e.dash = null; }
+        else if (this.dashStep(e, gx, gy, gap, 110, nowMs)) { /* рывок: полёт по времени, не по кадрам */ }
+        else { const kk = Math.min(1, dt * 30); e.c.x += mx * kk; e.c.y += my * kk; }
         const sp = Math.hypot(mx, my) / Math.max(0.001, dt); // скорость на экране: идёт или стоит (для анимации шага)
         if (sp < 25) { mx = 0; my = 0; } else { mx *= 4; my *= 4; }
       } else {
@@ -2870,9 +2881,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
         gx = e.tx + (e.vx || 0) * ahead; gy = e.ty + (e.vy || 0) * ahead;
         mx = gx - e.c.x; my = gy - e.c.y;
         const gap = Math.hypot(mx, my);
-        if (gap > 700) { e.c.x = gx; e.c.y = gy; } // перенос — сразу на место
-        else if (gap > 110) { if (!e.dashing) { e.dashing = true; this.dashTrail(e, e.c.x, e.c.y, gx, gy); } const kk = Math.min(1, dt * 16); e.c.x += mx * kk; e.c.y += my * kk; } // рывок
-        else { e.dashing = false; e.c.x += mx * kp; e.c.y += my * kp; }
+        if (gap > 700) { e.c.x = gx; e.c.y = gy; e.dash = null; } // перенос — сразу на место
+        else if (this.dashStep(e, gx, gy, gap, 110, nowMs)) { /* рывок */ }
+        else { e.c.x += mx * kp; e.c.y += my * kp; }
       }
       if (e.skinOn) {
         const moving = Math.hypot(mx, my) > 1.5;
@@ -2901,10 +2912,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
         mx = gx - e.c.x; my = gy - e.c.y;
         const gap = Math.hypot(mx, my);
         // Рывок монстра (на сервере мгновенный, до ~300) — быстрый бросок за ~0,15 с, а не телепорт; дальше 600 — настоящий перенос
-        if (gap > 600) { e.c.x = gx; e.c.y = gy; } else {
-          if (gap > 120 && !e.dashing) { e.dashing = true; this.dashTrail(e, e.c.x, e.c.y, gx, gy); } else if (gap < 60) e.dashing = false;
-          const kk = Math.min(1, dt * (gap > 120 ? 14 : 30)); e.c.x += mx * kk; e.c.y += my * kk;
-        }
+        if (gap > 600) { e.c.x = gx; e.c.y = gy; e.dash = null; }
+        else if (this.dashStep(e, gx, gy, gap, 90, nowMs)) { /* рывок монстра: бросок со шлейфом по времени */ }
+        else { const kk = Math.min(1, dt * 30); e.c.x += mx * kk; e.c.y += my * kk; }
         if (Math.hypot(mx, my) / Math.max(0.001, dt) < 20) { mx = 0; my = 0; } else { mx *= 4; my *= 4; }
       } else {
         mx = e.tx - e.c.x; my = e.ty - e.c.y;
