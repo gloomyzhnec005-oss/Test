@@ -40,12 +40,14 @@ module.exports = function createWish({ C, getChar, refreshUid, addPassXp, quest 
 
   function rollRarity(s, first) {
     const c = s.m + 1;
-    const pM = c >= HARD ? 1 : c >= SOFT ? RATES.mythic + 0.07 * (c - SOFT + 1) : RATES.mythic;
+    // Первая крутка новичка: без мифических, легендарный вдвое реже (5,5% → 2,75%); остальное — как обычно
+    const pM = first ? 0 : c >= HARD ? 1 : c >= SOFT ? RATES.mythic + 0.07 * (c - SOFT + 1) : RATES.mythic;
+    const pL = first ? RATES.legendary / 2 : RATES.legendary;
     const r = Math.random();
     if (r < pM) return 'mythic';
-    if (s.l + 1 >= LEG_EVERY || r < pM + RATES.legendary) return 'legendary';
-    if (r < pM + RATES.legendary + RATES.epic) return 'epic';
-    if (r < pM + RATES.legendary + RATES.epic + RATES.rare || first) return 'rare'; // первый герой — не ниже редкого
+    if (s.l + 1 >= LEG_EVERY || r < pM + pL) return 'legendary';
+    if (r < pM + pL + RATES.epic) return 'epic';
+    if (r < pM + pL + RATES.epic + RATES.rare || first) return 'rare'; // первый герой — не ниже редкого
     return 'common';
   }
 
