@@ -848,6 +848,8 @@ const Ranks = (() => {
 // Уведомления в Telegram (server/push.js)
 const Push = require('./push')({
   getBot: () => bot, profiles: () => profiles, save: () => saveProfiles(),
+  // До открытия игры уведомления (боссы, задания, серия входов) — только админам и тестерам
+  allowed: (uid) => !(S.openAt > Date.now()) || admin.isAdminUid(uid) || !!((profiles[uid] || {}).test || {}).tester,
   isOnline: (uid) => [...players.values()].some((p) => p.uid === uid && !p.offline),
   webAppUrl: () => (process.env.WEBAPP_URL || '').trim(),
 });

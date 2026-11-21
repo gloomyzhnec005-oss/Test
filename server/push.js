@@ -11,11 +11,11 @@ const KINDS = {
 const DAY_MAX = 6, ACTIVE_DAYS = 14;
 const translate = require('./tr');
 
-module.exports = function createPush({ getBot, profiles, isOnline, webAppUrl, save }) {
+module.exports = function createPush({ getBot, profiles, isOnline, webAppUrl, save, allowed = () => true }) {
   const queue = [];
   const day = () => new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
   function can(uid, kind) {
-    if (!uid.startsWith('tg') || isOnline(uid)) return false;
+    if (!uid.startsWith('tg') || isOnline(uid) || !allowed(uid)) return false;
     const pr = profiles()[uid];
     if (!pr || pr.notifyOff || pr.pushBlocked) return false;
     const P = (pr.push ??= { at: {}, day: '', n: 0 });
