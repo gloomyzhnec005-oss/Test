@@ -815,6 +815,13 @@ window.Lobby = (() => {
 
     $('menuHeroes').onclick = openGacha;
     $('menuBg').onclick = () => openSheet('Фон лобби', bgSheet());
+    // Пригласить друга (public/js/invite.js) — только в Telegram: у гостей своей ссылки нет
+    $('menuInvite').classList.toggle('hidden', !opts.tg || !opts.tg.initData);
+    $('menuInvite').onclick = async () => {
+      const { ok, data } = await api('/api/ref', {});
+      if (!ok || !data.ref || !data.ref.code) { $('status').textContent = (data && data.error) || 'Приглашения доступны в игре через Telegram'; return; }
+      openSheet('👥 Пригласить друга', Invite.panel(data.ref));
+    };
     $('menuChannel').onclick = () => { const u = (window.GameLinks || {}).channel, W = window.Telegram && window.Telegram.WebApp; if (!u) return; if (W && W.openTelegramLink) W.openTelegramLink(u); else window.open(u, '_blank'); };
     $('menuRoster').onclick = () => openSheet('Мои герои', rosterSheet());
     $('heroPrev').onclick = () => cycle(-1);

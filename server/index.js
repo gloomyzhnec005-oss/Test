@@ -196,8 +196,9 @@ function refPaid(pr, info) {
   const gems = Math.round(stars * REF.gemsPerStar * REF.share);
   if (gems > 0) refReward(pr.refBy, { gems }, `Покупка приглашённого друга (${pr.name || 'друг'})`);
 }
-function refInfo(p) {
-  const pr = getProfile(p.uid), code = refCode(p.uid);
+function refInfo(p) { return refInfoUid(p.uid); }
+function refInfoUid(uid) {
+  const pr = getProfile(uid), code = refCode(uid);
   const refs = (pr.refs || []).map((u) => profiles[u]).filter(Boolean);
   return { ref: { code, app: (process.env.APP_SHORT_NAME || 'play').trim(), bot: (bot && bot.botInfo && bot.botInfo.username) || process.env.BOT_USERNAME || null,
     n: pr.refN || 0, l10: refs.filter((o) => o.refL10).length, l20: refs.filter((o) => o.refL20).length, earned: pr.refEarned || 0, cfg: REF,
@@ -214,6 +215,12 @@ function noteVisitor(uid, initData, plat) {
       chat: o.chat || String(q.get('chat_type') || '').slice(0, 16), lastAt: now, visits: (o.visits || 0) + 1 };
   } catch { /* необязательно */ }
 }
+// Окно «Пригласить друга» в лобби (до входа в мир)
+app.post('/api/ref', (req, res) => {
+  const who = resolveUid((req.body || {}).initData, null);
+  if (!who || !who.tg) return res.status(403).json({ error: 'Приглашения доступны в игре через Telegram' });
+  res.json(refInfoUid(who.uid));
+});
 app.post('/api/profile', (req, res) => {
   const { initData, guestId } = req.body || {};
   const who = resolveUid(initData, guestId);
