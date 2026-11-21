@@ -13,7 +13,19 @@ module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPl
   // ---------- Поручители и цепочки ----------
   const GIVERS = {};
   const Q = {}; // id → задание
-  const add = (giver, q) => { q.giver = giver; Q[q.id] = q; GIVERS[giver].chain.push(q.id); };
+  // Сложность поручений: цели больше (раньше 10 монстров проходились за минуту), награда растёт вместе с ними.
+  // Самоцветы не растут — это донатная валюта. Сердца/чешуя (редкие) — по-прежнему 1 штука.
+  const GOAL_K = { kill: 3, rare: 2.5, mini: 2, collect: 2.5 };
+  function harder(q) {
+    const k = q.type === 'collect' && /^core/.test(q.mat) ? 1 : GOAL_K[q.type] || 1;
+    if (k === 1) return q;
+    const old = q.goal, goal = Math.round(old * k), rk = 1 + (k - 1) * 0.75, r = q.reward;
+    const at = q.desc.lastIndexOf(String(old)); // число цели в тексте (последнее вхождение)
+    const desc = at < 0 ? q.desc : q.desc.slice(0, at) + goal + q.desc.slice(at + String(old).length);
+    return { ...q, goal, desc, reward: { ...r, gold: r.gold && Math.round(r.gold * rk / 10) * 10, xp: r.xp && Math.round(r.xp * rk),
+      mats: r.mats && Object.fromEntries(Object.entries(r.mats).map(([m, n]) => [m, Math.max(n, Math.round(n * rk))])) } };
+  }
+  const add = (giver, q) => { q = harder(q); q.giver = giver; Q[q.id] = q; GIVERS[giver].chain.push(q.id); };
   for (const [town, list] of Object.entries(X.DUNGEONS)) {
     const t = TOWN_TIER[town];
     // У каждого города свои поручители (имена, внешность и характер — под мир)
@@ -35,7 +47,7 @@ module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPl
       const zone = `dg_${town}_${i}`, lv = dg.lv[0], top = dg.lv[1];
       add(`${town}_cap`, { id: `${zone}_clear`, name: `Зачистка: ${dg.name}`, desc: `Уничтожьте ${10 + i * 2} монстров в данже «${dg.name}».`,
         type: 'kill', zone, goal: 10 + i * 2, minLv: lv, reward: { gold: 40 * top, xp: xpAt(top), mats: { potHp: 3 } } });
-      add(`${town}_cap`, { id: `${zone}_mini`, name: `Полубосс: ${dg.name}`, desc: `Победите полубосса данжа «${dg.name}» (${[...new Set(dg.minis.map(mobName))].join(' или ')}). Лучше идти группой.`,
+      add(`${town}_cap`, { id: `${zone}_mini`, name: `Полубосс: ${dg.name}`, desc: `Победите полубосса данжа «${dg.name}» (${[...new Set(dg.minis.map(mobName))].join(' или ')}). Лучше идти группой. Нужно побед: 1.`,
         type: 'mini', zone, goal: 1, minLv: lv, reward: { gold: 90 * top, xp: xpAt(top) * 2, mats: { dust: 1 + Math.floor(i / 2) }, gems: 10 } });
     });
     // Травница: материалы своего мира
@@ -53,19 +65,20 @@ module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPl
     // Следопыт: элита, боссы, выживание, мировой босс
     const mid = list[2].lv[0], high = list[4].lv[0];
     [
-      { k: 'rare', name: 'Жёлтая метка', desc: 'Выследите и победите 4 редких монстра (жёлтые имена) в данжах этого мира.', type: 'rare', goal: 4, minLv: list[0].lv[0], reward: { gold: 400 * t, xp: xpAt(list[1].lv[1]), mats: { elxWind: 1 } } },
+      { k: 'rare', name: 'Жёлтая метка', desc: 'Выследите и победите редких монстров (жёлтые имена) в данжах этого мира: 4.', type: 'rare', goal: 4, minLv: list[0].lv[0], reward: { gold: 400 * t, xp: xpAt(list[1].lv[1]), mats: { elxWind: 1 } } },
       { k: 'surv', name: 'Испытание волнами', desc: 'Продержитесь 10 волн в Данже выживания (здание в городе).', type: 'survival', goal: 10, minLv: mid, reward: { gold: 800 * t, xp: xpAt(list[3].lv[1]), mats: { dust: 2 }, gems: 15 } },
       { k: 'boss', name: 'Свидетель бойни', desc: 'Примите участие в бою с боссом любого данжа этого мира (12:00, 18:00 или 23:00 МСК) — хватит 1% урона или 20 секунд в его комнате.', type: 'boss', goal: 1, minLv: mid, reward: { gold: 1500 * t, xp: xpAt(list[4].lv[1]) * 2, mats: { dust: 3, luckStone: 1 }, gems: 30 } },
-      { k: 'rare2', name: 'Трофеи следопыта', desc: 'Победите 12 редких монстров (жёлтые имена) в данжах этого мира.', type: 'rare', goal: 12, minLv: high, reward: { gold: 1500 * t, xp: xpAt(list[5].lv[1]), mats: { skillCrystal: 1 }, gems: 20 } },
+      { k: 'rare2', name: 'Трофеи следопыта', desc: 'Победите редких монстров (жёлтые имена) в данжах этого мира: 12.', type: 'rare', goal: 12, minLv: high, reward: { gold: 1500 * t, xp: xpAt(list[5].lv[1]), mats: { skillCrystal: 1 }, gems: 20 } },
       { k: 'world', name: 'Против легенды', desc: 'Сразитесь с мировым боссом этого мира (каждый день в 21:00 МСК) и нанесите ему урон.', type: 'world', goal: 1, minLv: high, reward: { gold: 3000 * t, xp: xpAt(list[5].lv[1]) * 3, mats: { dust: 5, skillCrystal: 1 }, gems: 50 } },
     ].forEach((q) => add(`${town}_track`, { ...q, id: `${town}_track_${q.k}` }));
   }
   // Ежедневные поручения — после всей цепочки у этого поручителя
-  const daily = (g) => {
+  const daily = (g) => harder(dailyBase(g));
+  const dailyBase = (g) => {
     const t = TOWN_TIER[g.town], last = X.DUNGEONS[g.town][5];
     if (g.id.endsWith('_cap')) return { id: `${g.id}_daily`, name: 'Ночной дозор', desc: 'Уничтожьте 40 монстров в любых данжах этого мира.', type: 'kill', town: g.town, goal: 40, reward: { gold: 600 * t, xp: xpAt(last.lv[1]), gems: 10 } };
     if (g.id.endsWith('_herb')) return { id: `${g.id}_daily`, name: 'Пополнить кладовую', desc: `Принесите 10 × ${I.MATS[`ore${t}`].name}.`, type: 'collect', mat: `ore${t}`, goal: 10, reward: { gold: 500 * t, mats: { potHp2: 2, elxAtk: 1 }, gems: 10 } };
-    return { id: `${g.id}_daily`, name: 'Свежий след', desc: 'Победите 2 редких монстра (жёлтые имена) в данжах этого мира.', type: 'rare', goal: 2, town: g.town, reward: { gold: 700 * t, xp: xpAt(last.lv[1]), mats: { dust: 1 }, gems: 10 } };
+    return { id: `${g.id}_daily`, name: 'Свежий след', desc: 'Победите редких монстров (жёлтые имена) в данжах этого мира: 2.', type: 'rare', goal: 2, town: g.town, reward: { gold: 700 * t, xp: xpAt(last.lv[1]), mats: { dust: 1 }, gems: 10 } };
   };
 
   // ---------- Состояние ----------
@@ -159,5 +172,5 @@ module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPl
     const pr = getProfile(p.uid);
     return Object.fromEntries(Object.values(GIVERS).filter((g) => g.town === town).map((g) => [g.id, mark(pr, g.id, p.char.level)]));
   }
-  return { GIVERS, track, act, marks };
+  return { GIVERS, Q, track, act, marks }; // Q — для проверок
 };
