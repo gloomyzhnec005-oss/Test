@@ -147,6 +147,17 @@ function profileView(who) {
     wish: Wish.view(pr), spin10Price: C.GACHA.spin10Price,
   };
 }
+// До открытия (админка → Настройки → «Открытие») в лобби можно только смотреть и нажать «Напомнить»:
+// призыв героев, покупки и пополнение — только для админов и тестеров
+const PRE_OPEN_BLOCK = ['/api/gacha/', '/api/invoice', '/api/ton/quote', '/api/ton/order', '/api/gram/deposit'];
+app.use((req, res, next) => {
+  if (req.method !== 'POST' || !(S.openAt > Date.now()) || !PRE_OPEN_BLOCK.some((x) => req.path.startsWith(x))) return next();
+  const { initData, guestId } = req.body || {};
+  const who = resolveUid(initData, guestId);
+  if (who && (admin.isAdminUid(who.uid) || ((profiles[who.uid] || {}).test || {}).tester)) return next();
+  const d = new Date(S.openAt + 3 * 36e5).toISOString();
+  res.status(403).json({ error: `Игра откроется ${d.slice(8, 10)}.${d.slice(5, 7)} в ${d.slice(11, 16)} МСК — тогда станут доступны призыв и покупки` });
+});
 app.post('/api/profile', (req, res) => {
   const { initData, guestId } = req.body || {};
   const who = resolveUid(initData, guestId);
@@ -2283,7 +2294,11 @@ admin.setWipe((keep) => {
     clearTimeout(o.graceTimer); removePlayerG(o); try { o.socket.disconnect(true); } catch {}
   }
   let nP = 0, nC = 0;
-  for (const uid of Object.keys(profiles)) if (!keep.has(uid)) { delete profiles[uid]; nP++; }
+  for (const uid of Object.keys(profiles)) if (!keep.has(uid)) {
+    const remind = profiles[uid].remindOpen;
+    delete profiles[uid]; nP++;
+    if (remind) getProfile(uid).remindOpen = true; // подписку «Напомнить об открытии» сохраняем — это не прогресс
+  }
   for (const [id, c] of Object.entries(clans)) {
     c.members = c.members.filter((u) => keep.has(u));
     if (!c.members.length) { delete clans[id]; nC++; continue; }
