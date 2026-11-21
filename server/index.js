@@ -441,6 +441,7 @@ function onPaid(payload, info = {}) {
   (pr.payments ??= []).push({ t: Date.now(), kind, id: id || undefined, amount: info.amount, cur: info.currency || 'XTR', charge: info.charge });
   if (pr.payments.length > 50) pr.payments.splice(0, pr.payments.length - 50);
   pr.paidOnce = true; // скидка на первую покупку израсходована
+  try { Q.track(uid, 'purchase', 1); } catch (e) { console.error('quest purchase', e); } // недельное «Покровитель»
   Econ.paid(kind, info.amount, info.currency || 'XTR');
   if (kind === 'spin') pr.paidSpins += 1;
   else if (kind === 'spin10') pr.paidSpins += 10;
@@ -495,7 +496,17 @@ const npcTrack = (uid, type, n, info = {}) => {
   if (type === 'survival') return NQ.track(uid, 'survival', n, info);
   if (type === 'worldPart') return NQ.track(uid, 'world', 1, info);
 };
-{ const track = Q.track; Q.track = (uid, type, n = 1, info) => { track(uid, type, n, info); clanTrack(uid, type, n); clanWar(uid, type); try { npcTrack(uid, type, n, info); } catch (e) { console.error('npcq', e); } }; } // + клановые задания, война кланов, NPC
+// В группе: рядом (в той же локации) есть живой союзник по группе — для заданий «Отряд», «Плечом к плечу», «Братство подземелий»
+const inPartyNear = (uid) => {
+  for (const p of players.values()) {
+    if (p.uid !== uid || !p.party) continue;
+    const pt = parties.get(p.party);
+    if (pt) for (const id of pt.members) { const o = players.get(id); if (o && o !== p && o.zone === p.zone && !o.offline) return true; }
+  }
+  return false;
+};
+{ const track = Q.track; Q.track = (uid, type, n = 1, info) => { track(uid, type, n, info);
+  if ((type === 'kill' || type === 'dungeon') && inPartyNear(uid)) track(uid, type === 'kill' ? 'partyKill' : 'partyDungeon', n, info); clanTrack(uid, type, n); clanWar(uid, type); try { npcTrack(uid, type, n, info); } catch (e) { console.error('npcq', e); } }; } // + клановые задания, война кланов, NPC
 // Мета-игра: предметы, рынок, аукцион, батл-пасс, подписка, арена (server/meta.js)
 const meta = createMeta({
   quest: (...a) => Q.track(...a),
@@ -512,7 +523,7 @@ const meta = createMeta({
 const Trade = require('./trade')({
   I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
   bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
-  rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), alertAdmins: (t, loud) => adminAlert(t, loud),
+  rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), quest: (...a) => Q.track(...a), alertAdmins: (t, loud) => adminAlert(t, loud),
   // Торговые ордена — ступени сезонных орденов после Чемпиона: цена — доплата до них с учётом купленного
   passTier: (pr) => meta.passTier(pr), passEnds: () => (Math.floor(Date.now() / (meta.SHOP.pass.days * 864e5)) + 1) * meta.SHOP.pass.days * 864e5,
   passOrders: (pr) => { const cur = meta.passTier(pr), paid = cur ? meta.SHOP.passTiers[cur - 1].price : 0;

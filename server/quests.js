@@ -17,6 +17,7 @@ const DEFS = {
     ['d_elite', '⭐', 'Охота на сильных', 'Победите 10 усиленных, редких монстров или полубоссов', 'elite', 10, null, { gold: 250, gems: 10, mats: { ess: 6 }, passXp: 10 }],
     ['d_dungeon', '🗺️', 'Покоритель лабиринта', 'Победите полубоссов или боссов в данжах: 2', 'dungeon', 2, null, { gold: 400, gems: 10, mats: { ore: 10 }, passXp: 20 }],
     ['d_summon', '🎰', 'Удача дня', 'Сделайте 1 призыв героя или предмета', 'summon', 1, null, { gold: 100, gems: 10, passXp: 10 }],
+    ['d_party', '🤝', 'Отряд', 'Победите 30 монстров в группе — союзник должен быть рядом, в той же локации', 'partyKill', 30, null, { gold: 300, gems: 10, mats: { ess: 3 }, passXp: 10 }],
     ['d_arena', '🏟️', 'Разминка на арене', 'Проведите 3 боя на PvP-арене', 'arena', 3, null, { gold: 200, gems: 10, passXp: 10 }],
   ],
   weekly: [
@@ -24,6 +25,10 @@ const DEFS = {
     ['w_boss', '👑', 'Гроза боссов', 'Победите 7 боссов данжей', 'boss', 7, null, { gold: 1400, gems: 80, itemSpins: 1, passXp: 60 }],
     ['w_dungeon', '🏰', 'Знаток подземелий', 'Победите 15 полубоссов или боссов данжей', 'dungeon', 15, null, { gold: 1600, gems: 80, mats: { core: 2 }, passXp: 70 }],
     ['w_survival', '💀', 'Несломленный', 'Дойдите до 10-й волны в данже выживания', 'survival', 10, null, { gold: 700, gems: 80, mats: { scrollE: 1 }, passXp: 50 }],
+    ['w_party', '🛡️', 'Плечом к плечу', 'Победите 300 монстров в группе (союзник рядом, в той же локации)', 'partyKill', 300, null, { gold: 1800, gems: 60, mats: { ess: 15 }, passXp: 60 }],
+    ['w_partyDg', '⚔️', 'Братство подземелий', 'Победите 5 полубоссов или боссов данжей в группе', 'partyDungeon', 5, null, { gold: 2200, gems: 80, itemSpins: 1, mats: { core: 1 }, passXp: 70 }],
+    ['w_trade', '⚖️', 'Честная сделка', 'Купите или продайте вещь в Торговом доме', 'trade', 1, null, { gold: 1000, gems: 30, passXp: 30 }],
+    ['w_patron', '💎', 'Покровитель Mystic Horizon', 'Совершите любую покупку за Stars или GRAM (магазин, Рынок, Торговый дом, ордена)', 'purchase', 1, null, { gold: 1500, gems: 60, itemSpins: 2, passXp: 40 }],
     ['w_world', '🐉', 'Победитель исполина', 'Победите мирового босса 2 раза', 'world', 2, null, { gold: 2200, gems: 80, itemSpins: 2, passXp: 80 }],
   ],
   monthly: [

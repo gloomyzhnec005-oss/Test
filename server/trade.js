@@ -94,6 +94,7 @@ module.exports = function createTrade(deps) {
   function spend(uid, a, kind, text) {
     const pr = getProfile(uid), g = G(pr), b = bal(pr);
     if (b.total < a) return false;
+    if (kind !== 'admin' && deps.quest) try { deps.quest(uid, 'purchase', 1); } catch { /* задание — не главное */ } // покупка за GRAM — «Покровитель»
     let left = a;
     const take = Math.min(g.dep, left); g.dep -= take; left -= take;
     const t = now();
@@ -249,6 +250,7 @@ module.exports = function createTrade(deps) {
       st.lots = st.lots.filter((x) => x !== l);
       const spr = getProfile(l.seller), o = order(spr), fee = Math.round(l.price * (CFG.fee - ((o && o.fee) || 0))), income = l.price - fee;
       credit(l.seller, 'sale', income, `Продано: ${name} за ${fmt(l.price)} GRAM (комиссия ${fmt(fee)})`, true);
+      if (deps.quest) try { deps.quest(p.uid, 'trade', 1); deps.quest(l.seller, 'trade', 1); } catch { /* задание — не главное */ } // «Честная сделка» — обоим
       note(l.seller, 'fee', -fee, `Комиссия Торгового дома: ${name}`);
       if (l.mat) I.addMat(pr, l.mat, l.n); else { l.item.loc = 'bag'; I.addItem(pr, l.item, bagSize(pr), false); }
       notifyUid(l.seller, `Торговый дом: продано «${name}» за ${fmt(l.price)} GRAM — вам ${fmt(income)} GRAM, к выводу через ${CFG.holdDays} дня`);
