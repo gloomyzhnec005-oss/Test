@@ -357,10 +357,70 @@ module.exports = function createDungeons(d) {
 
   // ---------- Поведение в бою (вызывается из игрового цикла сервера) ----------
   // Возвращает true, если монстр уже действовал в этом тике
+  // ---------- Клон героя на арене (и «Тень чемпиона»): свои умения, движение, зелье ----------
+  // Умения героя упрощены до трёх образов: 1-е — удар/выстрел по цели (рывок у бойцов ближнего боя),
+  // 2-е — удар по площади с предупреждением (от него можно увернуться), 3-е — щит и усиление себя.
+  function cloneAct(m, t, now, dt) {
+    const c = m.clone, dd = dist(m, t), seen = world.lineOfSight(m.x, m.y, t.x, t.y), speed = curSpeed(m, now), rooted = m.rootUntil > now;
+    const say = (text, color = '#ffe08a') => fx({ t: 'mtext', from: m.id, x: m.x, y: m.y, text, color });
+    if (!c.hello) { c.hello = true; say('🪞 Я — это ты!', '#c8b0ff'); }
+    // Зелье: один раз за бой, когда здоровья меньше трети
+    if (!c.potUsed && m.hp < m.maxHp * 0.35) { c.potUsed = true; m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.25); fx({ t: 'mheal', from: m.id, x: m.x, y: m.y }); say('🧪 Зелье здоровья', '#7dff8a'); return true; }
+    // Умения
+    if (seen && now >= c.gcd) {
+      for (const i of [2, 1, 0]) {
+        const sk = c.skills[i];
+        if (!sk || now < sk.next) continue;
+        const label = `${sk.icon} ${sk.name}`;
+        if (i === 2) {
+          if (m.hp > m.maxHp * 0.8 && Math.random() < 0.6) continue; // щит бережёт, пока здоров
+          m.shieldHp = Math.max(m.shieldHp || 0, m.maxHp * 0.15); m.atkBuff = 1.3; m.atkBuffUntil = now + 5000;
+          fx({ t: 'mbuff', from: m.id, x: m.x, y: m.y, r: 40, kind: 'shield' }); say(label, '#9ad8ff');
+        } else if (i === 1) {
+          if (dd > 320) continue;
+          telegraph(m, t.x, t.y, 85, 850, 0xff8a3a, (p) => hit(m, p, 2.2, Date.now()), label);
+        } else {
+          if (m.range > 0) { if (dd > m.range + 40) continue; say(label); shoot(m, t, 2, now, { proj: c.proj }); }
+          else {
+            if (dd > 220) continue;
+            if (dd > 50 && !rooted) { const k = (dd - 30) / dd; d.moveEntity(m, (t.x - m.x) * k, (t.y - m.y) * k); fx({ t: 'mdash', from: m.id, x: m.x, y: m.y, name: label }); } else say(label);
+            hit(m, t, 1.8, now);
+          }
+        }
+        sk.next = now + sk.cd; c.gcd = now + 900; m.lastAttack = now;
+        return true;
+      }
+    }
+    if (now > c.flipAt) { c.dir = -c.dir; c.flipAt = now + 900 + Math.random() * 1300; }
+    const px = -(t.y - m.y) / (dd || 1), py = (t.x - m.x) / (dd || 1); // поперёк направления на героя
+    if (Math.abs(t.x - m.x) > 2) m.face = Math.sign(t.x - m.x);
+    if (m.range > 0) {
+      // Стрелок: держит дистанцию, уходит в сторону, отступает, если герой близко
+      if (!rooted) {
+        if (dd > m.range || !seen) step(m, t, speed * dt);
+        else if (dd < m.range * 0.45) { step(m, t, -speed * 0.9 * dt); d.moveEntity(m, px * c.dir * speed * 0.3 * dt, py * c.dir * speed * 0.3 * dt); }
+        else d.moveEntity(m, px * c.dir * speed * 0.55 * dt, py * c.dir * speed * 0.55 * dt);
+      }
+      if (seen && dd <= m.range && now - m.lastAttack > m.cd) { m.lastAttack = now; shoot(m, t, 1, now, { proj: c.proj }); }
+      return true;
+    }
+    // Ближний бой: подходит зигзагом, после серии ударов отскакивает в сторону
+    if (dd > meleeRange(m)) {
+      if (!rooted) { step(m, t, speed * dt); d.moveEntity(m, px * c.dir * speed * 0.35 * dt, py * c.dir * speed * 0.35 * dt); }
+    } else if (now < c.sideUntil) {
+      if (!rooted) d.moveEntity(m, px * c.dir * speed * 0.8 * dt, py * c.dir * speed * 0.8 * dt);
+    } else if (now - m.lastAttack > m.cd) {
+      m.lastAttack = now; melee(m, t, now);
+      if (++c.hits >= 3) { c.hits = 0; c.sideUntil = now + 450; }
+    }
+    return true;
+  }
+
   function act(m, target, now, dt) {
     const def = MOBS[m.type];
     passives(m, def, now, dt);
     if (!target) return false;
+    if (m.clone) return cloneAct(m, target, now, dt);
     const dd = dist(m, target);
     const seen = world.lineOfSight(m.x, m.y, target.x, target.y);
     // Умение — только если цель видна (не через стену)

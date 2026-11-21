@@ -196,6 +196,10 @@ module.exports = function createArena(d) {
     mon.dmg = stats.dmg * mult.dmg; mon.cd = h.cooldown * 1.1; mon.range = h.range > 100 ? h.range : 0;
     mon.speed = Math.round(h.speed * 0.95); mon.xp = 0; mon.size = 1.1;
     mon.heroSkin = heroId;
+    // Своё поведение (server/dungeon.js → cloneAct): умения героя, движение, зелье
+    const now = Date.now();
+    mon.clone = { gcd: now + 2500, dir: Math.random() < 0.5 ? 1 : -1, flipAt: now, hits: 0, sideUntil: 0, potUsed: false, proj: h.projectile || 'arrow',
+      skills: h.skills.slice(0, 3).map((sk, i) => ({ id: sk.id, name: sk.name, icon: sk.icon || '✨', cd: Math.min(16000, Math.max(4500, (sk.cooldown || 8000) * 1.1)), next: now + 3000 + i * 2000 })) };
     return mon;
   }
   function startSolo(p, town, mode) {
@@ -208,7 +212,7 @@ module.exports = function createArena(d) {
     let foe;
     if (mode === 'clone') {
       foe = copyFighter(z, place(z, 1, 0, 1), p.heroId, p, `Клон: ${p.hero.name}`, p.char.level, { hp: 1.6, dmg: 1.15 }); // клон сильнее игрока, но победим умениями и зельями
-      p.socket.emit('chat', { sys: true, text: '🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×1.6, урон ×1.15. Победите себя!' });
+      p.socket.emit('chat', { sys: true, text: '🪞 Бой с клоном: ваша копия сильнее вас — здоровье ×1.6, урон ×1.15. Клон двигается, применяет ваши умения и пьёт зелье. Уворачивайтесь от кругов на земле и победите себя!' });
     } else {
       // Тень чемпиона: герой и сила лучшего игрока по рейтингу (не вы); если чемпиона нет — усиленный клон
       const pr = d.getProfile(p.uid);
