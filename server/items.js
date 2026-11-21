@@ -598,7 +598,7 @@ function mergeItems(pr, ids) {
   if (next === 'mythic') return { error: 'Легендарные предметы не соединяются в мифический — мифики выпадают с мировых боссов, из ларцов и призыва' };
   for (const it of items) detach(pr, it);
   // 3 случайных атрибута из всех атрибутов пяти предметов
-  const pool = items.flatMap((i) => i.attrs).sort(() => Math.random() - 0.5);
+  const pool = items.flatMap((i) => i.attrs).filter((a) => !NO_ITEM_ATTR.has(a.k)).sort(() => Math.random() - 0.5);
   const attrs = [];
   for (const a of pool) { if (attrs.length >= 3) break; if (!attrs.some((x) => x.k === a.k)) attrs.push({ ...a }); }
   const tier = Math.round(items.reduce((s, i) => s + i.tier, 0) / 5);
@@ -647,8 +647,18 @@ function salvage(it) {
 
 // ---------- Совместимость со старыми профилями (слоты jewel1/jewel2) ----------
 const OLD_JEWEL = { ringPow: 'ring', ringAgi: 'ring', bracer: 'ring', earring: 'ring', amuLife: 'amulet', amuMind: 'amulet' };
+// Старые вещи со свойствами «Золото» / «Опыт» (убраны с предметов): свойство заменяется новым боевым той же силы редкости
+function cleanItem(it) {
+  if (!it || !Array.isArray(it.attrs) || !it.attrs.some((a) => NO_ITEM_ATTR.has(a.k))) return false;
+  const keep = it.attrs.filter((a) => !NO_ITEM_ATTR.has(a.k)), n = it.attrs.length - keep.length;
+  if (it.cat === 'rune' || it.cat === 'bag') { it.attrs = keep; return true; }
+  for (let i = 0; i < n; i++) keep.push(rollAttr(it.rar, it.tier || 1, keep.map((a) => a.k)));
+  it.attrs = keep;
+  return true;
+}
 function migrate(pr) {
   for (const it of pr.items || []) {
+    cleanItem(it);
     if (it.cat === 'jewel') { it.cat = OLD_JEWEL[it.tpl] || 'ring'; if (it.tpl === 'earring') it.tpl = 'ringWind'; }
     if (!TEMPLATES[it.cat] || !TEMPLATES[it.cat][it.tpl]) { it.tpl = plainTpls(TEMPLATES[it.cat] ? it.cat : (it.cat = 'ring'))[0]; }
   }
@@ -674,7 +684,7 @@ function itemView(it) {
     name: ((t.rarNames && t.rarNames[it.rar]) || t.name) + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.dupes ? ` +${it.dupes}` : ''), icon: t.icon, color: R.color, rarName: R.name,
     art: it.cat === 'bag' ? `bag_${it.rar}` : t.art || null, artFallback: it.cat === 'bag' ? 'slot_bag' : null, // своя иконка сумки по редкости, пока нет — общая
     bagSlots: it.cat === 'bag' ? BAG_SLOTS[it.rar] : 0,
-    attrs: it.attrs, stats: itemStats(it), sockets: it.cat === 'weapon' ? R.sockets : 0, set,
+    attrs: it.attrs.filter((a) => !NO_ITEM_ATTR.has(a.k)), stats: itemStats(it), sockets: it.cat === 'weapon' ? R.sockets : 0, set,
     classes: classesFor(it), // какие классы могут носить (null — все)
     reqLevel: reqLevel(it), // с какого уровня героя можно надеть
     armor: ARMOR_TYPE[it.cat] && ARMOR_TYPE[it.cat][it.tpl] ? ARMOR_NAMES[ARMOR_TYPE[it.cat][it.tpl]] : null,
@@ -713,5 +723,5 @@ module.exports = {
   SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF, COMPANIONS, TREE, TREE_MAX, treeReq, treeCost, PAS_MAX, PAS_STEP, pasReq, pasCost, CAPS, BUFF_LUCK,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
-  upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
+  upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, cleanItem, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
 };

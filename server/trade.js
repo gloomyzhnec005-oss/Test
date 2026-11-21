@@ -48,6 +48,7 @@ module.exports = function createTrade(deps) {
   const { I, store, getProfile, profiles, notifyUid, bagSize, isSub, tierOf, classOf, rate, Econ, log, alertAdmins } = deps;
   const st = store.readJSON('gram.json', null) || {};
   st.lots ??= []; st.seq ??= 1; st.wd ??= []; st.log ??= []; delete st.shopBuys; // витрина больше не дневная
+  for (const l of st.lots) if (l.item) I.cleanItem(l.item); // старые свойства «Золото»/«Опыт» на выставленных вещах
   let saveTm = null;
   const save = () => { clearTimeout(saveTm); saveTm = setTimeout(() => { try { store.writeJSON('gram.json', st); } catch (e) { console.error('gram save', e.message); } }, 300); };
   const now = () => Date.now();

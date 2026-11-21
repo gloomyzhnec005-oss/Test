@@ -630,6 +630,7 @@ setInterval(() => {
 // Тег клана над именем героя
 const setClanTag = (uid) => { const c = clanOf(uid); for (const o of players.values()) if (o.uid === uid) { o.clanTag = c ? c.tag : null; markDirty(o); } };
 const clans = store.readJSON('clans.json', {});
+for (const c of Object.values(clans)) for (const it of c.vault || []) I.cleanItem(it); // старые «Золото»/«Опыт» в хранилищах кланов
 let clanSaveTm = null;
 const saveClans = () => { if (clanSaveTm) return; clanSaveTm = setTimeout(() => { clanSaveTm = null; try { store.writeJSON('clans.json', clans); } catch (e) { console.error('clans save', e.message); } }, 500); };
 const clanOf = (uid) => { const id = getProfile(uid).clan; const c = id && clans[id]; return c && c.members.includes(uid) ? c : null; };
