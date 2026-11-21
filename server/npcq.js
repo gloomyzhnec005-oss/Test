@@ -43,7 +43,8 @@ module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPl
       ['ore', `ore${t}`, 8, { gold: 300 * t, mats: { potHp: 5, potRes: 3 } }],
       ['ess', `ess${t}`, 5, { gold: 500 * t, mats: { elxAtk: 1, elxDef: 1 } }],
       ['ore2', `ore${t}`, 15, { gold: 700 * t, mats: { potHp2: 3, elxAgi: 1 } }],
-      ['core', `core${t}`, 1, { gold: 900 * t, mats: { elxMind: 1, elxDef: 1 }, gems: 15 }],
+      // Сердце/чешуя — редкий материал (только полубоссы и боссы, нужен для легендарных вещей и комплектов): награда редкими же вещами
+      ['core', `core${t}`, 1, { gold: 1500 * t, mats: { dust: 3, luckStone: 1, elxMind: 1 }, gems: 40 }],
       ['ess2', `ess${t}`, 12, { gold: 1200 * t, mats: { elxFury: 1, elxVamp: 1, luckStone: 1 }, gems: 20 }],
     ];
     herb.forEach(([k, mat, n, reward], i) => add(`${town}_herb`, { id: `${town}_herb_${k}`, name: `Сбор: ${I.MATS[mat].name}`,
