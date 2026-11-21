@@ -778,13 +778,14 @@ module.exports = function createDungeons(d) {
       // Участник: 1% урона ИЛИ 20 с в комнате во время боя — чтобы сильный игрок не «забирал» босса у пришедших слабых
       if ((part < 0.01 && stayed < 20) || p.zone !== m.zone) continue;
       const pr = d.getProfile(p.uid);
+      // Задания (NPC, ежедневные, недельные) засчитываются всегда — даже если герой перерос данж
+      d.quest(p.uid, 'dungeon', 1, { zone: m.zone, rank: m.rank });
+      if (boss) d.quest(p.uid, 'boss', 1, { zone: m.zone });
       const over = overLevel(p, h); // герой намного сильнее данжа — только малая доля золота, без добычи
       if (over) { const g = Math.round((boss ? 60 : 20) * h.dg.lv[1] * 0.2); pr.gold += g; p.socket.emit('chat', { sys: true, text: `${boss ? '🏆 Босс' : '⭐ Полубосс'} повержен. Вы слишком сильны для этого данжа (ур. ${p.char.level} > ${h.dg.lv[1] + OVER_LV}) — только +${g} 💰, без добычи. Ищите данжи своего уровня.` }); d.markDirty(p); continue; }
       const gold = Math.round((boss ? 60 : 20) * h.dg.lv[1] * (0.6 + Math.min(1, Math.max(part, 0.1) * 3) * 0.4));
       pr.gold += gold;
       d.addPassXp(pr, boss ? 25 : 10);
-      d.quest(p.uid, 'dungeon', 1, { zone: m.zone, rank: m.rank });
-      if (boss) d.quest(p.uid, 'boss', 1, { zone: m.zone });
       pr.dungeonClears = pr.dungeonClears || {};
       const key = `${h.z.town}:${h.z.dgIndex}`;
       const first = boss && !pr.dungeonClears[key];
