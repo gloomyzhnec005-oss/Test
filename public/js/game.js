@@ -372,6 +372,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       });
     }
     this.fog = { tex, ctx, img, grid, M, W, H, R, objs, clouds, tmp: new Uint8Array(W * R * H * R) };
+    this.heavyOff = undefined; this.fogDirty = false; // новая карта — заново применить «облегчение»
     this.paintFog();
     this.cameras.main.setBackgroundColor(sea ? (z.theme === 'abyss' ? '#160a24' : '#a9cdee') : pal.hex); // дальше полей — ровный цвет тумана (у небесного — небо)
   }
@@ -403,7 +404,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
     f.ctx.putImageData(f.img, 0, 0);
     f.tex.refresh();
-    f.tex.setFilter(Phaser.Textures.FilterMode.LINEAR); // игра в pixelArt — без этого маска «лесенкой»
+    if (!f.filtered) { f.filtered = true; f.tex.setFilter(Phaser.Textures.FilterMode.LINEAR); } // игра в pixelArt — без этого маска «лесенкой»
   }
 
   destroyFog() {
@@ -622,7 +623,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       f.grid[(y + f.M) * f.W + x + f.M] = 0;
       changed = true;
     }
-    if (changed) this.paintFog();
+    if (changed) this.fogDirty = true; // перерисуется в update (не чаще раза в 0,6 с)
   }
 
   // Тап по зданию/порталу: герой сам идёт к нему (если уже рядом — сразу действие)
@@ -2610,7 +2611,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const m = Settings.get('fx');
     if (m === 'lite') return true;
     if (m === 'full') return false;
-    return this.monsters.size > 30 || (window.GAME_DPR || 2) < Math.min(2, window.devicePixelRatio || 1);
+    return this.monsters.size > 30 || !!window.__perfLite || (window.GAME_DPR || 2) < Math.min(2, window.devicePixelRatio || 1);
   }
   onLight(s) {
     this.netClock(s.ts);
@@ -2945,6 +2946,17 @@ window.GameScene = class GameScene extends Phaser.Scene {
     me.e.c.setPosition(me.x, me.y);
     this.checkNear();
     this.revealFog();
+    // Туман перерисовывается не чаще раза в 0,6 с (раньше — на каждом новом тайле: размытие маски всего данжа и её загрузка
+    // в видеокарту несколько раз в секунду — в бою на телефоне это заметно съедало кадры)
+    if (this.fogDirty && time - (this.fogPaintAt || 0) > 600) { this.fogDirty = false; this.fogPaintAt = time; this.paintFog(); }
+    // Тяжёлые слои с маской (клубы тумана, второй слой воды): каждый — лишние полноэкранные проходы видеокарты.
+    // В «Авто», когда кадров не хватает (window.__perfLite, main.js), или в «Упрощённых» — прячем их
+    { const lite = Settings.get('fx') === 'lite' || (Settings.get('fx') !== 'full' && !!window.__perfLite);
+      if (lite !== this.heavyOff) {
+        this.heavyOff = lite;
+        if (this.fog) this.fog.clouds.forEach((c) => { if (!c.mask) return; c.setVisible(!lite); });
+        if (this.liveWater) this.liveWater.items.forEach((c, i) => { if (i) c.setVisible(!lite); });
+      } }
     if (this.fog) for (const c of this.fog.clouds) { c.tilePositionX += c.vx * dt; c.tilePositionY += c.vy * dt; } // туман медленно плывёт
     if (this.liveWater) for (const c of this.liveWater.items) { c.tilePositionX += c.vx * dt; c.tilePositionY += c.vy * dt; } // вода течёт
     const walking = len > 0 && !me.data.dead && !this.myStats.rooted && !held;

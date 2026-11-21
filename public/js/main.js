@@ -601,8 +601,8 @@
       let autoPotNext = 0, noPotWarned = false;
       setInterval(async () => {
         const sc = window.gameScene, d = sc && sc.me && sc.me.data;
-        // В данже выживания зелья запрещены — кнопки нет, автозелье молчит
-        const surv = !!(sc && sc.zone && sc.zone.kind === 'survival');
+        // В данже выживания и на арене зелья запрещены — кнопки нет, автозелье молчит
+        const surv = !!(sc && sc.zone && (sc.zone.kind === 'survival' || sc.zone.kind === 'pvp')); // и на арене
         if ($('potBtn').classList.contains('no-surv') !== surv) { $('potBtn').classList.toggle('no-surv', surv); $('potBtn').style.display = surv ? 'none' : ''; }
         if (surv) return;
         if (!Settings.get('autoPot') || !d || d.dead || !d.maxHp || Date.now() < autoPotNext) return;
@@ -1167,7 +1167,17 @@
       window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => applyDpr(window.GAME_DPR), 100); });
       // Авто-качество: каждые 3 с смотрим частоту кадров. Не тянет (< 48) два раза подряд — ниже разрешение;
       // стабильно 58+ целых 15 с — пробуем выше, но не выше уровня, на котором уже тормозило
-      let slow = 0, fast = 0;
+      let slow = 0, fast = 0, liteSlow = 0, liteFast = 0;
+      // Первая ступень облегчения (раньше, чем снижать чёткость): упрощённые эффекты и без тяжёлых слоёв тумана и воды.
+      // FPS < 48 два замера подряд (6 с) — включаем; 57+ двадцать секунд подряд — выключаем
+      window.__perfLite = false;
+      setInterval(() => {
+        if (window.appHidden() || Date.now() - (window.__shownAt || 0) < 6000 || Settings.get('fx') !== 'auto' || !window.gameScene || window.gameScene.zoneLoading) { liteSlow = liteFast = 0; return; }
+        const fps = game.loop.actualFps;
+        if (fps < 48) { liteFast = 0; if (++liteSlow >= 2 && !window.__perfLite) window.__perfLite = true; }
+        else if (fps >= 57) { liteSlow = 0; if (++liteFast >= 7 && window.__perfLite) { window.__perfLite = false; liteFast = 0; } }
+        else { liteSlow = 0; liteFast = 0; }
+      }, 3000);
       setInterval(() => {
         if (window.appHidden() || Date.now() - (window.__shownAt || 0) < 6000 || Settings.get('lowFps') || Settings.get('gfx') !== 'auto' || !window.gameScene || window.gameScene.zoneLoading) { slow = fast = 0; return; }
         // Снижаем только при стойкой просадке (< 42 кадров три замера подряд = 9 с) и не ниже AUTO_MIN.
@@ -1176,7 +1186,7 @@
         if (i < 0) { slow = fast = 0; return; }
         const capRaw = String(store.get('gfxCap') || '').split('@'), cap = Date.now() - (Number(capRaw[1]) || 0) < 600e3 ? Number(capRaw[0]) || 99 : 99;
         const lowAt = AUTO_LEVELS[i + 1] !== undefined && AUTO_LEVELS[i + 1] < AUTO_MIN ? 32 : 42; // ниже нормы чёткости — только при сильной просадке
-        if (fps < lowAt) { fast = 0; if (++slow >= 3 && i < AUTO_LEVELS.length - 1) { slow = 0; store.set('gfxCap', cur + '@' + Date.now()); store.set('gfxDpr', String(AUTO_LEVELS[i + 1])); applyDpr(AUTO_LEVELS[i + 1]); } }
+        if (fps < lowAt) { fast = 0; if (Settings.get('fx') === 'auto' && !window.__perfLite) return; if (++slow >= 3 && i < AUTO_LEVELS.length - 1) { slow = 0; store.set('gfxCap', cur + '@' + Date.now()); store.set('gfxDpr', String(AUTO_LEVELS[i + 1])); applyDpr(AUTO_LEVELS[i + 1]); } }
         else if (fps >= 57 || (cur < AUTO_MIN && fps >= 50)) { slow = 0; if (++fast >= 5 && i > 0 && (AUTO_LEVELS[i - 1] < cap || cur < AUTO_MIN)) { fast = 0; store.set('gfxDpr', String(AUTO_LEVELS[i - 1])); applyDpr(AUTO_LEVELS[i - 1]); } }
         else { slow = 0; fast = 0; }
       }, 3000);
