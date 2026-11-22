@@ -14,6 +14,7 @@ window.Invite = (() => {
       <div class="tw-ev"><div><b>Друг достиг 10 уровня</b><small>+${C.l10.gems} 💎</small></div></div>
       <div class="tw-ev"><div><b>Друг достиг 20 уровня</b><small>+${C.l20.gems} 💎 и ${C.l20.itemSpins} призыва снаряжения</small></div></div>
       <div class="tw-ev"><div><b>Каждая покупка друга</b><small>${Math.round(C.share * 100)}% её стоимости — самоцветами, навсегда</small></div></div>
+      ${R.gram ? `<div class="tw-ev"><div><b>💰 GRAM-покупки друга</b><small>${Math.round(R.gram.rate * 100)}% суммы в GRAM — можно вывести${R.gram.mine ? ` · за друзей, приглашённых до открытия, — ${Math.round(R.gram.early * 100)}%` : ''} · получено ${(R.gram.got / 1e9).toFixed(2)} GRAM</small></div></div>` : ''}
       <div class="ic-sec">Приглашено: ${R.n} · 10 ур.: ${R.l10} · 20 ур.: ${R.l20} · получено 💎 ${R.earned}</div>
       ${(R.list || []).map((f) => `<div class="tw-ev"><div><b class="notr">${String(f.name).replace(/[<>&]/g, '')}</b><small>ур. ${f.lvl}</small></div></div>`).join('') || '<div class="tw-soon">Пока никого — отправьте ссылку друзьям</div>'}`;
     const inp = box.querySelector('input'), copyBtn = box.querySelector('[data-a="copy"]');

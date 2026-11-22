@@ -200,11 +200,25 @@ function refPaid(pr, info) {
   const gems = Math.round(stars * REF.gemsPerStar * REF.share);
   if (gems > 0) refReward(pr.refBy, { gems }, `Покупка приглашённого друга (${pr.name || 'друг'})`);
 }
+// Доля пригласившего в GRAM: с каждой GRAM-покупки друга (Рынок, Торговый дом, заявки, внешний вид) — 5% суммы,
+// а тем, кто пригласил друга ДО открытия игры, — 7%. Платится из дохода игры (на Торговом доме — не больше половины комиссии,
+// чтобы торговля «сам с собой» через второй аккаунт не становилась выгодной). К выводу — через 3 дня, как деньги с продаж
+const REF_GRAM = { rate: 0.05, early: 0.07 };
+const refRate = (pr) => (S.openAt && pr.refAt && pr.refAt < S.openAt ? REF_GRAM.early : REF_GRAM.rate);
+function refHouse(uid, amount, house) {
+  const pr = profiles[uid];
+  if (!pr || !pr.refBy || !profiles[pr.refBy]) return;
+  const share = Math.min(amount * refRate(pr), house * 0.5);
+  if (!(share >= 1e6)) return; // меньше 0,001 GRAM — не начисляем
+  Trade.grant(pr.refBy, share, 'ref', `Доля за покупку друга ${pr.name || ''} (${Math.round(refRate(pr) * 100)}%)`);
+  const ip = profiles[pr.refBy]; ip.refGram = (ip.refGram || 0) + Math.round(share);
+}
 function refInfo(p) { return refInfoUid(p.uid); }
 function refInfoUid(uid) {
   const pr = getProfile(uid), code = refCode(uid);
   const refs = (pr.refs || []).map((u) => profiles[u]).filter(Boolean);
   return { ref: { code, app: (process.env.APP_SHORT_NAME || 'play').trim(), bot: (bot && bot.botInfo && bot.botInfo.username) || process.env.BOT_USERNAME || null,
+    gram: S.openAt && S.openAt > Date.now() ? null : { rate: REF_GRAM.rate, early: REF_GRAM.early, mine: refs.some((o) => refRate(o) === REF_GRAM.early), got: pr.refGram || 0 }, // до открытия не показываем (анонс после старта)
     n: pr.refN || 0, l10: refs.filter((o) => o.refL10).length, l20: refs.filter((o) => o.refL20).length, earned: pr.refEarned || 0, cfg: REF,
     list: refs.slice(-20).reverse().map((o) => ({ name: o.name || (o.tgInfo && (o.tgInfo.user ? '@' + o.tgInfo.user : o.tgInfo.first)) || 'Новичок', lvl: Math.max(1, ...Object.values(o.chars || {}).map((c) => c.level || 1)) })) } };
 }
@@ -581,7 +595,7 @@ const meta = createMeta({
 const Trade = require('./trade')({
   I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
   bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
-  rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), quest: (...a) => Q.track(...a), alertAdmins: (t, loud) => adminAlert(t, loud),
+  rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), quest: (...a) => Q.track(...a), onHouse: (uid, amount, house) => refHouse(uid, amount, house), alertAdmins: (t, loud) => adminAlert(t, loud),
   // Торговые ордена — ступени сезонных орденов после Чемпиона: цена — доплата до них с учётом купленного
   passTier: (pr) => meta.passTier(pr), passEnds: () => (Math.floor(Date.now() / (meta.SHOP.pass.days * 864e5)) + 1) * meta.SHOP.pass.days * 864e5,
   passOrders: (pr) => { const cur = meta.passTier(pr), paid = cur ? meta.SHOP.passTiers[cur - 1].price : 0;

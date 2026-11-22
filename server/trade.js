@@ -106,6 +106,9 @@ module.exports = function createTrade(deps) {
     note(uid, kind, -a, text);
     return parts;
   }
+  // Покупка за GRAM принесла игре доход house (вся цена на Рынке, комиссия в Торговом доме) — для реферальной доли
+  // и доли владык (server/index.js). amount — сумма покупки покупателя uid
+  function onHouse(uid, amount, house) { st.vol = (st.vol || 0) + amount; st.house = (st.house || 0) + house; if (deps.onHouse) try { deps.onHouse(uid, amount, house); } catch (e) { console.error('onHouse', e); } }
   // Вернуть замороженное (заявка снята/истекла): пополненные — в пополненные, деньги с продаж — с прежним сроком.
   // Так через заявку нельзя превратить невыводимые пополнения в выводимые
   function refundParts(uid, parts, text) {
@@ -249,6 +252,7 @@ module.exports = function createTrade(deps) {
       const name = I.itemView(it).name;
       if (!spend(p.uid, price, 'shop', `Рынок: ${name}`)) return { error: `Нужно ${fmt(price)} GRAM — пополните баланс`, needGram: true };
       I.addItem(pr, it, bagSize(pr), false);
+      onHouse(p.uid, price, price); // вся цена — доход игры
       save();
       return { toast: `Куплено: ${name} за ${fmt(price)} GRAM`, refresh: true };
     },
@@ -310,6 +314,7 @@ module.exports = function createTrade(deps) {
       credit(l.seller, 'sale', income, `Продано: ${name} за ${fmt(l.price)} GRAM (комиссия ${fmt(fee)})`, true);
       if (deps.quest) try { deps.quest(p.uid, 'trade', 1); deps.quest(l.seller, 'trade', 1); } catch { /* задание — не главное */ } // «Честная сделка» — обоим
       note(l.seller, 'fee', -fee, `Комиссия Торгового дома: ${name}`);
+      onHouse(p.uid, l.price, fee); // доход игры — комиссия
       if (l.mat) I.addMat(pr, l.mat, l.n); else { l.item.loc = 'bag'; I.addItem(pr, l.item, bagSize(pr), false); }
       notifyUid(l.seller, `Торговый дом: продано «${name}» за ${fmt(l.price)} GRAM — вам ${fmt(income)} GRAM, к выводу через ${CFG.holdDays} дня`);
       save();
@@ -380,7 +385,7 @@ module.exports = function createTrade(deps) {
       note(p.uid, 'fee', -fee, `Комиссия Торгового дома: ${name}`);
       note(b.buyer, 'buy', 0, `Куплено по заявке: ${name} у ${p.name} за ${fmt(pay)} GRAM`);
       if (deps.quest) try { deps.quest(p.uid, 'trade', 1); deps.quest(b.buyer, 'trade', 1); deps.quest(b.buyer, 'purchase', 1); } catch { /* задание — не главное */ }
-      if (deps.onSpend) try { deps.onSpend(b.buyer, pay, fee); } catch (e) { console.error('onSpend', e); }
+      onHouse(b.buyer, pay, fee);
       notifyUid(b.buyer, `Торговый дом: ваша заявка исполнена — «${name}» за ${fmt(pay)} GRAM`);
       save();
       return { toast: `Продано по заявке: ${name} — вам ${fmt(income)} GRAM (к выводу через ${CFG.holdDays} дня)`, refresh: true };
@@ -501,7 +506,9 @@ module.exports = function createTrade(deps) {
   }
 
   // Списать GRAM за покупку вне торговли (внешний вид): сначала пополненные, затем деньги с продаж
-  const spendGram = (uid, nano, text) => { const ok = spend(uid, nano, 'shop', text); if (ok) save(); return ok; };
+  const spendGram = (uid, nano, text) => { const ok = spend(uid, nano, 'shop', text); if (ok) { onHouse(uid, nano, nano); save(); } return ok; };
+  // Начислить игроку GRAM (реферальная доля, призы): к выводу — через срок удержания, как деньги с продаж
+  const grant = (uid, nano, kind, text) => { if (!(nano > 0)) return; credit(uid, kind, Math.round(nano), text, true); save(); };
   // Обнуление игроков (админка): лоты, заявки и журнал удалённых — убрать
   function wipe(keep) {
     const n = st.lots.length;
@@ -512,6 +519,6 @@ module.exports = function createTrade(deps) {
     save();
     return n - st.lots.length;
   }
-  return { wipe, spendGram, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k), adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
+  return { wipe, spendGram, grant, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k), adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
 };
 module.exports.CFG = CFG;
