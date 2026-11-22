@@ -471,7 +471,7 @@ function rollItem(tier, weights, cat = null, heroId = null) {
 function itemStats(it) {
   const t = TEMPLATES[it.cat][it.tpl];
   const ek = 1 + ENCH.step * (it.ench || 0); // заточка
-  const k = (1 + DUPE_STEP * (it.dupes || 0)) * (t.setCls ? 1.2 : 1) * ek;
+  const k = (1 + DUPE_STEP * (it.dupes || 0)) * (t.setCls ? 1.2 : 1) * ek * (it.ltd ? 1.1 : 1); // лимитированная — +10%
   const out = {};
   const add = (key, v) => { out[key] = round1((out[key] || 0) + v); };
   for (const [key, v] of Object.entries(t.base)) {
@@ -686,7 +686,7 @@ function itemView(it) {
   const set = sid ? { id: sid, name: SETS[sid].name, cls: SETS[sid].cls, clsName: CLASSES[SETS[sid].cls].name, heroes: CLASSES[SETS[sid].cls].heroes, bonus: SETS[sid].bonus } : null;
   return {
     id: it.id, cat: it.cat, tpl: it.tpl, rar: it.rar, tier: it.tier, dupes: it.dupes || 0, loc: it.loc || 'bag',
-    name: (it.ench ? `⚒+${it.ench} ` : '') + ((t.rarNames && t.rarNames[it.rar]) || t.name) + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.dupes ? ` +${it.dupes}` : ''), icon: t.icon, color: R.color, rarName: R.name, ench: it.ench || 0,
+    name: (it.ench ? `⚒+${it.ench} ` : '') + ((t.rarNames && t.rarNames[it.rar]) || t.name) + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.ltd ? ` «${it.ltd.name}» #${it.ltd.n}/${it.ltd.of}` : '') + (it.dupes ? ` +${it.dupes}` : ''), ltd: it.ltd || null, icon: t.icon, color: R.color, rarName: R.name, ench: it.ench || 0,
     enchCost: it.cat !== 'rune' && it.cat !== 'bag' && (it.ench || 0) < ENCH.max ? enchCost(it) : null,
     art: it.cat === 'bag' ? `bag_${it.rar}` : t.art || null, artFallback: it.cat === 'bag' ? 'slot_bag' : null, // своя иконка сумки по редкости, пока нет — общая
     bagSlots: it.cat === 'bag' ? BAG_SLOTS[it.rar] : 0,

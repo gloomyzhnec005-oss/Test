@@ -37,6 +37,9 @@ const CFG = {
   matMinStars: { core1: 20, core2: 30, core3: 45, scrollE: 10, scrollL: 60, scrollM: 250, luckStone: 30, skillCrystal: 60, dust: 10,
     kitSmith: 25, chestSet: 50, chestLegend: 75, elxXp2: 25, elxGold2: 25, elxLuck2: 30, elxHero: 35, elxTitan: 30 },
   bpMinStars: 40, // чертёж комплекта: × мир
+  // Лимитированный тираж сезона: мифические вещи с номером (#N/of), +10% к статам, только на Рынке и пока не кончились,
+  // не больше perUser в одни руки; дальше — только перепродажа в Торговом доме (цена ×k к обычной мифической)
+  ltd: { id: 's1', name: 'Первый Рассвет', of: 100, perUser: 3, k: 1.5 },
   orders: {
     tord1: { id: 'merchant', name: 'Орден Купца', icon: '🟢', stars: 299, days: 30, fee: 0.05, wFee: 0.02, slots: 5, lotDays: 14, top: false, itemSpins: 1,
       perks: ['Комиссия Торгового дома 15% вместо 20%', 'Комиссия вывода 8% вместо 10%', '+5 лотов в Торговом доме', 'Лоты висят 14 дней', 'Знак купца у ваших лотов', 'Выплаты — в первую очередь', '+1 печать снаряжения сразу'] },
@@ -134,7 +137,7 @@ module.exports = function createTrade(deps) {
   const shopPrice = (cat, rar, tier, set = false) => toNano(gramOf(shopStars(cat, rar, tier) * (set ? CFG.setK : 1)));
   function itemBounds(it) {
     const set = !!it.setForce || !!(I.TEMPLATES[it.cat] && I.TEMPLATES[it.cat][it.tpl] && I.TEMPLATES[it.cat][it.tpl].setCls);
-    const k = (1 + CFG.dupeK * (it.dupes || 0)) * (it.fine ? CFG.fineK : 1) * (1 + CFG.enchK * (it.ench || 0)); // заточка в кузнице дорожает вещь
+    const k = (1 + CFG.dupeK * (it.dupes || 0)) * (it.fine ? CFG.fineK : 1) * (1 + CFG.enchK * (it.ench || 0)) * (it.ltd ? CFG.ltd.k : 1); // заточка и тираж дорожают вещь
     const base = shopPrice(it.cat, it.rar, it.tier, set) * k;
     const runes = (it.runes || []).reduce((s, r) => s + shopPrice('rune', r.rar, r.tier), 0);
     return { min: Math.ceil((base + runes) * CFG.minK / 1e7) * 1e7, max: Math.floor((base + runes) * CFG.maxK / 1e7) * 1e7 };
@@ -256,6 +259,34 @@ module.exports = function createTrade(deps) {
       onHouse(p.uid, price, price); // вся цена — доход игры
       save();
       return { toast: `Куплено: ${name} за ${fmt(price)} GRAM`, refresh: true };
+    },
+    // Лимитированный тираж
+    gmLtd(p, d, pr) {
+      const L = CFG.ltd, sold = (st.ltd ??= {})[L.id] || 0, tier = tierOf(p), mine = ((pr.ltdBuys || {})[L.id]) || 0;
+      return { ltd: { name: L.name, of: L.of, left: L.of - sold, perUser: L.perUser, mine, tier,
+        offers: I.WEAR_CATS.filter((c) => c !== 'bag').map((c) => ({ cat: c, price: Math.round(shopPrice(c, 'mythic', tier) * L.k), item: { ...sample({ cat: c, tpl: Object.keys(I.TEMPLATES[c]).find((k) => !I.TEMPLATES[c][k].setCls), rar: 'mythic' }, tier), name: `${I.CATEGORIES[c]} «${L.name}»` } })) } };
+    },
+    gmLtdBuy(p, d, pr) {
+      const L = CFG.ltd, cat = String(d.cat || '');
+      if (!I.WEAR_CATS.includes(cat) || cat === 'bag') return { error: 'Выберите слот' };
+      const sold = (st.ltd ??= {})[L.id] || 0;
+      if (sold >= L.of) return { error: `Тираж «${L.name}» распродан — ищите в Торговом доме` };
+      pr.ltdBuys ??= {};
+      if ((pr.ltdBuys[L.id] || 0) >= L.perUser) return { error: `Не больше ${L.perUser} вещей тиража в одни руки` };
+      if (pr.items.filter((i) => i.loc !== 'wh').length >= bagSize(pr)) return { error: 'Сумка полна — освободите место' };
+      const tier = tierOf(p), price = Math.round(shopPrice(cat, 'mythic', tier) * L.k);
+      const tpls = Object.keys(I.TEMPLATES[cat]).filter((k) => !I.TEMPLATES[cat][k].setCls), cls = classOf(p.heroId);
+      const fit = tpls.filter((k) => I.canWear({ cat, tpl: k }, p.heroId));
+      const it = I.createItem(cat, 'mythic', tier, (fit.length ? fit : tpls)[Math.floor(Math.random() * (fit.length || tpls.length))], cls);
+      it.ltd = { id: L.id, name: L.name, n: sold + 1, of: L.of };
+      const name = I.itemView(it).name;
+      if (!spend(p.uid, price, 'shop', `Рынок: ${name}`)) return { error: `Нужно ${fmt(price)} GRAM — пополните баланс`, needGram: true };
+      st.ltd[L.id] = sold + 1; pr.ltdBuys[L.id] = (pr.ltdBuys[L.id] || 0) + 1;
+      I.addItem(pr, it, bagSize(pr), false);
+      onHouse(p.uid, price, price);
+      save();
+      if (deps.broadcast && (sold + 1) % 10 === 0) deps.broadcast(`⭐ Тираж «${L.name}»: продано ${sold + 1} из ${L.of}`);
+      return { toast: `Куплено: ${name}`, refresh: true };
     },
     // Торговый дом
     th(p, d, pr) {

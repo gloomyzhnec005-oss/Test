@@ -208,11 +208,31 @@ window.Town = (() => {
   const bindWallet = (box) => box.querySelectorAll('[data-wallet]').forEach((b) => { b.onclick = () => walletPanel(0); });
 
   // Рынок: полный каталог вещей игры от эпических за GRAM — любой слот, все руны, комплекты любого класса
+  // Лимитированный тираж: мифические вещи с номером, пока не распроданы
+  async function ltdPanel() {
+    const r = await Bag.act('gmLtd');
+    if (r.error) return toast(r.error);
+    const L = r.ltd;
+    const box = el(`<div class="tw-banner pass"><b>⭐ Тираж «${L.name}» · осталось ${L.left} из ${L.of}</b>
+      <small>Мифические вещи с номером #N/${L.of}: +10% ко всем свойствам. Больше никогда не появятся — после распродажи только у игроков в Торговом доме. Не больше ${L.perUser} в одни руки (у вас ${L.mine}). Вещь — под класс вашего героя, мир ${ROMAN[L.tier] || L.tier}.</small></div>`);
+    box.prepend(el('<button class="l2-btn wide ghost">‹ Весь Рынок</button>'));
+    box.querySelector('button').onclick = () => gramMarketPanel();
+    for (const o of L.offers) box.append(row(o.item, o.item.name, `Мифическая · тираж ${L.of}`, L.left > 0 ? `${gfmt(o.price)} GRAM` : 'Распродано', async () => {
+      if (L.left <= 0) return toast('Тираж распродан — ищите в Торговом доме');
+      if (!(await askGram(`Купить «${o.item.name}» за ${gfmt(o.price)} GRAM?`))) return;
+      const res = await Bag.act('gmLtdBuy', { cat: o.cat });
+      toast(res.error || res.toast);
+      if (res.needGram) return walletPanel(0);
+      ltdPanel();
+    }, L.left <= 0));
+    open('⭐ Лимитированный тираж', box);
+  }
   async function gramMarketPanel(cat = 'weapon', cls = null) {
+    if (cat === 'ltd') return ltdPanel();
     if (!Bag.inv || !Bag.inv()) await Bag.refresh(); // названия характеристик для бонусов комплекта
     const r = await Bag.act('gmShop', { cat, cls });
     if (r.error) return toast(r.error);
-    const cats = { set: 'Комплекты', ...WEAR_RU };
+    const cats = { ltd: '⭐ Тираж', set: 'Комплекты', ...WEAR_RU };
     const box = el(`${balLine(r.bal)}<p class="sheet-hint">Все вещи от эпических за GRAM — экипировка мира ${ROMAN[r.tier] || r.tier}. Выберите слот или комплект и класс героя, для которого покупаете.<br>Основные свойства — как на карточке, дополнительные выпадают случайно при покупке. Отборные вещи (свойства +25% и одно дополнительное) — только в призыве снаряжения.</p>
       <div class="gram-cats">${Object.entries(cats).map(([k, n]) => `<button class="l2-btn ${k === r.cat ? 'on' : ''}" data-cat="${k}">${n}</button>`).join('')}</div>
       ${r.cat !== 'rune' ? `<div class="gram-cats cls">${r.classes.map((c) => `<button class="l2-btn ${c.id === r.cls ? 'on' : ''}" data-cls="${c.id}"><img class="ui-ic" src="assets/ui/cls_${c.id}.webp" alt="">${c.name}${c.id === r.own ? ' · ваш' : ''}</button>`).join('')}</div>` : ''}
