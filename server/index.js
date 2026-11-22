@@ -205,7 +205,24 @@ function refPaid(pr, info) {
 // чтобы торговля «сам с собой» через второй аккаунт не становилась выгодной). К выводу — через 3 дня, как деньги с продаж
 const REF_GRAM = { rate: 0.05, early: 0.07 };
 const refRate = (pr) => (S.openAt && pr.refAt && pr.refAt < S.openAt ? REF_GRAM.early : REF_GRAM.rate);
+// Владыки недели (клан-победитель войны кланов): 10% дохода игры с Рынка и Торгового дома — в казну, в понедельник
+// делится поровну между участниками, заходившими за неделю. Деньги — только из дохода игры, новых не появляется
+const REIGN_SHARE = 0.1;
+function reignHouse(house) {
+  const c = Object.values(clans).find((x) => x.reignUntil > Date.now());
+  if (c && house > 0) { c.reignPool = (c.reignPool || 0) + house * REIGN_SHARE; saveClans(); }
+}
+function reignPayout(c) {
+  const pool = Math.floor(c.reignPool || 0); c.reignPool = 0;
+  if (pool < 1e7) return; // меньше 0,01 GRAM — не делим
+  const since = Date.now() - 7 * 864e5, act = c.members.filter((u) => profiles[u] && (profiles[u].lastSeen || 0) > since);
+  if (!act.length) return;
+  const each = Math.floor(pool / act.length);
+  for (const u of act) { Trade.grant(u, each, 'reign', `Казна владык клана [${c.tag}]: доля за неделю`); notifyUid(u, `👑 Казна владык [${c.tag}]: ваша доля ${(each / 1e9).toFixed(2)} GRAM — к выводу через 3 дня`); }
+  admin.log('reign', `[${c.tag}] казна ${(pool / 1e9).toFixed(2)} GRAM → ${act.length} участникам`);
+}
 function refHouse(uid, amount, house) {
+  try { reignHouse(house); } catch (e) { console.error('reign', e); }
   const pr = profiles[uid];
   if (!pr || !pr.refBy || !profiles[pr.refBy]) return;
   const share = Math.min(amount * refRate(pr), house * 0.5);
@@ -701,6 +718,7 @@ setInterval(() => {
   const w = warWeek();
   if (warState.week === w) return;
   const prev = warState.week; warState.week = w;
+  for (const c of Object.values(clans)) if (c.reignPool) try { reignPayout(c); } catch (e) { console.error('reign payout', e); } // казна прошлых владык
   const best = Object.values(clans).filter((c) => c.war && c.war.w === prev && c.war.pts > 0).sort((a, b) => b.war.pts - a.war.pts)[0];
   if (best) {
     best.reignUntil = (w + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - 3 * 36e5;
@@ -723,7 +741,7 @@ function clanView(c) {
   const online = new Set([...players.values()].map((o) => o.uid));
   return { id: c.id, name: c.name, tag: c.tag, leader: c.leader, max: CLAN.max,
     members: c.members.map((uid) => { const pr = getProfile(uid); return { uid, name: pr.name || 'Герой', online: online.has(uid), leader: uid === c.leader }; }),
-    war: { pts: c.war && c.war.w === warWeek() ? c.war.pts : 0, reign: c.reignUntil > Date.now() ? c.reignUntil : 0, reigns: c.reigns || 0 },
+    war: { pts: c.war && c.war.w === warWeek() ? c.war.pts : 0, reign: c.reignUntil > Date.now() ? c.reignUntil : 0, reigns: c.reigns || 0, pool: c.reignPool || 0 },
     log: (c.log || []).slice(-30), vault: (c.vault || []).map((it) => ({ ...I.itemView(it), by: it.clanBy || '' })), vaultMax: CLAN.vault };
 }
 function clanQuestView(c, uid) {

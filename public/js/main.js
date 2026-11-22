@@ -677,7 +677,7 @@
         const members = () => {
           const box = document.createElement('div');
           box.innerHTML = `<div class="pass-head"><b><img class="clan-emb" src="assets/ui/ic_clan.webp" alt="">${c.name} [${c.tag}]</b><small>Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length} · тег [${c.tag}] виден над именами героев</small>
-            <small>⚔️ Война кланов: ${c.war.pts} очков за неделю${c.war.reign ? ' · 👑 Владыки недели: +10% опыта и золота' : ''}${c.war.reigns ? ` · побед: ${c.war.reigns}` : ''}</small>
+            <small>⚔️ Война кланов: ${c.war.pts} очков за неделю${c.war.reign ? ` · 👑 Владыки недели: +10% опыта и золота · казна ${(c.war.pool / 1e9).toFixed(2)} GRAM (10% дохода Рынка и Торгового дома, делится в понедельник)` : ''}${c.war.reigns ? ` · побед: ${c.war.reigns}` : ''}</small>
           <button class="l2-btn" id="clChat">💬 Клановый чат</button></div><div class="ic-sec">Участники</div>`;
           for (const m of c.members.sort((a, b) => b.online - a.online)) {
             const row = document.createElement('div'); row.className = 'tw-ev';
