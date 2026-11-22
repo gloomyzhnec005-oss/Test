@@ -189,6 +189,15 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
         <div class="tile"><b style="color:${t.waitNet ? 'var(--red)' : 'inherit'}">${G(t.waitNet)}</b><span>ждут выплаты (${o.wait.length} заявок)</span></div>
         <div class="tile"><b>${t.lots}</b><span>лотов в Торговом доме</span></div>
       </div>
+      ${t.cash ? `<div class="card"><h3>💰 Касса</h3>
+        <div class="tiles">
+          <div class="tile"><b>${G(t.cash.in)}</b><span>пришло пополнений всего</span></div>
+          <div class="tile"><b>${G(t.cash.out)}</b><span>выплачено игрокам всего</span></div>
+          <div class="tile"><b>${G(t.cash.should)}</b><span>должно быть в кошельке игры (пополнения − выплаты)</span></div>
+          <div class="tile"><b>${G(t.cash.owe)}</b><span>игра должна игрокам: балансы, заявки на вывод, заморожено в заявках ${G(t.cash.bids)}, лига и казна владык ${G(t.cash.extra)}</span></div>
+          <div class="tile"><b style="color:${t.cash.profit < 0 ? 'var(--red)' : 'var(--green, #5fd38a)'}">${G(t.cash.profit)}</b><span>${t.cash.profit < 0 ? '⚠️ МИНУС — проверьте журнал и ручные начисления' : 'доход игры — можно забрать себе'}</span></div>
+        </div>
+        <small class="muted">Забирайте из кошелька игры не больше «дохода игры»: остальное — деньги игроков. Ручные начисления GRAM из админки уменьшают доход. Самоцветы и Stars сюда не входят.</small></div>` : ''}
       <div class="card"><h3>Заявки на вывод (${o.wait.length})</h3>
         ${o.wait.map((w) => `<div class="row"><span class="grow"><b>${w.prio ? '⭐ ' : ''}${esc(w.name)}</b> · №${w.id} · ${msk(w.at)}<br>
           <b>К выплате: ${G(w.net)} GRAM</b> <small class="muted">(заявка ${G(w.gross)}, комиссия ${G(w.fee)})</small><br>

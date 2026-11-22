@@ -53,6 +53,8 @@ module.exports = function createTrade(deps) {
   const st = store.readJSON('gram.json', null) || {};
   st.lots ??= []; st.seq ??= 1; st.wd ??= []; st.log ??= []; delete st.shopBuys; // витрина больше не дневная
   st.bids ??= []; st.hist ??= {}; // заявки на покупку; история цен (ключ товара → последние сделки)
+  // Касса: сколько всего пришло пополнений и сколько отправлено игрокам (для сводки «можно забрать себе»)
+  if (!st.cash) st.cash = { in: st.log.filter((e) => e.kind === 'deposit').reduce((x, e) => x + e.a, 0), out: st.wd.filter((w) => w.status === 'paid').reduce((x, w) => x + w.net, 0) };
   for (const l of st.lots) if (l.item) I.cleanItem(l.item); // старые свойства «Золото»/«Опыт» на выставленных вещах
   let saveTm = null;
   const save = () => { clearTimeout(saveTm); saveTm = setTimeout(() => { try { store.writeJSON('gram.json', st); } catch (e) { console.error('gram save', e.message); } }, 300); };
@@ -490,6 +492,7 @@ module.exports = function createTrade(deps) {
   function onDeposit(uid, nano, hash) {
     if (!(nano > 0)) return false;
     credit(uid, 'deposit', nano, `Пополнение ${fmt(nano)} GRAM`);
+    st.cash.in += nano;
     save();
     notifyUid(uid, `💎 Баланс пополнен: +${fmt(nano)} GRAM`);
     log && log('pay', `GRAM: пополнение ${fmt(nano)} · ${uid} · ${hash || ''}`);
@@ -514,13 +517,20 @@ module.exports = function createTrade(deps) {
     let dep = 0, free = 0, hold = 0;
     for (const pr of Object.values(profiles())) if (pr.gram) { const b = bal(pr); dep += b.dep; free += b.free; hold += b.hold; }
     const wait = st.wd.filter((w) => w.status === 'wait').sort((a, b) => b.prio - a.prio || a.at - b.at);
-    return { totals: { dep, free, hold, all: dep + free + hold, waitNet: wait.reduce((s, w) => s + w.net, 0), lots: st.lots.length },
+    // Касса: в кошельке игры должно быть (пополнения − выплаты). Обязательства перед игроками: балансы, заявки на вывод,
+    // замороженное в заявках на покупку, взносы GRAM-лиги и казна владык (deps.liab). Остаток — доход игры, его можно забрать
+    const bidsFrozen = (st.bids || []).reduce((x, b) => x + b.parts.dep + b.parts.earn.reduce((y, c) => y + c.a, 0), 0);
+    const extra = deps.liab ? deps.liab() : 0, waitNet = wait.reduce((s, w) => s + w.net, 0);
+    const should = st.cash.in - st.cash.out, owe = dep + free + hold + waitNet + bidsFrozen + extra;
+    return { totals: { dep, free, hold, all: dep + free + hold, waitNet, lots: st.lots.length,
+      cash: { in: st.cash.in, out: st.cash.out, should, owe, bids: bidsFrozen, extra, profit: should - owe, house: st.house || 0 } },
       wait, done: st.wd.filter((w) => w.status !== 'wait').slice(0, 50), log: st.log.slice(0, 200) };
   }
   function adminPay(id, tx) {
     const w = st.wd.find((x) => x.id === Number(id));
     if (!w || w.status !== 'wait') return { error: 'Заявка не найдена или уже обработана' };
     w.status = 'paid'; w.paidAt = now(); w.tx = String(tx || '').slice(0, 120);
+    st.cash.out += w.net;
     note(w.uid, 'payout', 0, `Выплачено по заявке №${w.id}: ${fmt(w.net)} GRAM`);
     notifyUid(w.uid, `💸 Выплата по заявке №${w.id}: ${fmt(w.net)} GRAM отправлены на ваш кошелёк`);
     save();

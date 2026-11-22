@@ -350,5 +350,7 @@ module.exports = function createArena(d) {
     return { fee: GL.fee, min: GL.min, lvl: GL.lvl, share: GL.share, n: ids.length, pool: glPool(L), joined: !!L.entrants[p.uid], top,
       last: prev ? prev.map((w) => ({ name: (P[w.uid] && ((P[w.uid].arena && P[w.uid].arena.name) || P[w.uid].name)) || 'Герой', gram: w.gram })) : [] };
   }
-  return { join, leave, info, tourInfo, addPoints, sameTeam, holdsDeath, matches, MODES, glJoin, settle };
+  // Взносы ещё не подведённых недель — обязательство перед игроками (призы или возврат)
+  const glOwed = () => Object.values(tour.gl).filter((L) => !L.done).reduce((x, L) => x + Object.keys(L.entrants).length * GL.fee * 1e9, 0);
+  return { join, leave, info, tourInfo, addPoints, sameTeam, holdsDeath, matches, MODES, glJoin, settle, glOwed };
 };
