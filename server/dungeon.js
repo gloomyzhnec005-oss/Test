@@ -47,7 +47,7 @@ module.exports = function createDungeons(d) {
   // ---------- Состояния героя от монстров ----------
   function ccPlayer(p, type, ms, now = Date.now()) {
     if (p.dead || (p.ccImmuneUntil || 0) > now || p.rootSelfUntil > now) return;
-    p.cc = { type, until: now + ms };
+    p.cc = { type, until: now + ms, at: now }; // at — чтобы принять шаги, которые телефон отправил, ещё не зная об оглушении
     p.ccImmuneUntil = now + ms + 1500; // защита от бесконечного контроля
     fx({ t: 'pcc', target: p.id, cc: type, ms });
     d.markDirty(p);

@@ -189,7 +189,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tpSeq = d.tp; this.walkTo = null; // перенос умением: дальше шаги — уже от новой точки
         // Рывок, а не телепорт: логика героя сразу в новой точке, а на экране он «летит» туда за 0,12–0,22 с со шлейфом
         const dist = Math.hypot(d.x - fx0, d.y - fy0);
-        if (dist > 20 && dist < 700) { this.myDash = { fx: fx0, fy: fy0, t0: performance.now(), dur: Math.min(260, Math.max(160, dist * 0.7)) }; this.dashTrail(this.me.e, fx0, fy0, d.x, d.y); }
+        if (dist > 20 && dist < 700) { this.myDash = { fx: fx0, fy: fy0, t0: performance.now(), dur: d.knock ? 220 : Math.min(260, Math.max(160, dist * 0.7)) }; if (!d.knock) this.dashTrail(this.me.e, fx0, fy0, d.x, d.y); } // отбрасывание — плавный отлёт без шлейфа
       }
       if (d.respawn) this.ui.onRespawn();
     });

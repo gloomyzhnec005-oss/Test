@@ -654,7 +654,9 @@ const D = createDungeons({
       if (world.isSolidAt(nx, ny)) break;
       p.x = nx; p.y = ny;
     }
-    p.socket.emit('correct', { x: p.x, y: p.y });
+    // Как перенос умением: номер переноса — старые шаги (со старого места) сервер отбросит, телефон плавно «отлетит», а не прыгнет
+    p.tpSeq = (p.tpSeq || 0) + 1; p.tpAt = Date.now(); p.mvBudget = 0;
+    p.socket.emit('correct', { x: p.x, y: p.y, tp: p.tpSeq, knock: true });
   },
   // Подчинение: герой бьёт себя или ближайшего союзника
   selfHit(p, k) { fx.push({ t: 'mtext', x: p.x, y: p.y - 20, text: 'Подчинён!', color: '#ff6ad8' }); hurtPlayer(p, p.dmg * k, null, Date.now()); },
@@ -1766,7 +1768,9 @@ io.on('connection', (socket) => {
     if (p.tpSeq && (d.tp | 0) !== p.tpSeq && now - p.tpAt < 1500) return;
     if (p.rootSelfUntil > now) { socket.emit('correct', { x: p.x, y: p.y }); return; } // укоренение Ву'гажа
     const cct = D.ccActive(p, now);
-    if (cct === 'stun' || cct === 'freeze' || cct === 'root') { socket.emit('correct', { x: p.x, y: p.y }); return; } // контроль от монстров
+    // Контроль от монстров: телефон узнаёт о нём с задержкой связи и ещё долю секунды ведёт героя. Эти шаги (первые 0,6 с)
+    // принимаем как обычные — иначе героя откатывало назад рывком, будто лаг. Дальше — стоим (без рывка: телефон уже знает)
+    if ((cct === 'stun' || cct === 'freeze' || cct === 'root') && !(p.cc && now - (p.cc.at || 0) < 600)) { if (Math.hypot(x - p.x, y - p.y) > 40) socket.emit('correct', { x: p.x, y: p.y }); return; }
     // Античит: ограничение скорости (у облика зверя бег быстрее; после смены облика даём запас)
     const flyBoost = p.flyUntil > now ? 1 + 0.03 * (p.blessings || 0) : 1; // полёт Талмиры
     const speed = Math.max(formOf(p).speed, p.hero.speed) * (p.hasteUntil > now ? 1.25 : 1) * flyBoost * (1 + ((p.gear && p.gear.ms) || 0) / 100);
