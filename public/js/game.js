@@ -1452,6 +1452,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       const e = this.players.get(f.target);
       const txt = { stun: '💫 Оглушение', freeze: '🧊 Заморозка', root: '🕸️ Обездвижен', confuse: '😵 Подчинение', weak: '💔 Слабость' }[f.cc];
       if (e && txt) this.floatText(e.c.x, e.c.y - 34, txt, '#ffb0b0', 12);
+      if (e && (f.cc === 'stun' || f.cc === 'freeze')) this.ccHalo(e, f.cc, f.ms || 500);
       if (f.target === this.myId) this.ui.vibrate('heavy');
     } else if (f.t === 'miss') {
       this.floatText(f.x, f.y - 30, 'Промах', '#e8d49a', 11);
@@ -2623,6 +2624,21 @@ window.GameScene = class GameScene extends Phaser.Scene {
     e.c.x = D.fx + (gx - D.fx) * q; e.c.y = D.fy + (gy - D.fy) * q;
     if (k >= 1) e.dash = null;
     return true;
+  }
+  // Оглушение/заморозка: звёздочки (или льдинки) кружат над головой всё время контроля — сразу видно, что герой
+  // оглушён, а не игра зависла
+  ccHalo(e, cc, ms) {
+    if (e.ccHalo) { e.ccHalo.destroy(); e.ccHalo = null; }
+    const col = cc === 'freeze' ? 0x9fe0ff : 0xffe14a, top = (e.sprite && e.sprite.displayHeight ? -e.sprite.displayHeight * 0.55 : -30) - 6;
+    const h = this.add.container(0, top); e.c.add(h); e.ccHalo = h;
+    const stars = [0, 1, 2].map(() => { const s = this.add.star(0, 0, 5, 2, 5, col).setStrokeStyle(1, 0x000000, 0.6); h.add(s); return s; });
+    const t0 = this.time.now;
+    const ev = this.time.addEvent({ delay: 33, loop: true, callback: () => {
+      if (!h.active) { ev.remove(); return; }
+      const a = (this.time.now - t0) / 160;
+      stars.forEach((s, i) => { const b = a + i * 2.094; s.setPosition(Math.cos(b) * 13, Math.sin(b) * 4); s.setScale(0.8 + 0.25 * Math.sin(b)); });
+    } });
+    this.time.delayedCall(Math.max(300, ms), () => { ev.remove(); if (e.ccHalo === h) e.ccHalo = null; this.tweens.add({ targets: h, alpha: 0, duration: 150, onComplete: () => h.destroy() }); });
   }
   // Шлейф рывка: 4 тающие тени героя вдоль пути и полоса пыли — глаз видит бросок, а не исчезновение
   dashTrail(e, fx, fy, tx, ty) {
