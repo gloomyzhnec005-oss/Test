@@ -213,7 +213,7 @@ window.Town = (() => {
     const r = await Bag.act('gmLtd');
     if (r.error) return toast(r.error);
     const L = r.ltd;
-    const box = el(`<div class="tw-banner pass"><b>⭐ Тираж «${L.name}» · осталось ${L.left} из ${L.of}</b>
+    const box = el(`<div class="tw-banner pass"><b><img class="ui-ic" src="assets/ui/ic_limited.webp" alt=""> Тираж «${L.name}» · осталось ${L.left} из ${L.of}</b>
       <small>Мифические вещи с номером #N/${L.of}: +10% ко всем свойствам. Больше никогда не появятся — после распродажи только у игроков в Торговом доме. Не больше ${L.perUser} в одни руки (у вас ${L.mine}). Вещь — под класс вашего героя, мир ${ROMAN[L.tier] || L.tier}.</small></div>`);
     box.prepend(el('<button class="l2-btn wide ghost">‹ Весь Рынок</button>'));
     box.querySelector('button').onclick = () => gramMarketPanel();
@@ -232,7 +232,7 @@ window.Town = (() => {
     if (!Bag.inv || !Bag.inv()) await Bag.refresh(); // названия характеристик для бонусов комплекта
     const r = await Bag.act('gmShop', { cat, cls });
     if (r.error) return toast(r.error);
-    const cats = { ltd: '⭐ Тираж', set: 'Комплекты', ...WEAR_RU };
+    const cats = { ltd: '<img class="ui-ic" src="assets/ui/ic_limited.webp" alt="">Тираж', set: 'Комплекты', ...WEAR_RU };
     const box = el(`${balLine(r.bal)}<p class="sheet-hint">Все вещи от эпических за GRAM — экипировка мира ${ROMAN[r.tier] || r.tier}. Выберите слот или комплект и класс героя, для которого покупаете.<br>Основные свойства — как на карточке, дополнительные выпадают случайно при покупке. Отборные вещи (свойства +25% и одно дополнительное) — только в призыве снаряжения.</p>
       <div class="gram-cats">${Object.entries(cats).map(([k, n]) => `<button class="l2-btn ${k === r.cat ? 'on' : ''}" data-cat="${k}">${n}</button>`).join('')}</div>
       ${r.cat !== 'rune' ? `<div class="gram-cats cls">${r.classes.map((c) => `<button class="l2-btn ${c.id === r.cls ? 'on' : ''}" data-cls="${c.id}"><img class="ui-ic" src="assets/ui/cls_${c.id}.webp" alt="">${c.name}${c.id === r.own ? ' · ваш' : ''}</button>`).join('')}</div>` : ''}
@@ -298,9 +298,9 @@ window.Town = (() => {
       return box;
     };
     // Заявки на покупку: чужие — «Продать», свои — «Снять» и «＋ Новая заявка»
-    const bidRow = (b, label, on) => row(b.item || { icon: '📜', name: b.name }, `${b.name}${b.mat ? ' ×' + b.n : ''}`, `${gfmt(b.price)} GRAM за шт. · ${b.buyer}${histTxt(b.hist)}`, label, on);
+    const bidRow = (b, label, on) => row(b.item || null, `${b.item ? '' : '<img class="ui-ic" src="assets/ui/ic_bids.webp" alt=""> '}${b.name}${b.mat ? ' ×' + b.n : ''}`, `${gfmt(b.price)} GRAM за шт. · ${b.buyer}${histTxt(b.hist)}`, label, on);
     const bidsTab = () => {
-      const box = el(`${balLine(r.bal)}<p class="sheet-hint">Игроки заранее заморозили GRAM и ждут товар. Есть подходящая вещь или материалы — продайте сразу, оплата придёт мгновенно (к выводу через 3 дня), комиссия как у лотов.</p>`);
+      const box = el(`${balLine(r.bal)}<p class="sheet-hint"><img class="ui-ic" src="assets/ui/ic_bids.webp" alt=""> Игроки заранее заморозили GRAM и ждут товар. Есть подходящая вещь или материалы — продайте сразу, оплата придёт мгновенно (к выводу через 3 дня), комиссия как у лотов.</p>`);
       bindWallet(box);
       const list = r.bids.filter((b) => !b.mine);
       if (!list.length) box.insertAdjacentHTML('beforeend', soon('Заявок пока нет'));
@@ -645,7 +645,7 @@ window.Town = (() => {
       // GRAM-лига: взнос, призовой фонд 90%, тройке — 50/30/20%
       const G = T.gl;
       if (G) {
-        const gl = el(`<div class="tw-banner hero tour"><b>💰 GRAM-лига · фонд ${G.pool.toFixed(2)} GRAM · участников ${G.n}</b>
+        const gl = el(`<div class="tw-banner hero tour"><b><img class="ui-ic" src="assets/ui/ic_gramleague.webp" alt=""> GRAM-лига · фонд ${G.pool.toFixed(2)} GRAM · участников ${G.n}</b>
           <small>Взнос ${G.fee} GRAM, с ${G.lvl} уровня. В зачёт — очки турнира после взноса. Призовой фонд — 90% взносов: 🥇 ${G.share[0] * 100}% · 🥈 ${G.share[1] * 100}% · 🥉 ${G.share[2] * 100}%. Если участников меньше ${G.min} — взносы вернутся. Призы можно вывести через 3 дня.</small>
           ${G.top.length ? `<div class="tour-top">${G.top.map((t, i) => `<div class="top-row"><span>${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><b class="notr"></b><em>${t.pts}</em></div>`).join('')}</div>` : ''}
           ${G.last.length ? `<small>Прошлая неделя: ${G.last.map((w, i) => `${['🥇', '🥈', '🥉'][i]} ${w.name} +${w.gram} GRAM`).join(' · ')}</small>` : ''}

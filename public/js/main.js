@@ -755,6 +755,7 @@
           <p class="sheet-hint">В Торговом доме сейчас лотов: ${e.lots}, заявок на покупку: ${e.bids}. Тираж «${e.ltd.name}»: осталось ${e.ltd.left} из ${e.ltd.of}.</p>
           <div class="ic-sec">Крупные сделки недели</div>
           ${e.top.map((d) => `<div class="tw-ev"><div><b>${d.name}</b><small>${new Date(d.t).toLocaleDateString('ru-RU')}</small></div><b>${g(d.price)} GRAM</b></div>`).join('') || '<div class="tw-soon">Сделок пока нет — станьте первым</div>'}`;
+        box.insertAdjacentHTML('afterbegin', '<img class="place-ic big" src="assets/ui/ic_economy.webp" alt="" style="display:block;margin:0 auto 6px;width:72px;height:72px">');
         Town.open('📊 Экономика игры', box);
       };
       // ---------- Пригласить друга (окно — public/js/invite.js, то же, что в лобби) ----------
@@ -891,7 +892,7 @@
       const menuRow = (icon, name, desc, fn) => {
         const r = document.createElement('button');
         r.className = 'nav-row';
-        r.innerHTML = `<span>${/^[a-z]+$/.test(icon) ? `<img class="place-ic big" src="assets/ui/${icon === "chat" ? "nav_chat" : icon === "auto" ? "ic_atk" : "place_" + icon}.webp" alt="">` : icon}</span><div><b>${name}</b><small>${desc}</small></div><i>›</i>`;
+        r.innerHTML = `<span>${/^ic_[a-z]+$/.test(icon) ? `<img class="place-ic big" src="assets/ui/${icon}.webp" alt="">` : /^[a-z]+$/.test(icon) ? `<img class="place-ic big" src="assets/ui/${icon === "chat" ? "nav_chat" : icon === "auto" ? "ic_atk" : "place_" + icon}.webp" alt="">` : icon}</span><div><b>${name}</b><small>${desc}</small></div><i>›</i>`;
         r.onclick = fn;
         if (icon === 'pass' && passReadyN > 0) r.classList.add('nav-dot'); // есть награды пропуска
         return r;
@@ -1022,7 +1023,7 @@
           ['party', 'Пригласить друга', 'Своя ссылка: другу — самоцветы и призыв, вам — награды за его уровни и 10% с его покупок', () => openInvite()],
           ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
           ['market', 'GRAM-кошелёк', 'Баланс, пополнение, вывод денег с продаж, торговые ордена', () => Town.openPlace('wallet')],
-          ['market', 'Экономика игры', 'Оборот Торгового дома, выплаты игрокам, крупные сделки недели', () => openEconomy()],
+          ['ic_economy', 'Экономика игры', 'Оборот Торгового дома, выплаты игрокам, крупные сделки недели', () => openEconomy()],
           ['clan', 'Клан', 'Свой клан: участники, задания, хранилище, чат', openClan],
           ['trainer', 'Энциклопедия', 'Всё об игре: развитие, снаряжение, крафт, руны, призывы, данжи, боссы, расписание', () => Wiki.open()],
           ['arena', 'Рейтинги', 'Лучшие по уровню, силе, кланы и урону мировым боссам за неделю', () => openRanks()],
