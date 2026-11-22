@@ -367,6 +367,12 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
     const opt = (o, sel) => Object.entries(o).map(([k, v]) => `<option value="${esc(k)}" ${k === sel ? 'selected' : ''}>${esc(v)}</option>`).join('');
     $('sheetBody').innerHTML = `
       <div class="card">
+        ${p.refs && (p.refs.n || p.refs.by) ? `<div class="card"><h3>👥 Приглашения</h3>
+          ${p.refs.by ? `<p class="muted">Сам пришёл по ссылке игрока <b>${esc(p.refs.by)}</b></p>` : ''}
+          ${p.refs.n ? `<p>Пригласил: <b>${p.refs.n}</b> · заходили в мир: <b>${p.refs.played}</b> · дошли до 10 ур.: <b>${p.refs.l10}</b> · новые аккаунты Telegram: <b>${p.refs.newIds}</b> · получил 💎 ${p.refs.gems} и ${(p.refs.gram / 1e9).toFixed(2)} GRAM</p>
+          ${p.refs.n >= 10 && p.refs.played / p.refs.n < 0.3 ? '<p style="color:var(--red)">⚠️ Большинство приглашённых не заходили в мир — похоже на накрутку (фейковые аккаунты)</p>' : ''}
+          <div style="max-height:260px;overflow:auto">${p.refs.list.map((r) => `<div class="row"><small class="grow">${r.gone ? `${esc(r.uid)} — удалён` : `${esc(r.name || '—')}${r.user ? ` · <a href="https://t.me/${esc(r.user)}" target="_blank">@${esc(r.user)}</a>` : ''} · ${esc(r.uid)} · ур. ${r.lvl} · героев ${r.heroes} · ${r.played ? 'играл' : 'не входил в мир'}${r.newId ? ' · 🆕 новый аккаунт' : ''}${r.prem ? ' · ⭐' : ''}${r.plat ? ' · ' + esc(r.plat) : ''}`}</small></div>`).join('')}</div>
+          <div class="row"><button class="btn danger" data-a="refRevoke">Снять все приглашения (накрутка)</button></div>` : ''}</div>` : ''}
         ${p.tgInfo ? `<div class="row"><small class="grow">👤 ${esc([p.tgInfo.first, p.tgInfo.last].filter(Boolean).join(' ') || '—')}${p.tgInfo.user ? ` · <a href="https://t.me/${esc(p.tgInfo.user)}" target="_blank">@${esc(p.tgInfo.user)}</a>` : ' · без @username'}<br>${tgLine(p.tgInfo)}</small></div>` : (p.uid.startsWith('tg') ? '<div class="row"><small class="muted grow">Данных Telegram пока нет — появятся, когда игрок снова откроет бота</small></div>' : '')}
         <div class="row"><span class="dot ${s ? 'on' : ''}"></span><b class="grow">${s ? `В игре: ${esc(s.heroName)} ${s.level} ур. · ${esc(s.zoneName)} · ❤️ ${s.hp}/${s.maxHp}` : 'Не в игре · ' + ago(p.lastSeen)}</b>
           ${p.banned ? `<span class="tag red">бан: ${esc(p.banned.reason)}</span>` : ''}</div>
@@ -460,6 +466,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       const a = b.dataset.a;
       const A = {
         heal: () => edit('heal'), kill: () => edit('kill'), maxTest: () => edit('maxTest'),
+        refRevoke: () => { if (confirm('Отвязать всех приглашённых этим игроком? Новые награды за них он не получит, а у приглашённых заберётся неистраченный бонус новичка.')) edit('refRevoke'); },
         teleport: () => edit('teleport', { zone: v('tpZone') }), xp: () => edit('xp', { value: v('xpVal') }),
         goldAdd: () => edit('gold', { value: v('goldVal') }), goldSet: () => edit('gold', { value: v('goldVal'), set: true }),
         gemsAdd: () => edit('gems', { value: v('gemsVal') }), gemsSet: () => edit('gems', { value: v('gemsVal'), set: true }),

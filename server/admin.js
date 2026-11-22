@@ -121,6 +121,17 @@ module.exports = function createAdmin(ctx) {
     for (const it of pr.items) byRar[it.rar] = (byRar[it.rar] || 0) + 1;
     const pass = ctx.meta.passOf(pr);
     return {
+      // Приглашённые этим игроком: кто они и играют ли (проверка накрутки рефералов)
+      refs: (() => {
+        const P = ctx.profiles, list = (pr.refs || []).map((u) => {
+          const o = P[u]; if (!o) return { uid: u, gone: true };
+          const lvl = Math.max(0, ...Object.values(o.chars || {}).map((c) => c.level || 0)), t = o.tgInfo || {};
+          return { uid: u, name: o.name || [t.first, t.last].filter(Boolean).join(' ') || null, user: t.user || null, plat: t.plat || '', prem: !!t.prem,
+            lvl, played: !!o.lastSeen, at: o.refAt || 0, heroes: (o.heroes || []).length, newId: Number(u.slice(2)) > 8e9 };
+        });
+        return { n: list.length, played: list.filter((x) => x.played).length, l10: list.filter((x) => x.lvl >= 10).length, newIds: list.filter((x) => x.newId).length,
+          gems: pr.refEarned || 0, gram: pr.refGram || 0, by: pr.refBy || null, list: list.slice(-100).reverse() };
+      })(),
       uid, name: pr.name || null, tgInfo: pr.tgInfo || null, lastSeen: pr.lastSeen || 0, gold: pr.gold, gems: pr.gems || 0, gram: ctx.trade ? ctx.trade.bal(pr) : null, tOrder: pr.tOrder && pr.tOrder.until > Date.now() ? pr.tOrder : null, paidSpins: pr.paidSpins, itemSpins: pr.itemSpins || 0,
       freeSpinUsed: !!pr.freeSpinUsed, heroes, items: pr.items.length, itemsByRar: byRar, subUntil: pr.subUntil || 0,
       pass: { tier: ctx.meta.passTier(pr), xp: pass.xp, level: Math.floor(pass.xp / ctx.meta.SHOP.pass.xpPerLevel) },
@@ -250,6 +261,18 @@ module.exports = function createAdmin(ctx) {
       }
       case 'unban': delete pr.banned; return { text: 'Блокировка снята' };
       case 'kick': kick(uid, String(d.reason || 'Вас отключил администратор')); return { text: `Отключено сессий: ${live.length}` };
+      // Снять приглашения: друзья отвязываются (новые награды пригласившему не придут), бонус новичка забирается, если не потрачен
+      case 'refRevoke': {
+        let n = 0, back = 0;
+        for (const u of pr.refs || []) {
+          const o = ctx.profiles[u]; if (!o || o.refBy !== uid) continue;
+          delete o.refBy; delete o.refAt; n++;
+          const g = Math.min(o.gems || 0, 100); o.gems = (o.gems || 0) - g; back += g;
+          if ((o.paidSpins || 0) > 0 && !(o.heroes || []).length) o.paidSpins -= 1;
+        }
+        pr.refs = []; pr.refN = 0;
+        return { text: `Приглашения сняты: ${n} аккаунтов отвязано, у приглашённых забрано ${back} 💎 неистраченного бонуса` };
+      }
       case 'wdTest':
         pr.test ??= {};
         pr.test.wdTest = !!d.value;
