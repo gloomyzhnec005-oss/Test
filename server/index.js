@@ -652,6 +652,7 @@ const Arena = require('./arena')({
   revive: (p) => revivePlayer(p), addPassXp: (pr, n) => meta.addPassXp(pr, n), quest: (...a) => Q.track(...a),
   statsFor: (...a) => statsFor(...a), profiles: () => profiles, markDirty: (p) => markDirty(p),
   store, notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => io.emit('chat', { sys: true, text: t }), save: () => saveProfiles(),
+  get gram() { return Trade; }, // GRAM-лига турнира: взносы и призы
 });
 // ---------- Кланы (data/clans.json): название, тег, глава, участники, история кланового чата ----------
 const CLAN = { price: 10000, max: 30, vault: 50, takesPerDay: 3 };
@@ -1997,6 +1998,7 @@ io.on('connection', (socket) => {
     if (!p || typeof cb !== 'function') return;
     if (d.op === 'join') return cb(Arena.join(p, d.mode));
     if (d.op === 'leave') { Arena.leave(p); return cb({ ok: true }); }
+    if (d.op === 'glJoin') return cb(Arena.glJoin(p));
     cb(Arena.info(p));
   });
 

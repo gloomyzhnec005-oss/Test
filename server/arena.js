@@ -18,6 +18,10 @@ const LEVELS = { town1: [1, 20], town2: [15, 35], town3: [30, 99] };
 const PAIR_MAX = 3; // рейтинговых боёв в день с одним и тем же соперником
 const TOUR_PTS = { win: 3, loss: 1, kill: 1 };
 const TOUR_PRIZE = [{ gems: 1600, gold: 20000, title: '🥇' }, { gems: 960, gold: 12000, title: '🥈' }, { gems: 480, gold: 6000, title: '🥉' }];
+// GRAM-лига турнира недели: взнос 1 GRAM, в зачёт — очки, набранные после взноса (те же бои, тот же лимит PAIR_MAX
+// против одного соперника в день). Призовой фонд — 90% взносов: 50% / 30% / 20% тройке; 10% — игре. Если участников
+// меньше 4 — взносы возвращаются. Призы — к выводу через 3 дня. Вступить — с 15 уровня (защита от твинков)
+const GL = { fee: 1, min: 4, share: [0.5, 0.3, 0.2], house: 0.1, lvl: 15 };
 const weekKey = (t = Date.now()) => { const x = new Date(t), dd = (x.getUTCDay() + 6) % 7; return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate() - dd)).toISOString().slice(0, 10); };
 const weekEnd = (t = Date.now()) => Date.parse(weekKey(t)) + 7 * 864e5;
 const T = 32;
@@ -31,6 +35,44 @@ module.exports = function createArena(d) {
     const wk = weekKey();
     if (!pr.tour || pr.tour.week !== wk) pr.tour = { week: wk, pts: 0 };
     pr.tour.pts += n;
+    if (pr.gl && pr.gl.week === wk) pr.gl.pts += n; // GRAM-лига — только очки после взноса
+  }
+  tour.gl ??= {}; // неделя → { entrants: { uid: { parts, at } } }
+  function glJoin(p) {
+    const wk = weekKey(), pr = d.getProfile(p.uid);
+    if (!d.gram) return { error: 'GRAM-лига недоступна' };
+    if (!/^tg/.test(p.uid)) return { error: 'GRAM-лига — для игроков из Telegram' };
+    if (p.char.level < GL.lvl) return { error: `GRAM-лига — с ${GL.lvl} уровня героя` };
+    if (weekEnd() - Date.now() < 864e5) return { error: 'Вступить можно до последних суток недели — приходите в понедельник' };
+    const L = (tour.gl[wk] ??= { entrants: {} });
+    if (L.entrants[p.uid]) return { error: 'Вы уже в GRAM-лиге этой недели' };
+    const nano = Math.round(GL.fee * 1e9);
+    const parts = d.gram.take(p.uid, nano, `Взнос в GRAM-лигу турнира ${wk}`);
+    if (!parts) return { error: `Нужно ${GL.fee} GRAM — пополните баланс`, needGram: true };
+    L.entrants[p.uid] = { parts, at: Date.now() };
+    pr.gl = { week: wk, pts: 0 };
+    saveTour(); d.save();
+    return { toast: `Вы в GRAM-лиге! Очки за бои с этого момента идут в зачёт. Фонд сейчас: ${glPool(L).toFixed(2)} GRAM` };
+  }
+  const glPool = (L) => Object.keys(L.entrants).length * GL.fee * (1 - GL.house);
+  function glSettle(prev) {
+    const L = tour.gl[prev];
+    if (!L || L.done) return;
+    L.done = true;
+    const ids = Object.keys(L.entrants);
+    if (ids.length < GL.min) { // мало участников — всем вернуть взнос туда же, откуда он пришёл
+      for (const uid of ids) { d.gram.giveBack(uid, L.entrants[uid].parts, `GRAM-лига ${prev} не состоялась (участников меньше ${GL.min}) — взнос возвращён`); d.notifyUid(uid, `GRAM-лига ${prev} не состоялась — взнос ${GL.fee} GRAM возвращён`); }
+      return;
+    }
+    const pool = ids.length * GL.fee * 1e9, prize = pool * (1 - GL.house);
+    d.gram.houseAdd(pool * GL.house);
+    const top = ids.map((uid) => ({ uid, pts: (d.profiles()[uid] || {}).gl && d.profiles()[uid].gl.week === prev ? d.profiles()[uid].gl.pts : 0 })).filter((x) => x.pts > 0).sort((a, b) => b.pts - a.pts).slice(0, 3);
+    L.win = top.map((t, i) => ({ uid: t.uid, pts: t.pts, gram: Math.round(prize * GL.share[i]) / 1e9 }));
+    top.forEach((t, i) => {
+      d.gram.grant(t.uid, prize * GL.share[i], 'prize', `GRAM-лига ${prev}: ${i + 1} место (${t.pts} очков)`);
+      d.notifyUid(t.uid, `🏆 GRAM-лига: ${i + 1} место! Приз ${(prize * GL.share[i] / 1e9).toFixed(2)} GRAM — к выводу через 3 дня`);
+    });
+    // Если призёров меньше трёх (у остальных нет очков) — нераспределённое остаётся игре
   }
   const ranking = (wk) => Object.entries(d.profiles()).filter(([, o]) => o.tour && o.tour.week === wk && o.tour.pts > 0)
     .map(([uid, o]) => ({ uid, name: (o.arena && o.arena.name) || 'Герой', pts: o.tour.pts, hero: o.arena && C.HEROES[o.arena.hero] ? C.HEROES[o.arena.hero].name : '' }))
@@ -48,6 +90,7 @@ module.exports = function createArena(d) {
       d.notifyUid(t.uid, `${P.title} Турнир недели: ${i + 1} место (${t.pts} очков)! Награда: ${P.gems} 💎 и ${P.gold} 💰`);
     });
     if (top.length) d.broadcast(`🏆 Турнир недели завершён! ${top.map((t, i) => `${TOUR_PRIZE[i].title} ${t.name} (${t.pts})`).join(' · ')}`);
+    try { glSettle(prev); } catch (e) { console.error('gram league', e); }
     tour.paid = wk;
     saveTour(); d.save();
   }
@@ -298,7 +341,14 @@ module.exports = function createArena(d) {
     const wk = weekKey(), list = ranking(wk), me = d.getProfile(p.uid);
     const place = list.findIndex((t) => t.uid === p.uid) + 1;
     return { ends: weekEnd(), my: me.tour && me.tour.week === wk ? me.tour.pts : 0, place, top: list.slice(0, 10).map(({ name, pts, hero }) => ({ name, pts, hero })),
-      prizes: TOUR_PRIZE, pts: TOUR_PTS, last: tour.last };
+      prizes: TOUR_PRIZE, pts: TOUR_PTS, last: tour.last, gl: glInfo(p, wk) };
   }
-  return { join, leave, info, tourInfo, addPoints, sameTeam, holdsDeath, matches, MODES };
+  function glInfo(p, wk) {
+    const L = tour.gl[wk] || { entrants: {} }, P = d.profiles(), ids = Object.keys(L.entrants);
+    const top = ids.map((uid) => ({ name: (P[uid] && P[uid].arena && P[uid].arena.name) || (P[uid] && P[uid].name) || 'Герой', pts: P[uid] && P[uid].gl && P[uid].gl.week === wk ? P[uid].gl.pts : 0 })).sort((a, b) => b.pts - a.pts).slice(0, 5);
+    const prevKey = Object.keys(tour.gl).filter((k) => k < wk).sort().pop(), prev = prevKey && tour.gl[prevKey].win;
+    return { fee: GL.fee, min: GL.min, lvl: GL.lvl, share: GL.share, n: ids.length, pool: glPool(L), joined: !!L.entrants[p.uid], top,
+      last: prev ? prev.map((w) => ({ name: (P[w.uid] && ((P[w.uid].arena && P[w.uid].arena.name) || P[w.uid].name)) || 'Герой', gram: w.gram })) : [] };
+  }
+  return { join, leave, info, tourInfo, addPoints, sameTeam, holdsDeath, matches, MODES, glJoin, settle };
 };

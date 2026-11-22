@@ -621,6 +621,25 @@ window.Town = (() => {
         <small>${T.prizes.map((p, i) => `${p.title} ${p.gems} 💎 + ${p.gold} 💰`).join(' · ')}</small>
         ${T.top.length ? `<div class="tour-top">${T.top.map((t, i) => `<div class="top-row"><span>${i < 3 ? T.prizes[i].title : i + 1}</span><b>${t.name}</b><small>${t.hero}</small><em>${t.pts}</em></div>`).join('')}</div>` : '<small>Пока никто не набрал очков — станьте первым!</small>'}
         ${T.last && T.last.length ? `<small>Прошлая неделя: ${T.last.map((t) => `${T.prizes[t.place - 1].title} ${t.name} (${t.pts})`).join(' · ')}</small>` : ''}</div>`);
+      // GRAM-лига: взнос, призовой фонд 90%, тройке — 50/30/20%
+      const G = T.gl;
+      if (G) {
+        const gl = el(`<div class="tw-banner hero tour"><b>💰 GRAM-лига · фонд ${G.pool.toFixed(2)} GRAM · участников ${G.n}</b>
+          <small>Взнос ${G.fee} GRAM, с ${G.lvl} уровня. В зачёт — очки турнира после взноса. Призовой фонд — 90% взносов: 🥇 ${G.share[0] * 100}% · 🥈 ${G.share[1] * 100}% · 🥉 ${G.share[2] * 100}%. Если участников меньше ${G.min} — взносы вернутся. Призы можно вывести через 3 дня.</small>
+          ${G.top.length ? `<div class="tour-top">${G.top.map((t, i) => `<div class="top-row"><span>${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}</span><b class="notr"></b><em>${t.pts}</em></div>`).join('')}</div>` : ''}
+          ${G.last.length ? `<small>Прошлая неделя: ${G.last.map((w, i) => `${['🥇', '🥈', '🥉'][i]} ${w.name} +${w.gram} GRAM`).join(' · ')}</small>` : ''}
+          ${G.joined ? '<small><b class="ok">✓ Вы участвуете</b></small>' : `<button class="l2-btn wide">Вступить за ${G.fee} GRAM</button>`}</div>`);
+        gl.querySelectorAll('.tour-top .top-row b').forEach((b, i) => { b.textContent = G.top[i].name; });
+        const jb = gl.querySelector('button');
+        if (jb) jb.onclick = async () => {
+          if (!(await askGram(`Вступить в GRAM-лигу за ${G.fee} GRAM?`))) return;
+          const r = await new Promise((res) => ctx.socket.emit('arena', { op: 'glJoin' }, res));
+          toast(r.error || r.toast);
+          if (r.needGram) return walletPanel(0);
+          if (!r.error) PANELS.arena();
+        };
+        box.append(gl);
+      }
     }
     for (const m of info.modes) {
       const queued = info.queued === m.id;
