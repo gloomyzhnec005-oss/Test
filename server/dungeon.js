@@ -47,7 +47,7 @@ module.exports = function createDungeons(d) {
   // ---------- Состояния героя от монстров ----------
   function ccPlayer(p, type, ms, now = Date.now()) {
     if (p.dead || (p.ccImmuneUntil || 0) > now || p.rootSelfUntil > now) return;
-    p.cc = { type, until: now + ms, at: now }; // at — чтобы принять шаги, которые телефон отправил, ещё не зная об оглушении
+    p.cc = { type, until: now + ms };
     p.ccImmuneUntil = now + ms + 1500; // защита от бесконечного контроля
     fx({ t: 'pcc', target: p.id, cc: type, ms });
     d.markDirty(p);
@@ -185,7 +185,8 @@ module.exports = function createDungeons(d) {
         m.x += (t.x - m.x) * k; m.y += (t.y - m.y) * k;
         fx({ t: 'mdash', from: m.id, x: m.x, y: m.y, name });
         hit(m, t, ab.mult, now);
-        if (ab.knock && !t.owner) d.knockPlayer(t, t.x - m.x, t.y - m.y, ab.knock);
+        // Таран без отбрасывания (отброс на телефоне выглядел как лаг): короткое оглушение — герой стоит на месте
+        if (ab.knock && !t.owner) ccPlayer(t, 'stun', 500, now);
         return true;
       }
       case 'stunHit': case 'critHit':
