@@ -20,6 +20,10 @@ const TIER_MULT = { 1: 1, 2: 2.2, 3: 4.5 }; // базовые статы и це
 const TIER_ATTR = { 1: 1, 2: 1.5, 3: 2.2 }; // сила случайных атрибутов
 const TIER_NAME = { 1: '', 2: ' Бездны', 3: ' Небес' };
 const DUPE_STEP = 0.05, DUPE_MAX = 10;
+// Заточка в кузнице: +1…+10, каждый уровень +4% ко всем статам вещи. До +3 — всегда успешно, дальше шанс падает;
+// неудача с +7 и выше опускает заточку на 1 (вещь не ломается). Камень удачи: +10% к шансу.
+const ENCH = { max: 10, step: 0.04, chance: [1, 1, 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3], dropFrom: 7, luck: 0.1 };
+const ENCH_RAR = { common: 1, rare: 1.5, epic: 2, legendary: 3, mythic: 4 };
 
 // Атрибуты: [название, единица, мин, макс] для обычного предмета первого мира
 const ATTRS = {
@@ -466,7 +470,8 @@ function rollItem(tier, weights, cat = null, heroId = null) {
 // Итоговые статы одного предмета (база × редкость × мир + атрибуты, всё × бонус дубликатов)
 function itemStats(it) {
   const t = TEMPLATES[it.cat][it.tpl];
-  const k = (1 + DUPE_STEP * (it.dupes || 0)) * (t.setCls ? 1.2 : 1);
+  const ek = 1 + ENCH.step * (it.ench || 0); // заточка
+  const k = (1 + DUPE_STEP * (it.dupes || 0)) * (t.setCls ? 1.2 : 1) * ek;
   const out = {};
   const add = (key, v) => { out[key] = round1((out[key] || 0) + v); };
   for (const [key, v] of Object.entries(t.base)) {
@@ -475,7 +480,7 @@ function itemStats(it) {
     if (NO_ITEM_ATTR.has(key)) continue;
     add(key, v * (flat ? ITEM_RARITIES[it.rar].mult * TIER_MULT[it.tier] : 1 + 0.5 * RARITY_ORDER.indexOf(it.rar) + 0.4 * (it.tier - 1)) * k);
   }
-  if (it.cat !== 'rune') for (const a of it.attrs) if (!NO_ITEM_ATTR.has(a.k)) add(a.k, a.v * (1 + DUPE_STEP * (it.dupes || 0))); // у рун старые доп. свойства не действуют
+  if (it.cat !== 'rune') for (const a of it.attrs) if (!NO_ITEM_ATTR.has(a.k)) add(a.k, a.v * (1 + DUPE_STEP * (it.dupes || 0)) * ek); // у рун старые доп. свойства не действуют
   return out;
 }
 
@@ -681,7 +686,8 @@ function itemView(it) {
   const set = sid ? { id: sid, name: SETS[sid].name, cls: SETS[sid].cls, clsName: CLASSES[SETS[sid].cls].name, heroes: CLASSES[SETS[sid].cls].heroes, bonus: SETS[sid].bonus } : null;
   return {
     id: it.id, cat: it.cat, tpl: it.tpl, rar: it.rar, tier: it.tier, dupes: it.dupes || 0, loc: it.loc || 'bag',
-    name: ((t.rarNames && t.rarNames[it.rar]) || t.name) + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.dupes ? ` +${it.dupes}` : ''), icon: t.icon, color: R.color, rarName: R.name,
+    name: (it.ench ? `⚒+${it.ench} ` : '') + ((t.rarNames && t.rarNames[it.rar]) || t.name) + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.dupes ? ` +${it.dupes}` : ''), icon: t.icon, color: R.color, rarName: R.name, ench: it.ench || 0,
+    enchCost: it.cat !== 'rune' && it.cat !== 'bag' && (it.ench || 0) < ENCH.max ? enchCost(it) : null,
     art: it.cat === 'bag' ? `bag_${it.rar}` : t.art || null, artFallback: it.cat === 'bag' ? 'slot_bag' : null, // своя иконка сумки по редкости, пока нет — общая
     bagSlots: it.cat === 'bag' ? BAG_SLOTS[it.rar] : 0,
     attrs: it.attrs.filter((a) => !NO_ITEM_ATTR.has(a.k)), stats: itemStats(it), sockets: it.cat === 'weapon' ? R.sockets : 0, set,
@@ -717,7 +723,16 @@ function worldRecipes(tier) {
 }
 const findRecipe = (id) => { const t = +String(id).slice(1, 2); return worldRecipes(t).find((r) => r.id === id) || null; };
 
+// Цена следующей попытки заточки: золото растёт квадратично, с +3 — магические материалы мира, с +7 — сердце мира
+function enchCost(it) {
+  const L = it.ench || 0, t = it.tier || 1, rk = ENCH_RAR[it.rar] || 1;
+  const mats = {};
+  if (L >= 3) mats[`ess${t}`] = L - 1;
+  if (L >= 7) mats[`core${t}`] = L - 6;
+  return { gold: Math.round(150 * (L + 1) ** 2 * rk * TIER_MULT[t] / 10) * 10, mats, chance: ENCH.chance[L] || 0 };
+}
 module.exports = {
+  ENCH, enchCost,
   LUCK_STONE, WORLD_CRAFT, worldRecipes, findRecipe, CRAFT_SLOTS, refineItem,
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, SET_SLOTS, WEAR_CATS, slotCat, TIER_MULT, DUPE_MAX, DUPE_STEP,
   SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF, COMPANIONS, TREE, TREE_MAX, treeReq, treeCost, PAS_MAX, PAS_STEP, pasReq, pasCost, CAPS, BUFF_LUCK,

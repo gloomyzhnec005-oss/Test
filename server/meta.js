@@ -532,6 +532,28 @@ module.exports = function createMeta(deps) {
       refreshPlayer(p);
       return { result: I.itemView(it), toast: `🗺️ Создано: ${I.itemView(it).name}` };
     },
+    // Заточка вещи (кузница): цена — I.enchCost, шанс падает с +4; с +7 неудача снижает заточку на 1
+    enchant(p, d, pr) {
+      const it = I.findItem(pr, d.id);
+      if (!it || it.cat === 'rune' || it.cat === 'bag' || !I.WEAR_CATS.includes(it.cat)) return { error: 'Заточить можно только снаряжение' };
+      const L = it.ench || 0;
+      if (L >= I.ENCH.max) return { error: `Максимальная заточка +${I.ENCH.max}` };
+      const c = I.enchCost(it), luck = !!d.luck && L >= 3;
+      if (pr.gold < c.gold) return { error: `Нужно ${c.gold} 💰` };
+      for (const [k, n] of Object.entries(c.mats)) if (((pr.mats || {})[k] || 0) < n) return { error: `Не хватает: ${I.MATS[k].name} ×${n}` };
+      if (luck && !((pr.mats || {}).luckStone > 0)) return { error: 'Нет камня удачи' };
+      pr.gold -= c.gold;
+      I.takeMats(pr, { ...c.mats, ...(luck ? { luckStone: 1 } : {}) });
+      const chance = Math.min(1, c.chance + (luck ? I.ENCH.luck : 0));
+      const ok = Math.random() < chance;
+      let msg;
+      if (ok) { it.ench = L + 1; msg = `⚒ Успех! Заточка +${it.ench}`; }
+      else if (L >= I.ENCH.dropFrom) { it.ench = L - 1; msg = `💥 Неудача — заточка упала до +${it.ench}`; }
+      else msg = '💥 Неудача — заточка не изменилась';
+      if (equipped(pr, it.id)) refreshPlayer(p);
+      deps.quest(p.uid, 'enchant', 1);
+      return { toast: msg, ok, ench: it.ench || 0, item: I.itemView(it) };
+    },
     salvage(p, d, pr) {
       const it = I.findItem(pr, d.id);
       if (!it || equipped(pr, it.id)) return { error: 'Снимите предмет перед разбором' };
@@ -679,7 +701,7 @@ module.exports = function createMeta(deps) {
     buys(p, d, pr) {
       const list = todayBuys(pr).map((b) => {
         const it = b.itemId ? I.findItem(pr, b.itemId) : null;
-        const ok = b.itemId ? !!it && !equipped(pr, it.id) && !(it.dupes || 0) && !(it.runes || []).length : (pr.mats || {})[b.mat] >= b.n;
+        const ok = b.itemId ? !!it && !equipped(pr, it.id) && !(it.dupes || 0) && !it.ench && !(it.runes || []).length : (pr.mats || {})[b.mat] >= b.n;
         return { id: b.id, gold: b.gold, at: b.at, n: b.n || 1, item: it ? I.itemView(it) : null, mat: b.mat ? I.matView(b.mat, b.n, tierOf(p)) : null, name: b.name, ok,
           why: ok ? '' : b.itemId ? (!it ? 'предмета уже нет' : equipped(pr, it.id) ? 'снимите предмет' : 'предмет изменён') : 'не хватает в сумке' };
       });
@@ -692,7 +714,7 @@ module.exports = function createMeta(deps) {
         const it = I.findItem(pr, b.itemId);
         if (!it) return { error: 'Предмета уже нет' };
         if (equipped(pr, it.id)) return { error: 'Сначала снимите предмет' };
-        if ((it.dupes || 0) || (it.runes || []).length) return { error: 'Предмет усилен или с рунами — вернуть нельзя' };
+        if ((it.dupes || 0) || it.ench || (it.runes || []).length) return { error: 'Предмет усилен или с рунами — вернуть нельзя' };
         pr.items = pr.items.filter((i) => i !== it);
       } else if (!I.takeMats(pr, { [b.mat]: b.n })) return { error: 'В сумке уже нет столько — вернуть нельзя' };
       pr.gold += b.gold;

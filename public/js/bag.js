@@ -102,7 +102,7 @@ window.Bag = (() => {
       ${`<div class="ic-rune empty">${SOCKET} пустое гнездо</div>`.repeat(Math.max(0, it.sockets - it.runes.length))}` : '';
     c.style.setProperty('--rc', it.color);
     c.innerHTML = `<div class="ic-head"><span class="ic-icon">${art(it)}</span><div><b>${it.name}</b>
-        <small>${it.rarName} · ${inv.cats[it.cat]} · мир ${ROMAN[it.tier]}${it.dupes ? ` · дубликаты +${it.dupes * 5}%` : ''}</small></div></div>
+        <small>${it.rarName} · ${inv.cats[it.cat]} · мир ${ROMAN[it.tier]}${it.dupes ? ` · дубликаты +${it.dupes * 5}%` : ''}${it.ench ? ` · заточка +${it.ench * 4}%` : ''}</small></div></div>
       ${it.classes ? `<div class="ic-cls ${fitsClass(it) ? 'ok' : 'bad'}">${fitsClass(it) ? '✓' : '✕'} Для классов: ${clsNames(it)}${it.armor ? ` · ${it.armor}` : ''}</div>` : ''}
       ${it.reqLevel > 1 ? `<div class="ic-cls ${fitsLevel(it) ? 'ok' : 'bad'}">${fitsLevel(it) ? '✓' : '✕'} Требуемый уровень: ${it.reqLevel}${fitsLevel(it) ? '' : ` (у героя ${inv.hero.level})`}</div>` : ''}
       ${setBlock(it)}
@@ -136,6 +136,19 @@ window.Bag = (() => {
       else if (!fitsClass(it)) acts.push([`🔒 Только для: ${clsPlain(it)}`, () => toast('Эту вещь может носить только другой класс')]);
       else if (!fitsLevel(it)) acts.push([`🔒 Нужен ${it.reqLevel} уровень`, () => toast(`Вещь откроется на ${it.reqLevel} уровне героя`)]);
       else acts.push(['Надеть', () => run('equip', { id: it.id, slot: ctx.slot }, ctx.after)]);
+    }
+    // Заточка: цена, шанс, камень удачи (+10%) — с +4 есть риск; с +7 неудача снижает заточку на 1
+    if (it.enchCost) {
+      const c = it.enchCost, L = it.ench || 0, luckN = ((inv.mats || []).find((m) => m.mat === 'luckStone') || {}).n || 0;
+      const matsTxt = Object.entries(c.mats).map(([k, n]) => { const m = (inv.mats || []).find((x) => x.mat === k); return `${m ? m.name : k} ×${n}`; }).join(', ');
+      const ask = (luck) => {
+        const ch = Math.round(Math.min(1, c.chance + (luck ? 0.1 : 0)) * 100);
+        const risk = L >= 6 ? '\nНеудача: заточка упадёт на 1.' : ch < 100 ? '\nНеудача: заточка не изменится, ресурсы потратятся.' : '';
+        if (!confirm(`Заточить «${it.name}» до +${L + 1}?\nЦена: ${c.gold} 💰${matsTxt ? ', ' + matsTxt : ''}${luck ? ', камень удачи' : ''}\nШанс: ${ch}%${risk}`)) return;
+        run('enchant', { id: it.id, luck }, ctx.after);
+      };
+      acts.push([`⚒ Заточить до +${L + 1} · ${Math.round(c.chance * 100)}%`, () => ask(false)]);
+      if (L >= 3 && luckN) acts.push([`⚒ С камнем удачи · ${Math.round(Math.min(1, c.chance + 0.1) * 100)}%`, () => ask(true)]);
     }
     if (ctx.town && !isEquipped(it)) {
       acts.push([`Продать торговцу · ${it.sell} 💰`, () => run('sell', { id: it.id }, ctx.after), 'warn']);

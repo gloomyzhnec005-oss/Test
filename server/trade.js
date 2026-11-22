@@ -30,7 +30,8 @@ const CFG = {
   runeK: 0.4,      // руна — 40% цены вещи той же редкости
   minK: 0.5,       // минимум в Торговом доме — половина цены Рынка
   maxK: 20,        // максимум — в 20 раз дороже (защита от перевода денег между аккаунтами)
-  dupeK: 0.1,      // каждая заточка +10% к минимуму
+  dupeK: 0.1,      // каждый дубликат +10% к минимуму
+  enchK: 0.15,     // каждый уровень заточки в кузнице +15% к минимуму и максимуму
   setK: 2.5, fineK: 1.25, // вещь комплекта — в 2.5 раза дороже обычной той же редкости (сильнее и даёт бонусы комплекта)
   // Материалы, которые можно продавать, и их минимальная цена за штуку в ⭐ (дальше — по курсу)
   matMinStars: { core1: 20, core2: 30, core3: 45, scrollE: 10, scrollL: 60, scrollM: 250, luckStone: 30, skillCrystal: 60, dust: 10,
@@ -133,7 +134,7 @@ module.exports = function createTrade(deps) {
   const shopPrice = (cat, rar, tier, set = false) => toNano(gramOf(shopStars(cat, rar, tier) * (set ? CFG.setK : 1)));
   function itemBounds(it) {
     const set = !!it.setForce || !!(I.TEMPLATES[it.cat] && I.TEMPLATES[it.cat][it.tpl] && I.TEMPLATES[it.cat][it.tpl].setCls);
-    const k = (1 + CFG.dupeK * (it.dupes || 0)) * (it.fine ? CFG.fineK : 1);
+    const k = (1 + CFG.dupeK * (it.dupes || 0)) * (it.fine ? CFG.fineK : 1) * (1 + CFG.enchK * (it.ench || 0)); // заточка в кузнице дорожает вещь
     const base = shopPrice(it.cat, it.rar, it.tier, set) * k;
     const runes = (it.runes || []).reduce((s, r) => s + shopPrice('rune', r.rar, r.tier), 0);
     return { min: Math.ceil((base + runes) * CFG.minK / 1e7) * 1e7, max: Math.floor((base + runes) * CFG.maxK / 1e7) * 1e7 };
