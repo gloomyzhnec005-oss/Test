@@ -48,6 +48,7 @@ module.exports = function createTrade(deps) {
   const { I, store, getProfile, profiles, notifyUid, bagSize, isSub, tierOf, classOf, rate, Econ, log, alertAdmins } = deps;
   const st = store.readJSON('gram.json', null) || {};
   st.lots ??= []; st.seq ??= 1; st.wd ??= []; st.log ??= []; delete st.shopBuys; // витрина больше не дневная
+  st.bids ??= []; st.hist ??= {}; // заявки на покупку; история цен (ключ товара → последние сделки)
   for (const l of st.lots) if (l.item) I.cleanItem(l.item); // старые свойства «Золото»/«Опыт» на выставленных вещах
   let saveTm = null;
   const save = () => { clearTimeout(saveTm); saveTm = setTimeout(() => { try { store.writeJSON('gram.json', st); } catch (e) { console.error('gram save', e.message); } }, 300); };
@@ -94,15 +95,31 @@ module.exports = function createTrade(deps) {
   function spend(uid, a, kind, text) {
     const pr = getProfile(uid), g = G(pr), b = bal(pr);
     if (b.total < a) return false;
-    if (kind !== 'admin' && deps.quest) try { deps.quest(uid, 'purchase', 1); } catch { /* задание — не главное */ } // покупка за GRAM — «Покровитель»
+    if (kind !== 'admin' && kind !== 'escrow' && deps.quest) try { deps.quest(uid, 'purchase', 1); } catch { /* задание — не главное */ } // покупка за GRAM — «Покровитель» (заявка — при исполнении)
     let left = a;
     const take = Math.min(g.dep, left); g.dep -= take; left -= take;
+    const parts = { dep: take, earn: [] }; // откуда взяты деньги — чтобы вернуть туда же (заявки на покупку)
     const t = now();
     g.earn.sort((x, y) => (x.at <= t) - (y.at <= t) || y.at - x.at); // сначала удерживаемые (новые первыми), потом созревшие
-    for (const c of g.earn) { if (!left) break; const k = Math.min(c.a, left); c.a -= k; left -= k; }
+    for (const c of g.earn) { if (!left) break; const k = Math.min(c.a, left); c.a -= k; left -= k; parts.earn.push({ a: k, at: c.at }); }
     g.earn = g.earn.filter((c) => c.a > 0);
     note(uid, kind, -a, text);
-    return true;
+    return parts;
+  }
+  // Вернуть замороженное (заявка снята/истекла): пополненные — в пополненные, деньги с продаж — с прежним сроком.
+  // Так через заявку нельзя превратить невыводимые пополнения в выводимые
+  function refundParts(uid, parts, text) {
+    const g = G(getProfile(uid)), sum = parts.dep + parts.earn.reduce((x, c) => x + c.a, 0);
+    if (!sum) return;
+    g.dep += parts.dep; for (const c of parts.earn) if (c.a > 0) g.earn.push({ a: c.a, at: c.at });
+    note(uid, 'refund', sum, text);
+  }
+  // Взять из замороженного a (исполнение заявки): сначала пополненные, остаток заявки — более «выводимый»
+  function takeParts(parts, a) {
+    const k = Math.min(parts.dep, a); parts.dep -= k; let left = a - k;
+    for (const c of parts.earn) { if (!left) break; const m = Math.min(c.a, left); c.a -= m; left -= m; }
+    parts.earn = parts.earn.filter((c) => c.a > 0);
+    return left === 0;
   }
   // Склеить созревшие кусочки (чтобы список не рос)
   function compact(pr) { const g = G(pr), t = now(), ripe = g.earn.filter((c) => c.at <= t).reduce((s, c) => s + c.a, 0); g.earn = g.earn.filter((c) => c.at > t); if (ripe) g.earn.push({ a: ripe, at: 0 }); }
@@ -112,7 +129,7 @@ module.exports = function createTrade(deps) {
   const shopStars = (cat, rar, tier) => (CFG.starsK[rar] || 0) * (CFG.tierK[tier] || 1) * (cat === 'rune' ? CFG.runeK : 1);
   const shopPrice = (cat, rar, tier, set = false) => toNano(gramOf(shopStars(cat, rar, tier) * (set ? CFG.setK : 1)));
   function itemBounds(it) {
-    const set = !!(I.TEMPLATES[it.cat] && I.TEMPLATES[it.cat][it.tpl] && I.TEMPLATES[it.cat][it.tpl].setCls);
+    const set = !!it.setForce || !!(I.TEMPLATES[it.cat] && I.TEMPLATES[it.cat][it.tpl] && I.TEMPLATES[it.cat][it.tpl].setCls);
     const k = (1 + CFG.dupeK * (it.dupes || 0)) * (it.fine ? CFG.fineK : 1);
     const base = shopPrice(it.cat, it.rar, it.tier, set) * k;
     const runes = (it.runes || []).reduce((s, r) => s + shopPrice('rune', r.rar, r.tier), 0);
@@ -149,6 +166,34 @@ module.exports = function createTrade(deps) {
     const pr = getProfile(l.seller);
     if (l.mat) I.addMat(pr, l.mat, l.n); else { l.item.loc = 'bag'; I.addItem(pr, l.item, bagSize(pr), false); }
   }
+  // ---------- Ключ товара и история цен ----------
+  const isSetItem = (it) => !!(I.TEMPLATES[it.cat] && I.TEMPLATES[it.cat][it.tpl] && I.TEMPLATES[it.cat][it.tpl].setCls);
+  const itemKey = (it) => `i:${it.cat}:${it.rar}:${it.tier || 1}:${isSetItem(it) ? 1 : 0}`;
+  const matKey = (id) => `m:${id}`;
+  function histAdd(key, unit) {
+    const h = (st.hist[key] ??= []);
+    h.push([now(), unit]); if (h.length > 40) h.splice(0, h.length - 40);
+  }
+  function histView(key) {
+    const h = st.hist[key] || [], wk = h.filter(([t]) => now() - t < 7 * 864e5).map(([, v]) => v);
+    if (!h.length) return null;
+    return { last: h[h.length - 1][1], avg7: wk.length ? Math.round(wk.reduce((a, b) => a + b, 0) / wk.length) : null, n7: wk.length, min7: wk.length ? Math.min(...wk) : null, max7: wk.length ? Math.max(...wk) : null };
+  }
+  const bidName = (b) => (b.mat ? I.MATS[b.mat].name : `${I.SLOT_NAMES ? (I.SLOT_NAMES[b.cat] || b.cat) : b.cat} · ${I.ITEM_RARITIES[b.rar].name} · мир ${b.tier}${b.set ? ' · комплект' : ''}`);
+  const bidView = (b, uid) => ({ id: b.id, mine: b.buyer === uid, buyer: b.buyerName, mat: b.mat || null, cat: b.cat || null, rar: b.rar || null, tier: b.tier || null, set: !!b.set,
+    n: b.n, price: b.price, until: b.until, name: bidName(b), item: b.mat ? I.matView(b.mat, b.n) : null, hist: histView(b.mat ? matKey(b.mat) : `i:${b.cat}:${b.rar}:${b.tier}:${b.set ? 1 : 0}`) });
+  // Подходит ли вещь под заявку: тот же слот, редкость, мир, комплект/нет
+  const fits = (b, it) => !b.mat && it && it.cat === b.cat && it.rar === b.rar && (it.tier || 1) === b.tier && isSetItem(it) === !!b.set;
+  // Границы цены заявки на вещь — как у лота такой же вещи без заточки и рун
+  const bidBounds = (b) => (b.mat ? matBounds(b.mat, 1) : itemBounds({ cat: b.cat, tpl: b.set ? `set_x` : '', rar: b.rar, tier: b.tier, dupes: 0, runes: [], setForce: !!b.set }));
+  function sweepBids() {
+    const t = now(), old = st.bids.filter((b) => b.until <= t);
+    if (!old.length) return;
+    st.bids = st.bids.filter((b) => b.until > t);
+    for (const b of old) { refundParts(b.buyer, b.parts, `Заявка истекла: ${bidName(b)} — GRAM возвращены`); notifyUid(b.buyer, `Торговый дом: срок заявки «${bidName(b)}» истёк — GRAM вернулись на баланс`); }
+    save();
+  }
+  setInterval(sweepBids, 60e3).unref();
   // Просроченные лоты возвращаются продавцам
   function sweep() {
     const t = now(), old = st.lots.filter((l) => l.until <= t);
@@ -162,6 +207,14 @@ module.exports = function createTrade(deps) {
   const maxLevel = (pr) => Math.max(0, ...Object.values(pr.chars || {}).map((c) => c.level || 0));
   const isEquipped = (pr, id) => Object.values(pr.equip || {}).includes(id);
 
+  // Разобрать заявку из запроса: материал (из списка продаваемых) или вещь (слот, редкость от эпической, мир, комплект)
+  function parseBid(d) {
+    if (d.mat) { if (!matMinStars(d.mat) || !I.MATS[d.mat] || d.mat.startsWith('bp_')) return { error: 'Этот материал в Торговом доме не продаётся' }; return { mat: d.mat }; }
+    const cat = String(d.cat || ''), rar = String(d.rar || ''), tier = Math.floor(Number(d.tier) || 0), set = !!d.set;
+    if (!(isWear(cat) || cat === 'rune') || !RAR_OK.includes(rar) || !(tier >= 1 && tier <= 3)) return { error: 'Выберите слот, редкость (от эпической) и мир' };
+    if (set && !I.SET_SLOTS.includes(cat)) return { error: 'Комплектных вещей такого слота нет' };
+    return { cat, rar, tier, set };
+  }
   // ---------- Действия игрока (Bag.act с op 'gram…' / 'gm…' / 'th…') ----------
   const OPS = {
     gramInfo(p, d, pr) {
@@ -202,8 +255,12 @@ module.exports = function createTrade(deps) {
     // Торговый дом
     th(p, d, pr) {
       sweep();
-      const lots = st.lots.map((l) => lotView(l, p.uid)).sort((a, b) => (b.badge === 'magnate') - (a.badge === 'magnate') || b.id - a.id);
-      return { lots, bal: bal(pr), slots: slotsOf(pr), fee: CFG.fee - ((order(pr) || {}).fee || 0) };
+      sweepBids();
+      const lots = st.lots.map((l) => ({ ...lotView(l, p.uid), hist: histView(l.mat ? matKey(l.mat) : itemKey(l.item)) })).sort((a, b) => (b.badge === 'magnate') - (a.badge === 'magnate') || b.id - a.id);
+      const bids = st.bids.map((b) => bidView(b, p.uid)).sort((a, b) => b.price - a.price);
+      return { lots, bids, bal: bal(pr), slots: slotsOf(pr), fee: CFG.fee - ((order(pr) || {}).fee || 0), bidDays: CFG.lotDays,
+        mats: Object.keys(CFG.matMinStars).filter((m) => I.MATS[m]).map((m) => ({ id: m, name: I.MATS[m].name, icon: I.MATS[m].icon })),
+        slotsList: I.WEAR_CATS.concat('rune').map((c) => ({ id: c, name: (I.SLOT_NAMES && I.SLOT_NAMES[c]) || c })) };
     },
     thQuote(p, d, pr) {
       if (d.mat) { const n = Math.max(1, Math.floor(Number(d.n) || 1)); if (!matMinStars(d.mat)) return { error: 'Этот материал в Торговом доме не продаётся' }; return matBounds(d.mat, n); }
@@ -248,6 +305,7 @@ module.exports = function createTrade(deps) {
       const name = l.mat ? `${I.MATS[l.mat].name} ×${l.n}` : I.itemView(l.item).name;
       if (!spend(p.uid, l.price, 'buy', `Торговый дом: ${name} у ${l.sellerName}`)) return { error: `Нужно ${fmt(l.price)} GRAM — пополните баланс`, needGram: true };
       st.lots = st.lots.filter((x) => x !== l);
+      histAdd(l.mat ? matKey(l.mat) : itemKey(l.item), l.mat ? Math.round(l.price / l.n) : l.price);
       const spr = getProfile(l.seller), o = order(spr), fee = Math.round(l.price * (CFG.fee - ((o && o.fee) || 0))), income = l.price - fee;
       credit(l.seller, 'sale', income, `Продано: ${name} за ${fmt(l.price)} GRAM (комиссия ${fmt(fee)})`, true);
       if (deps.quest) try { deps.quest(p.uid, 'trade', 1); deps.quest(l.seller, 'trade', 1); } catch { /* задание — не главное */ } // «Честная сделка» — обоим
@@ -256,6 +314,76 @@ module.exports = function createTrade(deps) {
       notifyUid(l.seller, `Торговый дом: продано «${name}» за ${fmt(l.price)} GRAM — вам ${fmt(income)} GRAM, к выводу через ${CFG.holdDays} дня`);
       save();
       return { toast: `Куплено: ${name}`, refresh: true };
+    },
+    // ---------- Заявки на покупку: деньги замораживаются сразу, продавец отдаёт товар и сразу получает оплату ----------
+    thBidQuote(p, d) {
+      const b = parseBid(d); if (b.error) return b;
+      return bidBounds(b);
+    },
+    thBid(p, d, pr) {
+      sweepBids();
+      if (st.bids.filter((x) => x.buyer === p.uid).length >= slotsOf(pr)) return { error: 'Все места для заявок заняты (столько же, сколько для лотов)' };
+      const b = parseBid(d); if (b.error) return b;
+      const n = b.mat ? Math.floor(Number(d.n) || 0) : 1;
+      if (!(n >= 1 && n <= 999)) return { error: 'Количество — от 1 до 999' };
+      const price = toNano(d.price), bd = bidBounds(b);
+      if (!(price > 0)) return { error: 'Укажите цену в GRAM' };
+      if (price < bd.min) return { error: `Цена за штуку не ниже ${fmt(bd.min)} GRAM` };
+      if (price > bd.max) return { error: `Цена за штуку не выше ${fmt(bd.max)} GRAM` };
+      const total = price * n;
+      const parts = spend(p.uid, total, 'escrow', `Заявка на покупку: ${bidName(b)}${b.mat ? ' ×' + n : ''} — GRAM заморожены`);
+      if (!parts) return { error: `Нужно ${fmt(total)} GRAM — пополните баланс`, needGram: true };
+      const o = order(pr);
+      st.bids.push({ id: st.seq++, buyer: p.uid, buyerName: p.name, ...b, n, price, parts, at: now(), until: now() + ((o && o.lotDays) || CFG.lotDays) * 864e5 });
+      save();
+      return { toast: `Заявка создана: заморожено ${fmt(total)} GRAM`, refresh: true };
+    },
+    thBidCancel(p, d) {
+      const b = st.bids.find((x) => x.id === d.id && x.buyer === p.uid);
+      if (!b) return { error: 'Заявка не найдена' };
+      st.bids = st.bids.filter((x) => x !== b);
+      refundParts(p.uid, b.parts, `Заявка снята: ${bidName(b)} — GRAM возвращены`);
+      save();
+      return { toast: 'Заявка снята — GRAM вернулись на баланс', refresh: true };
+    },
+    // Продать по заявке: материалы (сколько есть, но не больше заявки) или подходящую вещь
+    thFill(p, d, pr) {
+      sweepBids();
+      const b = st.bids.find((x) => x.id === d.id);
+      if (!b) return { error: 'Заявка уже исполнена или снята' };
+      if (b.buyer === p.uid) return { error: 'Это ваша заявка' };
+      const bpr = getProfile(b.buyer);
+      let q = 1, name, give;
+      if (b.mat) {
+        q = Math.min(b.n, Math.floor(Number(d.n) || 0));
+        if (!(q >= 1)) return { error: 'Укажите количество' };
+        if (((pr.mats || {})[b.mat] || 0) < q) return { error: 'Не хватает материалов' };
+        name = `${I.MATS[b.mat].name} ×${q}`;
+        give = () => { I.takeMats(pr, { [b.mat]: q }); I.addMat(bpr, b.mat, q); };
+      } else {
+        const it = I.findItem(pr, d.item), no = tradable(it);
+        if (no) return { error: no };
+        if (!fits(b, it)) return { error: 'Эта вещь не подходит под заявку' };
+        if (isEquipped(pr, it.id)) return { error: 'Сначала снимите предмет' };
+        name = I.itemView(it).name;
+        // Покупателю — в сумку, если полна — на склад (заявку он создал заранее, отказываться от сделки нельзя)
+        give = () => { pr.items = pr.items.filter((i) => i !== it); const full = bpr.items.filter((i) => i.loc !== 'wh').length >= bagSize(bpr); it.loc = full ? 'wh' : 'bag'; bpr.items.push(it); };
+      }
+      const pay = b.price * q;
+      if (!takeParts(b.parts, pay)) return { error: 'Ошибка заявки — попробуйте позже' };
+      give();
+      b.n -= q;
+      if (b.n <= 0) { st.bids = st.bids.filter((x) => x !== b); refundParts(b.buyer, b.parts, `Заявка исполнена: остаток возвращён`); }
+      histAdd(b.mat ? matKey(b.mat) : `i:${b.cat}:${b.rar}:${b.tier}:${b.set ? 1 : 0}`, b.price);
+      const o = order(pr), fee = Math.round(pay * (CFG.fee - ((o && o.fee) || 0))), income = pay - fee;
+      credit(p.uid, 'sale', income, `Продано по заявке: ${name} за ${fmt(pay)} GRAM (комиссия ${fmt(fee)})`, true);
+      note(p.uid, 'fee', -fee, `Комиссия Торгового дома: ${name}`);
+      note(b.buyer, 'buy', 0, `Куплено по заявке: ${name} у ${p.name} за ${fmt(pay)} GRAM`);
+      if (deps.quest) try { deps.quest(p.uid, 'trade', 1); deps.quest(b.buyer, 'trade', 1); deps.quest(b.buyer, 'purchase', 1); } catch { /* задание — не главное */ }
+      if (deps.onSpend) try { deps.onSpend(b.buyer, pay, fee); } catch (e) { console.error('onSpend', e); }
+      notifyUid(b.buyer, `Торговый дом: ваша заявка исполнена — «${name}» за ${fmt(pay)} GRAM`);
+      save();
+      return { toast: `Продано по заявке: ${name} — вам ${fmt(income)} GRAM (к выводу через ${CFG.holdDays} дня)`, refresh: true };
     },
     thCancel(p, d, pr) {
       const l = st.lots.find((x) => x.id === d.id && x.seller === p.uid);
@@ -378,6 +506,7 @@ module.exports = function createTrade(deps) {
   function wipe(keep) {
     const n = st.lots.length;
     st.lots = st.lots.filter((l) => keep.has(l.seller));
+    st.bids = st.bids.filter((b) => keep.has(b.buyer));
     st.wd = st.wd.filter((w) => keep.has(w.uid));
     st.log = st.log.filter((e) => keep.has(e.uid));
     save();

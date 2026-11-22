@@ -246,7 +246,7 @@ window.Town = (() => {
       bindWallet(box);
       const lots = r.lots.filter((l) => !l.mine);
       if (!lots.length) box.insertAdjacentHTML('beforeend', soon('Лотов пока нет'));
-      for (const l of lots) box.append(row(l.item, l.item.name, `${l.item.rarName || ''} · ${badge(l)}${l.seller}`, `${gfmt(l.price)} GRAM`, async () => {
+      for (const l of lots) box.append(row(l.item, l.item.name, `${l.item.rarName || ''} · ${badge(l)}${l.seller}${histTxt(l.hist)}`, `${gfmt(l.price)} GRAM`, async () => {
         if (!(await askGram(`Купить «${l.item.name}» у ${l.seller} за ${gfmt(l.price)} GRAM?`))) return;
         const res = await Bag.act('thBuy', { id: l.id });
         toast(res.error || res.toast);
@@ -276,7 +276,71 @@ window.Town = (() => {
       box.append(add, addM);
       return box;
     };
-    open('🏛️ Торговый дом', tabs([['Купить', buyTab], ['Мои лоты', myTab]], tab));
+    // Заявки на покупку: чужие — «Продать», свои — «Снять» и «＋ Новая заявка»
+    const bidRow = (b, label, on) => row(b.item || { icon: '📜', name: b.name }, `${b.name}${b.mat ? ' ×' + b.n : ''}`, `${gfmt(b.price)} GRAM за шт. · ${b.buyer}${histTxt(b.hist)}`, label, on);
+    const bidsTab = () => {
+      const box = el(`${balLine(r.bal)}<p class="sheet-hint">Игроки заранее заморозили GRAM и ждут товар. Есть подходящая вещь или материалы — продайте сразу, оплата придёт мгновенно (к выводу через 3 дня), комиссия как у лотов.</p>`);
+      bindWallet(box);
+      const list = r.bids.filter((b) => !b.mine);
+      if (!list.length) box.insertAdjacentHTML('beforeend', soon('Заявок пока нет'));
+      for (const b of list) box.append(bidRow(b, 'Продать', async () => {
+        if (b.mat) {
+          const inv = await Bag.refresh(), have = ((inv.mats || []).find((m) => m.mat === b.mat) || {}).n || 0;
+          if (!have) return toast('У вас нет этого материала');
+          const n = Math.min(have, b.n);
+          if (!confirm(`Продать ${b.name} ×${n} за ${gfmt(b.price * n)} GRAM?`)) return;
+          const res = await Bag.act('thFill', { id: b.id, n }); toast(res.error || res.toast); tradeHousePanel(2);
+        } else {
+          Bag.pick('Какую вещь отдать?', (it) => it.cat === b.cat && it.rar === b.rar && (it.tier || 1) === b.tier && !!it.set === b.set, async (it) => {
+            if (!confirm(`Продать «${it.name}» за ${gfmt(b.price)} GRAM?`)) return;
+            const res = await Bag.act('thFill', { id: b.id, item: it.id }); toast(res.error || res.toast); tradeHousePanel(2);
+          });
+        }
+      }));
+      return box;
+    };
+    const myBidsTab = () => {
+      const mine = r.bids.filter((b) => b.mine);
+      const box = el(`<p class="sheet-hint">Ваши заявки ${mine.length} / ${r.slots}. GRAM замораживаются сразу; снятая или истёкшая заявка (${r.bidDays} дн.) возвращает их на баланс.</p>`);
+      for (const b of mine) box.append(bidRow(b, 'Снять', async () => { const res = await Bag.act('thBidCancel', { id: b.id }); toast(res.error || res.toast); tradeHousePanel(3); }));
+      const add = document.createElement('button');
+      add.className = 'l2-btn wide'; add.textContent = '＋ Новая заявка';
+      add.onclick = () => bidForm(r, () => tradeHousePanel(3));
+      box.append(add);
+      return box;
+    };
+    open('🏛️ Торговый дом', tabs([['Купить', buyTab], ['Мои лоты', myTab], ['Заявки', bidsTab], ['Мои заявки', myBidsTab]], tab));
+  }
+  const histTxt = (h) => (h && h.avg7 ? ` · ср. 7 дн. ${gfmt(h.avg7)}` : h && h.last ? ` · посл. ${gfmt(h.last)}` : '');
+  // Форма заявки: материал или вещь (слот, редкость, мир, комплект), количество, цена за штуку (в пределах)
+  function bidForm(r, done) {
+    const RAR = { epic: 'Эпическая', legendary: 'Легендарная', mythic: 'Мифическая' };
+    const box = el(`<div class="tw-form"><select data-k="kind"><option value="mat">Материалы</option><option value="item">Вещь</option></select></div>
+      <div class="tw-form" data-show="mat"><select data-k="mat">${r.mats.map((m) => `<option value="${m.id}">${m.icon} ${m.name}</option>`).join('')}</select><input data-k="n" type="number" min="1" max="999" value="1" placeholder="Сколько"></div>
+      <div class="tw-form" data-show="item" style="display:none"><select data-k="cat">${r.slotsList.map((c) => `<option value="${c.id}">${c.name}</option>`).join('')}</select>
+        <select data-k="rar">${Object.entries(RAR).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+        <select data-k="tier"><option value="1">Мир I</option><option value="2">Мир II</option><option value="3">Мир III</option></select>
+        <label class="switch"><input data-k="set" type="checkbox"> Вещь комплекта</label></div>
+      <p class="sheet-hint" data-k="bounds">…</p>
+      <div class="tw-form"><input data-k="price" type="number" step="0.01" inputmode="decimal" placeholder="Цена за штуку, GRAM"></div>
+      <button class="l2-btn wide">Создать заявку</button>`);
+    const q = (k) => box.querySelector(`[data-k="${k}"]`);
+    const data = () => (q('kind').value === 'mat' ? { mat: q('mat').value, n: Number(q('n').value) || 1 } : { cat: q('cat').value, rar: q('rar').value, tier: Number(q('tier').value), set: q('set').checked });
+    const upd = async () => {
+      box.querySelectorAll('[data-show]').forEach((e) => { e.style.display = e.dataset.show === q('kind').value ? '' : 'none'; });
+      const b = await Bag.act('thBidQuote', data());
+      q('bounds').textContent = b.error ? b.error : `Цена за штуку: от ${gfmt(b.min)} до ${gfmt(b.max)} GRAM. GRAM замораживаются сразу, комиссию платит продавец.`;
+      if (!b.error && !q('price').value) q('price').value = (Math.ceil(b.min / 1e7) / 100).toFixed(2);
+    };
+    box.querySelectorAll('select, input[type="checkbox"]').forEach((e) => { e.onchange = () => { q('price').value = ''; upd(); }; });
+    box.querySelector('button.l2-btn.wide').onclick = async () => {
+      const res = await Bag.act('thBid', { ...data(), price: Number(q('price').value) });
+      toast(res.error || res.toast);
+      if (res.needGram) return walletPanel(0);
+      if (!res.error) done();
+    };
+    open('📜 Заявка на покупку', box);
+    upd();
   }
   function gramPriceForm(it, name, q, submit, done) {
     const min = q.min / 1e9, max = q.max / 1e9;
