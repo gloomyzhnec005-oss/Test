@@ -167,9 +167,13 @@ app.use((req, res, next) => {
 const REF = { newGems: 100, newSpins: 1, l10: { gems: 100 }, l20: { gems: 100, itemSpins: 2 }, share: 0.1, gemsPerStar: 330 / 50 };
 const refCode = (uid) => (/^tg\d+$/.test(uid) ? 'r' + Number(uid.slice(2)).toString(36) : null);
 const refUid = (code) => (/^r[0-9a-z]{1,14}$/.test(code || '') ? 'tg' + parseInt(code.slice(1), 36) : null);
+// При запуске: кто уже пришёл по чьей-то ссылке, но не был засчитан (ошибка до открытия) — засчитать сейчас
+setImmediate(() => { try { let n = 0; for (const [uid, pr] of Object.entries(profiles)) if (pr.tgInfo && pr.tgInfo.src && !pr.refBy) { refJoin(uid, pr, pr.tgInfo.src); if (pr.refBy) n++; } if (n) { console.log(`[ref] засчитано приглашений задним числом: ${n}`); saveProfiles(); } } catch (e) { console.error('ref migrate', e); } });
 function refJoin(uid, pr, code) {
   const inv = refUid(code);
-  if (!inv || inv === uid || pr.refBy || (pr.heroes || []).length || !profiles[inv] || !(profiles[inv].heroes || []).length) return;
+  // Пригласивший — любой игрок из Telegram, уже открывавший игру (до открытия героев ещё ни у кого нет — раньше из-за этого
+  // приглашения не засчитывались). Новичок — без героев и ещё ни к кому не привязан
+  if (!inv || inv === uid || pr.refBy || (pr.heroes || []).length || !profiles[inv] || profiles[inv].refBy === uid) return;
   pr.refBy = inv; pr.refAt = Date.now();
   pr.gems = (pr.gems || 0) + REF.newGems; pr.paidSpins = (pr.paidSpins || 0) + REF.newSpins;
   const ip = profiles[inv]; (ip.refs ??= []).push(uid); ip.refN = (ip.refN || 0) + 1;
@@ -202,7 +206,7 @@ function refInfoUid(uid) {
   const refs = (pr.refs || []).map((u) => profiles[u]).filter(Boolean);
   return { ref: { code, app: (process.env.APP_SHORT_NAME || 'play').trim(), bot: (bot && bot.botInfo && bot.botInfo.username) || process.env.BOT_USERNAME || null,
     n: pr.refN || 0, l10: refs.filter((o) => o.refL10).length, l20: refs.filter((o) => o.refL20).length, earned: pr.refEarned || 0, cfg: REF,
-    list: refs.slice(-20).reverse().map((o) => ({ name: o.name || 'Новичок', lvl: Math.max(1, ...Object.values(o.chars || {}).map((c) => c.level || 1)) })) } };
+    list: refs.slice(-20).reverse().map((o) => ({ name: o.name || (o.tgInfo && (o.tgInfo.user ? '@' + o.tgInfo.user : o.tgInfo.first)) || 'Новичок', lvl: Math.max(1, ...Object.values(o.chars || {}).map((c) => c.level || 1)) })) } };
 }
 function noteVisitor(uid, initData, plat) {
   try {
@@ -210,6 +214,7 @@ function noteVisitor(uid, initData, plat) {
     if (!u) return;
     const pr = getProfile(uid), now = Date.now(), o = pr.tgInfo || { firstAt: now, visits: 0 };
     if (!pr.tgInfo) refJoin(uid, pr, q.get('start_param')); // первый визит по чужой ссылке — новичок получает бонус
+    else if (!pr.refBy && pr.tgInfo.src) refJoin(uid, pr, pr.tgInfo.src); // пришёл по ссылке раньше, но тогда не засчиталось
     pr.tgInfo = { ...o, first: String(u.first_name || '').slice(0, 64), last: String(u.last_name || '').slice(0, 64), user: String(u.username || '').slice(0, 64),
       lang: String(u.language_code || '').slice(0, 8), prem: !!u.is_premium, plat: String(plat || '').slice(0, 16), src: o.src || String(q.get('start_param') || '').slice(0, 64),
       chat: o.chat || String(q.get('chat_type') || '').slice(0, 16), lastAt: now, visits: (o.visits || 0) + 1 };
