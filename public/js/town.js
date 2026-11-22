@@ -277,7 +277,8 @@ window.Town = (() => {
     };
     const myTab = () => {
       const mine = r.lots.filter((l) => l.mine);
-      const box = el(`<p class="sheet-hint">Ваши лоты ${mine.length} / ${r.slots} · комиссия ${Math.round(r.fee * 100)}% · деньги с продажи можно вывести через 3 дня.<br>Продаются вещи и руны от эпических (с заточкой и рунами — дороже) и ценные материалы. Минимальная цена считается от цен Рынка.</p>`);
+      const box = el(`<p class="sheet-hint">Ваши лоты ${mine.length} / ${r.slots} · комиссия ${Math.round(r.fee * 100)}% · деньги с продажи можно вывести через 3 дня.<br>Продаются вещи и руны от эпических (с заточкой и рунами — дороже) и ценные материалы. Минимальная цена считается от цен Рынка.</p>
+        ${r.orderSave && r.orderSave.fees > 0 ? `<div class="tw-banner pass"><b>💡 Комиссия за 30 дней: ${gfmt(r.orderSave.fees)} GRAM</b><small>С Орденом Купца вы сэкономили бы ${gfmt(r.orderSave.merchant)} GRAM, с Орденом Магната — ${gfmt(r.orderSave.magnate)} GRAM. Ордена — в GRAM-кошельке.</small></div>` : ''}`);
       for (const l of mine) box.append(row(l.item, l.item.name, `за ${gfmt(l.price)} GRAM · до ${new Date(l.until).toLocaleDateString('ru-RU')}`, 'Снять', async () => { const res = await Bag.act('thCancel', { id: l.id }); toast(res.error || res.toast); tradeHousePanel(1); }));
       const add = document.createElement('button');
       add.className = 'l2-btn wide'; add.textContent = '＋ Выставить предмет';

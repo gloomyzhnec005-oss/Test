@@ -177,6 +177,18 @@ module.exports = function createTrade(deps) {
   const isSetItem = (it) => !!(I.TEMPLATES[it.cat] && I.TEMPLATES[it.cat][it.tpl] && I.TEMPLATES[it.cat][it.tpl].setCls);
   const itemKey = (it) => `i:${it.cat}:${it.rar}:${it.tier || 1}:${isSetItem(it) ? 1 : 0}`;
   const matKey = (id) => `m:${id}`;
+  // Сделка — в публичную ленту (без имён: товар и цена)
+  function dealAdd(name, price) { (st.deals ??= []).push([now(), name, price]); if (st.deals.length > 500) st.deals.splice(0, st.deals.length - 500); }
+  function publicStats() {
+    const wk = now() - 7 * 864e5, deals = (st.deals || []).filter(([t]) => t > wk);
+    const paid = st.wd.filter((w) => w.status === 'paid'), paidWk = paid.filter((w) => (w.paidAt || w.at) > wk);
+    const sum = (a, f) => a.reduce((x, y) => x + f(y), 0);
+    return { week: { deals: deals.length, volume: sum(deals, (d) => d[2]), paid: sum(paidWk, (w) => w.net), paidN: paidWk.length },
+      all: { paid: sum(paid, (w) => w.net), paidN: paid.length },
+      top: [...deals].sort((a, b) => b[2] - a[2]).slice(0, 8).map(([t, name, price]) => ({ t, name, price })),
+      lots: st.lots.length, bids: (st.bids || []).length,
+      ltd: { name: CFG.ltd.name, left: CFG.ltd.of - ((st.ltd || {})[CFG.ltd.id] || 0), of: CFG.ltd.of } };
+  }
   function histAdd(key, unit) {
     const h = (st.hist[key] ??= []);
     h.push([now(), unit]); if (h.length > 40) h.splice(0, h.length - 40);
@@ -294,7 +306,10 @@ module.exports = function createTrade(deps) {
       sweepBids();
       const lots = st.lots.map((l) => ({ ...lotView(l, p.uid), hist: histView(l.mat ? matKey(l.mat) : itemKey(l.item)) })).sort((a, b) => (b.badge === 'magnate') - (a.badge === 'magnate') || b.id - a.id);
       const bids = st.bids.map((b) => bidView(b, p.uid)).sort((a, b) => b.price - a.price);
-      return { lots, bids, bal: bal(pr), slots: slotsOf(pr), fee: CFG.fee - ((order(pr) || {}).fee || 0), bidDays: CFG.lotDays,
+      // Сколько комиссии заплачено за 30 дней — и сколько сэкономили бы торговые ордена
+      const fees30 = -G(pr).log.filter((e) => e.kind === 'fee' && now() - e.t < 30 * 864e5).reduce((x, e) => x + e.a, 0), o = order(pr);
+      const oSave = o ? null : { fees: fees30, merchant: Math.round(fees30 * byId('merchant').fee / CFG.fee), magnate: Math.round(fees30 * byId('magnate').fee / CFG.fee) };
+      return { lots, bids, bal: bal(pr), slots: slotsOf(pr), fee: CFG.fee - ((order(pr) || {}).fee || 0), bidDays: CFG.lotDays, orderSave: oSave,
         mats: Object.keys(CFG.matMinStars).filter((m) => I.MATS[m]).map((m) => ({ id: m, name: I.MATS[m].name, icon: I.MATS[m].icon })),
         slotsList: I.WEAR_CATS.concat('rune').map((c) => ({ id: c, name: (I.SLOT_NAMES && I.SLOT_NAMES[c]) || c })) };
     },
@@ -342,6 +357,7 @@ module.exports = function createTrade(deps) {
       if (!spend(p.uid, l.price, 'buy', `Торговый дом: ${name} у ${l.sellerName}`)) return { error: `Нужно ${fmt(l.price)} GRAM — пополните баланс`, needGram: true };
       st.lots = st.lots.filter((x) => x !== l);
       histAdd(l.mat ? matKey(l.mat) : itemKey(l.item), l.mat ? Math.round(l.price / l.n) : l.price);
+      dealAdd(l.mat ? `${I.MATS[l.mat].name} ×${l.n}` : I.itemView(l.item).name, l.price);
       const spr = getProfile(l.seller), o = order(spr), fee = Math.round(l.price * (CFG.fee - ((o && o.fee) || 0))), income = l.price - fee;
       credit(l.seller, 'sale', income, `Продано: ${name} за ${fmt(l.price)} GRAM (комиссия ${fmt(fee)})`, true);
       if (deps.quest) try { deps.quest(p.uid, 'trade', 1); deps.quest(l.seller, 'trade', 1); } catch { /* задание — не главное */ } // «Честная сделка» — обоим
@@ -412,6 +428,7 @@ module.exports = function createTrade(deps) {
       b.n -= q;
       if (b.n <= 0) { st.bids = st.bids.filter((x) => x !== b); refundParts(b.buyer, b.parts, `Заявка исполнена: остаток возвращён`); }
       histAdd(b.mat ? matKey(b.mat) : `i:${b.cat}:${b.rar}:${b.tier}:${b.set ? 1 : 0}`, b.price);
+      dealAdd(name, pay);
       const o = order(pr), fee = Math.round(pay * (CFG.fee - ((o && o.fee) || 0))), income = pay - fee;
       credit(p.uid, 'sale', income, `Продано по заявке: ${name} за ${fmt(pay)} GRAM (комиссия ${fmt(fee)})`, true);
       note(p.uid, 'fee', -fee, `Комиссия Торгового дома: ${name}`);
@@ -555,6 +572,6 @@ module.exports = function createTrade(deps) {
     save();
     return n - st.lots.length;
   }
-  return { wipe, spendGram, grant, take, giveBack: refundTo, houseAdd, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k), adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
+  return { publicStats, wipe, spendGram, grant, take, giveBack: refundTo, houseAdd, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k), adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
 };
 module.exports.CFG = CFG;

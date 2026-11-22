@@ -22,6 +22,7 @@ const COSMETICS = {
   frame: {
     diamond: { name: 'Алмазная рамка', price: 1800 }, legend: { name: 'Легендарная рамка', price: 2700 },
     obsidian: { name: 'Обсидиановая рамка', stars: 720 }, celestial: { name: 'Небесная рамка', stars: 960 }, dragon: { name: 'Драконья рамка', stars: 1200 },
+    founder: { name: 'Рамка основателя', grant: true }, // только в подарок основателям (первые 3 дня после открытия) — не продаётся
   },
 };
 // Награда за вход 7 дней подряд: день — по Москве; пропустил день — серия начинается заново, после 7-го — по кругу
@@ -274,7 +275,7 @@ module.exports = function createMeta(deps) {
   function cosmView(pr) {
     const C2 = pr.cosm || { owned: [] };
     return { gems: pr.gems || 0, cur: { name: C2.name || null, aura: C2.aura || null, frame: C2.frame || null },
-      list: Object.entries(COSMETICS).flatMap(([kind, L]) => Object.entries(L).map(([id, c]) => ({ id: `${kind}:${id}`, kind, key: id, name: c.name, price: c.price || 0, gram: c.stars ? deps.gram.nano(c.stars) : 0,
+      list: Object.entries(COSMETICS).flatMap(([kind, L]) => Object.entries(L).filter(([id, c]) => !c.grant || C2.owned.includes(`${kind}:${id}`)).map(([id, c]) => ({ grant: !!c.grant, id: `${kind}:${id}`, kind, key: id, name: c.name, price: c.price || 0, gram: c.stars ? deps.gram.nano(c.stars) : 0,
         color: typeof c.color === 'number' ? '#' + c.color.toString(16).padStart(6, '0') : c.color || null, owned: C2.owned.includes(`${kind}:${id}`) }))) };
   }
   // Что видно другим: цвет имени и цвет сияния
@@ -338,6 +339,7 @@ module.exports = function createMeta(deps) {
     cosmeticBuy(p, d, pr) {
       const [kind, id] = String(d.id || '').split(':'), c = COSMETICS[kind] && Object.hasOwn(COSMETICS[kind], id) ? COSMETICS[kind][id] : null;
       if (!c) return { error: 'Нет такого' };
+      if (c.grant) return { error: 'Это не продаётся — только подарок основателям' };
       const C2 = (pr.cosm ??= { owned: [] });
       if (C2.owned.includes(d.id)) return { error: 'Уже куплено' };
       if (c.stars) { // за GRAM — с GRAM-баланса (server/trade.js)

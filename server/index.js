@@ -251,6 +251,8 @@ function noteVisitor(uid, initData, plat) {
       chat: o.chat || String(q.get('chat_type') || '').slice(0, 16), lastAt: now, visits: (o.visits || 0) + 1 };
   } catch { /* необязательно */ }
 }
+// Публичная экономика (меню «Экономика игры»): оборот Торгового дома, выплаты игрокам, крупные сделки — без имён
+app.get('/api/economy', (req, res) => res.json(Trade.publicStats()));
 // Окно «Пригласить друга» в лобби (до входа в мир)
 app.post('/api/ref', (req, res) => {
   const who = resolveUid((req.body || {}).initData, null);
@@ -1674,7 +1676,8 @@ io.on('connection', (socket) => {
     if (S.openAt && Date.now() >= S.openAt && Date.now() < S.openAt + 3 * 864e5 && !prj.founder) {
       prj.founder = Date.now();
       prj.gems = (prj.gems || 0) + 300; prj.paidSpins = (prj.paidSpins || 0) + 2; prj.itemSpins = (prj.itemSpins || 0) + 3; I.addMat(prj, 'elxHero', 1);
-      setTimeout(() => socket.emit('chat', { sys: true, text: '🎁 Подарок основателя: 300 💎, 2 печати призыва героев, 3 печати снаряжения и Великий эликсир опыта. Спасибо, что вы с нами с первых дней!' }), 2500);
+      const C2 = (prj.cosm ??= { owned: [] }); if (!C2.owned.includes('frame:founder')) { C2.owned.push('frame:founder'); C2.frame = 'founder'; } // знак основателя — навсегда, не продаётся
+      setTimeout(() => socket.emit('chat', { sys: true, text: '🎁 Подарок основателя: 300 💎, 2 печати призыва героев, 3 печати снаряжения, Великий эликсир опыта и Рамка основателя (больше никогда не будет в продаже). Спасибо, что вы с нами с первых дней!' }), 2500);
     }
     if (!C.HEROES[heroId] || !getProfile(uid).heroes.includes(heroId)) {
       socket.emit('error_msg', 'Сначала получите персонажа');
