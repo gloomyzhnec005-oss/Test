@@ -2523,8 +2523,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const me = this.me, a = me.e;
     if (!a) return;
     (this.localAtk ??= []).push({ target: t.data.id, at: performance.now() });
-    // Удар точно добивает (урон больше остатка здоровья) — сразу переключаемся на следующего, не бьём «мёртвого», пока сервер подтверждает
-    if ((this.myStats.dmg || 0) * 0.95 >= (t.data.hp || 0)) { t.killAt = performance.now(); if (this.targetId === t.data.id) this.targetId = null; }
+    // Цель НЕ переключаем заранее «по прогнозу добивания»: настоящий урон бывает меньше (защита, промах, уворот) —
+    // монстр выживал, а герой уже бил соседа. Цель сменится, когда сервер сообщит о смерти монстра
     if (this.localAtk.length > 20) this.localAtk.shift();
     const tx = t.c.x, ty = t.c.y, proj = hero.projectile;
     const f = { t: 'hit', kind: 'm', from: this.myId, target: t.data.id, basic: true, proj, fx: me.x, fy: me.y, tx, ty, crit: false, local: true };
