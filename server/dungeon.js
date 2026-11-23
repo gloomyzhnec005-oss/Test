@@ -310,9 +310,14 @@ module.exports = function createDungeons(d) {
     cerberus: 'Тройная атака', chaosLord: 'Хаос', legion: 'Легион', devourer: 'Поглощение', eternalDragon: 'Вечность', abyssAvatar: 'Зеркало', chaosTitan: 'Смена фазы' })[def.id] || '';
 
   // ---------- Пассивные механики (раз в тик) ----------
+  // Регенерация в долях от здоровья рассчитана на полубосса (здоровье ×30 урона героя в секунду). У босса здоровья ×450,
+  // у мирового ×6000 — та же доля лечила бы сильнее урона целой группы (Тролль-шаман в роли босса не терял ни капли).
+  // Поэтому у них доля уменьшается во столько же раз: лечение в пересчёте на урон героев — как у полубосса
+  const REGEN_K = { boss: 30 / 450, world: 30 / 6000 };
   function passives(m, def, now, dt) {
-    if (def.regen && m.hp < m.maxHp) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * def.regen * dt);
-    if (def.regenTurn && m.hp < m.maxHp) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * def.regenTurn / 2 * dt);
+    const rk = REGEN_K[m.rank] || 1;
+    if (def.regen && m.hp < m.maxHp) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * def.regen * rk * dt);
+    if (def.regenTurn && m.hp < m.maxHp) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * def.regenTurn / 2 * rk * dt);
     if (m.affixes.includes('regen') && m.hp < m.maxHp) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.02 * dt);
     if (now < (m.slowTick || 0)) return;
     m.slowTick = now + 1000;
