@@ -430,6 +430,7 @@ function buildInvoice(who, item, bgId) {
     const v = meta.passInvoice(getProfile(who.uid), +item[4]);
     if (v.error) return { error: v.error };
     invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
+    if (v.personal) return { invoice, stars: v.amount }; // личная цена от администрации — без скидки первой покупки
   } else if (meta.INVOICES[item]) {
     const no = meta.canBuy(item, getProfile(who.uid)); // набор новичка — один раз и только первые 72 ч
     if (no) return { error: no };

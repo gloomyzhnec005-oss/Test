@@ -137,7 +137,7 @@ module.exports = function createAdmin(ctx) {
         return { n: list.length, played: list.filter((x) => x.played).length, l10: list.filter((x) => x.lvl >= 10).length, newIds: list.filter((x) => x.newId).length,
           gems: pr.refEarned || 0, gram: pr.refGram || 0, by: pr.refBy || null, list: list.slice(-100).reverse() };
       })(),
-      uid, name: pr.name || null, tgInfo: pr.tgInfo || null, lastSeen: pr.lastSeen || 0, gold: pr.gold, gems: pr.gems || 0, gram: ctx.trade ? ctx.trade.bal(pr) : null, tOrder: pr.tOrder && pr.tOrder.until > Date.now() ? pr.tOrder : null, paidSpins: pr.paidSpins, itemSpins: pr.itemSpins || 0,
+      uid, name: pr.name || null, tgInfo: pr.tgInfo || null, lastSeen: pr.lastSeen || 0, gold: pr.gold, gems: pr.gems || 0, gram: ctx.trade ? ctx.trade.bal(pr) : null, tOrder: pr.tOrder && pr.tOrder.until > Date.now() ? pr.tOrder : null, paidSpins: pr.paidSpins, itemSpins: pr.itemSpins || 0, passDeal: pr.passDeal || null,
       freeSpinUsed: !!pr.freeSpinUsed, heroes, items: pr.items.length, itemsByRar: byRar, subUntil: pr.subUntil || 0,
       pass: { tier: ctx.meta.passTier(pr), xp: pass.xp, level: Math.floor(pass.xp / ctx.meta.SHOP.pass.xpPerLevel) },
       arena: pr.arena ? pr.arena.rating : 1000, banned: pr.banned || null, test: pr.test || {},
@@ -252,6 +252,14 @@ module.exports = function createAdmin(ctx) {
         return { text: days > 0 ? `Подписка на ${days} дн.` : 'Подписка снята' };
       }
       case 'passPremium': ctx.meta.passOf(pr).tier = d.value ? 1 : 0; return { text: d.value ? 'Бронзовый орден выдан' : 'Орден снят' };
+      case 'passDeal': { // личная цена ордена: tier 1–6, stars ≥ 1; stars 0 — снять
+        const t = Math.round(num(d.tier, 1, ctx.meta.SHOP.passTiers.length, 0)), st = Math.round(num(d.stars, 0, 100000, 0));
+        if (!st) { delete pr.passDeal; return { text: 'Личная цена ордена снята' }; }
+        if (!t) return { error: 'Выберите орден' };
+        if (ctx.meta.passTier(pr) >= t) return { error: 'Этот орден у игрока уже есть' };
+        pr.passDeal = { tier: t, stars: st, at: Date.now() };
+        return { text: `Личная цена: ${ctx.meta.SHOP.passTiers[t - 1].name} — ${st} ⭐ (разово)` };
+      }
       case 'passTier': {
         const t = Math.round(num(d.value, 0, ctx.meta.SHOP.passTiers.length));
         ctx.meta.passOf(pr).tier = t;

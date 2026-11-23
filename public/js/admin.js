@@ -428,6 +428,10 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
         <div class="row"><label>Подписка: ${p.subUntil > Date.now() ? 'до ' + new Date(p.subUntil).toLocaleDateString('ru-RU') : 'нет'}</label><input id="subDays" type="number" value="30"><label>дн.</label><button class="btn" data-a="sub">Выдать</button><button class="btn" data-a="subOff">Снять</button></div>
         <div class="row"><label>Орден сезона (уровень пропуска ${p.pass.level})</label><select id="passTier">${['🎖️ Странника (бесплатный)', '🥉 Бронзовый', '🥈 Серебряный', '🥇 Золотой (автобой)', '👑 Чемпиона', '🟢 Купца (торговый)', '🏦 Магната (торговый)'].map((n, i) => `<option value="${i}" ${p.pass.tier === i ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn" data-a="passTier">Выдать</button></div>
         <div class="row"><label>Опыт пропуска</label><input id="passXp" type="number" value="100"><button class="btn" data-a="passXp">Добавить</button></div>
+        <div class="row"><label>Личная цена ордена${p.passDeal ? ` (сейчас: ${['', 'Бронзовый', 'Серебряный', 'Золотой', 'Чемпиона', 'Купца', 'Магната'][p.passDeal.tier]} — ${p.passDeal.stars} ⭐)` : ''}</label>
+          <select id="dealTier">${['🥉 Бронзовый', '🥈 Серебряный', '🥇 Золотой', '👑 Чемпиона', '🟢 Купца', '🏦 Магната'].map((n, i) => `<option value="${i + 1}" ${(p.passDeal ? p.passDeal.tier : 6) === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select>
+          <input id="dealStars" type="number" min="0" placeholder="⭐" value="${p.passDeal ? p.passDeal.stars : ''}"><button class="btn" data-a="passDeal">Задать</button></div>
+        <p class="muted">Разово: игрок увидит эту цену у выбранного ордена в окне орденов и заплатит её звёздами или GRAM (без скидки первой покупки). После оплаты цена сгорает. 0 — снять.</p>
       </div>
 
       <div class="card"><h3>🛡 Модерация</h3>
@@ -477,7 +481,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
         fullSet: () => edit('fullSet', { set: v('itSet'), rar: v('itRar'), tier: v('itTier') }),
         giveMat: () => edit('giveMat', { mat: v('matId'), count: v('matN') }),
         clearItems: () => confirm('Удалить все предметы игрока?') && edit('clearItems'),
-        sub: () => edit('sub', { value: v('subDays') }), subOff: () => edit('sub', { value: 0 }), passXp: () => edit('passXp', { value: v('passXp') }), passTier: () => edit('passTier', { value: v('passTier') }),
+        sub: () => edit('sub', { value: v('subDays') }), subOff: () => edit('sub', { value: 0 }), passXp: () => edit('passXp', { value: v('passXp') }), passTier: () => edit('passTier', { value: v('passTier') }), passDeal: () => edit('passDeal', { tier: v('dealTier'), stars: v('dealStars') }),
         ban: () => confirm('Забанить игрока?') && edit('ban', { reason: v('banReason') }), unban: () => edit('unban'), kick: () => edit('kick'),
         refund: async () => {
           if (!confirm(`Вернуть игроку ${b.dataset.amount || ''} ⭐ за эту покупку? Отменить возврат нельзя.`)) return;

@@ -116,11 +116,15 @@ function addPassXp(pr, n) {
   ps.xp = Math.min(SHOP.pass.levels * SHOP.pass.xpPerLevel, ps.xp + Math.round(n * k));
 }
 // Счёт на орден: цена — разница с уже купленным в этом сезоне
+// Личная цена ордена (админка → игрок → «Личная цена ордена»): { tier, stars } — разово, на один указанный орден.
+// Пока орден не куплен — в окне орденов и в счёте цена из неё (без скидки первой покупки); после оплаты сгорает
+const passDeal = (pr, tier) => (pr.passDeal && pr.passDeal.tier === tier && passTier(pr) < tier ? pr.passDeal : null);
 function passInvoice(pr, tier) {
   const t = SHOP.passTiers[tier - 1], cur = passTier(pr);
   if (!t) return { error: 'Неизвестный орден' };
   if (cur >= tier) return { error: 'Этот орден уже открыт' };
-  const paid = cur ? SHOP.passTiers[cur - 1].price : 0;
+  const paid = cur ? SHOP.passTiers[cur - 1].price : 0, deal = passDeal(pr, tier);
+  if (deal) return { title: `${t.name} · личная цена`, description: `${cur ? 'Улучшение до ордена' : 'Сезонный орден'}: ${t.perks.join(', ')}`.slice(0, 255), amount: deal.stars, personal: true };
   return { title: `${t.name} · сезон`, description: cur ? `Улучшение до ордена: ${t.perks.join(', ')}` : `Сезонный орден: ${t.perks.join(', ')}`, amount: t.price - paid };
 }
 
@@ -803,7 +807,7 @@ module.exports = function createMeta(deps) {
       const paid = ps.tier ? SHOP.passTiers[ps.tier - 1].price : 0;
       return { pass: { ...ps, premium: ps.tier >= 1, level: Math.floor(ps.xp / SHOP.pass.xpPerLevel), xpPerLevel: SHOP.pass.xpPerLevel,
         ends: (passSeason() + 1) * SHOP.pass.days * DAY, rewards: PASS_REWARDS,
-        freeOrder: SHOP.passFree, tiers: SHOP.passTiers.map((t) => ({ ...t, cost: Math.max(0, t.price - paid), owned: ps.tier >= t.tier })) } };
+        freeOrder: SHOP.passFree, tiers: SHOP.passTiers.map((t) => { const deal = passDeal(pr, t.tier); return { ...t, cost: deal ? deal.stars : Math.max(0, t.price - paid), deal: !!deal, owned: ps.tier >= t.tier }; }) } };
     },
     passClaim(p, d, pr) {
       const ps = passOf(pr), lvl = +d.lvl, track = d.track === 'prem' ? 'prem' : 'free';
@@ -966,6 +970,7 @@ module.exports = function createMeta(deps) {
       // Торговые ордена: печати снаряжения при первом получении в сезоне
       if (passOf(pr).tier >= 5 && was < 5) pr.itemSpins = (pr.itemSpins || 0) + 1;
       if (passOf(pr).tier >= 6 && was < 6) pr.itemSpins = (pr.itemSpins || 0) + 3;
+      if (pr.passDeal && passOf(pr).tier >= pr.passDeal.tier) delete pr.passDeal; // личная цена использована
     }
     else if (kind === 'sub') pr.subUntil = Math.max(Date.now(), pr.subUntil || 0) + SHOP.sub.days * DAY;
     else if (kind === 'starter') {

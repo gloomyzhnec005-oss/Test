@@ -530,7 +530,7 @@ window.Town = (() => {
       </div>${ps.tiers.map((t) => `<div class="order o-${t.id} ${t.owned ? 'own' : ''}">
         <div class="order-h"><span class="order-ic">${orderIc(t)}</span><b>${t.name}</b></div>
         <ul><li class="inc">Всё из «${t.tier > 1 ? ps.tiers[t.tier - 2].name : ps.freeOrder.name}»</li>${t.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
-        ${t.owned ? '<span class="order-ok">✓ Открыт</span>' : `<button class="l2-btn" data-order="${t.tier}">${ps.tier ? 'Улучшить' : 'Открыть'} · ${t.cost} ⭐</button>`}
+        ${t.owned ? '<span class="order-ok">✓ Открыт</span>' : `<button class="l2-btn" data-order="${t.tier}">${ps.tier ? 'Улучшить' : 'Открыть'} · ${t.cost} ⭐${t.deal ? ' · личная цена' : ''}</button>`}
       </div>`).join('')}</div>`);
     const list = document.createElement('div');
     for (const r of ps.rewards) {
