@@ -356,10 +356,21 @@ setInterval(() => {
   if (S.openAt && !launchFired && now >= S.openAt) {
     launchFired = true;
     io.emit('chat', { sys: true, text: '🎉 Mystic Horizon открыт! Добро пожаловать, герои!' });
-    if (bot) for (const [uid, pr] of Object.entries(profiles)) if (pr.remindOpen && uid.startsWith('tg')) {
-      pr.remindOpen = false;
-      bot.telegram.sendMessage(uid.slice(2), '🎉 Mystic Horizon открыт! Первые 3 дня — подарок основателя: 300 💎, призывы и великий эликсир опыта.',
-        process.env.WEBAPP_URL ? { reply_markup: { inline_keyboard: [[{ text: '⚔️ Играть', web_app: { url: process.env.WEBAPP_URL } }]] } } : {}).catch(() => {});
+    // Сообщение от бота — всем игрокам Telegram, кому ещё не писали об ЭТОМ открытии (pr.openMsg), кроме отключивших
+    // уведомления: и нажавшим «Напомнить», и всем, кто заходил до открытия. Кто получил сообщение о раннем (ошибочном)
+    // открытии — получит и это. Отправка с паузой 50 мс (лимит Telegram ~30 сообщений в секунду)
+    if (bot) {
+      const list = Object.entries(profiles).filter(([uid, pr]) => uid.startsWith('tg') && pr.openMsg !== S.openAt && !pr.notifyOff && !pr.pushBlocked);
+      const kb = process.env.WEBAPP_URL ? { reply_markup: { inline_keyboard: [[{ text: '⚔️ Играть', web_app: { url: process.env.WEBAPP_URL } }]] } } : {};
+      const log = S.launchLog = { at: now, openAt: S.openAt, n: list.length, ok: 0, fail: 0 };
+      list.forEach(([uid, pr], i) => {
+        pr.remindOpen = false; pr.openMsg = S.openAt;
+        setTimeout(() => bot.telegram.sendMessage(uid.slice(2), '🎉 Mystic Horizon открыт! Первые 3 дня — подарок основателя: 300 💎, призывы и великий эликсир опыта.', kb)
+          .then(() => { log.ok++; }, (e) => { log.fail++; if (e && (e.code === 403 || /blocked|deactivated|chat not found/i.test(e.message || ''))) pr.pushBlocked = true; })
+          .finally(() => { if (log.ok + log.fail === log.n) { admin.saveSettings(); saveProfiles(); } }), i * 50);
+      });
+      admin.saveSettings();
+      console.log(`[launch] открытие: сообщение бота ${list.length} игрокам`);
     }
     saveProfiles();
   }
