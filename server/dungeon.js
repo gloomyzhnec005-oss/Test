@@ -865,7 +865,7 @@ module.exports = function createDungeons(d) {
     if (w % 5 === 0) {
       const dg = dgs[Math.min(dgs.length - 1, w / 5 - 1)];
       const big = w % 10 === 0 ? dg.boss : dg.minis[0];
-      const bm = create(z, big, { x: c.x, y: c.y - 9 * C.TILE }, lv + 1, { rank: w % 10 === 0 ? 'boss' : 'mini', aggro: 2000, hpMult: 1 + 0.5 * (inside - 1) });
+      const bm = create(z, big, { x: c.x, y: c.y - 9 * C.TILE }, lv + 1, { rank: w % 10 === 0 ? 'boss' : 'mini', aggro: 2000, hpMult: (1 + 0.5 * (inside - 1)) * (w % 10 === 0 ? 1500 / 450 : 1) }); // босс выживания — прежней силы (боссы данжей ослаблены в mobs.js)
       if (mod) mod.apply(bm);
     }
   }
