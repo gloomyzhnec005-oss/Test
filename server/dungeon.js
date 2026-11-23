@@ -514,12 +514,13 @@ module.exports = function createDungeons(d) {
 
   // ---------- Данжи: общие залы для всех игроков ----------
   // Каждый данж — один зал на сервер. В обычных комнатах убитые монстры возрождаются через 5–10 секунд (пока в зале есть люди),
-  // полубоссы появляются раз в час (в начале часа), босс данжа — три раза в день: 12:00, 18:00 и 23:00 МСК (DUNGEON_BOSS_TIMES, часы по МСК через запятую).
+  // полубоссы возрождаются через 15 минут после гибели, босс данжа — три раза в день: 12:00, 18:00 и 23:00 МСК (DUNGEON_BOSS_TIMES, часы по МСК через запятую).
   // Награду за полубосса и босса получают все, кто нанёс хотя бы 3% его здоровья.
   const halls = new Map(), announced = {};
   // Время появления боссов данжей (МСК = UTC+3): «12:00,18:00,23:00»
   const BOSS_TIMES = String(process.env.DUNGEON_BOSS_TIMES || '12:00,18:00,23:00').split(',').map((s) => s.trim().split(':').map(Number)).filter(([h]) => h >= 0 && h < 24);
   const RESPAWN = [8000, 8000], IDLE_MS = 5 * 60000, WARN_MS = 15 * 60000, GATE_OPEN_MS = 10 * 60000;
+  const MINI_RESPAWN = 15 * 60e3; // полубосс возрождается через 15 минут после гибели
   const nextHour = (t) => Math.floor(t / 36e5) * 36e5 + 36e5;
   function nextBossAt(t) {
     const x = new Date(t), day = Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate());
@@ -661,7 +662,7 @@ module.exports = function createDungeons(d) {
       else if (now >= r.nextAt && heroes.length) { spawnInRoom(h, r, heroes); r.nextAt = 0; }
     }
     for (const mi of h.minis) {
-      if (mi.id && !monsters.has(mi.id)) { mi.id = null; mi.at = nextHour(now); }
+      if (mi.id && !monsters.has(mi.id)) { mi.id = null; mi.at = now + MINI_RESPAWN; }
       if (!mi.id && now >= mi.at) {
         const m = create(h.z, mi.type, mi.c, mi.lv, { rank: 'mini', hpMult: MINI_K.hp, dmgMult: MINI_K.dmg, xpMult: MINI_K.xp }); // полубосс данжа — втрое крепче
         m.room = mi.ri;

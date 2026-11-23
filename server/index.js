@@ -575,7 +575,10 @@ const GRACE_MS = 2 * 60000; // столько герой ждёт в мире п
 // ---------- Мир ----------
 const world = buildWorld(); // города и охотничьи земли за порталами (server/world.js)
 const players = new Map(); // socket.id -> player
-const chatHistory = []; // последние сообщения общего чата
+// Последние сообщения общего чата — сохраняются в базу, после обновления игры (перезапуска сервера) не пропадают
+const chatHistory = (() => { try { const a = store.readJSON('chat.json', []); return Array.isArray(a) ? a.slice(-60) : []; } catch { return []; } })();
+let chatSaveTm = null;
+const chatSave = () => { clearTimeout(chatSaveTm); chatSaveTm = setTimeout(() => { try { store.writeJSON('chat.json', chatHistory); } catch (e) { console.error('chat save', e.message); } }, 3000); };
 const monsters = new Map(); // id -> monster
 const pets = new Map(); // id -> зверь-спутник (Урсус)
 let monsterSeq = 1;
@@ -2045,6 +2048,7 @@ io.on('connection', (socket) => {
     }
     chatHistory.push(msg);
     if (chatHistory.length > 60) chatHistory.shift();
+    chatSave();
     io.emit('chat', msg);
   });
 
@@ -2507,5 +2511,5 @@ admin.setWipe((keep) => {
 
 if (!store.db) process.on('SIGINT', () => { saveProfiles(); process.exit(0); });
 // Остановка сервера: server/boot.js вызывает это, дописывает всё в хранилище (базу) и только потом выходит
-global.__saveAll = () => { saveProfiles(); try { store.writeJSON('clans.json', clans); } catch (e) { console.error('clans save', e.message); } };
+global.__saveAll = () => { saveProfiles(); try { store.writeJSON('clans.json', clans); store.writeJSON('chat.json', chatHistory); } catch (e) { console.error('clans/chat save', e.message); } };
 if (!store.db) process.on('SIGTERM', () => { saveProfiles(); process.exit(0); }); // запуск без boot.js (старый способ) — как раньше

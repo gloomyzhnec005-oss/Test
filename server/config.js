@@ -29,7 +29,7 @@ module.exports = {
       2: { common: 52, rare: 35, epic: 11.5, legendary: 1.1, mythic: 0.08 },
       3: { common: 33, rare: 42, epic: 21, legendary: 2.6, mythic: 0.25 },
     },
-    // Полубоссы (1 вещь, каждый час): чуть лучше обычных монстров, но не как босс
+    // Полубоссы (1 вещь, через 15 мин после гибели): чуть лучше обычных монстров, но не как босс
     mini: {
       1: { rare: 78, epic: 20, legendary: 1.8, mythic: 0.1 },
       2: { rare: 62, epic: 32, legendary: 5.5, mythic: 0.4 },
