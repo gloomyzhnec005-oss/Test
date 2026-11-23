@@ -764,9 +764,9 @@ module.exports = function createDungeons(d) {
   }
   function sendHall(h) { const info = hallInfo(h); for (const p of inZone(h.z.id)) p.socket.emit('dungeon', info); }
   // Награда за полубосса и босса — всем с вкладом от 3% здоровья
-  // Порог силы: герой выше 20 уровня и выше верхнего уровня данжа больше чем на OVER_LV — по боссу и полубоссам этого данжа бьёт ×0,2 и без добычи
+  // Порог силы: герой выше 15 уровня (может уйти во второй город) и выше верхнего уровня данжа больше чем на OVER_LV — по боссу и полубоссам этого данжа бьёт ×0,2 и без добычи
   // Герои до FREE_LV уровня — всегда полный урон и награда в любом данже (помогают новичкам с боссами первых данжей)
-  const OVER_LV = 5, OVER_DMG = 0.2, FREE_LV = 20;
+  const OVER_LV = 5, OVER_DMG = 0.2, FREE_LV = 15;
   const overLevel = (p, h) => !!(h && p.char && p.char.level > Math.max(FREE_LV, h.dg.lv[1] + OVER_LV));
   // Множитель урона героя по монстру (вызывается из боя): 1 — как обычно, OVER_DMG — если герой перерос данж
   const overFor = (p, m) => !!(m.hall && (m.boss || m.mini) && overLevel(p, halls.get(m.hall)));
