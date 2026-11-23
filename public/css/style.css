@@ -745,6 +745,18 @@ canvas.skin { object-fit: contain; }
 .chat-log { bottom: calc(var(--nav) + 160px + env(safe-area-inset-bottom)); }
 .hud-toast { bottom: calc(var(--nav) + 196px + env(safe-area-inset-bottom)); }
 .nav-menu { display: flex; flex-direction: column; gap: 6px; }
+.nav-h { margin: 8px 2px 0; color: #ffd98a; font-size: 14px; letter-spacing: .3px; }
+.nav-h:first-child { margin-top: 0; }
+.nav-list { display: flex; flex-direction: column; gap: 6px; }
+.nav-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.nav-grid .nav-row { padding: 8px 6px; gap: 6px; min-height: 58px; }
+.nav-grid .nav-row > span { width: 28px; }
+.nav-grid .nav-row > span img { width: 28px; height: 28px; }
+.nav-grid .nav-row b { font-size: 13px; line-height: 1.2; }
+.nav-grid .nav-row small { font-size: 10px; line-height: 1.25; }
+.nav-grid .nav-row i { display: none; }
+.nav-grid .nav-row:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.nav-grid .nav-row.nav-dot::after { right: 6px; top: 8px; margin-top: 0; }
 .nav-row {
   display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; text-align: left; font-family: inherit; color: inherit;
   border-radius: 6px; border: 1px solid #4a3b26; background: linear-gradient(90deg, rgba(60,46,30,.55), rgba(0,0,0,.35));

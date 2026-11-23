@@ -897,6 +897,17 @@
         if (icon === 'pass' && passReadyN > 0) r.classList.add('nav-dot'); // есть награды пропуска
         return r;
       };
+      // Меню разделами: [заголовок, строки, wide] — wide: широкие строки, иначе плитки в 2 колонки
+      const menuGroups = (title, groups) => {
+        const box = document.createElement('div'); box.className = 'nav-menu';
+        for (const [h, rows, wide] of groups) {
+          if (!rows.length) continue;
+          const hd = document.createElement('h4'); hd.className = 'nav-h'; hd.textContent = h; box.append(hd);
+          const g = document.createElement('div'); g.className = wide ? 'nav-list' : 'nav-grid';
+          rows.forEach((r) => g.append(menuRow(...r))); box.append(g);
+        }
+        Town.open(title, box);
+      };
       const menuSheet = (title, rows) => { const box = document.createElement('div'); box.className = 'nav-menu'; rows.forEach((r) => box.append(menuRow(...r))); Town.open(title, box); };
       // ---------- Настройки ----------
       // Звук (вкл/выкл, громкость эффектов и музыки, вибрация), экран, подсказки, экономия батареи, аккаунт
@@ -1010,29 +1021,47 @@
         quests: () => Town.openPlace('events'),
         gacha: () => Town.openPlace('gacha'),
         store: () => Town.openPlace('store'),
-        play: () => menuSheet('⚔️ Игра', [
-          autofarmRow(),
-          ...(zone && zone.kind === 'dungeon' ? [['teleport', 'В город', 'Выйти из данжа в город', () => {
-            Town.close();
-            if (autoOn) socket.emit('autofarm', false); // иначе герой не выходит из боя, а в бою телепорт запрещён
-            socket.emit('recall');
-          }]] : []),
-          ['party', 'Сменить героя', 'Выбрать другого героя — без выхода через настройки', openHeroSwitch],
-          ['arena', 'Рейтинг арены', 'Лучшие игроки и турнир недели · сражаться — в доме арены', () => Town.openPlace('arenaRank')],
-          ['pass', 'Сезонные ордена', 'Награды сезона, бонусы и автобой', () => Town.openPlace('pass')],
-          ['party', 'Пригласить друга', 'Своя ссылка: другу — самоцветы и призыв, вам — награды за его уровни и 10% с его покупок', () => openInvite()],
-          ['party', 'Группа', 'До 4 игроков: общий опыт, добыча и данжи', openParty],
-          ['market', 'GRAM-кошелёк', 'Баланс, пополнение, вывод денег с продаж, торговые ордена', () => Town.openPlace('wallet')],
-          ['ic_economy', 'Экономика игры', 'Оборот Торгового дома, выплаты игрокам, крупные сделки недели', () => openEconomy()],
-          ['clan', 'Клан', 'Свой клан: участники, задания, хранилище, чат', openClan],
-          ['trainer', 'Энциклопедия', 'Всё об игре: развитие, снаряжение, крафт, руны, призывы, данжи, боссы, расписание', () => Wiki.open()],
-          ['arena', 'Рейтинги', 'Лучшие по уровню, силе, кланы и урону мировым боссам за неделю', () => openRanks()],
-          ['events', 'Награда за вход', 'Заходите каждый день — 7 дней подряд, награда растёт', () => Town.openPlace('login')],
-          ['chat', 'Чат', 'Общий чат всех игроков', () => { Town.close(); $('chatBtn').click(); }],
-          ...((window.GameLinks || {}).channel ? [['events', 'Канал игры', 'Новости, обновления, мировые боссы и подарки', () => openTgLink(window.GameLinks.channel)]] : []),
-          ...((window.GameLinks || {}).chat ? [['chat', 'Чат игроков в Telegram', 'Найти группу, спросить совет, сообщить об ошибке', () => openTgLink(window.GameLinks.chat)]] : []),
-          ['smith', 'Соединение 5 → 1', 'Улучшить редкость предметов', () => Bag.open('merge')],
-        ]),
+        // Меню «Игра» по разделам: сверху — действия боя (широкие строки), ниже — плитки в 2 колонки
+        play: () => {
+          const L = window.GameLinks || {}, inDg = zone && zone.kind === 'dungeon';
+          menuGroups('⚔️ Игра', [
+            ['⚔️ Бой', [
+              autofarmRow(),
+              ...(inDg ? [['teleport', 'В город', 'Выйти из данжа в город', () => {
+                Town.close();
+                if (autoOn) socket.emit('autofarm', false); // иначе герой не выходит из боя, а в бою телепорт запрещён
+                socket.emit('recall');
+              }]] : []),
+            ], true],
+            ['🧙 Герой и группа', [
+              ['party', 'Сменить героя', 'Без выхода из игры', openHeroSwitch],
+              ['party', 'Группа', 'До 4 игроков: общий опыт и добыча', openParty],
+              ['smith', 'Соединение 5 → 1', 'Повысить редкость вещей', () => Bag.open('merge')],
+            ]],
+            ['🎁 Награды', [
+              ['events', 'Награда за вход', 'Каждый день, 7 дней подряд', () => Town.openPlace('login')],
+              ['pass', 'Сезонные ордена', 'Награды сезона и бонусы', () => Town.openPlace('pass')],
+              ['party', 'Пригласить друга', 'Подарки и вам, и другу', () => openInvite()],
+            ]],
+            ['💬 Общение', [
+              ['clan', 'Клан', 'Участники, задания, хранилище', openClan],
+              ['chat', 'Чат', 'Общий чат игроков', () => { Town.close(); $('chatBtn').click(); }],
+              ...(L.chat ? [['chat', 'Чат в Telegram', 'Советы, поиск группы, ошибки', () => openTgLink(L.chat)]] : []),
+              ...(L.channel ? [['events', 'Канал игры', 'Новости, боссы, подарки', () => openTgLink(L.channel)]] : []),
+            ]],
+            ['🏆 Рейтинги', [
+              ['arena', 'Рейтинги', 'Уровень, сила, кланы, боссы', () => openRanks()],
+              ['arena', 'Рейтинг арены', 'Лучшие бойцы и турнир недели', () => Town.openPlace('arenaRank')],
+            ]],
+            ['💎 GRAM', [
+              ['market', 'GRAM-кошелёк', 'Баланс, пополнение, вывод', () => Town.openPlace('wallet')],
+              ['ic_economy', 'Экономика игры', 'Оборот и выплаты игрокам', () => openEconomy()],
+            ]],
+            ['📖 Помощь', [
+              ['trainer', 'Энциклопедия', 'Всё об игре: ответы на вопросы', () => Wiki.open()],
+            ]],
+          ]);
+        },
         settings: () => openSettings(),
       };
       // Значок готовых наград на кнопке «Квесты»
