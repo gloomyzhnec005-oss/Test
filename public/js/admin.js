@@ -563,6 +563,9 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       <div class="card"><h3>📢 Канал и чат игры</h3><p class="muted">Ссылка вида @имя или t.me/имя. Когда заполнено — в игре (меню «Игра» и лобби) и в боте (/start) появятся кнопки. Пусто — кнопок нет.</p>
         <div class="row"><label>Канал</label><input id="sChannel" class="wide" placeholder="@mystichorizon_game" value="${esc(s.channel || '')}"></div>
         <div class="row"><label>Чат</label><input id="sChat" class="wide" placeholder="@mystichorizon_chat" value="${esc(s.chat || '')}"></div></div>
+      <div class="card"><h3>🤝 Партнёры</h3><p class="muted">Каналы и игры партнёров — в игре: меню «Игра» → «Партнёры» и кнопка в лобби. По одному на строку:
+        <b>Название | описание | ссылка</b> (ссылка: @имя, t.me/… или https://…). Описание можно пропустить: «Название | ссылка». Пусто — раздела нет.</p>
+        <textarea id="sPartners" class="wide" rows="5" placeholder="Канал Игровые новости | Обзоры Telegram-игр | @gamenews">${esc((s.partners || []).map((x) => [x.name, x.desc, x.url].filter(Boolean).join(' | ')).join('\n'))}</textarea></div>
       <div class="card"><h3>💬 Сообщение при входе</h3>
         <div class="row"><input id="sMotd" class="wide" placeholder="Показывается каждому игроку при входе в мир" value="${esc(s.motd)}"></div></div>
       <div class="card"><h3>🧹 Обнуление перед стартом</h3>
@@ -572,7 +575,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       <div class="row"><button id="sSave" class="btn primary">Сохранить настройки</button><button id="sDisk" class="btn">Записать данные игроков на диск</button></div>`;
     $('sSave').onclick = async () => {
       if ($('sMaint').checked && !s.maintenance && !confirm('Включить техработы? Все игроки, кроме тестеров, будут отключены.')) return;
-      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value } });
+      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value, partners: $('sPartners').value } });
       drawSettings();
     };
     $('sDisk').onclick = () => api('save');

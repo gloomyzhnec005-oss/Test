@@ -22,7 +22,7 @@ module.exports = function createAdmin(ctx) {
   // ---------- Настройки игры, меняются на лету ----------
   // openAt — время открытия игры (0 — открыта); onlineMin — с какого онлайна показывать общее число игроков;
   // brk — запланированный технический перерыв { at, min } (0 — нет)
-  const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '', openAt: 0, onlineMin: 20, brk: null, channel: '', chat: '' };
+  const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '', openAt: 0, onlineMin: 20, brk: null, channel: '', chat: '', partners: [] };
   const settings = { ...DEFAULTS };
   Object.assign(settings, store.readJSON('admin.json', {}));
   const saveSettings = () => store.writeJSON('admin.json', settings);
@@ -595,6 +595,12 @@ module.exports = function createAdmin(ctx) {
       // Канал и чат игры: @имя, t.me/имя или https://t.me/… → https://t.me/…
       const tme = (v) => { const m = String(v || '').trim().match(/^(?:https?:\/\/)?(?:t\.me\/|@)?([A-Za-z0-9_+\/-]{4,64})$/); return m ? `https://t.me/${m[1]}` : ''; };
       for (const k of ['channel', 'chat']) if (d.set[k] !== undefined) settings[k] = tme(d.set[k]);
+      // Партнёры: строки «Название | описание | ссылка» (ссылка — @имя, t.me/… или https://…), до 12
+      if (d.set.partners !== undefined) {
+        const url = (v) => { v = String(v || '').trim(); if (/^https:\/\/[^\s<>"']{4,300}$/.test(v)) return v; return tme(v); };
+        settings.partners = String(d.set.partners).split('\n').map((l) => l.split('|').map((x) => x.trim())).filter((a) => a[0])
+          .map((a) => ({ name: a[0].slice(0, 40), desc: (a.length > 2 ? a[1] : '').slice(0, 90), url: url(a.length > 2 ? a[2] : a[1]) })).filter((x) => x.url).slice(0, 12);
+      }
       if (d.set.openAt !== undefined) settings.openAt = Math.max(0, Number(d.set.openAt) || 0);
       if (d.set.onlineMin !== undefined) settings.onlineMin = num(d.set.onlineMin, 0, 100000, 20);
       if (d.set.brk !== undefined) {

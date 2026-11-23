@@ -755,6 +755,7 @@ window.Lobby = (() => {
     const skew = st.now - Date.now();
     window.GameLinks = st.links || {};
     $('menuChannel').classList.toggle('hidden', !window.GameLinks.channel);
+    $('menuPartners').classList.toggle('hidden', !(window.GameLinks.partners || []).length);
     const on = onlineText(st.online);
     $('lobbyOnline').textContent = on; $('lobbyOnline').classList.toggle('hidden', !on);
     const box = $('lobbyLaunch');
@@ -823,6 +824,7 @@ window.Lobby = (() => {
       openSheet('👥 Пригласить друга', Invite.panel(data.ref));
     };
     $('menuChannel').onclick = () => { const u = (window.GameLinks || {}).channel, W = window.Telegram && window.Telegram.WebApp; if (!u) return; if (W && W.openTelegramLink) W.openTelegramLink(u); else window.open(u, '_blank'); };
+    $('menuPartners').onclick = () => openSheet('🤝 Партнёры', Invite.partners((window.GameLinks || {}).partners));
     $('menuRoster').onclick = () => openSheet('Мои герои', rosterSheet());
     $('heroPrev').onclick = () => cycle(-1);
     $('heroNext').onclick = () => cycle(1);

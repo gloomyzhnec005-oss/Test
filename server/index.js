@@ -251,7 +251,7 @@ function noteVisitor(uid, initData, plat) {
       chat: o.chat || String(q.get('chat_type') || '').slice(0, 16), lastAt: now, visits: (o.visits || 0) + 1 };
   } catch { /* необязательно */ }
 }
-// Публичная экономика (меню «Экономика игры»): оборот Торгового дома, выплаты игрокам, крупные сделки — без имён
+// Публично — только остаток лимитированного тиража (общий оборот игры игрокам не показываем)
 app.get('/api/economy', (req, res) => res.json(Trade.publicStats()));
 // Окно «Пригласить друга» в лобби (до входа в мир)
 app.post('/api/ref', (req, res) => {
@@ -336,7 +336,7 @@ function onlineInfo() {
   }
   return { total, dg, wb, town, showTotal: total >= (S.onlineMin ?? 20) };
 }
-const launchInfo = () => ({ links: { channel: S.channel || '', chat: S.chat || '' }, openAt: S.openAt > Date.now() ? S.openAt : 0, brk: S.brk && S.brk.at + S.brk.min * 60e3 > Date.now() ? { at: S.brk.at, min: S.brk.min } : null, maint: !!S.maintenance, now: Date.now() });
+const launchInfo = () => ({ links: { channel: S.channel || '', chat: S.chat || '', partners: S.partners || [] }, openAt: S.openAt > Date.now() ? S.openAt : 0, brk: S.brk && S.brk.at + S.brk.min * 60e3 > Date.now() ? { at: S.brk.at, min: S.brk.min } : null, maint: !!S.maintenance, now: Date.now() });
 app.get('/api/status', (req, res) => res.json({ online: onlineInfo(), ...launchInfo() }));
 // «Напомнить об открытии» — бот напишет в момент открытия
 app.post('/api/remind', (req, res) => {

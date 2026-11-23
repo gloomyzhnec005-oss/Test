@@ -745,6 +745,7 @@ canvas.skin { object-fit: contain; }
 .chat-log { bottom: calc(var(--nav) + 160px + env(safe-area-inset-bottom)); }
 .hud-toast { bottom: calc(var(--nav) + 196px + env(safe-area-inset-bottom)); }
 .nav-menu { display: flex; flex-direction: column; gap: 6px; }
+.spin-wallet.econ-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
 .nav-h { margin: 8px 2px 0; color: #ffd98a; font-size: 14px; letter-spacing: .3px; }
 .nav-h:first-child { margin-top: 0; }
 .nav-list { display: flex; flex-direction: column; gap: 6px; }

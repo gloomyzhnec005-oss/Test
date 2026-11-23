@@ -2,6 +2,19 @@
 // Одно и то же — в лобби (public/js/lobby.js, данные через /api/ref) и в игре (main.js, данные через act refInfo).
 window.Invite = (() => {
   const t = (s) => (window.I18N ? I18N.tr(s) : s);
+  // Партнёры игры (админка → Настройки → Партнёры): каналы и игры, переход по кнопке
+  function partners(list) {
+    const box = document.createElement('div');
+    box.innerHTML = `<p class="sheet-hint">${t('Каналы и игры наших друзей — загляните к ним!')}</p>`;
+    for (const x of list || []) {
+      const r = document.createElement('div'); r.className = 'tw-ev';
+      r.innerHTML = `<div><b></b><small></small></div><button class="l2-btn">${t('Перейти')}</button>`;
+      r.querySelector('b').textContent = x.name; r.querySelector('small').textContent = x.desc || '';
+      r.querySelector('button').onclick = () => { const W = window.Telegram && window.Telegram.WebApp; if (W && /^https:\/\/t\.me\//.test(x.url) && W.openTelegramLink) W.openTelegramLink(x.url); else if (W && W.openLink) W.openLink(x.url); else window.open(x.url, '_blank'); };
+      box.append(r);
+    }
+    return box;
+  }
   function link(R) { return R.bot ? `https://t.me/${R.bot}/${R.app}?startapp=${R.code}` : ''; }
   function panel(R) {
     const url = link(R), C = R.cfg, box = document.createElement('div');
@@ -30,5 +43,5 @@ window.Invite = (() => {
     };
     return box;
   }
-  return { panel, link };
+  return { panel, link, partners };
 })();

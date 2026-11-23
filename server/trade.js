@@ -86,16 +86,32 @@ module.exports = function createTrade(deps) {
     for (const c of g.earn) { if (c.at <= t) free += c.a; else { hold += c.a; next = next ? Math.min(next, c.at) : c.at; } }
     return { dep: g.dep, free, hold, next, total: g.dep + free + hold };
   }
-  function note(uid, kind, a, text) {
+  // Личные итоги игрока за всё время (окно «Моя экономика»): журнал хранит только 60 записей, поэтому копим счётчики
+  // dep — пополнено, sale/saleN — получено с продаж (после комиссии), fee — комиссии, spent — потрачено на покупки
+  // (за вычетом возвратов), prize — награды GRAM (лига, приглашения, казна владык), adm — от администрации
+  function tally(g, kind, a, wdBack) {
+    if (!g.tot) { g.tot = { dep: 0, sale: 0, saleN: 0, fee: 0, spent: 0, prize: 0, adm: 0 }; for (const e of [...g.log].reverse()) tally(g, e.kind, e.a, e.kind === 'refund' && /^Заявка №/.test(e.text || '')); }
+    const T = g.tot;
+    if (kind === 'deposit') T.dep += a;
+    else if (kind === 'sale') { T.sale += a; T.saleN++; }
+    else if (kind === 'fee') T.fee -= a;
+    else if (kind === 'refund') { if (!wdBack) T.spent = Math.max(0, T.spent - a); }
+    else if (['prize', 'ref', 'reign'].includes(kind)) T.prize += a;
+    else if (kind === 'admin') T.adm += a;
+    else if (kind !== 'withdraw' && kind !== 'payout' && a < 0) T.spent -= a;
+  }
+  function note(uid, kind, a, text, wdBack) {
     const pr = getProfile(uid), g = G(pr), e = { t: now(), kind, a, text };
+    if (!g.tot) tally(g, 'init', 0); // счётчики из прежнего журнала — до новой записи
+    tally(g, kind, a, wdBack);
     g.log.unshift(e); g.log.length = Math.min(g.log.length, 60);
     st.log.unshift({ ...e, uid, name: pr.name || uid }); st.log.length = Math.min(st.log.length, 5000);
     if (Econ && Econ.gram) Econ.gram(kind, a);
   }
-  function credit(uid, kind, a, text, held) {
+  function credit(uid, kind, a, text, held, wdBack) {
     const g = G(getProfile(uid));
     if (held) g.earn.push({ a, at: now() + CFG.holdDays * 864e5 }); else if (kind === 'refund') g.earn.push({ a, at: now() }); else g.dep += a;
-    note(uid, kind, a, text);
+    note(uid, kind, a, text, wdBack);
   }
   // Списать: сначала пополненные, затем ещё удерживаемые продажи, затем доступные к выводу
   function spend(uid, a, kind, text) {
@@ -181,15 +197,9 @@ module.exports = function createTrade(deps) {
   const matKey = (id) => `m:${id}`;
   // Сделка — в публичную ленту (без имён: товар и цена)
   function dealAdd(name, price) { (st.deals ??= []).push([now(), name, price]); if (st.deals.length > 500) st.deals.splice(0, st.deals.length - 500); }
+  // Публично — только тираж (общий оборот игры игрокам не показываем)
   function publicStats() {
-    const wk = now() - 7 * 864e5, deals = (st.deals || []).filter(([t]) => t > wk);
-    const paid = st.wd.filter((w) => w.status === 'paid'), paidWk = paid.filter((w) => (w.paidAt || w.at) > wk);
-    const sum = (a, f) => a.reduce((x, y) => x + f(y), 0);
-    return { week: { deals: deals.length, volume: sum(deals, (d) => d[2]), paid: sum(paidWk, (w) => w.net), paidN: paidWk.length },
-      all: { paid: sum(paid, (w) => w.net), paidN: paid.length },
-      top: [...deals].sort((a, b) => b[2] - a[2]).slice(0, 8).map(([t, name, price]) => ({ t, name, price })),
-      lots: st.lots.length, bids: (st.bids || []).length,
-      ltd: { name: CFG.ltd.name, left: CFG.ltd.of - ((st.ltd || {})[CFG.ltd.id] || 0), of: CFG.ltd.of } };
+    return { ltd: { name: CFG.ltd.name, left: CFG.ltd.of - ((st.ltd || {})[CFG.ltd.id] || 0), of: CFG.ltd.of } };
   }
   function histAdd(key, unit) {
     const h = (st.hist[key] ??= []);
@@ -248,6 +258,15 @@ module.exports = function createTrade(deps) {
         order: o ? { ...o, until: deps.passEnds ? (deps.passTier(pr) >= 5 ? deps.passEnds() : pr.tOrder.until) : 0 } : null, wd: mine,
         orders: deps.passOrders ? deps.passOrders(pr).map((x) => ({ ...x, gram: gramOf(x.cost) })) : [],
       } };
+    },
+    // Моя экономика: только свои деньги игрока — общий оборот игры не показываем
+    gramMine(p, d, pr) {
+      compact(pr);
+      const b = bal(pr), g = G(pr); if (!g.tot) tally(g, 'init', 0);
+      const mine = st.wd.filter((w) => w.uid === p.uid), paid = mine.filter((w) => w.status === 'paid'), wait = mine.filter((w) => w.status === 'wait');
+      const sum = (a) => a.reduce((x, w) => x + w.net, 0);
+      return { mine: { bal: b, tot: g.tot, wd: { paid: sum(paid), paidN: paid.length, wait: sum(wait), waitN: wait.length }, log: g.log.slice(0, 15),
+        ltd: { name: CFG.ltd.name, left: CFG.ltd.of - ((st.ltd || {})[CFG.ltd.id] || 0), of: CFG.ltd.of } } };
     },
     // Рынок
     gmShop(p, d, pr) {
@@ -540,7 +559,7 @@ module.exports = function createTrade(deps) {
     const w = st.wd.find((x) => x.id === Number(id));
     if (!w || w.status !== 'wait') return { error: 'Заявка не найдена или уже обработана' };
     w.status = 'rejected'; w.doneAt = now(); w.reason = String(reason || '').slice(0, 200);
-    credit(w.uid, 'refund', w.gross, `Заявка №${w.id} отклонена${w.reason ? `: ${w.reason}` : ''} — GRAM вернулись`);
+    credit(w.uid, 'refund', w.gross, `Заявка №${w.id} отклонена${w.reason ? `: ${w.reason}` : ''} — GRAM вернулись`, false, true);
     notifyUid(w.uid, `Заявка на вывод №${w.id} отклонена${w.reason ? `: ${w.reason}` : ''}. GRAM вернулись на баланс`);
     save();
     return { text: `Заявка №${w.id} отклонена, ${fmt(w.gross)} GRAM возвращены` };

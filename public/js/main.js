@@ -746,17 +746,33 @@
         $('piNo').onclick = () => box.classList.add('hidden');
         vibrate('medium');
       });
-      // ---------- Экономика игры: открытые цифры (доверие — люди видят, что другие реально выводят деньги) ----------
+      // Моя экономика: только свои деньги игрока (общий оборот игры не показываем)
       const openEconomy = async () => {
-        let e; try { e = await (await fetch('/api/economy')).json(); } catch { return Town.toast('Нет связи'); }
-        const g = (n) => (n / 1e9).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+        const r = await Bag.act('gramMine');
+        if (!r || r.error || !r.mine) return Town.toast((r && r.error) || 'Нет связи');
+        const m = r.mine, T = m.tot || {}, B = m.bal || {};
+        const g = (n) => ((n || 0) / 1e9).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+        const cell = (v, t) => `<div><b>${v}</b><span>${t}</span></div>`;
         const box = document.createElement('div');
-        box.innerHTML = `<div class="spin-wallet"><div><b>${e.week.deals}</b><span>сделок за неделю</span></div><div><b>${g(e.week.volume)}</b><span>GRAM оборот недели</span></div><div><b>${g(e.week.paid)}</b><span>GRAM выплачено за неделю (${e.week.paidN})</span></div><div><b>${g(e.all.paid)}</b><span>GRAM выплачено всего (${e.all.paidN})</span></div></div>
-          <p class="sheet-hint">В Торговом доме сейчас лотов: ${e.lots}, заявок на покупку: ${e.bids}. Тираж «${e.ltd.name}»: осталось ${e.ltd.left} из ${e.ltd.of}.</p>
-          <div class="ic-sec">Крупные сделки недели</div>
-          ${e.top.map((d) => `<div class="tw-ev"><div><b>${d.name}</b><small>${new Date(d.t).toLocaleDateString('ru-RU')}</small></div><b>${g(d.price)} GRAM</b></div>`).join('') || '<div class="tw-soon">Сделок пока нет — станьте первым</div>'}`;
-        box.insertAdjacentHTML('afterbegin', '<img class="place-ic big" src="assets/ui/ic_economy.webp" alt="" style="display:block;margin:0 auto 6px;width:72px;height:72px">');
-        Town.open('📊 Экономика игры', box);
+        box.innerHTML = '<img class="place-ic big" src="assets/ui/ic_economy.webp" alt="" style="display:block;margin:0 auto 6px;width:72px;height:72px">'
+          + '<div class="ic-sec">Мой баланс</div>'
+          + `<div class="spin-wallet">${cell(g(B.total), 'GRAM всего')}${cell(g(B.free), 'можно вывести')}${cell(g(B.hold), 'на удержании')}${cell(g(B.dep), 'пополнения (для покупок)')}</div>`
+          + (B.next ? `<p class="sheet-hint">Ближайшие деньги с продаж станут доступны к выводу ${new Date(B.next).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}.</p>` : '')
+          + '<div class="ic-sec">За всё время</div>'
+          + `<div class="spin-wallet econ-grid">${cell(g((T.dep || 0) + Math.max(0, T.adm || 0)), 'пополнено')}${cell(g(T.sale), `получено с продаж (${T.saleN || 0})`)}${cell(g(T.spent), 'потрачено на покупки')}${cell(g(T.fee), 'комиссии')}${cell(g(T.prize), 'награды GRAM')}${cell(g(m.wd.paid), `выведено (${m.wd.paidN})`)}</div>`
+          + (m.wd.waitN ? `<p class="sheet-hint">Ждут выплаты: ${m.wd.waitN} заявк. на ${g(m.wd.wait)} GRAM — выплаты вручную с 20:00 до 24:00 МСК.</p>` : '')
+          + (m.ltd && m.ltd.left > 0 ? `<p class="sheet-hint">Тираж «${m.ltd.name}»: осталось ${m.ltd.left} из ${m.ltd.of}.</p>` : '')
+          + '<div class="ic-sec">Последние операции</div>';
+        if (!(m.log || []).length) box.insertAdjacentHTML('beforeend', '<div class="tw-soon">Операций пока нет</div>');
+        for (const e of m.log || []) {
+          const row = document.createElement('div'); row.className = 'tw-ev';
+          row.innerHTML = '<div><b></b><small></small></div><b></b>';
+          row.querySelector('div b').textContent = e.text || '';
+          row.querySelector('small').textContent = new Date(e.t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+          const v = row.lastElementChild; v.textContent = e.a ? `${e.a > 0 ? '+' : '−'}${g(Math.abs(e.a))}` : ''; v.style.color = e.a > 0 ? '#8fe08a' : '#e8a08a';
+          box.append(row);
+        }
+        Town.open('📊 Моя экономика', box);
       };
       // ---------- Пригласить друга (окно — public/js/invite.js, то же, что в лобби) ----------
       const openInvite = async () => {
@@ -1055,8 +1071,11 @@
             ]],
             ['💎 GRAM', [
               ['market', 'GRAM-кошелёк', 'Баланс, пополнение, вывод', () => Town.openPlace('wallet')],
-              ['ic_economy', 'Экономика игры', 'Оборот и выплаты игрокам', () => openEconomy()],
+              ['ic_economy', 'Моя экономика', 'Мои продажи, покупки, выводы', () => openEconomy()],
             ]],
+            ['🤝 Партнёры', (L.partners || []).length ? [
+              ['party', 'Друзья игры', 'Каналы и игры партнёров', () => Town.open('🤝 Партнёры', Invite.partners(L.partners))],
+            ] : []],
             ['📖 Помощь', [
               ['trainer', 'Энциклопедия', 'Всё об игре: ответы на вопросы', () => Wiki.open()],
             ]],
