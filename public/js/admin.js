@@ -552,8 +552,8 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
         <label class="switch"><input id="sFree" type="checkbox" ${s.freeSpins ? 'checked' : ''}> Бесплатные крутки героев для всех</label>
         <label class="switch"><input id="sMaint" type="checkbox" ${s.maintenance ? 'checked' : ''}> Технические работы (вход только тестерам)</label></div>
       <div class="card"><h3>🏰 Открытие игры</h3>
-        <p class="muted">${s.openAt && s.openAt > Date.now() ? `Открытие: <b>${new Date(s.openAt).toLocaleString('ru-RU')}</b> — до этого входят только админы и тестеры, в лобби — отсчёт и «Напомнить»` : 'Игра открыта. Задайте дату — в лобби появится отсчёт. Первые 3 дня после открытия каждый новый вход получает подарок основателя.'}</p>
-        <div class="row"><input id="sOpen" type="datetime-local" value="${s.openAt ? new Date(s.openAt - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}"><button class="btn" id="sOpenSet">Задать</button><button class="btn danger" id="sOpenNow">Открыть сейчас</button></div>
+        <p class="muted">${s.openAt && s.openAt > Date.now() ? `Открытие: <b>${new Date(s.openAt).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} МСК</b> — до этого входят только админы и тестеры, в лобби — отсчёт и «Напомнить»` : 'Игра открыта. Задайте дату — в лобби появится отсчёт. Первые 3 дня после открытия каждый новый вход получает подарок основателя.'}</p>
+        <div class="row"><input id="sOpen" type="datetime-local" value="${s.openAt ? new Date(s.openAt + 3 * 36e5).toISOString().slice(0, 16) : ''}"><span class="muted">время МОСКОВСКОЕ (МСК)</span><button class="btn" id="sOpenSet">Задать</button><button class="btn danger" id="sOpenNow">Открыть сейчас</button></div>
         <div class="row"><label class="grow">Показывать общий онлайн, когда игроков не меньше</label><input id="sOnMin" type="number" min="0" value="${s.onlineMin ?? 20}"></div>
         <p class="muted">Меньше — в лобби и городе пишется, сколько героев в данжах и у мирового босса (это тоже правда, но звучит живее).</p></div>
       <div class="card"><h3>🔧 Технический перерыв</h3>
@@ -594,7 +594,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       const r = await api('wipeAll', { keep, confirm: word.trim() });
       toast(r.error || r.text, !!r.error);
     };
-    $('sOpenSet').onclick = async () => { const v = $('sOpen').value; if (!v) return toast('Выберите дату и время', true); await api('settings', { set: { openAt: new Date(v).getTime() } }); drawSettings(); };
+    $('sOpenSet').onclick = async () => { const v = $('sOpen').value; if (!v) return toast('Выберите дату и время', true); const t = Date.parse(v + ':00+03:00'); if (!t) return toast('Неверная дата', true); if (!confirm(`Открытие: ${new Date(t).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} по Москве. Верно?`)) return; await api('settings', { set: { openAt: t } }); drawSettings(); };
     $('sOpenNow').onclick = async () => { if (!confirm('Открыть игру сейчас для всех?')) return; await api('settings', { set: { openAt: Date.now() } }); drawSettings(); };
     $('sOnMin').onchange = () => api('settings', { set: { onlineMin: $('sOnMin').value } });
     $('sBrkSet').onclick = async () => { const inMin = Number($('sBrkIn').value) || 30, len = Number($('sBrkLen').value) || 15; if (!confirm(`Перерыв через ${inMin} мин на ${len} мин?`)) return; await api('settings', { set: { brk: { at: Date.now() + inMin * 60000, min: len } } }); drawSettings(); };

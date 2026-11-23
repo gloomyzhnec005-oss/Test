@@ -27,6 +27,9 @@ module.exports = function createAdmin(ctx) {
   Object.assign(settings, store.readJSON('admin.json', {}));
   // Награды особых заданий подняты (канал 50 → 150, чат 30 → 50): сохранённые старые значения по умолчанию — заменить один раз
   const saveSettings = () => store.writeJSON('admin.json', settings);
+  // Открытие 23.11: в админке время вводилось по часам браузера (Самара, МСК+1) — 21:00 записалось как 20:00 МСК.
+  // Один раз переносим на 21:00 МСК, если ещё не наступило
+  if (settings.openAt === Date.UTC(2026, 10, 23, 17, 0) && Date.now() < Date.UTC(2026, 10, 23, 18, 0)) { settings.openAt = Date.UTC(2026, 10, 23, 18, 0); saveSettings(); console.log('[admin] открытие перенесено на 21:00 МСК'); }
   if (!settings.spMig1) { if (settings.spChannel === 50) settings.spChannel = 150; if (settings.spChat === 30) settings.spChat = 50; settings.spMig1 = true; saveSettings(); }
 
   // ---------- Журнал ----------
