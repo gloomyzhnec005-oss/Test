@@ -562,7 +562,14 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
         <div class="row"><button class="btn primary" id="sBrkSet">Объявить перерыв</button>${s.brk ? '<button class="btn danger" id="sBrkOff">Отменить</button>' : ''}</div></div>
       <div class="card"><h3>📢 Канал и чат игры</h3><p class="muted">Ссылка вида @имя или t.me/имя. Когда заполнено — в игре (меню «Игра» и лобби) и в боте (/start) появятся кнопки. Пусто — кнопок нет.</p>
         <div class="row"><label>Канал</label><input id="sChannel" class="wide" placeholder="@mystichorizon_game" value="${esc(s.channel || '')}"></div>
-        <div class="row"><label>Чат</label><input id="sChat" class="wide" placeholder="@mystichorizon_chat" value="${esc(s.chat || '')}"></div></div>
+        <div class="row"><label>Чат</label><input id="sChat" class="wide" placeholder="@mystichorizon_chat" value="${esc(s.chat || '')}"></div>
+        <p class="muted">🔥 Особые задания «Подпишитесь на канал» / «Вступите в чат» — награда в самоцветах (0 — задания нет). Чтобы бот проверял подписку,
+          добавьте бота администратором канала и участником чата; иначе награда выдаётся через 15 с после перехода — «на честность».</p>
+        <div class="row"><label>💎 за канал</label><input id="sSpChannel" type="number" min="0" max="1000" value="${s.spChannel ?? 50}"><label>💎 за чат</label><input id="sSpChat" type="number" min="0" max="1000" value="${s.spChat ?? 30}"></div></div>
+      <div class="card"><h3>🔥 Особые задания партнёров</h3><p class="muted">Блогеры, каналы, игры — задание в «Квестах» → «🔥 Особые», один раз на аккаунт. По одному на строку:
+        <b>Название | описание | ссылка | самоцветы</b> (описание можно пропустить: «Название | ссылка | самоцветы»). До 10, награда 1–500 💎.
+        Подписку бот проверит, только если он администратор того канала; иначе — через 15 с после перехода.</p>
+        <textarea id="sSpecial" class="wide" rows="4" placeholder="Канал Игровые новости | Обзоры Telegram-игр | @gamenews | 30">${esc((s.special || []).map((x) => [x.name, x.desc, x.url, x.gems].filter((v) => v !== '' && v != null).join(' | ')).join('\n'))}</textarea></div>
       <div class="card"><h3>🤝 Партнёры</h3><p class="muted">Каналы и игры партнёров — в игре: меню «Игра» → «Партнёры» и кнопка в лобби. По одному на строку:
         <b>Название | описание | ссылка</b> (ссылка: @имя, t.me/… или https://…). Описание можно пропустить: «Название | ссылка». Пусто — раздела нет.</p>
         <textarea id="sPartners" class="wide" rows="5" placeholder="Канал Игровые новости | Обзоры Telegram-игр | @gamenews">${esc((s.partners || []).map((x) => [x.name, x.desc, x.url].filter(Boolean).join(' | ')).join('\n'))}</textarea></div>
@@ -575,7 +582,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       <div class="row"><button id="sSave" class="btn primary">Сохранить настройки</button><button id="sDisk" class="btn">Записать данные игроков на диск</button></div>`;
     $('sSave').onclick = async () => {
       if ($('sMaint').checked && !s.maintenance && !confirm('Включить техработы? Все игроки, кроме тестеров, будут отключены.')) return;
-      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value, partners: $('sPartners').value } });
+      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value, partners: $('sPartners').value, spChannel: $('sSpChannel').value, spChat: $('sSpChat').value, special: $('sSpecial').value } });
       drawSettings();
     };
     $('sDisk').onclick = () => api('save');

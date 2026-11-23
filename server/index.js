@@ -611,6 +611,8 @@ const meta = createMeta({
   toTown: (p) => { const z = world.byId.get(p.zone); const home = z && world.byId.get(z.town || z.id); if (!home || home.id === p.zone) return false; moveToZone(p, home.id); return true; },
 });
 // Торговля за GRAM: баланс, Рынок (вещи игры), Торговый дом (между игроками), вывод, торговые ордена (server/trade.js)
+// Особые задания (подписка на канал/чат, партнёры) → самоцветы: server/special.js
+const SP = require('./special')({ S, getProfile: (uid) => getProfile(uid), botToken: BOT_TOKEN, save: () => saveProfiles() });
 const Trade = require('./trade')({
   I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
   bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
@@ -1929,6 +1931,10 @@ io.on('connection', (socket) => {
     const p = players.get(socket.id);
     if (!p || typeof cb !== 'function') return;
     const op = d && typeof d.op === 'string' ? d.op : '';
+    if (/^sp(List|Go|Claim)$/.test(op)) { // особые задания: проверка подписки — запрос в Telegram, ответ асинхронный
+      SP.act(p, d).then((res) => { cb(res); markDirty(p); }, (e) => { console.error('special', e); cb({ error: 'Ошибка сервера' }); });
+      return;
+    }
     const src = /^(quest|story)/.test(op) ? 'quests' : /^npc/.test(op) ? 'npc' : op;
     try {
       const res = Econ.measure(src, getProfile(p.uid), () => (/^(quest|story)/.test(op) ? Q.handle(p, d) : op === 'npcMarks' ? NQ.marks(p, p.zone) : op === 'refInfo' ? refInfo(p) : /^npc/.test(op) ? NQ.act(p, d) : Trade.isOp(op) ? Trade.act(p, d) : meta.handle(p, d || {})));

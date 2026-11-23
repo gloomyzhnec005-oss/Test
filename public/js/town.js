@@ -703,10 +703,37 @@ window.Town = (() => {
 
   // ---------- Квесты (server/quests.js) ----------
   let questTab = 0;
+  // Особые задания (server/special.js): подписка на канал/чат игры, партнёры → самоцветы. Горят, пока не выполнены
+  const spHot = (list) => { const n = (list || []).filter((t) => !t.done).length; const b = document.querySelector('[data-nav="quests"]'); if (b) b.classList.toggle('sp-hot', n > 0); return n; };
+  const openUrl = (u) => { const W = window.Telegram && window.Telegram.WebApp; if (W && /^https:\/\/t\.me\//.test(u) && W.openTelegramLink) W.openTelegramLink(u); else if (W && W.openLink) W.openLink(u); else window.open(u, '_blank'); };
+  function specialPage(list, redraw) {
+    return () => {
+      const box = document.createElement('div');
+      box.innerHTML = '<p class="sheet-hint">Разовые задания с наградой самоцветами: перейдите по ссылке, подпишитесь — и заберите награду.</p>';
+      for (const t of list) {
+        const row = el(`<div class="tw-ev quest sp-quest ${t.done ? 'claimed' : 'hot'}"><span class="tw-ev-i q-ic">${t.icon}</span><div><b></b><small></small><small class="q-rew">🎁 ${t.gems} 💎</small></div>
+          <div class="sp-btns">${t.done ? '<button class="l2-btn" disabled>✔</button>' : `<button class="l2-btn sp-go">Перейти</button><button class="l2-btn sp-claim" ${t.went ? '' : 'disabled'}>Забрать</button>`}</div></div>`).firstElementChild;
+        row.querySelector('b').textContent = t.name; row.querySelector('small').textContent = t.desc;
+        const go = row.querySelector('.sp-go'), cl = row.querySelector('.sp-claim');
+        if (go) go.onclick = async () => { openUrl(t.url); const res = await Bag.act('spGo', { id: t.id }); if (res.special) { t.went = true; cl.disabled = false; } };
+        if (cl) cl.onclick = async () => {
+          cl.disabled = true;
+          const res = await Bag.act('spClaim', { id: t.id });
+          toast(res.error || res.toast);
+          if (window.Sfx) Sfx.play(res.error ? 'error' : 'reward');
+          if (res.error) { cl.disabled = false; return; }
+          redraw();
+        };
+        box.append(row);
+      }
+      return box;
+    };
+  }
   async function eventsPanel(r) {
     if (!r) r = await Bag.act('quests');
     if (!r.quests) return toast(r.error || 'Нет связи');
     const Q = r.quests;
+    const spR = await Bag.act('spList'), SP = (spR && spR.special) || [], spN = spHot(SP);
     const page = (per) => () => {
       const box = document.createElement('div');
       const d = Q[per];
@@ -752,10 +779,11 @@ window.Town = (() => {
       return box;
     };
     const cnt = (per) => Q[per].list.filter((q) => q.prog >= q.goal && !q.claimed).length;
-    if (ctx.onQuests) ctx.onQuests(sReady + cnt('daily') + cnt('weekly') + cnt('monthly'));
+    if (ctx.onQuests) ctx.onQuests(sReady + cnt('daily') + cnt('weekly') + cnt('monthly') + spN);
     if (ctx.onStory) ctx.onStory(S);
     const lbl = (n, per) => n + (cnt(per) ? ` (${cnt(per)})` : '');
-    open('📜 Квесты', tabs([['Сюжет' + (sReady ? ' (1)' : ''), story], [lbl('Ежедневные', 'daily'), page('daily')], [lbl('Еженедельные', 'weekly'), page('weekly')], [lbl('Ежемесячные', 'monthly'), page('monthly')]], questTab));
+    const spTab = SP.length ? [[`🔥 Особые${spN ? ` (${spN})` : ''}`, specialPage(SP, () => { questTab = 0; eventsPanel(); })]] : [];
+    open('📜 Квесты', tabs([...(spN ? spTab : []), ['Сюжет' + (sReady ? ' (1)' : ''), story], [lbl('Ежедневные', 'daily'), page('daily')], [lbl('Еженедельные', 'weekly'), page('weekly')], [lbl('Ежемесячные', 'monthly'), page('monthly')], ...(spN ? [] : spTab)], questTab));
     questTab = 0;
   }
 

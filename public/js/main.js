@@ -1104,6 +1104,8 @@
       $('storyHint').onclick = () => NAV.quests();
       $('gemsBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); vibrate('light'); NAV.store(); }); // самоцветы → магазин
       Town.setContext({ onQuests: questBadge, onStory: showStory });
+      // Особые задания: кнопка «Квесты» горит, пока есть невыполненные (проверяем при входе)
+      setTimeout(() => Bag.act('spList').then((r) => { const n = ((r && r.special) || []).filter((t) => !t.done).length; document.querySelector('[data-nav="quests"]').classList.toggle('sp-hot', n > 0); }), 3000);
       socket.on('chat', (m) => {
         if (m.sys && /^📜 Задание выполнено/.test(m.text)) { const b = document.querySelector('[data-nav="quests"]'); questBadge((+b.dataset.badge || 0) + 1); if (window.Sfx) Sfx.play('quest'); }
         if (m.sys && /^📜 Сюжет/.test(m.text)) { storyLater(); if (window.Sfx) Sfx.play('quest'); }
