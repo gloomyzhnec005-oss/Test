@@ -576,6 +576,13 @@ module.exports = function createAdmin(ctx) {
     ctx.io.emit('chat', { sys: true, text: `📢 ${text}` });
     return { text: 'Объявление отправлено' };
   }, (d) => `объявление «${String(d.text || '').slice(0, 60)}»`));
+  let botcastFn = null;
+  r.post('/botcast', act((d) => {
+    const text = String(d.text || '').trim().slice(0, 1000);
+    if (!text) return { error: 'Пустое сообщение' };
+    if (!botcastFn) return { error: 'Рассылка недоступна' };
+    return botcastFn(text, !!d.test);
+  }, (d) => `рассылка ботом${d.test ? ' (проба)' : ''} «${String(d.text || '').slice(0, 60)}»`));
   r.post('/spawn', act(spawn, (d) => `монстр ${d.type}`));
   r.post('/clearZone', act((d) => clearZone(d.zone), (d) => `очистка ${d.zone || 'всех зон'}`));
   r.post('/worldBoss', act((d) => {
@@ -632,5 +639,5 @@ module.exports = function createAdmin(ctx) {
 
   // Администратор ли этот игрок (Telegram ID в ADMIN_TG_IDS) — для кнопки админки в лобби
   const isAdminUid = (uid) => String(uid).startsWith('tg') && TG_IDS.includes(String(uid).slice(2));
-  return { router: r, settings, saveSettings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; }, setRefund: (fn) => { refundFn = fn; }, setWipe: (fn) => { wipeFn = fn; } };
+  return { router: r, settings, saveSettings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; }, setRefund: (fn) => { refundFn = fn; }, setWipe: (fn) => { wipeFn = fn; }, setBotcast: (fn) => { botcastFn = fn; } };
 };

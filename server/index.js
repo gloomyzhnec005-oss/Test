@@ -2402,7 +2402,7 @@ process.on('unhandledRejection', (e) => console.error('unhandledRejection', e));
 
 server.listen(PORT, () => {
   console.log(`MMORPG сервер запущен: http://localhost:${PORT}`);
-  if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ links: () => ({ channel: S.channel || '', chat: S.chat || '' }), onPaid, isValidPayload, profiles: () => profiles, save: () => saveProfiles(),
+  if (BOT_TOKEN && process.env.RUN_BOT !== 'false') bot = require('../bot/bot')({ onStart: (id) => noteBotUser(id), links: () => ({ channel: S.channel || '', chat: S.chat || '' }), onPaid, isValidPayload, profiles: () => profiles, save: () => saveProfiles(),
     onNotify: (tgId) => { const pr = profiles['tg' + tgId]; if (!pr) return null; pr.notifyOff = !pr.notifyOff; if (!pr.notifyOff) pr.pushBlocked = false; saveProfiles(); return !pr.notifyOff; } });
 });
 // Возврат Stars кнопкой в админке; игроку — сообщение от бота
@@ -2410,6 +2410,30 @@ admin.setRefund(async (tgId, charge) => {
   if (!bot) throw new Error('бот не запущен');
   await bot.telegram.callApi('refundStarPayment', { user_id: tgId, telegram_payment_charge_id: charge });
   bot.telegram.sendMessage(tgId, '💫 Stars за покупку возвращены. / Your Stars have been refunded.').catch(() => {});
+});
+// Рассылка от бота (админка → Объявления → «Разослать ботом»): всем игрокам Telegram (кто открывал игру) и всем,
+// кто нажимал /start в боте; кроме отключивших уведомления и заблокировавших бота. Не дошло — Telegram не разрешил
+// боту писать этому человеку (не нажимал /start и не дал разрешение при входе в игру). Пауза 50 мс между сообщениями.
+const botUsers = new Set(store.readJSON('botusers.json', []));
+let botUsersTm = null;
+const noteBotUser = (id) => { const k = String(id); if (botUsers.has(k)) return; botUsers.add(k); clearTimeout(botUsersTm); botUsersTm = setTimeout(() => store.writeJSON('botusers.json', [...botUsers]), 2000); };
+admin.setBotcast((text, testOnly) => {
+  if (!bot) return { error: 'Бот не запущен' };
+  const adminsIds = String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean);
+  let ids;
+  if (testOnly) ids = adminsIds;
+  else {
+    const set = new Set(botUsers);
+    for (const [uid, pr] of Object.entries(profiles)) if (uid.startsWith('tg')) set.add(uid.slice(2));
+    ids = [...set].filter((id) => { const pr = profiles['tg' + id]; return !(pr && (pr.notifyOff || pr.pushBlocked)); });
+  }
+  const kb = process.env.WEBAPP_URL ? { reply_markup: { inline_keyboard: [[{ text: '⚔️ Играть', web_app: { url: process.env.WEBAPP_URL } }]] } } : {};
+  const log = S.botcastLog = { at: Date.now(), text: text.slice(0, 80), test: !!testOnly, n: ids.length, ok: 0, fail: 0 };
+  ids.forEach((id, i) => setTimeout(() => bot.telegram.sendMessage(id, text, kb)
+    .then(() => { log.ok++; }, (e) => { log.fail++; const pr = profiles['tg' + id]; if (pr && e && (e.code === 403 || /blocked|deactivated/i.test(e.message || ''))) pr.pushBlocked = true; })
+    .finally(() => { if (log.ok + log.fail === log.n) { admin.saveSettings(); saveProfiles(); } }), i * 50));
+  admin.saveSettings();
+  return { text: `${testOnly ? 'Пробная рассылка (только админам)' : 'Рассылка'} запущена: ${ids.length} получателей, займёт ~${Math.ceil(ids.length * 0.05)} с. Итог — в этом окне (обновите вкладку)` };
 });
 // Бэкап из админки — файлом администраторам в Telegram (на телефоне скачать иначе нельзя)
 admin.setSendFile(async (buf, filename, caption) => {

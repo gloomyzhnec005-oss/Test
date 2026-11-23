@@ -3,7 +3,7 @@
 require('dotenv').config({ quiet: true });
 const { Telegraf, Markup } = require('telegraf');
 
-module.exports = function startBot({ onPaid, isValidPayload, onNotify, profiles, save, links } = {}) {
+module.exports = function startBot({ onPaid, isValidPayload, onNotify, profiles, save, links, onStart } = {}) {
   const { BOT_TOKEN, WEBAPP_URL } = process.env;
   if (!BOT_TOKEN || !WEBAPP_URL) {
     console.error('Укажите BOT_TOKEN и WEBAPP_URL (https) в .env');
@@ -19,13 +19,15 @@ module.exports = function startBot({ onPaid, isValidPayload, onNotify, profiles,
     return Markup.inlineKeyboard([[Markup.button.webApp('⚔️ Играть', WEBAPP_URL)], ...(row.length ? [row] : [])]);
   };
 
-  bot.start((ctx) =>
-    ctx.reply(
+  bot.start((ctx) => {
+    if (onStart && ctx.from) try { onStart(ctx.from.id); } catch { /* учёт — не главное */ }
+    return ctx.reply(
       `Добро пожаловать в мир «Mystic Horizon»!\n\n` +
       `Призывай героев, проходи данжи, побеждай боссов и сражайся на арене вместе с другими игроками.\n` +
       `Нажми «⚔️ Играть», чтобы начать.`,
       startButtons(),
-    ));
+    );
+  });
   bot.command('play', (ctx) => ctx.reply('Открыть игру:', playButton()));
   // Админ-панель: только для Telegram ID из ADMIN_TG_IDS, вход без пароля
   const admins = String(process.env.ADMIN_TG_IDS || '').split(/[\s,]+/).filter(Boolean);
