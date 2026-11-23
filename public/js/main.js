@@ -245,6 +245,8 @@
     if (s.passReady !== undefined) { passReadyN = s.passReady; const pb = document.querySelector('[data-nav="play"]'); if (pb) pb.classList.toggle('pass-ready', passReadyN > 0); }
     if (s.fx) { const now = Date.now(); fxList = s.fx.map((e) => ({ ...e, end: e.l > 0 ? now + e.l * 1000 : 0 })); drawFx(); }
     if (s.passTier !== undefined) passTier = s.passTier;
+    if (s.afLeft !== undefined) afLeft = s.afLeft;
+    if (s.level !== undefined) myLvl = s.level;
     $('lvl').textContent = s.level;
     const tier = s.frame || avaTier(s.level); // купленная рамка — вместо рамки по уровню
     if ($('hudAvaFrame').dataset.t !== tier) { $('hudAvaFrame').dataset.t = tier; $('hudAvaFrame').style.backgroundImage = `url(assets/ui/ava/${tier}.webp?v=2)`; }
@@ -478,6 +480,7 @@
   // ---------- Запуск ----------
   let socket = null, game = null;
   let passTier = 0, autoOn = false; // орден сезона (0 — нет) и включён ли автобой
+  let afLeft = 0, myLvl = 1; // автобой без ордена: мс на сегодня (−1 — без лимита, орден), уровень героя
   // Советы на экране загрузки мира
   const LOAD_TIPS = [
     'Совет: тапните по монстру — герой сам подойдёт и атакует.',
@@ -1005,10 +1008,15 @@
       // Автобой в меню «Игра»: включается только в данже, нужен Золотой орден
       const autofarmRow = () => {
         const inDg = zone && zone.kind === 'dungeon';
-        const desc = passTier < 3 ? '🔒 Открывается Золотым орденом' : !inDg ? 'Включается только в данже' : autoOn ? 'Герой сражается сам · нажмите, чтобы выключить' : 'Герой будет сам искать монстров и сражаться';
+        // Без ордена — с 15 уровня 30 мин в день, с 30 уровня 60 мин; Золотой орден — без лимита
+        const unl = afLeft === -1, mins = Math.ceil(afLeft / 60e3);
+        const locked = !unl && myLvl < 15, out = !unl && !locked && afLeft <= 0 && !autoOn;
+        const desc = locked ? '🔒 С 15 уровня — 30 мин в день (с 30 ур. — 60), без лимита — Золотой орден' : out ? 'На сегодня закончился · без лимита — Золотой орден'
+          : !inDg ? `Включается только в данже${unl ? '' : ` · сегодня осталось ${mins} мин`}`
+          : autoOn ? `Герой сражается сам · нажмите, чтобы выключить${unl ? '' : ` · осталось ${mins} мин`}` : `Герой будет сам искать монстров и сражаться${unl ? '' : ` · сегодня ${mins} мин`}`;
         return ['auto', autoOn ? 'Автобой: включён' : 'Автобой: выключен', desc, () => {
-          if (passTier < 3) { Town.toast('Автобой открывается Золотым орденом'); Town.openPlace('pass'); return; }
-          if (!inDg) { Town.toast('Автобой включается только в данже'); return; }
+          if (!autoOn && (locked || out)) { Town.toast(locked ? 'Автобой открывается с 15 уровня или Золотым орденом' : 'Автобой на сегодня закончился'); Town.openPlace('pass'); return; }
+          if (!inDg && !autoOn) { Town.toast('Автобой включается только в данже'); return; }
           Town.close();
           socket.emit('autofarm', !autoOn);
         }];

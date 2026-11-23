@@ -1128,7 +1128,7 @@ function publicPlayer(p) {
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
-  return { fx: playerEffects(p), passReady: meta.passReady(getProfile(p.uid)), level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm,
+  return { fx: playerEffects(p), passReady: meta.passReady(getProfile(p.uid)), level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm, afLeft: afLeftMs(p),
     gold: getProfile(p.uid).gold, gems: getProfile(p.uid).gems || 0, frame: (p.look && p.look.fr) || null, unlocked: p.unlocked, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
@@ -1468,10 +1468,37 @@ const skillCtx = {
 
 // ---------- Автобой (Золотой орден и выше, server/meta.js → SHOP.passTiers) ----------
 // Только онлайн: работает, пока игра открыта; закрыл игру — герой вышел из мира, автобой выключен.
+// Без ордена: с 15 уровня героя (второй город) — 30 минут в день, с 30 уровня — 60 минут; Золотой орден и выше — без лимита.
+// Счёт минут — по дням МСК, только пока автобой включён
+const AF_FREE = [[30, 60], [15, 30]]; // [уровень героя, минут в день]
+const afDay = () => new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+function afLimitMs(p, pr) {
+  if (meta.passTier(pr) >= meta.SHOP.autofarmTier) return Infinity;
+  const lv = (p.char && p.char.level) || 1, row = AF_FREE.find(([l]) => lv >= l);
+  return row ? row[1] * 60e3 : 0;
+}
+function afUsed(pr) { if (!pr.afUse || pr.afUse.day !== afDay()) pr.afUse = { day: afDay(), ms: 0 }; return pr.afUse.ms; }
+function afLeftMs(p) { const pr = getProfile(p.uid), lim = afLimitMs(p, pr); return lim === Infinity ? -1 : Math.max(0, lim - afUsed(pr)); }
+setInterval(() => {
+  const now = Date.now();
+  for (const p of players.values()) {
+    if (!p.autofarm || !p.uid) { if (p) p.afTick = 0; continue; }
+    const pr = getProfile(p.uid), lim = afLimitMs(p, pr), dt = p.afTick ? Math.min(5000, now - p.afTick) : 0;
+    p.afTick = now;
+    if (lim === Infinity) continue;
+    afUsed(pr); pr.afUse.ms += dt;
+    if (pr.afUse.ms >= lim) { setAutofarm(p, false); p.socket.emit('skillFail', `Автобой на сегодня закончился (${lim / 60e3} мин). Без ограничений — с Золотым орденом`); markDirty(p); }
+  }
+}, 1000);
 function setAutofarm(p, on) {
   const pr = getProfile(p.uid);
-  if (on && meta.passTier(pr) < meta.SHOP.autofarmTier) return 'Автобой открывается Золотым орденом';
+  if (on) {
+    const lim = afLimitMs(p, pr);
+    if (!lim) return 'Автобой открывается с 15 уровня (30 мин в день) или сразу — Золотым орденом';
+    if (lim !== Infinity && afUsed(pr) >= lim) return `Автобой на сегодня закончился (${lim / 60e3} мин). Без ограничений — с Золотым орденом`;
+  }
   if (on && (world.byId.get(p.zone) || {}).kind !== 'dungeon') return 'Автобой работает только в данжах';
+  if (on && !p.autofarm) p.afTick = Date.now();
   p.autofarm = !!on;
   p.socket.emit('autofarm', p.autofarm);
   return null;
