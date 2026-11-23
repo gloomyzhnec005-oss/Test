@@ -187,6 +187,16 @@ module.exports = function createMeta(deps) {
   const shopCache = new Map();
   const ITEM_PRICE = { common: 400, rare: 2000, epic: 9000 }; // лавка — запасной вариант: хорошие вещи дают боссы, кузница и призыв
   const RUNE_PRICE = { common: 800, rare: 3500, epic: 12000 };
+  // Вставка и извлечение рун — дорогие, чтобы руны не переставляли «когда захочется»: [золото вставки, золото извлечения, 💎 извлечения]
+  // по редкости руны, × множитель мира руны. Извлечение в тот же день (МСК) дорожает: 2-е ×2, 3-е ×3…
+  const RUNE_SOCK = { common: [300, 1000, 0], rare: [1200, 4000, 0], epic: [4000, 12000, 0], legendary: [12000, 30000, 50], mythic: [30000, 75000, 150] };
+  const sockCost = (rune) => Math.round((RUNE_SOCK[rune.rar] || RUNE_SOCK.common)[0] * F(rune.tier || 1));
+  const unsockCost = (pr, rune) => {
+    const day = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+    if (!pr.unsock || pr.unsock.day !== day) pr.unsock = { day, n: 0 };
+    const k = 1 + pr.unsock.n, c = RUNE_SOCK[rune.rar] || RUNE_SOCK.common;
+    return { gold: Math.round(c[1] * F(rune.tier || 1) * k), gems: c[2] * k, k };
+  };
   function offers(kind, tier, cls = null) {
     if (kind !== 'equip') cls = null; // снаряжение — под класс героя, остальное одинаково для всех
     const key = `${dayKey()}:${kind}:${tier}:${cls || ''}`;
@@ -612,23 +622,30 @@ module.exports = function createMeta(deps) {
       w.runes ??= [];
       if (w.runes.length >= I.ITEM_RARITIES[w.rar].sockets) return { error: 'Все гнёзда заняты' };
       if (w.runes.some((r) => r.tpl === rune.tpl)) return { error: 'Такая руна уже стоит в этом оружии — нужны разные руны' };
+      const cost = sockCost(rune);
+      if (d.quote) return { quote: { gold: cost, gems: 0 } };
+      if ((pr.gold || 0) < cost) return { error: `Вставка руны стоит ${cost.toLocaleString('ru-RU')} 💰` };
+      pr.gold -= cost;
       pr.items = pr.items.filter((i) => i !== rune);
       delete rune.loc;
       w.runes.push(rune);
       refreshPlayer(p);
-      return { toast: `${I.itemView(rune).name} вставлена в ${I.itemView(w).name}` };
+      return { toast: `${I.itemView(rune).name} вставлена в ${I.itemView(w).name} (−${cost.toLocaleString('ru-RU')} 💰)` };
     },
     unsocket(p, d, pr) {
       const w = I.findItem(pr, d.weapon);
       if (!w || !w.runes || !w.runes[d.idx]) return { error: 'Руна не найдена' };
-      const cost = 50 * w.tier;
-      if (pr.gold < cost) return { error: `Нужно ${cost} золота` };
-      pr.gold -= cost;
+      const c = unsockCost(pr, w.runes[d.idx]);
+      if (d.quote) return { quote: c };
+      if ((pr.gold || 0) < c.gold || (pr.gems || 0) < c.gems) return { error: `Извлечение стоит ${c.gold.toLocaleString('ru-RU')} 💰${c.gems ? ` и ${c.gems} 💎` : ''}` };
+      if (pr.items.filter((i) => i.loc !== 'wh').length >= bagSize(pr)) return { error: 'Сумка полна — освободите место' };
+      pr.gold -= c.gold; if (c.gems) pr.gems -= c.gems;
+      pr.unsock.n++;
       const [rune] = w.runes.splice(d.idx, 1);
       rune.loc = 'bag';
       pr.items.push(rune);
       refreshPlayer(p);
-      return { toast: `Руна извлечена (−${cost} 💰)` };
+      return { toast: `Руна извлечена (−${c.gold.toLocaleString('ru-RU')} 💰${c.gems ? `, −${c.gems} 💎` : ''})` };
     },
     // Улучшение склада: +50 ячеек за уровень, до 5 уровней
     whUpgrade(p, d, pr) {

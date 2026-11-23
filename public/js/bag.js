@@ -126,7 +126,12 @@ window.Bag = (() => {
     // Руна: вставить в надетое оружие сразу или выбрать оружие в рунной мастерской
     if (it.cat === 'rune') {
       const wpn = inv.items.find((i) => i.id === inv.equip.weapon);
-      if (wpn && (wpn.runes || []).length < wpn.sockets) acts.push([`💠 Вставить в «${wpn.name}»`, () => run('socket', { weapon: wpn.id, rune: it.id }, ctx.after)]);
+      if (wpn && (wpn.runes || []).length < wpn.sockets) acts.push([`💠 Вставить в «${wpn.name}»`, async () => {
+        const q = await act('socket', { weapon: wpn.id, rune: it.id, quote: 1 });
+        if (!q.quote) return toast(q.error || 'Нет связи');
+        if (!confirm(`Вставить «${it.name}» в «${wpn.name}» за ${q.quote.gold.toLocaleString('ru-RU')} 💰?\nИзвлечь руну потом будет дороже.`)) return;
+        return run('socket', { weapon: wpn.id, rune: it.id }, ctx.after);
+      }]);
       acts.push(['💠 Выбрать оружие для руны', () => { $('itemCard').classList.add('hidden'); Town.openPlace('runes', wpn && wpn.id); }]);
     }
     // Оружие: гнёзда для рун

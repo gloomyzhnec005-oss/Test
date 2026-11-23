@@ -173,7 +173,7 @@ window.Town = (() => {
     if (!weapons.length) { box.innerHTML = soon('Нет оружия — руны вставляются в оружие'); return box; }
     const reload = async (id) => box.replaceWith(await runesBody(id));
     const w = weapons.find((i) => i.id === weaponId) || weapons.find((i) => Bag.isEquipped(i)) || weapons[0];
-    box.innerHTML = `<div class="rune-how"><b>Как вставить руну</b><ol><li>Выберите оружие ниже (надетое уже выбрано)</li><li>Тапните руну в разделе «Руны в сумке» — она встанет в свободное гнездо</li><li>Тап по вставленной руне — извлечь её (${50 * w.tier} 💰)</li></ol><small>Гнёзд: обычное и редкое оружие — 1, эпическое и легендарное — 2, мифическое — 3. Руны есть во вкладке «Купить руны» и падают с монстров.</small></div><div class="ic-sec">Оружие</div>`;
+    box.innerHTML = `<div class="rune-how"><b>Как вставить руну</b><p class="sheet-hint">Вставка и извлечение стоят золота (дороже для редких рун и миров выше), легендарные и мифические руны извлекаются ещё и за 💎. Каждое следующее извлечение за день дороже.</p><ol><li>Выберите оружие ниже (надетое уже выбрано)</li><li>Тапните руну в разделе «Руны в сумке» — она встанет в свободное гнездо</li><li>Тап по вставленной руне — извлечь её (${50 * w.tier} 💰)</li></ol><small>Гнёзд: обычное и редкое оружие — 1, эпическое и легендарное — 2, мифическое — 3. Руны есть во вкладке «Купить руны» и падают с монстров.</small></div><div class="ic-sec">Оружие</div>`;
     box.append(Bag.grid(weapons, (it) => reload(it.id), { selected: new Set([w.id]) }));
     box.insertAdjacentHTML('beforeend', `<div class="ic-sec">Гнёзда «${w.name}»: ${w.runes.length} / ${w.sockets}</div>`);
     const sock = document.createElement('div');
@@ -183,11 +183,17 @@ window.Town = (() => {
       const b = e.target.closest('.it');
       const idx = [...sock.children].indexOf(b);
       if (!b || idx < 0 || idx >= w.runes.length) return;
+      const q = await Bag.act('unsocket', { weapon: w.id, idx, quote: 1 });
+      if (!q.quote) return toast(q.error || 'Нет связи');
+      if (!(await askGram(`Извлечь руну за ${q.quote.gold.toLocaleString('ru-RU')} 💰${q.quote.gems ? ` и ${q.quote.gems} 💎` : ''}?${q.quote.k > 1 ? `\nСегодня это ${q.quote.k}-е извлечение — цена ×${q.quote.k}.` : '\nКаждое следующее извлечение сегодня дороже.'}`))) return;
       const r = await Bag.act('unsocket', { weapon: w.id, idx }); toast(r.error || r.toast); reload(w.id);
     };
     box.append(sock);
     box.insertAdjacentHTML('beforeend', '<div class="ic-sec">Руны в сумке — тап, чтобы вставить</div>');
     box.append(Bag.grid(inv.items.filter((i) => i.cat === 'rune' && i.loc !== 'wh'), async (rn) => {
+      const q = await Bag.act('socket', { weapon: w.id, rune: rn.id, quote: 1 });
+      if (!q.quote) return toast(q.error || 'Нет связи');
+      if (!(await askGram(`Вставить «${rn.name}» в «${w.name}» за ${q.quote.gold.toLocaleString('ru-RU')} 💰?\nИзвлечь руну потом будет дороже.`))) return;
       const r = await Bag.act('socket', { weapon: w.id, rune: rn.id }); toast(r.error || r.toast); reload(w.id);
     }, { empty: 'Рун нет — купите во вкладке «Купить руны» или выбейте с монстров' }));
     return box;
