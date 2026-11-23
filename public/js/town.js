@@ -782,8 +782,8 @@ window.Town = (() => {
     if (ctx.onQuests) ctx.onQuests(sReady + cnt('daily') + cnt('weekly') + cnt('monthly') + spN);
     if (ctx.onStory) ctx.onStory(S);
     const lbl = (n, per) => n + (cnt(per) ? ` (${cnt(per)})` : '');
-    const spTab = SP.length ? [[`🔥 Особые${spN ? ` (${spN})` : ''}`, specialPage(SP, () => { questTab = 0; eventsPanel(); })]] : [];
-    open('📜 Квесты', tabs([...(spN ? spTab : []), ['Сюжет' + (sReady ? ' (1)' : ''), story], [lbl('Ежедневные', 'daily'), page('daily')], [lbl('Еженедельные', 'weekly'), page('weekly')], [lbl('Ежемесячные', 'monthly'), page('monthly')], ...(spN ? [] : spTab)], questTab));
+    const spTab = SP.length ? [[`Особые${spN ? ` (${spN})` : ''}`, specialPage(SP, () => { questTab = 0; eventsPanel(); })]] : [];
+    open('📜 Квесты', tabs([['Сюжет' + (sReady ? ' (1)' : ''), story], ...(spN ? spTab : []), [lbl('Ежедневные', 'daily'), page('daily')], [lbl('Еженедельные', 'weekly'), page('weekly')], [lbl('Ежемесячные', 'monthly'), page('monthly')], ...(spN ? [] : spTab)], questTab));
     questTab = 0;
   }
 
