@@ -14,14 +14,19 @@
 
 Если генератор не держит 40 кадров за раз, можно двумя картинками: ряды 1–4 и ряды 5–8 (напишите «ХД-2, ряды 1–4»).
 
+**По опыту ХД-1…3:** генератор путает левые ряды, иногда рисует 9 рядов и в виде со спины даёт герою два посоха.
+Левые направления я всё равно делаю зеркалом правых, поэтому достаточно **5 рядов**: вниз, вниз-вправо, вправо, вверх-вправо, вверх.
+Если результат снова выйдет с лишними рядами — ничего страшного, нужные ряды я выберу сам.
+
 ## Общий промт (одинаковый для всех)
 
 ```
 Pixel art game sprite sheet of ONE hero character, a walking animation, matching the attached reference image EXACTLY:
 the same character, the same outfit, colors, weapon, proportions and the same pixel-art style (Diablo / Lineage 2 inspired, chibi-proportioned hero, dark outlines).
-Layout: exactly 8 rows × 5 columns, a perfectly even grid, every frame the same size and the same scale.
-Row order (the direction the hero walks): row 1 — toward the viewer (down), row 2 — down-right, row 3 — right (side view),
-row 4 — up-right, row 5 — away from the viewer (up, back visible), row 6 — up-left, row 7 — left (side view), row 8 — down-left.
+Layout: exactly 5 rows × 5 columns, a perfectly even grid, every frame the same size and the same scale.
+Row order (the direction the hero walks): row 1 — toward the viewer (down), row 2 — down-right (3/4 front view, facing right),
+row 3 — right (side view), row 4 — up-right (3/4 back view, facing right), row 5 — away from the viewer (up, back visible).
+The hero holds exactly ONE weapon in every frame, including the back view.
 Each row: a 5-frame walking loop (legs alternate, small up-down bob, the cloak/hair/wings sway slightly).
 VERY IMPORTANT: large empty space around every figure — the whole figure INCLUDING the full cloak, staff, weapon, wings, tail and hair
 must fit inside its own cell with a wide margin; nothing may touch or cross the cell border, nothing may overlap a neighbouring frame.
