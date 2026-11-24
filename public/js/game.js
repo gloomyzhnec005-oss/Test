@@ -365,7 +365,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
         ts.vx = vx; ts.vy = vy; objs.push(ts); clouds.push(ts);
       });
     }
-    if (!sea && this.sys.game.renderer.type === Phaser.WEBGL) {
+    // Облака тумана: в «Полных» эффектах — два плывущих слоя под маской (маска = лишние полноэкранные проходы видеокарты
+    // каждый кадр, телефоны грелись); иначе — облака «запекаются» в саму картинку тумана один раз (не плывут, но нагрузки нет)
+    const bake = !sea && Settings.get('fx') !== 'full';
+    if (bake) this.bakeFogClouds(z, d, W, H, R, x0, y0, pal);
+    if (!sea && !bake && this.sys.game.renderer.type === Phaser.WEBGL) {
       const maskImg = this.make.image({ x: x0, y: y0, key: 'fogmask', add: false }).setOrigin(0, 0).setScale(T / R);
       const mask = maskImg.createBitmapMask();
       objs.push(maskImg);
@@ -381,6 +385,28 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.heavyOff = undefined; this.fogDirty = false; // новая карта — заново применить «облегчение»
     this.paintFog();
     this.cameras.main.setBackgroundColor(sea ? (z.theme === 'abyss' ? '#160a24' : '#a9cdee') : pal.hex); // дальше полей — ровный цвет тумана (у небесного — небо)
+  }
+
+  // Облака в цвете тумана: те же два слоя шума (масштаб, прозрачность), что и плывущие, — смешиваем один раз в RGB картинки
+  // тумана (альфу потом пишет paintFog). d — пиксели картинки тумана (W·R × H·R), x0/y0 — её левый верхний угол в мире
+  bakeFogClouds(z, d, W, H, R, x0, y0, pal) {
+    const T = this.T, w = W * R, h = H * R, px = T / R;
+    const layers = [[0, 4, 0.75], [1, 2.5, 0.5]].map(([seed, sc, a]) => {
+      const src = this.textures.get(this.fogClouds(z.theme, seed, pal.cloud)).getSourceImage();
+      const S = src.width, cd = src.getContext('2d').getImageData(0, 0, S, S).data;
+      return { S, cd, sc, a };
+    });
+    const c = pal.cloud;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      let r = d[o], g = d[o + 1], b = d[o + 2];
+      for (const L of layers) {
+        const u = (((x * px / L.sc) | 0) % L.S + L.S) % L.S, v = (((y * px / L.sc) | 0) % L.S + L.S) % L.S;
+        const k = (L.cd[(v * L.S + u) * 4 + 3] / 255) * L.a;
+        r += (c[0] - r) * k; g += (c[1] - g) * k; b += (c[2] - b) * k;
+      }
+      d[o] = r; d[o + 1] = g; d[o + 2] = b;
+    }
   }
 
   // Перерисовать маску тумана: тайлы → пиксели, затем размытие по горизонтали и вертикали (скользящее окно)
@@ -937,7 +963,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
 
     // Монстры
     const seenM = new Set();
-    for (const m of s.m) {
+    for (let m of s.m) {
+      // Постоянные данные (тип, уровень, ранг, имя, размер) сервер шлёт при появлении монстра и раз в 2 с — берём из прошлых
+      if (!m.type && !m.pv) {
+        const prev = this.monsters.get(m.id);
+        if (!prev || !prev.data || prev.pvp || !prev.data.type) continue; // не знаем монстра — дождёмся полных данных
+        const d0 = prev.data;
+        m = { ...m, type: d0.type, tr: d0.tr, lv: d0.lv, rk: d0.rk, nm: d0.nm, sz: d0.sz, hs: d0.hs };
+      }
       // Цель-двойник героя на PvP-арене: своей картинки нет — целимся в самого героя (свой двойник не цель)
       if (m.pv) {
         const pe = this.players.get(m.pv);
@@ -2778,6 +2811,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
   buildLiveWater(z, ter) {
     const key = `gnd_${z.theme}_water`;
     if (!ter.waterMask || !this.textures.exists(key) || this.sys.game.renderer.type !== Phaser.WEBGL) return;
+    if (Settings.get('fx') !== 'full') return; // течение воды под маской — только в «Полных» эффектах (маска грела телефоны)
     this.textures.addCanvas('watermask', ter.waterMask);
     const W = z.w * this.T, H = z.h * this.T, k = ter.maskScale;
     const maskImg = this.make.image({ x: z.ox, y: z.oy, key: 'watermask', add: false }).setOrigin(0, 0).setScale(k);

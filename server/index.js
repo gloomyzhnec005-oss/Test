@@ -1132,7 +1132,7 @@ function publicPlayer(p) {
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
-  return { fx: playerEffects(p), passReady: meta.passReady(getProfile(p.uid)), level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm, afLeft: afLeftMs(p),
+  return { fx: playerEffects(p), passReady: meta.passReady(getProfile(p.uid)), level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm, afLeft: ((a) => (a < 0 ? -1 : Math.ceil(a / 10000) * 10000))(afLeftMs(p)), // с точностью до 10 с — статы не шлются каждую секунду; −1 — без лимита
     gold: getProfile(p.uid).gold, gems: getProfile(p.uid).gems || 0, frame: (p.look && p.look.fr) || null, unlocked: p.unlocked, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
@@ -2293,7 +2293,8 @@ setInterval(() => {
     if (p.dirty && now - p.lastStats >= 250) {
       p.dirty = false;
       p.lastStats = now;
-      p.socket.emit('stats', privateStats(p));
+      const st = privateStats(p), js = JSON.stringify(st);
+      if (js !== p.lastStatsJs) { p.lastStatsJs = js; p.socket.emit('stats', st); } // без изменений — не шлём
     }
   }
 
@@ -2351,6 +2352,10 @@ setInterval(() => {
     fx = [];
     return;
   }
+  // Полное состояние — 5 раз в секунду (было 10): между ними лёгкие кадры (позиции, здоровье, эффекты) 10 раз в секунду.
+  // В такт без отправки эффекты копятся и уйдут со следующим кадром. Меньше трафика — модем телефона чаще «отдыхает»
+  if (tickNo % 4 === 2) return;
+  const fullNo = tickNo >> 2, refreshStatic = fullNo % 10 === 0; // раз в 2 с — постоянные данные монстров всем заново
   for (const Z of byZone.values()) {
   const state = {
     p: Z.p.map((pl) => { const o = slimPlayer(publicPlayer(pl)); o.hp = Math.ceil(o.hp); return o; }),
@@ -2371,7 +2376,7 @@ setInterval(() => {
   const important = Z.fx.filter((f) => FX_KEEP.has(f.t));
   // Монстры: полные данные — только рядом с героем (экран и запас), дальние — точками для мини-карты раз в 3 тика.
   // В данже из ~65 монстров на экране обычно 3–5: пакет в разы меньше, телефону меньше разбирать
-  const allM = state.m, mmTick = (tickNo >> 1) % 3 === 0; // мини-карта — раз в 3 полных кадра
+  const allM = state.m, mmTick = fullNo % 2 === 0; // мини-карта — 2–3 раза в секунду
   for (const p of Z.p) {
     if (p.offline) continue;
     const tr = p.socket.conn && p.socket.conn.transport;
@@ -2390,7 +2395,18 @@ setInterval(() => {
         else if (far) far.push([m.x >> 3, m.y >> 3, m.rk === 'boss' || m.rk === 'mini' ? 1 : 0]);
       }
     }
-    const out = { ...state, m: near };
+    // Постоянные данные монстра (тип, мир, уровень, ранг, имя, размер, облик) — только если в прошлом полном кадре
+    // этому игроку его не было (появился, вернулся в обзор, новая зона) и раз в 2 с; иначе только меняющееся
+    const prevSeen = p.seenM || EMPTY_SET, seen = new Set();
+    const mOut = near.map((m) => {
+      seen.add(m.id);
+      if (m.pv || refreshStatic || !prevSeen.has(m.id)) return m;
+      const o = {};
+      for (const k in m) if (!M_STATIC.has(k)) o[k] = m[k];
+      return o;
+    });
+    p.seenM = seen;
+    const out = { ...state, m: mOut };
     if (far) out.mm = far;
     if (p.pendFx) { out.fx = p.pendFx.concat(state.fx); p.pendFx = null; }
     p.socket.volatile.emit('state', out);
@@ -2408,6 +2424,7 @@ const FX_KEEP = new Set(['death', 'chest', 'loot', 'levelup', 'pdeath', 'skill',
 const FX_NEAR = new Set(['skill', 'heal', 'shield', 'absorb', 'dodge']);
 // Пустые флаги состояния монстров не отправляем: пакет в разы меньше — на медленной связи не копится очередь
 const SLIM_KEEP = new Set(['x', 'y', 'hp', 'maxHp', 'lv', 'tr']);
+const M_STATIC = new Set(['type', 'tr', 'lv', 'rk', 'nm', 'sz', 'hs']), EMPTY_SET = new Set();
 function slim(o) { for (const k in o) if ((o[k] === 0 || o[k] === null || o[k] === undefined) && !SLIM_KEEP.has(k)) delete o[k]; return o; }
 // Между тиками — только позиции героев (лёгкий пакет): чужие герои на экране двигаются плавно и без отставания
 if (C.TICK_MS >= 100) setTimeout(() => setInterval(() => { // при 20 тиках позиции идут в лёгком кадре — отдельный пакет не нужен
