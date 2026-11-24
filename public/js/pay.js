@@ -116,7 +116,20 @@ window.Pay = (() => {
     });
   }
 
+  // ЗБТ (админка → Настройки → «Режим ЗБТ»): перед каждой покупкой — предупреждение о тестовом периоде и возврате
+  const tr = (x) => (window.I18N ? I18N.tr(x) : x);
+  function zbtOk() {
+    const L = window.GameLinks || {};
+    if (!L.zbt) return Promise.resolve(true);
+    const text = tr('Идёт ЗБТ (закрытый бета-тест). Примерно через неделю будет вайп — обнуление прогресса. Все покупки до вайпа вернём: Stars — в Telegram, GRAM — на кошелёк в игре. Купленное сотрётся вместе с прогрессом. Продолжить покупку?');
+    const W = window.Telegram && window.Telegram.WebApp;
+    return new Promise((res) => {
+      if (W && W.showConfirm) { try { W.showConfirm(text, (ok) => res(!!ok)); return; } catch { /* старый Telegram */ } }
+      res(window.confirm(text));
+    });
+  }
   async function buy(item, { bgId, onPaid, toast = (t) => (window.Town ? Town.toast(t) : alert(t)) } = {}) {
+    if (!(await zbtOk())) return;
     const ti = await tonInfo();
     if (!ti.enabled) return payStars(item, bgId, onPaid, toast);
     const q = await api('/api/ton/quote', { item, bgId });

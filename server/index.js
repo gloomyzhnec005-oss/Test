@@ -336,7 +336,7 @@ function onlineInfo() {
   }
   return { total, dg, wb, town, showTotal: total >= (S.onlineMin ?? 20) };
 }
-const launchInfo = () => ({ links: { channel: S.channel || '', chat: S.chat || '', partners: S.partners || [] }, openAt: S.openAt > Date.now() ? S.openAt : 0, brk: S.brk && S.brk.at + S.brk.min * 60e3 > Date.now() ? { at: S.brk.at, min: S.brk.min } : null, maint: !!S.maintenance, now: Date.now() });
+const launchInfo = () => ({ links: { channel: S.channel || '', chat: S.chat || '', partners: S.partners || [], zbt: !!S.zbt }, openAt: S.openAt > Date.now() ? S.openAt : 0, brk: S.brk && S.brk.at + S.brk.min * 60e3 > Date.now() ? { at: S.brk.at, min: S.brk.min } : null, maint: !!S.maintenance, now: Date.now() });
 app.get('/api/status', (req, res) => res.json({ online: onlineInfo(), ...launchInfo() }));
 // «Напомнить об открытии» — бот напишет в момент открытия
 app.post('/api/remind', (req, res) => {
@@ -379,7 +379,7 @@ setInterval(() => {
   const b = S.brk;
   if (b) {
     const left = b.at - now, end = b.at + b.min * 60e3;
-    for (const m of [30, 15, 5, 1]) if (left <= m * 60e3 && left > 0 && !(b.warned || []).includes(m)) {
+    for (const m of [60, 30, 15, 5, 1]) if (left <= m * 60e3 && left > 0 && !(b.warned || []).includes(m)) {
       (b.warned ??= []).push(m);
       io.emit('chat', { sys: true, text: `🔧 Через ${m} мин (в ${fmtHM(b.at)} МСК) — технический перерыв на ${b.min} мин. Закончите бой и выйдите в город.` });
       io.emit('brk', launchInfo().brk);
@@ -2511,20 +2511,32 @@ admin.setWipe((keep) => {
     o.socket.emit('kicked', 'Игровой мир обновлён — войдите заново');
     clearTimeout(o.graceTimer); removePlayerG(o); try { o.socket.disconnect(true); } catch {}
   }
-  let nP = 0, nC = 0;
+  let nP = 0, nC = 0, nG = 0;
+  // Деньги игроков не обнуляются: сначала снимаем заявки на покупку (GRAM — на балансы), раздаём казну владык
+  // участникам кланов, затем при удалении профиля переносим GRAM-кошелёк (балансы, адрес, журнал, итоги) и историю оплат
+  const lots = Trade.wipe(keep);
+  for (const c of Object.values(clans)) if (c.reignPool > 0 && (c.members || []).length) {
+    const each = Math.floor(c.reignPool / c.members.length);
+    for (const u of c.members) Trade.grant(u, each, 'reign', `Казна владык [${c.tag}]: выплата перед обнулением игры`);
+    c.reignPool = 0;
+  }
   for (const uid of Object.keys(profiles)) if (!keep.has(uid)) {
-    const remind = profiles[uid].remindOpen;
+    const old = profiles[uid], remind = old.remindOpen, gram = old.gram, pays = old.payments;
+    const lvl = Math.max(old.wdLevel || 0, ...Object.values(old.chars || {}).map((c) => c.level || 0));
     delete profiles[uid]; nP++;
-    if (remind) getProfile(uid).remindOpen = true; // подписку «Напомнить об открытии» сохраняем — это не прогресс
+    const np = (remind || gram || pays) ? getProfile(uid) : null;
+    if (remind) np.remindOpen = true; // подписку «Напомнить об открытии» сохраняем — это не прогресс
+    // GRAM-кошелёк; дата регистрации и достигнутый уровень — чтобы условия вывода (30 ур., 7 дней) не «сбросились» вайпом
+    if (gram) { np.gram = gram; np.created = old.created || np.created; if (lvl >= 30) np.wdLevel = lvl; nG++; }
+    if (pays) np.payments = pays; // для возвратов и проверки оплат после обнуления
   }
   for (const [id, c] of Object.entries(clans)) {
     c.members = c.members.filter((u) => keep.has(u));
     if (!c.members.length) { delete clans[id]; nC++; continue; }
     if (!keep.has(c.leader)) c.leader = c.members[0];
   }
-  const lots = Trade.wipe(keep);
   saveProfiles(); saveClans(); Ranks.reset();
-  return { players: nP, clans: nC, lots };
+  return { players: nP, clans: nC, lots, gram: nG };
 });
 
 if (!store.db) process.on('SIGINT', () => { saveProfiles(); process.exit(0); });

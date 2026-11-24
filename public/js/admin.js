@@ -555,6 +555,8 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       <div class="card"><h3>🎛 Режимы</h3>
         <label class="switch"><input id="sFree" type="checkbox" ${s.freeSpins ? 'checked' : ''}> Бесплатные крутки героев для всех</label>
         <label class="switch"><input id="sMaint" type="checkbox" ${s.maintenance ? 'checked' : ''}> Технические работы (вход только тестерам)</label></div>
+      <div class="card"><h3>🧪 Режим ЗБТ</h3><p class="muted">Включён — перед каждой покупкой (Stars и GRAM, в игре и в лобби) игрок видит предупреждение: идёт ЗБТ, будет вайп, покупки до вайпа вернём. Сохраняется кнопкой «Сохранить настройки» внизу.</p>
+        <div class="row"><label><input type="checkbox" id="sZbt" ${s.zbt ? 'checked' : ''}> Предупреждать о ЗБТ перед покупкой</label></div></div>
       <div class="card"><h3>📨 Рассылка от бота</h3><p class="muted">Личное сообщение от бота всем игрокам Telegram (кто открывал игру, в том числе по реферальным ссылкам) и всем, кто нажимал /start в боте, — даже не нажимавшим «Напомнить». Кроме отключивших уведомления. Под сообщением — кнопка «⚔️ Играть». Не дойдёт тем, кто не разрешал боту писать (не нажимал /start и снял галочку при входе в игру). Сначала отправьте себе — проверить текст.</p>
         <textarea id="botcastText" class="wide" rows="4" placeholder="⏰ Уже сегодня в 21:00 по Москве — открытие Mystic Horizon! …"></textarea>
         <div class="row"><button class="btn" id="botcastTest">Сначала себе</button><button class="btn primary" id="botcastAll">Разослать всем</button></div>
@@ -565,8 +567,8 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
         <div class="row"><label class="grow">Показывать общий онлайн, когда игроков не меньше</label><input id="sOnMin" type="number" min="0" value="${s.onlineMin ?? 20}"></div>
         <p class="muted">Меньше — в лобби и городе пишется, сколько героев в данжах и у мирового босса (это тоже правда, но звучит живее).</p></div>
       <div class="card"><h3>🔧 Технический перерыв</h3>
-        ${s.brk ? `<p>Запланирован: <b>${new Date(s.brk.at).toLocaleString('ru-RU')}</b> на ${s.brk.min} мин</p>` : '<p class="muted">Игроки получат предупреждения в чат за 30, 15, 5 и 1 минуту и плашку в игре; в начале перерыва все, кроме тестеров, выйдут; по окончании вход откроется сам.</p>'}
-        <div class="row"><label>Через (мин)</label><input id="sBrkIn" type="number" min="1" value="30"><label>длительность (мин)</label><input id="sBrkLen" type="number" min="1" value="15"></div>
+        ${s.brk ? `<p>Запланирован: <b>${new Date(s.brk.at).toLocaleString('ru-RU')}</b> на ${s.brk.min} мин</p>` : '<p class="muted">Игроки сразу увидят плашку в игре и получат предупреждения в чат за 60, 30, 15, 5 и 1 минуту; в начале перерыва все, кроме тестеров, выйдут; по окончании вход откроется сам.</p>'}
+        <div class="row"><label>В (МСК)</label><input id="sBrkAt" type="time" value="00:00"><label>или через (мин)</label><input id="sBrkIn" type="number" min="1" placeholder="—"><label>длительность (мин)</label><input id="sBrkLen" type="number" min="1" value="30"></div>
         <div class="row"><button class="btn primary" id="sBrkSet">Объявить перерыв</button>${s.brk ? '<button class="btn danger" id="sBrkOff">Отменить</button>' : ''}</div></div>
       <div class="card"><h3>📢 Канал и чат игры</h3><p class="muted">Ссылка вида @имя или t.me/имя. Когда заполнено — в игре (меню «Игра» и лобби) и в боте (/start) появятся кнопки. Пусто — кнопок нет.</p>
         <div class="row"><label>Канал</label><input id="sChannel" class="wide" placeholder="@mystichorizon_game" value="${esc(s.channel || '')}"></div>
@@ -584,13 +586,13 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       <div class="card"><h3>💬 Сообщение при входе</h3>
         <div class="row"><input id="sMotd" class="wide" placeholder="Показывается каждому игроку при входе в мир" value="${esc(s.motd)}"></div></div>
       <div class="card"><h3>🧹 Обнуление перед стартом</h3>
-        <p class="muted">Удаляет всех игроков, кроме указанных: прогресс, предметы, GRAM-балансы, лоты Торгового дома, кланы. Перед удалением автоматически сохраняется снимок базы (Обзор → Снимки), из него можно восстановить. Игроки начнут заново при следующем входе.</p>
+        <p class="muted">Удаляет всех игроков, кроме указанных: прогресс, предметы, лоты Торгового дома, кланы. <b>GRAM не трогает</b>: балансы, заявки на вывод и журнал сохраняются, замороженное в заявках на покупку возвращается на балансы, казна владык раздаётся участникам; право на вывод (30 ур., 7 дней) сохраняется. Перед удалением автоматически сохраняется снимок базы (Обзор → Снимки), из него можно восстановить. Игроки начнут заново при следующем входе.</p>
         <div class="row"><label>Оставить</label><input id="sWipeKeep" class="wide" placeholder="tg80769030 (через запятую)"></div>
         <div class="row"><button class="btn danger" id="sWipe">Обнулить всех, кроме указанных</button></div></div>
       <div class="row"><button id="sSave" class="btn primary">Сохранить настройки</button><button id="sDisk" class="btn">Записать данные игроков на диск</button></div>`;
     $('sSave').onclick = async () => {
       if ($('sMaint').checked && !s.maintenance && !confirm('Включить техработы? Все игроки, кроме тестеров, будут отключены.')) return;
-      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value, partners: $('sPartners').value, spChannel: $('sSpChannel').value, spChat: $('sSpChat').value, special: $('sSpecial').value } });
+      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value, partners: $('sPartners').value, zbt: $('sZbt').checked, spChannel: $('sSpChannel').value, spChat: $('sSpChat').value, special: $('sSpecial').value } });
       drawSettings();
     };
     $('sDisk').onclick = () => api('save');
@@ -607,7 +609,21 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
     $('sOpenSet').onclick = async () => { const v = $('sOpen').value; if (!v) return toast('Выберите дату и время', true); const t = Date.parse(v + ':00+03:00'); if (!t) return toast('Неверная дата', true); if (!confirm(`Открытие: ${new Date(t).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} по Москве. Верно?`)) return; await api('settings', { set: { openAt: t } }); drawSettings(); };
     $('sOpenNow').onclick = async () => { if (!confirm('Открыть игру сейчас для всех?')) return; await api('settings', { set: { openAt: Date.now() } }); drawSettings(); };
     $('sOnMin').onchange = () => api('settings', { set: { onlineMin: $('sOnMin').value } });
-    $('sBrkSet').onclick = async () => { const inMin = Number($('sBrkIn').value) || 30, len = Number($('sBrkLen').value) || 15; if (!confirm(`Перерыв через ${inMin} мин на ${len} мин?`)) return; await api('settings', { set: { brk: { at: Date.now() + inMin * 60000, min: len } } }); drawSettings(); };
+    $('sBrkSet').onclick = async () => {
+      // Время МСК (ближайшее такое: «00:00» вечером — это ближайшая полночь) или «через N минут», если заполнено
+      const len = Number($('sBrkLen').value) || 30, inMin = Number($('sBrkIn').value) || 0;
+      let at;
+      if (inMin > 0) at = Date.now() + inMin * 60000;
+      else {
+        const [h, mi] = String($('sBrkAt').value || '').split(':').map(Number);
+        if (!(h >= 0) || !(mi >= 0)) return toast('Укажите время или минуты', true);
+        const msk = new Date(Date.now() + 3 * 36e5); at = Date.UTC(msk.getUTCFullYear(), msk.getUTCMonth(), msk.getUTCDate(), h, mi) - 3 * 36e5;
+        if (at <= Date.now()) at += 864e5;
+      }
+      const when = new Date(at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+      if (!confirm(`Перерыв ${when} МСК на ${len} мин? Игроки сразу увидят плашку, в чате — предупреждения за 60, 30, 15, 5 и 1 минуту.`)) return;
+      await api('settings', { set: { brk: { at, min: len } } }); drawSettings();
+    };
     if ($('sBrkOff')) $('sBrkOff').onclick = async () => { await api('settings', { set: { brk: null } }); drawSettings(); };
   }
 
