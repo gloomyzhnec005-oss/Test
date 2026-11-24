@@ -1220,6 +1220,7 @@ function damageMonster(p, m, raw, opt = {}) {
   let crit = opt.crit ?? false;
   const ps = passiveOf(p);
   const now0 = Date.now();
+  m.hurtAt = now0; // в бою: восстановление «вне боя» — только через 6 с без урона
   // Бонус против конкретной цели (пассивки) и пробитая защита монстра (Кира)
   const tMult = D.overDmg(p, m) * (ps && ps.targetMult ? pasScale(p, ps.targetMult(p, m)) : 1) * (m.brokenUntil > now0 ? 1.25 : 1)
     * (m.curseUntil > now0 ? 1 + (m.curseAmp || 0.2) : 1) // проклятие Гидеона
@@ -2242,7 +2243,7 @@ setInterval(() => {
         if (hd > 120 && !m.goingHome) { m.goingHome = true; m.homeSince = now; }
         if (m.goingHome) {
           if (now - m.homeSince > 8000) { m.x = m.homeX; m.y = m.homeY; } // застрял за стеной — вернулся сам
-          if (Math.hypot(m.homeX - m.x, m.homeY - m.y) < 30) { m.goingHome = false; m.hp = m.maxHp; }
+          if (Math.hypot(m.homeX - m.x, m.homeY - m.y) < 30) { m.goingHome = false; if (now - (m.hurtAt || 0) > 6000) m.hp = m.maxHp; }
           else { moveEntity(m, (hx / hd) * mspeed * dt, (hy / hd) * mspeed * dt); continue; }
         }
       }
@@ -2260,7 +2261,9 @@ setInterval(() => {
           moveEntity(m, (dx / d) * s, (dy / d) * s);
         }
       }
-      if (m.hp < m.maxHp) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.05 * dt);
+      // Вне боя восстанавливается — только если 6 с никто не бил (раньше босс лечился 5%/с, пока Зефира на секунду
+      // взлетала «Драконьими крыльями» и он терял цель); боссы, полубоссы и мировые — 1%/с
+      if (m.hp < m.maxHp && now - (m.hurtAt || 0) > 6000) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * (m.boss || m.mini ? 0.01 : 0.05) * dt);
     }
   }
 
