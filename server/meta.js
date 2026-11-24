@@ -182,6 +182,8 @@ module.exports = function createMeta(deps) {
   const put = (pr, item) => I.addItem(pr, item, bagSize(pr), false); // покупка: предмет как есть
   const grantMsg = (res) => (res.dupe ? `Дубликат! ${I.itemView(res.item).name} усилен` : `Получено: ${I.itemView(res.item).name}`);
   const matName = (id, n) => `${I.MATS[id].icon} ${I.MATS[id].name}${n > 1 ? ` ×${n}` : ''}`;
+  // Подпись награды пропуска с материалами (свитки, руда, сердца — для мира игрока); у остальных наград подпись строит клиент
+  const rwT = (r, tier) => (r.mats ? { ...r, t: Object.entries(r.mats).map(([k, n]) => matName(matKey(k, tier), n)).join(', ') } : r);
   // Ключи 'ore' / 'ess' / 'core' в наградах — материал мира tier
   const matKey = (k, tier) => (['ore', 'ess', 'core'].includes(k) ? `${k}${tier}` : k);
   // Цена материала в лавке мира tier (у материалов мира цена своя, свитки и зелья дорожают по миру лавки)
@@ -856,7 +858,7 @@ module.exports = function createMeta(deps) {
       const ps = passOf(pr);
       const paid = ps.tier ? SHOP.passTiers[ps.tier - 1].price : 0;
       return { pass: { ...ps, premium: ps.tier >= 1, level: Math.floor(ps.xp / SHOP.pass.xpPerLevel), xpPerLevel: SHOP.pass.xpPerLevel,
-        ends: (passSeason() + 1) * SHOP.pass.days * DAY, rewards: PASS_REWARDS,
+        ends: (passSeason() + 1) * SHOP.pass.days * DAY, rewards: PASS_REWARDS.map((r) => ({ ...r, free: rwT(r.free, tierOf(p)), prem: rwT(r.prem, tierOf(p)) })),
         freeOrder: SHOP.passFree, tiers: SHOP.passTiers.map((t) => { const deal = passDeal(pr, t.tier); return { ...t, cost: deal ? deal.stars : Math.max(0, t.price - paid), deal: !!deal, owned: ps.tier >= t.tier }; }) } };
     },
     passClaim(p, d, pr) {

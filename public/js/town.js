@@ -514,7 +514,7 @@ window.Town = (() => {
   }
 
   // ---------- Батл-пасс ----------
-  const rwText = (r) => (r.gold ? `💰 ${r.gold}` : r.gems ? `💎 ${r.gems}` : r.heroSpins ? `🔮 печать призыва ×${r.heroSpins}` : r.itemSpins ? `🎁 печать снаряжения ×${r.itemSpins}` : r.item ? `🎁 ${{ rare: 'редкий', epic: 'эпический', legendary: 'легендарный', mythic: 'мифический' }[r.item]} предмет` : '');
+  const rwText = (r) => (r.t ? r.t : r.gold ? `💰 ${r.gold}` : r.gems ? `💎 ${r.gems}` : r.heroSpins ? `🔮 печать призыва ×${r.heroSpins}` : r.itemSpins ? `🎁 печать снаряжения ×${r.itemSpins}` : r.item ? `🎁 ${{ rare: 'редкий', epic: 'эпический', legendary: 'легендарный', mythic: 'мифический' }[r.item]} предмет` : '');
   async function passPanel() {
     const { pass: ps } = await Bag.act('pass');
     const cur = ps.tiers.find((t) => t.tier === ps.tier);

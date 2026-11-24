@@ -141,7 +141,7 @@ function profileView(who) {
   }
   const bgs = C.LOBBY_BACKGROUNDS.filter((b) => b.price === 0 || pr.bgs.includes(b.id)).map((b) => b.id);
   return {
-    name: who.name, uid: who.uid, tgId: who.tg ? who.uid.slice(2) : null, heroes: pr.heroes, chars, bgs,
+    name: pr.nick || who.name, nick: pr.nick || null, nickAt: pr.nickAt || 0, uid: who.uid, tgId: who.tg ? who.uid.slice(2) : null, heroes: pr.heroes, chars, bgs,
     isAdmin: !!who.tg && admin.isAdminUid(who.uid),
     freeSpin: !pr.freeSpinUsed || FREE_SPINS || S.freeSpins, paidSpins: pr.paidSpins, spinPrice: C.GACHA.spinPrice, gold: pr.gold, dupeMax: C.GACHA.heroDupeMax,
     wish: Wish.view(pr), spin10Price: C.GACHA.spin10Price,
@@ -266,6 +266,32 @@ app.post('/api/profile', (req, res) => {
   if (who.tg) noteVisitor(who.uid, initData, req.body.plat);
   const ban = getProfile(who.uid).banned;
   if (ban) return res.status(403).json({ error: `Вы заблокированы: ${ban.reason}` });
+  res.json(profileView(who));
+});
+
+// Свой ник для игроков Telegram (по умолчанию — имя из Telegram). 3–16 символов, уникальный, менять — раз в сутки.
+const NICK_CD = 24 * 3600e3;
+app.post('/api/nick', (req, res) => {
+  const { initData, nick } = req.body || {};
+  const who = resolveUid(initData, null);
+  if (!who || !who.tg) return res.status(403).json({ error: 'Откройте игру через Telegram-бота' });
+  const pr = getProfile(who.uid);
+  if (pr.banned) return res.status(403).json({ error: 'Аккаунт заблокирован' });
+  const v = cleanName(nick).replace(/\s+/g, ' ').slice(0, 16);
+  if (v.length < 3) return res.status(400).json({ error: 'Ник — от 3 до 16 символов' });
+  if (!/^[\p{L}\p{N} _.\-]+$/u.test(v)) return res.status(400).json({ error: 'Только буквы, цифры, пробел, _ . -' });
+  if (v === pr.nick) return res.json(profileView(who));
+  if (pr.nickAt && Date.now() - pr.nickAt < NICK_CD) {
+    const h = Math.ceil((NICK_CD - (Date.now() - pr.nickAt)) / 3600e3);
+    return res.status(400).json({ error: `Сменить ник можно через ${h} ч` });
+  }
+  const low = v.toLowerCase();
+  for (const [uid, x] of Object.entries(profiles)) {
+    if (uid !== who.uid && x && (String(x.nick || '').toLowerCase() === low || String(x.name || '').toLowerCase() === low)) return res.status(400).json({ error: 'Этот ник уже занят' });
+  }
+  pr.nick = v; pr.nickAt = Date.now(); pr.name = v;
+  for (const o of players.values()) if (o.uid === who.uid) { o.name = v; o.lastStats = 0; markDirty(o); }
+  saveProfiles();
   res.json(profileView(who));
 });
 
@@ -1824,7 +1850,7 @@ io.on('connection', (socket) => {
       }
       I.addMat(prj, 'potHp', 10);
     }
-    const name = (who.tg ? cleanName(who.name) : cleanName(data.guestName).slice(0, 16)) || (who.tg ? 'Герой' : 'Гость');
+    const name = (who.tg ? cleanName(getProfile(uid).nick || who.name) : cleanName(data.guestName).slice(0, 16)) || (who.tg ? 'Герой' : 'Гость');
     const char = getChar(uid, heroId);
     const p = {
       id: socket.id, uid, name: name.slice(0, 20), heroId, hero, char, socket,
