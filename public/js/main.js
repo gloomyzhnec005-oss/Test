@@ -97,10 +97,10 @@
   const chOf = (msg) => (msg.ch && msg.ch !== 'talk' ? msg.ch : msg.sys ? 'sys' : 'talk');
   // Фильтр чата «События»: что показывать (выбор хранится на телефоне). Объявления админа и перерывы видны всегда
   const EV_CATS = [
-    ['myth', '🔴 Мифические вещи'], ['leg', '🟠 Легендарные вещи'], ['hero', '🌟 Редкие герои'], ['boss', '👹 Боссы'],
-    ['loot', '🎒 Моя добыча'], ['level', '⬆️ Уровни'], ['join', '🚪 Вход и выход'], ['other', '📜 Прочее'],
+    ['myth', '🔴 Мифические вещи'], ['hero', '🌟 Мифические герои'], ['boss', '👹 Боссы'],
+    ['level', '⬆️ Уровни 30, 40, 50…'], ['loot', '🎒 Моя добыча'], ['other', '📜 Прочее'],
   ];
-  const EV_OFF_DEF = ['join'];
+  const EV_OFF_DEF = ['loot']; // своя добыча — по желанию
   let evOff;
   try { evOff = new Set(JSON.parse(localStorage.getItem('evOff') || 'null') || EV_OFF_DEF); } catch { evOff = new Set(EV_OFF_DEF); }
   function evCat(msg) {
@@ -152,7 +152,10 @@
     const row = chatLine(msg, true);
     row.classList.toggle('hidden', row.dataset.ch !== chatTab || !!row.dataset.evoff);
     chatList.appendChild(row);
-    while (chatList.children.length > 150) chatList.removeChild(chatList.firstChild);
+    // Лимит — на каждую вкладку отдельно: болтовня в «Все» не вытесняет «События» (их можно листать вверх)
+    const grp = (r) => r.dataset.ch + ((r.dataset.ev || r.dataset.evoff) === 'loot' ? ':loot' : ''); // своя добыча — свой лимит
+    const g = grp(row), same = [...chatList.children].filter((r) => grp(r) === g);
+    for (let i = 0; i < same.length - 200; i++) same[i].remove();
     if (atBottom || row.classList.contains('mine')) chatList.scrollTop = chatList.scrollHeight;
     if (quiet || (chatOpen() && chatTab === row.dataset.ch)) return;
     if (!msg.sys) { unread++; $('chatBadge').textContent = unread > 9 ? '9+' : unread; $('chatBadge').classList.remove('hidden'); markTab(row.dataset.ch); }

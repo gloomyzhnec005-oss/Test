@@ -104,7 +104,7 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
 app.use('/vendor/phaser.min.js', (req, res) =>
   res.sendFile(path.join(__dirname, '..', 'node_modules', 'phaser', 'dist', 'phaser.min.js'), { headers: { 'Cache-Control': ASSET_CACHE } }));
 // Админ-панель (server/admin.js): свой разбор JSON с большим лимитом, поэтому подключается раньше общего
-const admin = createAdmin({
+const admin = createAdmin({ evCast: (m) => evCast(m),
   C, I, MOBX, verifyInitData, store, version: () => VERSION,
   get players() { return players; }, get monsters() { return monsters; }, get world() { return world; },
   get D() { return D; }, get meta() { return meta; }, get io() { return io; }, profiles: null,
@@ -308,11 +308,11 @@ app.post('/api/gacha/spin', (req, res) => {
   const r = Econ.measure('heroSummon', pr, () => Wish.pull(who.uid, pr, banner, n, FREE_SPINS || S.freeSpins));
   if (r.error) return res.status(402).json(r);
   for (const x of r.results) Econ.item(x.rar, 'hero');
-  // Чат «События»: новый мифический или легендарный герой из призыва (повторы не объявляем)
+  // «События»: новый мифический герой из призыва (повторы не объявляем)
   const nm = cleanName(pr.nick || pr.name || who.name) || 'Герой';
-  for (const x of r.results) if (x.isNew && (x.rar === 'mythic' || x.rar === 'legendary')) {
+  for (const x of r.results) if (x.isNew && x.rar === 'mythic') {
     const h = C.HEROES[x.hero];
-    if (h) io.emit('chat', { sys: true, ev: 'hero', text: x.rar === 'mythic' ? `🌟 ${nm} призвал мифического героя: ${h.name}!` : `⭐ ${nm} призвал легендарного героя: ${h.name}!` });
+    if (h) evCast({ ev: 'hero', text: `🌟 ${nm} призвал мифического героя: ${h.name}!` });
   }
   saveProfiles();
   const one = r.results[0];
@@ -387,7 +387,7 @@ setInterval(() => {
   // Открытие: в момент openAt — объявление и сообщение от бота всем, кто нажал «Напомнить»
   if (S.openAt && !launchFired && now >= S.openAt) {
     launchFired = true;
-    io.emit('chat', { sys: true, text: '🎉 Mystic Horizon открыт! Добро пожаловать, герои!' });
+    evCast({ text: '🎉 Mystic Horizon открыт! Добро пожаловать, герои!' });
     // Сообщение от бота — всем игрокам Telegram, кому ещё не писали об ЭТОМ открытии (pr.openMsg), кроме отключивших
     // уведомления: и нажавшим «Напомнить», и всем, кто заходил до открытия. Кто получил сообщение о раннем (ошибочном)
     // открытии — получит и это. Отправка с паузой 50 мс (лимит Telegram ~30 сообщений в секунду)
@@ -413,7 +413,7 @@ setInterval(() => {
     const left = b.at - now, end = b.at + b.min * 60e3;
     for (const m of [60, 30, 15, 5, 1]) if (left <= m * 60e3 && left > 0 && !(b.warned || []).includes(m)) {
       (b.warned ??= []).push(m);
-      io.emit('chat', { sys: true, text: `🔧 Через ${m} мин (в ${fmtHM(b.at)} МСК) — технический перерыв на ${b.min} мин. Закончите бой и выйдите в город.` });
+      evCast({ text: `🔧 Через ${m} мин (в ${fmtHM(b.at)} МСК) — технический перерыв на ${b.min} мин. Закончите бой и выйдите в город.` });
       io.emit('brk', launchInfo().brk);
     }
     if (now >= b.at && now < end && !S.maintenance) {
@@ -649,6 +649,16 @@ const GRACE_MS = 2 * 60000; // столько герой ждёт в мире п
 const world = buildWorld(); // города и охотничьи земли за порталами (server/world.js)
 const players = new Map(); // socket.id -> player
 // Последние сообщения общего чата — сохраняются в базу, после обновления игры (перезапуска сервера) не пропадают
+// Лента «Событий» — только редкое (мифические находки и герои, боссы, войны, техперерывы). Отдельная история,
+// чтобы сообщения игроков её не вытесняли; приходит при входе вместе с чатом
+const evHistory = (() => { try { const a = store.readJSON('events.json', []); return Array.isArray(a) ? a.slice(-80) : []; } catch { return []; } })();
+let evSaveTm = null;
+function evCast(msg) {
+  const m = { sys: true, ...msg, t: Date.now() };
+  evHistory.push(m); if (evHistory.length > 80) evHistory.shift();
+  clearTimeout(evSaveTm); evSaveTm = setTimeout(() => { try { store.writeJSON('events.json', evHistory); } catch (e) { console.error('events save', e.message); } }, 3000);
+  io.emit('chat', m);
+}
 const chatHistory = (() => { try { const a = store.readJSON('chat.json', []); return Array.isArray(a) ? a.slice(-60) : []; } catch { return []; } })();
 let chatSaveTm = null;
 const chatSave = () => { clearTimeout(chatSaveTm); chatSaveTm = setTimeout(() => { try { store.writeJSON('chat.json', chatHistory); } catch (e) { console.error('chat save', e.message); } }, 3000); };
@@ -704,7 +714,7 @@ const Trade = require('./trade')({
   I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
   bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
   rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), quest: (...a) => Q.track(...a), onHouse: (uid, amount, house) => refHouse(uid, amount, house),
-  liab: () => Object.values(clans).reduce((x, c) => x + (c.reignPool || 0), 0) + (Arena && Arena.glOwed ? Arena.glOwed() : 0), // казна владык и взносы лиги — ещё не выплачены broadcast: (t) => io.emit('chat', { sys: true, text: t }), alertAdmins: (t, loud) => adminAlert(t, loud),
+  liab: () => Object.values(clans).reduce((x, c) => x + (c.reignPool || 0), 0) + (Arena && Arena.glOwed ? Arena.glOwed() : 0), // казна владык и взносы лиги — ещё не выплачены broadcast: (t) => evCast({ text: t }), alertAdmins: (t, loud) => adminAlert(t, loud),
   // Торговые ордена — ступени сезонных орденов после Чемпиона: цена — доплата до них с учётом купленного
   passTier: (pr) => meta.passTier(pr), passEnds: () => (Math.floor(Date.now() / (meta.SHOP.pass.days * 864e5)) + 1) * meta.SHOP.pass.days * 864e5,
   passOrders: (pr) => { const cur = meta.passTier(pr), paid = cur ? meta.SHOP.passTiers[cur - 1].price : 0;
@@ -734,7 +744,7 @@ const D = createDungeons({
   rollItem: (...a) => I.rollItem(...a), createBag: (...a) => I.createBag(...a),
   corpses: () => corpses,
   removeCorpse: (c) => { corpses = corpses.filter((x) => x !== c); },
-  broadcast: (text) => io.emit('chat', { sys: true, text }),
+  broadcast: (text) => evCast({ text }),
   // Отбрасывание героя (таран, воздушный удар)
   knockPlayer(p, dx, dy, distPx) {
     const l = Math.hypot(dx, dy) || 1;
@@ -762,7 +772,7 @@ const Arena = require('./arena')({
   moveToZone: (...a) => moveToZone(...a), getProfile: (uid) => getProfile(uid), partyMembers: (p) => partyMembers(p),
   revive: (p) => revivePlayer(p), addPassXp: (pr, n) => meta.addPassXp(pr, n), quest: (...a) => Q.track(...a),
   statsFor: (...a) => statsFor(...a), profiles: () => profiles, markDirty: (p) => markDirty(p),
-  store, notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => io.emit('chat', { sys: true, text: t }), save: () => saveProfiles(),
+  store, notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => evCast({ text: t }), save: () => saveProfiles(),
   get gram() { return Trade; }, // GRAM-лига турнира: взносы и призы
 });
 // ---------- Кланы (data/clans.json): название, тег, глава, участники, история кланового чата ----------
@@ -818,7 +828,7 @@ setInterval(() => {
     best.reignUntil = (w + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - 3 * 36e5;
     best.reigns = (best.reigns || 0) + 1;
     for (const uid of best.members) { const pr = getProfile(uid); pr.gems = (pr.gems || 0) + 100; notifyUid(uid, `👑 Ваш клан [${best.tag}] победил в войне кланов! +100 💎 и +10% опыта и золота всю неделю`); }
-    io.emit('chat', { sys: true, text: `👑 Война кланов: победил клан [${best.tag}] ${best.name} (${best.war.pts} очков) — владыки недели!` });
+    evCast({ text: `👑 Война кланов: победил клан [${best.tag}] ${best.name} (${best.war.pts} очков) — владыки недели!` });
     saveClans(); saveProfiles();
   }
   try { store.writeJSON('clanwar.json', warState); } catch (e) { console.error('clanwar save', e.message); }
@@ -1073,7 +1083,7 @@ const Ranks = (() => {
     const prev = state.week; state.week = w;
     const rows = Object.entries(profiles).filter(([, pr]) => pr.wbWeek && pr.wbWeek.w === prev).sort((a, b) => b[1].wbWeek.dmg - a[1].wbWeek.dmg).slice(0, 3);
     rows.forEach(([uid, pr], i) => { pr.gems = (pr.gems || 0) + PRIZE[i]; notifyUid(uid, `🏆 Рейтинг недели «Мировые боссы»: ${i + 1} место! +${PRIZE[i]} 💎`); });
-    if (rows.length) io.emit('chat', { sys: true, text: `🏆 Итоги недели по мировым боссам: ${rows.map(([uid, pr], i) => `${['🥇', '🥈', '🥉'][i]} ${pr.name || 'Герой'}`).join(' · ')}` });
+    if (rows.length) evCast({ text: `🏆 Итоги недели по мировым боссам: ${rows.map(([uid, pr], i) => `${['🥇', '🥈', '🥉'][i]} ${pr.name || 'Герой'}`).join(' · ')}` });
     try { store.writeJSON('ranks.json', state); } catch (e) { console.error('ranks save', e.message); }
     saveProfiles(); cache = null;
   }, 60e3);
@@ -1387,7 +1397,6 @@ function damageMonster(p, m, raw, opt = {}) {
     safe('share', () => shareKill(p, m, xp));
     safe('loot', () => dropLoot(p, m));
     if (ps && ps.onKill) safe('passive', () => ps.onKill(skillCtx, p, Date.now(), m));
-    if (m.rank === 'boss') io.emit('chat', { sys: true, text: `${p.name} победил босса «${m.name || def.name}»!` });
     safe('onKilled', () => D.onKilled(m, p));
     const zt = (world.byId.get(m.zone) || {}).tier;
     Q.track(p.uid, 'kill', 1, { tier: zt, zone: m.zone });
@@ -1651,7 +1660,7 @@ function grantXp(p, amount, gold, shared = false) {
     if (p.pets) rescalePets(p);
     p.res = p.resMax;
     fx.push({ t: 'levelup', id: p.id, x: p.x, y: p.y, lvl: p.char.level });
-    io.emit('chat', { sys: true, text: `${p.name} (${p.hero.name}) достиг ${p.char.level} уровня!` });
+    if (p.char.level >= 30 && p.char.level % 10 === 0) evCast({ ev: 'level', text: `${p.name} (${p.hero.name}) достиг ${p.char.level} уровня!` }); // только вехи
     // Каждые 10 уровней героя — самоцветы (на один призыв)
     if (p.char.level % 10 === 0) { pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: `💎 ${p.hero.name} — ${p.char.level} уровень: +160 самоцветов` }); }
   }
@@ -1725,7 +1734,7 @@ function companionDrop(o, chance, rare = false) {
   const [id, c] = pool[Math.floor(Math.random() * pool.length)];
   C2.owned.push(id); if (!C2.active) { C2.active = id; o.cp = id; refreshPlayer(o); }
   o.socket.emit('chat', { sys: true, text: `🐾 Новый спутник: ${c.name}! Выбрать — «Герой» → «Спутники»` });
-  io.emit('chat', { sys: true, text: `🐾 ${o.name} нашёл спутника «${c.name}»!` });
+  evCast({ text: `🐾 ${o.name} нашёл спутника «${c.name}»!` });
   markDirty(o);
 }
 // Выдать стопку материалов: всплывающая надпись, в чат — только ценное (свитки, чертежи, редкие материалы)
@@ -1755,10 +1764,8 @@ function giveLoot(o, pr, item, at) {
   const v = I.itemView(res.item);
   if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}${res.dupe ? ' ⇧' : ''}`, color: v.color });
   o.socket.emit('chat', { sys: true, ev: 'loot', text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
-  // Чат «События»: всем — мифическая или легендарная находка
-  if (!res.dupe && (item.rar === 'mythic' || item.rar === 'legendary')) {
-    io.emit('chat', { sys: true, ev: item.rar === 'mythic' ? 'myth' : 'leg', text: item.rar === 'mythic' ? `🔴 ${o.name} добыл ${v.icon} ${v.name} · ${v.rarName}!` : `🟠 ${o.name} добыл ${v.icon} ${v.name} · ${v.rarName}!` });
-  }
+  // «События»: всем — только мифическая находка
+  if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', text: `🔴 ${o.name} добыл ${v.icon} ${v.name} · ${v.rarName}!` });
   if (res.dupe && Object.values(pr.equip || {}).includes(res.item.id)) refreshPlayer(o);
   return v;
 }
@@ -1913,8 +1920,7 @@ io.on('connection', (socket) => {
       pDef: P_DEF, // поля героев, которых нет в пакете состояния, — со значениями отсюда
       x: p.x, y: p.y, // место героя (для повторного входа после долгого обрыва — без перезагрузки страницы)
     });
-    socket.emit('chatHistory', [...chatHistory, ...((clanOf(uid) || {}).log || []).slice(-30)].sort((a, b) => a.t - b.t)); // + история клана
-    io.emit('chat', { sys: true, text: `${p.name} (${hero.name}, ${hero.title}) вошёл в мир` });
+    socket.emit('chatHistory', [...evHistory, ...chatHistory, ...((clanOf(uid) || {}).log || []).slice(-30)].sort((a, b) => a.t - b.t)); // + история клана
     if (S.motd) socket.emit('chat', { sys: true, text: `📢 ${S.motd}` });
     admin.log('join', `${p.name} (${uid}) вошёл: ${hero.name}`);
   });
@@ -2228,7 +2234,6 @@ function removePlayerG(p, socket = p.socket) {
     getProfile(p.uid).lastSeen = Date.now();
     { const pr = getProfile(p.uid), left = (p.deathUntil || 0) - Date.now(); pr.deathLeft = left > 0 ? left : 0; } // остаток слабости — до следующего входа
     (p.pets || []).forEach((pet) => pets.delete(pet.id));
-    io.emit('chat', { sys: true, text: `${p.name} покинул мир` });
     saveProfiles();
   }
 }
