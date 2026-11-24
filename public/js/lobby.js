@@ -816,6 +816,10 @@ window.Lobby = (() => {
 
     $('menuHeroes').onclick = openGacha;
     $('menuBg').onclick = () => openSheet('Фон лобби', bgSheet());
+    // Энциклопедия — та же, что в игре; «☰ Ещё» — остальные пункты меню
+    $('menuWiki').onclick = () => { if (window.Wiki) Wiki.open(); };
+    const moreList = $('menuMoreList');
+    $('menuMore').onclick = () => { moreList.classList.remove('hidden'); openSheet('☰ Меню', moreList); };
     // Пригласить друга (public/js/invite.js) — только в Telegram: у гостей своей ссылки нет
     $('menuInvite').classList.toggle('hidden', !opts.tg || !opts.tg.initData);
     $('menuInvite').onclick = async () => {
