@@ -91,6 +91,10 @@ window.Bag = (() => {
       btns.append(b);
     }
   }
+  // Сравнение: сверху — что надето сейчас (все его статы), ниже у нового предмета — все статы обоих: и те, которых у нового нет
+  const statKeys = (it, cmp) => { const ks = Object.keys(it.stats || {}); if (cmp) for (const k of Object.keys(cmp.stats || {})) if (!ks.includes(k)) ks.push(k); return ks; };
+  const cmpBlock = (cmp) => `<div class="ic-cmp" style="--rc:${cmp.color}"><div class="ic-cmp-h">${mini(cmp)}<div><b>Надето: ${cmp.name}</b><small>${cmp.rarName}${cmp.ench ? ` · +${cmp.ench}` : ''}</small></div></div>
+      <div class="ic-cmp-s">${Object.entries(cmp.stats || {}).map(([k, v]) => `<span>${statLine(k, v)}</span>`).join('')}</div></div>`;
   function card(it, actions, cmp) {
     if (!inv) { refresh().then(() => card(it, actions, cmp)); return; } // справочники статов ещё не загружены
     if (it.cat === 'mat') return matCard(it, actions || []);
@@ -107,9 +111,9 @@ window.Bag = (() => {
       ${it.reqLevel > 1 ? `<div class="ic-cls ${fitsLevel(it) ? 'ok' : 'bad'}">${fitsLevel(it) ? '✓' : '✕'} Требуемый уровень: ${it.reqLevel}${fitsLevel(it) ? '' : ` (у героя ${inv.hero.level})`}</div>` : ''}
       ${setBlock(it)}
       ${it.cat === 'bag' ? `<div class="ic-sec">Сумка</div><div class="ic-stat">🎒 Вместимость инвентаря +${it.bagSlots} ячеек</div>` : ''}
-      <div class="ic-sec">Итоговые статы</div>
-      ${Object.entries(it.stats).map(([k, v]) => `<div class="ic-stat">${statLine(k, v)}${cmp ? diff(v - ((cmp.stats || {})[k] || 0)) : ''}</div>`).join('')}
-      ${cmp ? `<div class="ic-attr">Сравнение с надетым: ${cmp.name}</div>` : ''}
+      ${cmp ? cmpBlock(cmp) : ''}
+      <div class="ic-sec">Итоговые статы${cmp ? ' · ▲▼ — разница с надетым' : ''}</div>
+      ${statKeys(it, cmp).map((k) => { const v = (it.stats || {})[k] || 0; return `<div class="ic-stat ${v ? '' : 'lost'}">${v ? statLine(k, v) : `${statLine(k, 0)} <small>(есть у надетого)</small>`}${cmp ? diff(v - ((cmp.stats || {})[k] || 0)) : ''}</div>`; }).join('')}
       <div class="ic-sec">Случайные атрибуты (${it.attrs.length})</div>
       ${it.attrs.map((a) => `<div class="ic-attr">◆ ${statLine(a.k, a.v)}</div>`).join('') || '<div class="ic-attr">—</div>'}
       ${runes}
