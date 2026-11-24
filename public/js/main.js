@@ -95,13 +95,44 @@
   let chatTab = 'talk', unread = 0, pmTo = null; // pmTo — кому пишем в «Личные»: { id, name }
   const CH_PH = { talk: 'Сообщение всем игрокам...', party: 'Сообщение группе...', clan: 'Сообщение клану...', pm: 'Личное сообщение...' };
   const chOf = (msg) => (msg.ch && msg.ch !== 'talk' ? msg.ch : msg.sys ? 'sys' : 'talk');
+  // Фильтр чата «События»: что показывать (выбор хранится на телефоне). Объявления админа и перерывы видны всегда
+  const EV_CATS = [
+    ['myth', '🔴 Мифические вещи'], ['leg', '🟠 Легендарные вещи'], ['hero', '🌟 Редкие герои'], ['boss', '👹 Боссы'],
+    ['loot', '🎒 Моя добыча'], ['level', '⬆️ Уровни'], ['join', '🚪 Вход и выход'], ['other', '📜 Прочее'],
+  ];
+  const EV_OFF_DEF = ['join'];
+  let evOff;
+  try { evOff = new Set(JSON.parse(localStorage.getItem('evOff') || 'null') || EV_OFF_DEF); } catch { evOff = new Set(EV_OFF_DEF); }
+  function evCat(msg) {
+    if (msg.ev) return msg.ev;
+    const t = msg.text || '';
+    if (/^[📢🔧]/u.test(t)) return 'admin';
+    if (/вошёл в мир|покинул мир/.test(t)) return 'join';
+    if (/достиг \d+ уровня/.test(t)) return 'level';
+    if (/[Бб]осс|👹|👑 Боссы/u.test(t)) return 'boss';
+    if (/^(Добыча|Дубликат|🎒)/u.test(t)) return 'loot';
+    return 'other';
+  }
+  const evShown = (msg) => !msg.sys || (msg.ch && msg.ch !== 'talk') || !evOff.has(evCat(msg));
+  function renderEvFilter() {
+    const box = $('evFilter'); box.innerHTML = '';
+    for (const [k, label] of EV_CATS) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.classList.toggle('on', !evOff.has(k));
+      b.onclick = () => {
+        evOff.has(k) ? evOff.delete(k) : evOff.add(k);
+        try { localStorage.setItem('evOff', JSON.stringify([...evOff])); } catch { /* приватный режим */ }
+        renderEvFilter(); setTab(chatTab);
+      };
+      box.append(b);
+    }
+  }
   const chatOpen = () => !chatWin.classList.contains('hidden');
   const hhmm = (t) => new Date(t || Date.now()).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   function chatLine(msg, full) {
     const div = document.createElement('div');
     const st = !msg.sys && /^\[st:(\w+)\]$/.exec(msg.text || '');
     div.className = msg.sys ? 'sys' : 'talk notr'; // текст игроков не переводится
-    if (full) { div.dataset.ch = chOf(msg); if (msg.sid && socket && msg.sid === socket.id) div.classList.add('mine'); }
+    if (full) { div.dataset.ch = chOf(msg); if (!evShown(msg)) div.dataset.evoff = evCat(msg); else if (msg.sys) div.dataset.ev = evCat(msg); if (msg.sid && socket && msg.sid === socket.id) div.classList.add('mine'); }
     if (msg.ch && msg.ch !== 'talk' && !msg.sys) div.classList.add('ch-' + msg.ch);
     if (full) { const t = document.createElement('small'); t.textContent = hhmm(msg.t); div.append(t); }
     if (msg.sys) { div.append(msg.text); return div; }
@@ -119,7 +150,7 @@
   function addChat(msg, quiet) {
     const atBottom = chatList.scrollHeight - chatList.scrollTop - chatList.clientHeight < 40;
     const row = chatLine(msg, true);
-    row.classList.toggle('hidden', row.dataset.ch !== chatTab);
+    row.classList.toggle('hidden', row.dataset.ch !== chatTab || !!row.dataset.evoff);
     chatList.appendChild(row);
     while (chatList.children.length > 150) chatList.removeChild(chatList.firstChild);
     if (atBottom || row.classList.contains('mine')) chatList.scrollTop = chatList.scrollHeight;
@@ -127,6 +158,7 @@
     if (!msg.sys) { unread++; $('chatBadge').textContent = unread > 9 ? '9+' : unread; $('chatBadge').classList.remove('hidden'); markTab(row.dataset.ch); }
     if (chatOpen()) return;
     if (!Settings.get(msg.sys ? 'sysPop' : 'chatPop')) return; // события и сообщения игроков отключаются по отдельности
+    if (!evShown(msg)) return; // выключено в фильтре «Событий»
     // Окно закрыто: всплывающая строка над картой и счётчик (только сообщения игроков)
     const div = chatLine(msg, false);
     chatLog.appendChild(div);
@@ -149,7 +181,13 @@
     $('stickerBar').classList.toggle('hidden', ch === 'sys');
     setPm(pmTo);
     chatWin.querySelectorAll('[data-ch]').forEach((b) => b.tagName === 'BUTTON' && b.classList.toggle('on', b.dataset.ch === ch));
-    for (const r of chatList.children) r.classList.toggle('hidden', r.dataset.ch !== ch);
+    $('evFilter').classList.toggle('hidden', ch !== 'sys');
+    if (ch === 'sys' && !$('evFilter').children.length) renderEvFilter();
+    for (const r of chatList.children) {
+      const cat = r.dataset.ev || r.dataset.evoff;
+      if (cat) { if (evOff.has(cat)) { r.dataset.evoff = cat; delete r.dataset.ev; } else { r.dataset.ev = cat; delete r.dataset.evoff; } }
+      r.classList.toggle('hidden', r.dataset.ch !== ch || !!r.dataset.evoff);
+    }
     chatList.scrollTop = chatList.scrollHeight;
   }
   // Клавиатура телефона: окно подстраивается под видимую часть экрана, игра не перехватывает клавиши

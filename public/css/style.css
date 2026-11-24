@@ -1003,6 +1003,9 @@ canvas.skin { object-fit: contain; }
 .chat-card { width: 100%; max-width: 560px; height: min(78%, 620px); display: flex; flex-direction: column; gap: 6px; padding: 10px 10px calc(10px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; box-sizing: border-box; }
 .chat-head { display: flex; align-items: center; gap: 6px; }
 .chat-tabs { display: flex; gap: 6px; flex: 1; }
+.ev-filter { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 2px 4px; }
+.ev-filter button { padding: 4px 8px; border-radius: 12px; border: 1px solid #5a4830; background: rgba(255,255,255,.04); color: #8d7d5e; font-family: inherit; font-size: 12px; text-decoration: line-through; }
+.ev-filter button.on { background: rgba(201,162,90,.18); color: #ffe7a8; border-color: #c9a25a; text-decoration: none; }
 .chat-tabs button { flex: 1; padding: 8px 4px; border-radius: 10px; border: 1px solid #5a4830; background: rgba(255,255,255,.05); color: #cdbb94; font-family: inherit; font-size: 14px; }
 .chat-tabs button.on { background: linear-gradient(180deg, #6a4c22, #3a2812); color: #ffe7a8; border-color: #c9a25a; }
 .chat-close { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #a8864a; background: rgba(0,0,0,.4); color: #f3e6c6; font-size: 18px; }

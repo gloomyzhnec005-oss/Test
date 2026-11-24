@@ -308,6 +308,12 @@ app.post('/api/gacha/spin', (req, res) => {
   const r = Econ.measure('heroSummon', pr, () => Wish.pull(who.uid, pr, banner, n, FREE_SPINS || S.freeSpins));
   if (r.error) return res.status(402).json(r);
   for (const x of r.results) Econ.item(x.rar, 'hero');
+  // Чат «События»: новый мифический или легендарный герой из призыва (повторы не объявляем)
+  const nm = cleanName(pr.nick || pr.name || who.name) || 'Герой';
+  for (const x of r.results) if (x.isNew && (x.rar === 'mythic' || x.rar === 'legendary')) {
+    const h = C.HEROES[x.hero];
+    if (h) io.emit('chat', { sys: true, ev: 'hero', text: x.rar === 'mythic' ? `🌟 ${nm} призвал мифического героя: ${h.name}!` : `⭐ ${nm} призвал легендарного героя: ${h.name}!` });
+  }
   saveProfiles();
   const one = r.results[0];
   res.json({ results: r.results, hero: one.hero, dupe: one.dupe, profile: profileView(who) });
@@ -1748,7 +1754,11 @@ function giveLoot(o, pr, item, at) {
   Econ.item(item.rar, 'drop');
   const v = I.itemView(res.item);
   if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}${res.dupe ? ' ⇧' : ''}`, color: v.color });
-  o.socket.emit('chat', { sys: true, text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
+  o.socket.emit('chat', { sys: true, ev: 'loot', text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
+  // Чат «События»: всем — мифическая или легендарная находка
+  if (!res.dupe && (item.rar === 'mythic' || item.rar === 'legendary')) {
+    io.emit('chat', { sys: true, ev: item.rar === 'mythic' ? 'myth' : 'leg', text: item.rar === 'mythic' ? `🔴 ${o.name} добыл ${v.icon} ${v.name} · ${v.rarName}!` : `🟠 ${o.name} добыл ${v.icon} ${v.name} · ${v.rarName}!` });
+  }
   if (res.dupe && Object.values(pr.equip || {}).includes(res.item.id)) refreshPlayer(o);
   return v;
 }

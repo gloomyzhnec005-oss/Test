@@ -67,7 +67,17 @@ window.GameScene = class GameScene extends Phaser.Scene {
     for (const id of Object.keys(Skins.LIST)) this.makeHeroAnims(id);
     // Догрузка по ходу игры: колбэки срабатывают, когда очередь загрузчика опустела
     this.lazyDone = [];
-    this.load.on('complete', () => { const cbs = this.lazyDone; this.lazyDone = []; cbs.forEach((f) => f()); });
+    this.load.on('complete', () => {
+      const cbs = this.lazyDone; this.lazyDone = []; cbs.forEach((f) => f());
+      // Файл, добавленный в самом конце прошлой загрузки, Phaser молча выбрасывает — лист героя так и не приходил,
+      // а герой оставался заглушкой до перезахода. Сбрасываем «в очереди» для всего, чего так и нет: onState попросит снова
+      setTimeout(() => {
+        if (this.load.isLoading()) return;
+        for (const id of [...(this.heroQueued || [])]) if (!this.textures.exists('skin_' + id)) this.heroQueued.delete(id);
+        for (const t of [...(this.mobQueued || [])]) if (!this.textures.exists('mskin_' + t)) this.mobQueued.delete(t);
+        for (const c of [...(this.cmpQueued || [])]) if (!this.textures.exists('cmp_' + c)) this.cmpQueued.delete(c);
+      }, 1500);
+    });
     this.load.on('loaderror', (f) => {
       console.warn('asset load failed', f.key);
       // Лист героя не скачался (обрыв связи) — через 4 с разрешаем повторную загрузку (onState попросит её снова)
@@ -838,8 +848,9 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.trackPos(e, p.x, p.y, s.ts);
       // Герой сменился (смена героя без перезахода) или его нарисованный лист ещё не готов — догрузить и переодеть.
       // Без этого другие игроки видели заглушку, пока владелец не перезайдёт
-      if (!p.form && (e.heroId !== p.hero || !e.skinOn)) {
-        if (this.textures.exists('skin_' + p.hero)) { if (e.heroId !== p.hero || !e.skinOn) { e.attacking = false; this.applySkin(e, p.hero); } }
+      // e.skin — чей лист сейчас надет: после смены героя он ещё старый, пока новый не скачан
+      if (!p.form && (e.heroId !== p.hero || !e.skinOn || e.skin !== p.hero)) {
+        if (this.textures.exists('skin_' + p.hero)) { e.attacking = false; this.applySkin(e, p.hero); }
         else this.needHero(p.hero);
         e.heroId = p.hero;
       }
