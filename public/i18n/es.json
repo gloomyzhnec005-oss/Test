@@ -3569,6 +3569,8 @@
 "🔥 Серия входов: {0} дн. подряд! Зайдите сегодня и заберите награду дня {1} — иначе серия начнётся заново.":"🔥 Racha: {0} días seguidos. Entra hoy y recoge la recompensa del día {1} — si no, la racha empieza de nuevo.",
 "🔥 Стихийник":"🔥 Elementalista",
 "🔧 В {0} МСК — технический перерыв на {1} мин":"🔧 A las {0} (hora de Moscú) — mantenimiento de {1} min",
+"🔧 Перерыв {0} МСК · {1} мин":"🔧 Mantenimiento {0} MSK · {1} min",
+"🔧 Перерыв через {0} мин · {1} мин":"🔧 Mantenimiento en {0} min · {1} min",
 "🔧 Починено":"🔧 Reparado",
 "🔧 Технический перерыв · до конца":"🔧 Maintenance · time left",
 "🔧 Турель!":"🔧 ¡Torreta!",

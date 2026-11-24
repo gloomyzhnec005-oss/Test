@@ -3165,6 +3165,8 @@
 "🔥 Серия входов: {0} дн. подряд! Зайдите сегодня и заберите награду дня {1} — иначе серия начнётся заново.":"🔥 Serie: {0} Tage in Folge! Komm heute und hol dir die Belohnung von Tag {1} — sonst beginnt die Serie neu.",
 "🔥 Стихийник":"🔥 Elementarist",
 "🔧 В {0} МСК — технический перерыв на {1} мин":"🔧 Um {0} Moskauer Zeit — Wartung für {1} Min.",
+"🔧 Перерыв {0} МСК · {1} мин":"🔧 Wartung {0} MSK · {1} Min.",
+"🔧 Перерыв через {0} мин · {1} мин":"🔧 Wartung in {0} Min. · {1} Min.",
 "🔧 Починено":"🔧 Repariert",
 "🔧 Турель!":"🔧 Geschütz!",
 "🔧 Через {0} мин (в {1} МСК) — технический перерыв на {2} мин":"🔧 In {0} Min. (um {1} Moskauer Zeit) — Wartung für {2} Min.",

@@ -3569,6 +3569,8 @@
 "🔥 Серия входов: {0} дн. подряд! Зайдите сегодня и заберите награду дня {1} — иначе серия начнётся заново.":"🔥 Login streak: {0} days in a row! Log in today and claim the day {1} reward — or the streak starts over.",
 "🔥 Стихийник":"🔥 Elementalist",
 "🔧 В {0} МСК — технический перерыв на {1} мин":"🔧 At {0} Moscow time — maintenance for {1} min",
+"🔧 Перерыв {0} МСК · {1} мин":"🔧 Maintenance {0} MSK · {1} min",
+"🔧 Перерыв через {0} мин · {1} мин":"🔧 Maintenance in {0} min · {1} min",
 "🔧 Починено":"🔧 Repaired",
 "🔧 Технический перерыв · до конца":"🔧 Maintenance · time left",
 "🔧 Турель!":"🔧 Turret!",

@@ -854,7 +854,7 @@
         if (!brk || brk.at <= Date.now()) { el.classList.add('hidden'); return; }
         const m = Math.max(1, Math.ceil((brk.at - Date.now()) / 60000));
         const hm = new Date(brk.at + 3 * 36e5).toISOString().slice(11, 16); // время МСК
-        el.textContent = m > 60 ? `🔧 В ${hm} МСК — технический перерыв на ${brk.min} мин` : `🔧 Через ${m} мин (в ${hm} МСК) — технический перерыв на ${brk.min} мин`;
+        el.textContent = m > 60 ? `🔧 Перерыв ${hm} МСК · ${brk.min} мин` : `🔧 Перерыв через ${m} мин · ${brk.min} мин`; // маленькая плашка справа под чатом
         el.classList.remove('hidden');
       };
       socket.on('brk', (b) => { brk = b; showBrk(); });

@@ -3165,6 +3165,8 @@
 "🔥 Серия входов: {0} дн. подряд! Зайдите сегодня и заберите награду дня {1} — иначе серия начнётся заново.":"🔥 Sequência: {0} dias seguidos! Entre hoje e pegue a recompensa do dia {1} — senão a sequência recomeça.",
 "🔥 Стихийник":"🔥 Elementalista",
 "🔧 В {0} МСК — технический перерыв на {1} мин":"🔧 Às {0} (horário de Moscou) — manutenção de {1} min",
+"🔧 Перерыв {0} МСК · {1} мин":"🔧 Manutenção {0} MSK · {1} min",
+"🔧 Перерыв через {0} мин · {1} мин":"🔧 Manutenção em {0} min · {1} min",
 "🔧 Починено":"🔧 Reparado",
 "🔧 Турель!":"🔧 Torreta!",
 "🔧 Через {0} мин (в {1} МСК) — технический перерыв на {2} мин":"🔧 Em {0} min (às {1}, horário de Moscou) — manutenção de {2} min",
