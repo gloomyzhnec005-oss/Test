@@ -764,7 +764,8 @@ function clanView(c) {
   return { id: c.id, name: c.name, tag: c.tag, leader: c.leader, max: CLAN.max,
     members: c.members.map((uid) => { const pr = getProfile(uid); return { uid, name: pr.name || 'Герой', online: online.has(uid), leader: uid === c.leader }; }),
     war: { pts: c.war && c.war.w === warWeek() ? c.war.pts : 0, reign: c.reignUntil > Date.now() ? c.reignUntil : 0, reigns: c.reigns || 0, pool: c.reignPool || 0 },
-    log: (c.log || []).slice(-30), vault: (c.vault || []).map((it) => ({ ...I.itemView(it), by: it.clanBy || '' })), vaultMax: CLAN.vault };
+    log: (c.log || []).slice(-30), vault: (c.vault || []).map((it) => ({ ...I.itemView(it), by: it.clanBy || '' })), vaultMax: CLAN.vault,
+    rating: clanRating(c), reqs: (c.reqs || []).map((r) => ({ uid: r.uid, name: r.name, lvl: r.lvl, at: r.at })) };
 }
 function clanQuestView(c, uid) {
   const cq = clanWeek(c), ends = (weekNo() + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - Date.now();
@@ -772,9 +773,50 @@ function clanQuestView(c, uid) {
     mine: (cq.by[uid] || {})[q.id] || 0, claimed: (cq.claimed[q.id] || []).includes(uid), reward: rewardLabel(q.reward) })) };
 }
 const rewardLabel = (r) => [r.gold && `💰 ${r.gold}`, r.gems && `💎 ${r.gems}`, r.itemSpins && `🎁 печать ×${r.itemSpins}`, r.mats && Object.entries(r.mats).map(([k, n]) => `${(I.MATS[k] || {}).name || k} ×${n}`).join(', ')].filter(Boolean).join(' · ');
+// Рейтинг клана: сумма уровней участников (лучший герой) + очки войны кланов за неделю + 100 за каждую победу в войне
+function clanRating(c) {
+  const lv = c.members.reduce((x, uid) => x + Math.max(1, ...Object.values(getProfile(uid).chars || {}).map((h) => h.level || 1)), 0);
+  return lv + (c.war && c.war.w === warWeek() ? c.war.pts : 0) + 100 * (c.reigns || 0);
+}
+// Вступил в клан — его заявки в другие кланы больше не нужны
+const clearReqs = (uid) => { for (const c of Object.values(clans)) if (c.reqs) c.reqs = c.reqs.filter((r) => r.uid !== uid); };
 function clanAct(p, d) {
   const pr = getProfile(p.uid), mine = clanOf(p.uid);
   if (d.op === 'info') return { clan: mine ? clanView(mine) : null, quests: mine ? clanQuestView(mine, p.uid) : null, price: CLAN.price };
+  // Список кланов по рейтингу и заявка на вступление (глава принимает или отклоняет во вкладке «Заявки»)
+  if (d.op === 'list') {
+    const list = Object.values(clans).map((c) => ({ id: c.id, name: c.name, tag: c.tag, n: c.members.length, max: CLAN.max, rating: clanRating(c),
+      leader: getProfile(c.leader).name || 'Герой', reign: c.reignUntil > Date.now(), applied: (c.reqs || []).some((r) => r.uid === p.uid) })).sort((a, b) => b.rating - a.rating);
+    list.forEach((x, i) => { x.place = i + 1; });
+    return { list, mine: mine ? mine.id : null };
+  }
+  if (d.op === 'apply' || d.op === 'unapply') {
+    const c = clans[String(d.id || '')];
+    if (!c) return { error: 'Клан не найден' };
+    if (d.op === 'unapply') { c.reqs = (c.reqs || []).filter((r) => r.uid !== p.uid); saveClans(); return { toast: 'Заявка отозвана' }; }
+    if (mine) return { error: 'Сначала выйдите из своего клана' };
+    if (c.members.length >= CLAN.max) return { error: 'В клане нет мест' };
+    c.reqs ??= [];
+    if (c.reqs.some((r) => r.uid === p.uid)) return { error: 'Заявка уже подана' };
+    if (c.reqs.length >= 50) return { error: 'У клана слишком много заявок — попробуйте позже' };
+    c.reqs.push({ uid: p.uid, name: p.name, lvl: p.char ? p.char.level : 1, at: Date.now() });
+    saveClans();
+    notifyUid(c.leader, `🛡️ Заявка в клан «${c.name}» от ${p.name} (ур. ${p.char ? p.char.level : 1}) — Игра → Клан → Заявки`);
+    return { toast: `Заявка в клан «${c.name}» отправлена — ждите ответа главы` };
+  }
+  if (d.op === 'reqAccept' || d.op === 'reqDecline') {
+    if (!mine || mine.leader !== p.uid) return { error: 'Заявки рассматривает глава клана' };
+    const uid = String(d.uid || ''), req = (mine.reqs || []).find((r) => r.uid === uid);
+    if (!req) return { error: 'Заявки уже нет' };
+    mine.reqs = mine.reqs.filter((r) => r.uid !== uid);
+    if (d.op === 'reqDecline') { saveClans(); notifyUid(uid, `🛡️ Клан «${mine.name}» отклонил заявку`); return { toast: 'Заявка отклонена', clan: clanView(mine) }; }
+    if (clanOf(uid)) { saveClans(); return { error: 'Игрок уже вступил в другой клан', clan: clanView(mine) }; }
+    if (mine.members.length >= CLAN.max) return { error: 'В клане нет мест' };
+    mine.members.push(uid); getProfile(uid).clan = mine.id; clearReqs(uid);
+    saveClans(); saveProfiles(); setClanTag(uid);
+    clanNotify(mine, `🛡️ ${req.name} вступил в клан`); notifyUid(uid, `🛡️ Вас приняли в клан «${mine.name}»!`);
+    return { toast: `${req.name} принят в клан`, clan: clanView(mine) };
+  }
   // Клановое хранилище: вложить вещь из сумки / забрать (участник — до 3 вещей в день, глава — без лимита)
   if (d.op === 'vaultPut') {
     if (!mine) return { error: 'Вы не в клане' };
@@ -830,7 +872,7 @@ function clanAct(p, d) {
     pr.gold -= CLAN.price;
     const id = 'c' + Date.now().toString(36);
     clans[id] = { id, name, tag, leader: p.uid, members: [p.uid], created: Date.now(), log: [] };
-    pr.clan = id; saveClans(); saveProfiles(); setClanTag(p.uid);
+    pr.clan = id; clearReqs(p.uid); saveClans(); saveProfiles(); setClanTag(p.uid);
     return { toast: `Клан «${name}» [${tag}] создан`, clan: clanView(clans[id]) };
   }
   if (d.op === 'invite') {
@@ -849,7 +891,7 @@ function clanAct(p, d) {
     if (mine) return { error: 'Сначала выйдите из своего клана' };
     if (c.members.length >= CLAN.max) return { error: 'В клане нет мест' };
     c.invited = c.invited.filter((u) => u !== p.uid);
-    c.members.push(p.uid); pr.clan = c.id; saveClans(); saveProfiles(); setClanTag(p.uid);
+    c.members.push(p.uid); pr.clan = c.id; clearReqs(p.uid); saveClans(); saveProfiles(); setClanTag(p.uid);
     clanNotify(c, `🛡️ ${p.name} вступил в клан`);
     return { toast: `Вы вступили в клан «${c.name}»`, clan: clanView(c) };
   }

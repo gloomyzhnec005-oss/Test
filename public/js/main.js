@@ -669,12 +669,32 @@
       const openClan = async () => {
         const r = await clanAct({ op: 'info' });
         const box = document.createElement('div');
+        // Все кланы по рейтингу: подать / отозвать заявку (если вы не в клане)
+        const clanList = (canApply) => async () => {
+          const L = await clanAct({ op: 'list' }), box = document.createElement('div');
+          box.innerHTML = `<p class="sheet-hint">Рейтинг клана = сумма уровней участников + очки войны кланов за неделю + 100 за каждую победу в войне.${canApply ? ' Подайте заявку — глава клана примет её во вкладке «Заявки».' : ''}</p>`;
+          if (!(L.list || []).length) box.insertAdjacentHTML('beforeend', '<div class="tw-soon">Кланов пока нет — создайте первый!</div>');
+          for (const k of L.list || []) {
+            const row = document.createElement('div'); row.className = 'tw-ev';
+            row.innerHTML = `<span class="tw-ev-i clan-place">${k.place <= 3 ? ['🥇', '🥈', '🥉'][k.place - 1] : k.place}</span><div><b></b><small>⭐ ${k.rating} · ${k.n}/${k.max} · глава ${''}${k.reign ? ' · 👑 владыки' : ''}</small></div>${canApply ? `<button class="l2-btn ${k.applied ? 'ghost' : ''}" ${k.n >= k.max && !k.applied ? 'disabled' : ''}>${k.applied ? 'Отозвать' : k.n >= k.max ? 'Мест нет' : 'Заявка'}</button>` : ''}`;
+            row.querySelector('b').textContent = `${k.name} [${k.tag}]`;
+            row.querySelector('small').childNodes[0].textContent = `⭐ ${k.rating} · ${k.n}/${k.max} · глава ${k.leader}${k.reign ? ' · 👑 владыки' : ''}`;
+            const btn = row.querySelector('button');
+            if (btn) btn.onclick = async () => { const x = await clanAct({ op: k.applied ? 'unapply' : 'apply', id: k.id }); Town.toast(x.error || x.toast); if (!x.error) { openClan.tab = 0; openClan(); } };
+            box.append(row);
+          }
+          return box;
+        };
         if (!r.clan) {
-          box.innerHTML = `<p class="sheet-hint">Вы не в клане. Создайте свой (${r.price.toLocaleString('ru-RU')} 💰) или вступите по приглашению — его присылают из профиля игрока.</p>
+          const make = () => {
+            const box = document.createElement('div');
+            box.innerHTML = `<p class="sheet-hint">Создайте свой клан (${r.price.toLocaleString('ru-RU')} 💰) — станете его главой, сможете принимать заявки.</p>
             <div class="clan-form"><input id="clName" maxlength="20" placeholder="Название клана"><input id="clTag" maxlength="4" placeholder="Тег (2–4)"><button class="l2-btn wide" id="clMake">🛡️ Создать клан · ${r.price.toLocaleString('ru-RU')} 💰</button></div>`;
-          box.querySelector('#clMake').onclick = async () => { const x = await clanAct({ op: 'create', name: box.querySelector('#clName').value, tag: box.querySelector('#clTag').value }); Town.toast(x.error || x.toast); if (!x.error) openClan(); };
-          box.querySelectorAll('input').forEach((i) => { i.addEventListener('keydown', (e) => e.stopPropagation()); i.addEventListener('focus', () => gameKeys(false)); i.addEventListener('blur', () => gameKeys(true)); });
-          Town.open('🛡️ Клан', box); return;
+            box.querySelector('#clMake').onclick = async () => { const x = await clanAct({ op: 'create', name: box.querySelector('#clName').value, tag: box.querySelector('#clTag').value }); Town.toast(x.error || x.toast); if (!x.error) openClan(); };
+            box.querySelectorAll('input').forEach((i) => { i.addEventListener('keydown', (e) => e.stopPropagation()); i.addEventListener('focus', () => gameKeys(false)); i.addEventListener('blur', () => gameKeys(true)); });
+            return box;
+          };
+          Town.open('🛡️ Клан', Town.tabs([['Кланы', clanList(true)], ['Создать клан', make]], 0)); return;
         }
         const c = r.clan, me = Lobby.profile() && Lobby.profile().uid, lead = c.leader === me;
         const fmtT = (ms) => { const h = Math.max(0, Math.floor(ms / 3600e3)); return h >= 24 ? `${Math.floor(h / 24)} д ${h % 24} ч` : `${h} ч`; };
@@ -682,7 +702,7 @@
         const reopen = (i) => { openClan.tab = i; openClan(); };
         const members = () => {
           const box = document.createElement('div');
-          box.innerHTML = `<div class="pass-head"><b><img class="clan-emb" src="assets/ui/ic_clan.webp" alt="">${c.name} [${c.tag}]</b><small>Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length} · тег [${c.tag}] виден над именами героев</small>
+          box.innerHTML = `<div class="pass-head"><b><img class="clan-emb" src="assets/ui/ic_clan.webp" alt="">${c.name} [${c.tag}]</b><small>⭐ Рейтинг ${c.rating} · Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length} · тег [${c.tag}] виден над именами героев</small>
             <small>⚔️ Война кланов: ${c.war.pts} очков за неделю${c.war.reign ? ` · 👑 Владыки недели: +10% опыта и золота · казна ${(c.war.pool / 1e9).toFixed(2)} GRAM (10% дохода Рынка и Торгового дома, делится в понедельник)` : ''}${c.war.reigns ? ` · побед: ${c.war.reigns}` : ''}</small>
           <button class="l2-btn" id="clChat">💬 Клановый чат</button></div><div class="ic-sec">Участники</div>`;
           for (const m of c.members.sort((a, b) => b.online - a.online)) {
@@ -693,7 +713,7 @@
             if (k) k.onclick = async () => { const x = await clanAct({ op: 'kick', uid: m.uid }); Town.toast(x.error || x.toast); reopen(0); };
             box.append(row);
           }
-          box.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Пригласить: откройте профиль игрока (тап по герою на карте) → «В клан».</p><button class="l2-btn wide ghost" id="clLeave">Покинуть клан</button>');
+          box.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Новые участники подают заявку во вкладке «Клан → Кланы»; ещё можно пригласить из профиля игрока (тап по герою на карте) → «В клан».</p><button class="l2-btn wide ghost" id="clLeave">Покинуть клан</button>');
           box.querySelector('#clChat').onclick = () => { Town.close(); openChat(); setTab('clan'); };
           box.querySelector('#clLeave').onclick = async () => { const x = await clanAct({ op: 'leave' }); Town.toast(x.error || x.toast); Town.close(); };
           return box;
@@ -742,7 +762,23 @@
           return box;
         };
         const ready = r.quests ? r.quests.list.filter((q) => q.prog >= q.goal && q.mine && !q.claimed).length : 0;
-        Town.open('🛡️ Клан', Town.tabs([['Участники', members], ['Задания' + (ready ? ` (${ready})` : ''), quests], [`Хранилище (${c.vault.length})`, vault]], tabIdx));
+        const reqs = () => {
+          const box = document.createElement('div');
+          box.innerHTML = '<p class="sheet-hint">Заявки на вступление в ваш клан.</p>';
+          if (!c.reqs.length) box.insertAdjacentHTML('beforeend', '<div class="tw-soon">Заявок нет</div>');
+          for (const q of c.reqs) {
+            const row = document.createElement('div'); row.className = 'tw-ev';
+            row.innerHTML = `<div><b></b><small>ур. ${q.lvl} · ${new Date(q.at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><button class="l2-btn">Принять</button><button class="l2-btn ghost">✕</button>`;
+            row.querySelector('b').textContent = q.name;
+            const [ok, no] = row.querySelectorAll('button');
+            ok.onclick = async () => { const x = await clanAct({ op: 'reqAccept', uid: q.uid }); Town.toast(x.error || x.toast); reopen(3); };
+            no.onclick = async () => { const x = await clanAct({ op: 'reqDecline', uid: q.uid }); Town.toast(x.error || x.toast); reopen(3); };
+            box.append(row);
+          }
+          return box;
+        };
+        Town.open('🛡️ Клан', Town.tabs([['Участники', members], ['Задания' + (ready ? ` (${ready})` : ''), quests], [`Хранилище (${c.vault.length})`, vault],
+          ...(lead ? [[`Заявки${c.reqs.length ? ` (${c.reqs.length})` : ''}`, reqs]] : []), ['Рейтинг кланов', clanList(false)]], tabIdx));
       };
       socket.on('clanInvite', (d) => {
         const box = $('partyInvite');
