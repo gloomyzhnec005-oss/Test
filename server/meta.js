@@ -464,6 +464,56 @@ module.exports = function createMeta(deps) {
       refreshPlayer(p);
       return {};
     },
+    // Автосоединение: по 5 одинаковых (категория + редкость) снизу вверх, до легендарного. Не трогает надетое, склад,
+    // комплектные, заточенные, с дубликатами, с рунами и тиражные — у них при соединении пропала бы ценность.
+    // preview — только посчитать, сколько соединений будет
+    mergeAuto(p, d, pr) {
+      // Каждая вещь — это 1 + дубликаты (★) копий: 5 копий одной категории и редкости → 1 вещь следующей редкости.
+      // Не трогаем надетое, склад, комплектные, заточенные, с рунами и тиражные
+      const eq = new Set(Object.values(pr.equip || {}));
+      const ok = (i) => i.loc !== 'wh' && !eq.has(i.id) && !['bag', 'rune', 'mat'].includes(i.cat) && !I.setIdOf(i) && !(i.ench > 0) && !(i.runes && i.runes.length) && !i.ltd && !i.locked;
+      const ORDER = ['common', 'rare', 'epic'];
+      const made = { rare: 0, epic: 0, legendary: 0 }; let used = 0, stars = 0;
+      if (d.preview) {
+        const cnt = {};
+        for (const i of pr.items || []) if (ok(i) && ORDER.includes(i.rar)) { cnt[i.cat + ':' + i.rar] = (cnt[i.cat + ':' + i.rar] || 0) + 1 + (i.dupes || 0); stars += i.dupes || 0; }
+        for (const r of ORDER) for (const k of Object.keys(cnt)) {
+          const [cat, rr] = k.split(':'); if (rr !== r) continue;
+          const n = Math.floor(cnt[k] / 5); if (!n) continue;
+          const nx = I.RARITY_ORDER[I.RARITY_ORDER.indexOf(r) + 1];
+          made[nx] += n; used += n * 5; cnt[k] -= n * 5; cnt[cat + ':' + nx] = (cnt[cat + ':' + nx] || 0) + n;
+        }
+        return { preview: { made, used, stars } };
+      }
+      let seq = 0;
+      for (const r of ORDER) {
+        let again = true;
+        while (again) {
+          again = false;
+          const groups = {};
+          for (const i of pr.items || []) if (ok(i) && i.rar === r) (groups[i.cat] ??= []).push(i);
+          for (const list of Object.values(groups)) {
+            if (list.reduce((x, i) => x + 1 + (i.dupes || 0), 0) < 5) continue;
+            list.sort((a, b) => (a.tier || 1) - (b.tier || 1)); // сначала вещи младших миров
+            // 5 копий: сначала «звёздочки» (копия-клон, у вещи −1 ★), потом сами вещи без звёзд
+            const ids = [];
+            for (const it of list) {
+              while (ids.length < 5 && (it.dupes || 0) > 0) { it.dupes--; const c = { ...it, id: 'mx' + Date.now().toString(36) + (seq++), dupes: 0 }; delete c.runes; if (it.cat === 'weapon') c.runes = []; pr.items.push(c); ids.push(c.id); }
+              if (ids.length >= 5) break;
+            }
+            for (const it of list) { if (ids.length >= 5) break; if (!(it.dupes > 0) && !ids.includes(it.id) && pr.items.includes(it)) ids.push(it.id); }
+            if (ids.length < 5) continue;
+            const res = I.mergeItems(pr, ids);
+            if (res.error) continue;
+            made[res.item.rar] = (made[res.item.rar] || 0) + 1; used += 5; again = true;
+          }
+        }
+      }
+      if (!used) return { error: 'Нечего соединять: нужно 5 копий одной категории и редкости (★ тоже считаются), без заточки, рун и не из комплекта' };
+      refreshPlayer(p);
+      const R = I.ITEM_RARITIES;
+      return { toast: `Автосоединение: ${used} копий → ${Object.entries(made).filter(([, n]) => n).map(([k, n]) => `${R[k].name.toLowerCase()} ×${n}`).join(', ')}` };
+    },
     merge(p, d, pr) {
       const r = I.mergeItems(pr, d.ids || []);
       if (r.error) return { error: r.error };

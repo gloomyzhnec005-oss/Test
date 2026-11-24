@@ -382,8 +382,21 @@ window.Bag = (() => {
         Из всех атрибутов пяти предметов случайно останутся 3, остальные пропадут. Базовые статы — по новой редкости (не суммируются). Надетые вещи здесь не показываются — сначала снимите их. Легендарные в мифик не соединяются — мифики только с мировых боссов, из ларцов и призыва.</p>
         <div class="merge-slots">${[0, 1, 2, 3, 4].map((i) => { const it = inv.items.find((x) => x.id === [...sel][i]); return it ? cell(it) : '<button class="it empty"><span>·</span></button>'; }).join('')}
         <span class="arrow">→</span><button class="it empty res" ${first ? `style="--rc:${R[RO[RO.indexOf(first.rar) + 1]].color}"` : ''}><span>${first ? '?' : '·'}</span></button></div>
-        <button class="l2-btn merge-go" ${sel.size === 5 ? '' : 'disabled'}>⚒️ Соединить (${sel.size}/5)${first ? ' → ' + R[RO[RO.indexOf(first.rar) + 1]].name : ''}</button>`;
+        ${[...sel].map((id) => inv.items.find((x) => x.id === id)).some((x) => x && (x.ench || x.dupes || (x.runes || []).length || x.set)) ? '<div class="ic-attr warn">⚠️ Среди выбранных есть вещь с заточкой, дубликатами (★), рунами или из комплекта — при соединении это пропадёт</div>' : ''}
+        <button class="l2-btn merge-go" ${sel.size === 5 ? '' : 'disabled'}>⚒️ Соединить (${sel.size}/5)${first ? ' → ' + R[RO[RO.indexOf(first.rar) + 1]].name : ''}</button>
+        <button class="l2-btn merge-auto">⚡ Автосоединение до легендарного</button>`;
       box.append(grid(items, (it) => { if (sel.has(it.id)) sel.delete(it.id); else if (sel.size < 5) sel.add(it.id); draw(); }, { selected: sel, empty: 'Нет предметов для соединения' }));
+      box.querySelector('.merge-auto').onclick = async () => {
+        const pv = await act('mergeAuto', { preview: 1 });
+        if (!pv.preview) return toast(pv.error || 'Нет связи');
+        const m = pv.preview.made, R2 = inv.rarities;
+        if (!pv.preview.used) return toast('Нечего соединять: нужно 5 копий одной категории и редкости (★ тоже считаются), без заточки, рун и не из комплекта');
+        const list = Object.entries(m).filter(([, n]) => n).map(([k, n]) => `${R2[k].name} ×${n}`).join(', ');
+        if (!confirm(`Автосоединение до легендарного: из ${pv.preview.used} копий получится ${list}.\nДубликаты (★) тоже идут в дело — каждая звёздочка считается копией вещи.\nНадетое, заточенное, с рунами и комплектное не трогаем. Соединить?`)) return;
+        const r = await act('mergeAuto', {});
+        toast(r.error || r.toast);
+        if (!r.error) { sel.clear(); await refresh(); draw(); if (window.Sfx) Sfx.play('reward'); }
+      };
       box.querySelector('.merge-go').onclick = async () => {
         if (sel.size !== 5) return;
         const r = await act('merge', { ids: [...sel] });
