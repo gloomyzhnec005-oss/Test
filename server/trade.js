@@ -235,7 +235,8 @@ module.exports = function createTrade(deps) {
   }
   setInterval(sweep, 60e3).unref();
 
-  const maxLevel = (pr) => Math.max(0, ...Object.values(pr.chars || {}).map((c) => c.level || 0));
+  // Уровень для вывода: после обнуления игры (вайпа) засчитывается и уровень, достигнутый до него (pr.wdLevel)
+  const maxLevel = (pr) => Math.max(pr.wdLevel || 0, ...Object.values(pr.chars || {}).map((c) => c.level || 0));
   const isEquipped = (pr, id) => Object.values(pr.equip || {}).includes(id);
 
   // Разобрать заявку из запроса: материал (из списка продаваемых) или вещь (слот, редкость от эпической, мир, комплект)
@@ -592,12 +593,14 @@ module.exports = function createTrade(deps) {
   const houseAdd = (nano) => { st.house = (st.house || 0) + nano; save(); };
   const grant = (uid, nano, kind, text) => { if (!(nano > 0)) return; credit(uid, kind, Math.round(nano), text, true); save(); };
   // Обнуление игроков (админка): лоты, заявки и журнал удалённых — убрать
+  // Обнуление (вайп): лоты стираются (вещи — часть прогресса), замороженные в заявках на покупку GRAM возвращаются
+  // на баланс (туда же: пополнения — в пополнения), заявки на вывод и журнал GRAM СОХРАНЯЮТСЯ — это реальные деньги игроков.
+  // Сами балансы переносит server/index.js (pr.gram в новый профиль)
   function wipe(keep) {
     const n = st.lots.length;
     st.lots = st.lots.filter((l) => keep.has(l.seller));
+    for (const b of st.bids) if (!keep.has(b.buyer)) refundParts(b.buyer, b.parts, `Обнуление игры: заявка «${bidName(b)}» снята — GRAM возвращены`);
     st.bids = st.bids.filter((b) => keep.has(b.buyer));
-    st.wd = st.wd.filter((w) => keep.has(w.uid));
-    st.log = st.log.filter((e) => keep.has(e.uid));
     save();
     return n - st.lots.length;
   }
