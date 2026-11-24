@@ -556,6 +556,53 @@ window.Town = (() => {
   // Нарисованные значки товаров магазина (assets/ui/shop/)
   const SHOP_ART = { chestSet: 'chestSet', chestSet5: 'chestSet5', chestLegend: 'chestLegend' };
   const shopArt = (c) => (c.bag ? `../../items/bag_${{ bagEpic: 'epic', bagLegend: 'legendary' }[c.id] || 'rare'}` : SHOP_ART[c.id]); // сумки — картинка сумки
+  // Подарок другу: найти игрока по нику → подарить товар магазина (платите вы, получает друг) или перевести GRAM (комиссия 10%)
+  async function giftPanel(to) {
+    const box = document.createElement('div');
+    if (!to) {
+      box.innerHTML = `<p class="sheet-hint">Найдите игрока по нику — подарите ему товар из магазина или переведите GRAM.</p>
+        <div class="clan-form"><input id="gfQ" maxlength="32" placeholder="Ник игрока"><button class="l2-btn wide" id="gfFind">🔍 Найти</button></div><div id="gfList"></div>`;
+      const q = box.querySelector('#gfQ'), list = box.querySelector('#gfList');
+      q.addEventListener('keydown', (e) => e.stopPropagation());
+      box.querySelector('#gfFind').onclick = async () => {
+        const r = await Bag.act('findPlayer', { q: q.value });
+        list.innerHTML = '';
+        if (r.error) return toast(r.error);
+        if (!r.players.length) { list.innerHTML = '<div class="tw-soon">Никого не нашли — проверьте ник</div>'; return; }
+        for (const x of r.players) {
+          const row = el('<div class="tw-ev"><div><b></b><small></small></div><button class="l2-btn">Выбрать</button></div>').firstElementChild;
+          row.querySelector('b').textContent = x.name; row.querySelector('small').textContent = `ур. ${x.lvl}`;
+          row.querySelector('button').onclick = () => giftPanel(x);
+          list.append(row);
+        }
+      };
+      open('🎁 Подарок другу', box); return;
+    }
+    const s = await Bag.act('shopInfo');
+    const items = [...(s.gemPacks || []).map((g) => ({ id: g.id, title: `💎 ${g.gems} самоцветов`, amount: g.amount })),
+      ...(s.chests || []).map((c) => ({ id: c.id, title: c.title, amount: c.amount }))];
+    box.innerHTML = `<p class="sheet-hint">Получатель: <b></b>. Платите вы — покупку получает друг, ему придёт уведомление.</p>
+      <div class="ic-sec">💎 Перевести GRAM</div>
+      <div class="clan-form"><input id="gfSum" type="number" min="0.5" step="0.1" placeholder="Сумма GRAM (от 0,5)"><button class="l2-btn wide" id="gfSend">Перевести</button></div>
+      <small class="sheet-hint">Комиссия 10%. Друг сможет тратить их в игре (Рынок, Торговый дом), вывести — нельзя.</small>
+      <div class="ic-sec">🎁 Подарить из магазина</div>`;
+    box.querySelector('p b').textContent = `${to.name} (ур. ${to.lvl})`;
+    for (const it of items) {
+      const row = el('<div class="tw-ev"><div><b></b></div><button class="l2-btn"></button></div>').firstElementChild;
+      row.querySelector('b').textContent = it.title; row.querySelector('button').textContent = `Подарить · ${it.amount} ⭐`;
+      row.querySelector('button').onclick = () => Pay.buy(it.id, { to: to.uid, toast, onPaid: () => toast(`🎁 Подарок отправлен: ${to.name}`) });
+      box.append(row);
+    }
+    const sum = box.querySelector('#gfSum'); sum.addEventListener('keydown', (e) => e.stopPropagation());
+    box.querySelector('#gfSend').onclick = async () => {
+      const q = await Bag.act('gramSend', { to: to.uid, amount: sum.value, quote: 1 });
+      if (!q.quote) return toast(q.error || 'Нет связи');
+      if (!(await askGram(`Перевести ${to.name} ${gfmt(q.quote.amount)} GRAM?\nКомиссия 10%: ${gfmt(q.quote.fee)} GRAM — друг получит ${gfmt(q.quote.net)} GRAM (тратить в игре, вывод недоступен).`))) return;
+      const r = await Bag.act('gramSend', { to: to.uid, amount: sum.value });
+      toast(r.error || r.toast); if (!r.error && window.Sfx) Sfx.play('coin');
+    };
+    open('🎁 Подарок другу', box);
+  }
   async function storePanel() {
     const s = await Bag.act('shopInfo');
     const hrs = (ms) => { const h = Math.max(0, Math.floor(ms / 36e5)); return h >= 24 ? `${Math.floor(h / 24)} д ${h % 24} ч` : `${h} ч ${Math.floor((ms % 36e5) / 6e4)} мин`; };
@@ -588,6 +635,8 @@ window.Town = (() => {
         <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}`);
     box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, storePanel); });
     box.querySelector('#openOrders').onclick = () => passPanel();
+    { const gb = el('<div class="tw-banner items"><b>🎁 Подарок другу</b><small>Подарите другу самоцветы, ларцы и эликсиры или переведите GRAM</small><button class="l2-btn">Выбрать друга</button></div>').firstElementChild;
+      gb.querySelector('button').onclick = () => giftPanel(); box.prepend(gb); }
     box.querySelector('#openWallet').onclick = () => walletPanel(0);
     box.querySelector('#openLooks').onclick = () => looksPanel();
     const cc = box.querySelector('#cardClaim');

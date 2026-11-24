@@ -400,20 +400,21 @@ app.get('/api/config', (req, res) => res.json({
 // Покупки за Telegram Stars: фон лобби (item=bg) или крутка гачи (item=spin)
 let bot = null;
 app.post('/api/invoice', async (req, res) => {
-  const { initData, guestId, item, bgId } = req.body || {};
+  const { initData, guestId, item, bgId, to } = req.body || {};
   // DEV_PAYMENTS=true — тестовый режим: покупка зачисляется сразу, без Telegram
   if (process.env.DEV_PAYMENTS === 'true') {
     const w = resolveUid(initData, guestId);
     if (!w) return res.status(403).json({ error: 'Нет игрока' });
     const no = meta.INVOICES[item] && meta.canBuy(item, getProfile(w.uid));
     if (no) return res.status(400).json({ error: no });
-    const ok = onPaid(item === 'bg' ? `bg:${w.uid}:${bgId}` : `${item}:${w.uid}`);
+    const to = req.body && req.body.to;
+    const ok = onPaid(item === 'bg' ? `bg:${w.uid}:${bgId}` : to ? `${item}:${to}:g${w.uid}` : `${item}:${w.uid}`); // тест подарка — как настоящий
     return ok ? res.json({ devPaid: true }) : res.status(400).json({ error: 'Неизвестный товар' });
   }
   const who = resolveUid(initData, null);
   if (!who || !who.tg) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   if (!bot) return res.status(503).json({ error: 'Оплата временно недоступна' });
-  const inv = buildInvoice(who, item, bgId);
+  const inv = buildInvoice(who, item, bgId, to);
   if (inv.error) return res.status(400).json({ error: inv.error });
   try {
     const link = await bot.telegram.createInvoiceLink({ ...inv.invoice, provider_token: '', currency: 'XTR' });
@@ -424,8 +425,21 @@ app.post('/api/invoice', async (req, res) => {
   }
 });
 // Счёт на товар: название, payload для зачисления (onPaid) и цена в Stars. Общий для Stars и TON
-function buildInvoice(who, item, bgId) {
+// Подарки другу (магазин → «🎁 Подарок другу»): платит дарящий, получает друг. Только эти товары (без личных:
+// ордена считаются от текущего ордена получателя, набор новичка — разовый)
+const GIFTABLE = (k) => k === 'spin' || k === 'spin10' || (meta.INVOICES[k] && !/^(starter|card30|sub|whUp)/.test(k) && !Trade.isOrder(k));
+function buildInvoice(who, item, bgId, to) {
   let invoice;
+  if (to) { // подарок: счёт выставляется дарящему, payload — на получателя с пометкой g<дарящий>
+    const tu = String(to);
+    if (!/^tg\d+$/.test(tu) || !profiles[tu]) return { error: 'Получатель не найден' };
+    if (tu === who.uid) return { error: 'Себе подарок не отправить' };
+    if (!GIFTABLE(item)) return { error: 'Этот товар нельзя подарить' };
+    const v = item === 'spin' || item === 'spin10' ? { title: item === 'spin10' ? 'Печати призыва ×10' : 'Печать призыва', description: 'Призыв героя', amount: item === 'spin10' ? C.GACHA.spin10Price : C.GACHA.spinPrice } : meta.INVOICES[item];
+    const nm = (profiles[tu].name || 'игрок').slice(0, 30);
+    invoice = { title: `🎁 ${v.title} → ${nm}`.slice(0, 32), description: `Подарок для ${nm}: ${v.description}`.slice(0, 255), payload: `${item}:${tu}:g${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
+    return { invoice, stars: v.amount }; // без скидки первой покупки
+  }
   if (/^pass[1-6]$/.test(item)) { // сезонный орден: цена — разница с уже купленным
     const v = meta.passInvoice(getProfile(who.uid), +item[4]);
     if (v.error) return { error: v.error };
@@ -479,7 +493,7 @@ app.post('/api/ton/quote', (req, res) => {
   if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в GRAM выключена' });
   const who = tonWho(req);
   if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
-  const inv = buildInvoice(who, req.body.item, req.body.bgId);
+  const inv = buildInvoice(who, req.body.item, req.body.bgId, req.body.to);
   if (inv.error) return res.status(400).json({ error: inv.error });
   res.json({ title: inv.invoice.title, stars: inv.stars, ton: ton.tonPrice(inv.stars) });
 });
@@ -487,7 +501,7 @@ app.post('/api/ton/order', (req, res) => {
   if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в GRAM выключена' });
   const who = tonWho(req);
   if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
-  const inv = buildInvoice(who, req.body.item, req.body.bgId);
+  const inv = buildInvoice(who, req.body.item, req.body.bgId, req.body.to);
   if (inv.error) return res.status(400).json({ error: inv.error });
   res.json(ton.createOrder(who.uid, inv.invoice.payload, inv.stars, inv.invoice.title));
 });
@@ -527,9 +541,35 @@ function isValidPayload(payload, beforePay = false) {
   if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass[1-6]$/.test(kind)) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
 }
+function onGiftPaid(kind, toUid, fromUid, info) {
+  const from = getProfile(fromUid), to = getProfile(toUid);
+  if (info.charge) {
+    from.charges ??= [];
+    if (from.charges.includes(info.charge)) return true;
+    from.charges.push(info.charge); if (from.charges.length > 300) from.charges.splice(0, from.charges.length - 300);
+  }
+  (from.payments ??= []).push({ t: Date.now(), kind, giftTo: toUid, amount: info.amount, cur: info.currency || 'XTR', charge: info.charge });
+  if (from.payments.length > 50) from.payments.splice(0, from.payments.length - 50);
+  from.paidOnce = true;
+  try { Q.track(fromUid, 'purchase', 1); } catch (e) { console.error('quest purchase', e); }
+  try { refPaid(from, info); } catch (e) { console.error('ref paid', e); }
+  Econ.paid(kind, info.amount, info.currency || 'XTR');
+  if (kind === 'spin') to.paidSpins += 1;
+  else if (kind === 'spin10') to.paidSpins += 10;
+  else meta.onPaid(kind, to);
+  refreshUid(toUid);
+  const title = kind === 'spin' ? 'Печать призыва' : kind === 'spin10' ? 'Печати призыва ×10' : meta.INVOICES[kind].title;
+  notifyUid(toUid, `🎁 Подарок от ${from.name || 'игрока'}: ${title}!`);
+  notifyUid(fromUid, `🎁 Подарок отправлен: ${title} → ${to.name || 'игрок'}`);
+  admin.log('pay', `${from.name || fromUid}: подарок ${kind} → ${to.name || toUid}`);
+  saveProfiles();
+  return true;
+}
 function onPaid(payload, info = {}) {
   if (!isValidPayload(payload)) return false;
   const [kind, uid, id] = String(payload).split(':');
+  // Подарок: платил дарящий (журнал оплат, скидки, задания, реферальная доля — у него), получает uid
+  if (id && /^gtg\d+$/.test(id) && GIFTABLE(kind)) return onGiftPaid(kind, uid, id.slice(1), info);
   const pr = getProfile(uid);
   // Telegram может прислать одно и то же сообщение об оплате повторно (повтор доставки после сбоя) — выдаём покупку один раз
   if (info.charge) {

@@ -260,6 +260,41 @@ module.exports = function createTrade(deps) {
         orders: deps.passOrders ? deps.passOrders(pr).map((x) => ({ ...x, gram: gramOf(x.cost) })) : [],
       } };
     },
+    // Поиск получателя подарка или перевода: по нику (от 2 букв) или ID вида tg123…
+    findPlayer(p, d) {
+      const q = String(d.q || '').trim().toLowerCase().slice(0, 32);
+      if (q.length < 2) return { error: 'Введите хотя бы 2 буквы ника' };
+      const out = [];
+      for (const [uid, x] of Object.entries(profiles())) {
+        if (!/^tg\d+$/.test(uid) || uid === p.uid || !x.name) continue;
+        const n = x.name.toLowerCase();
+        if (uid === q || n === q || n.includes(q)) out.push({ uid, name: x.name, lvl: maxLevel(x), exact: n === q || uid === q });
+        if (out.length >= 40) break;
+      }
+      out.sort((a, b) => b.exact - a.exact || b.lvl - a.lvl);
+      return { players: out.slice(0, 8).map(({ uid, name, lvl }) => ({ uid, name, lvl })) };
+    },
+    // Перевод GRAM другому игроку: комиссия 10% (доход игры). Получатель может тратить их в игре, но не выводить
+    // (иначе через второй аккаунт пополнения превращались бы в выводимые деньги и обходились условия вывода)
+    gramSend(p, d, pr) {
+      const to = String(d.to || ''), a = toNano(Number(d.amount) || 0);
+      if (!/^tg\d+$/.test(p.uid)) return { error: 'Переводы доступны в игре через Telegram' };
+      if (!/^tg\d+$/.test(to) || to === p.uid) return { error: 'Выберите другого игрока' };
+      const tp = profiles()[to]; // не getProfile: тот создал бы пустой профиль для несуществующего ID
+      if (!tp || !tp.created) return { error: 'Получатель не найден' };
+      if (a < toNano(0.5) || a > toNano(500)) return { error: 'Перевод — от 0,5 до 500 GRAM' };
+      const day = mskDay(); if (!pr.gsend || pr.gsend.day !== day) pr.gsend = { day, a: 0 };
+      if (pr.gsend.a + a > toNano(1000)) return { error: 'Лимит переводов — 1000 GRAM в день' };
+      const fee = Math.round(a * 0.1), net = a - fee, name = tp.name || 'игрок';
+      if (d.quote) return { quote: { amount: a, fee, net, name } };
+      if (!spend(p.uid, a, 'gift', `Перевод ${name}: ${fmt(a)} GRAM (комиссия ${fmt(fee)})`)) return { error: `Нужно ${fmt(a)} GRAM — пополните баланс`, needGram: true };
+      credit(to, 'gift', net, `Перевод от ${p.name}: ${fmt(net)} GRAM (тратить в игре, вывод недоступен)`);
+      pr.gsend.a += a;
+      st.house = (st.house || 0) + fee;
+      save();
+      notifyUid(to, `💎 ${p.name} перевёл вам ${fmt(net)} GRAM — можно тратить в игре`);
+      return { toast: `Отправлено ${fmt(net)} GRAM → ${name} (комиссия ${fmt(fee)})` };
+    },
     // Моя экономика: только свои деньги игрока — общий оборот игры не показываем
     gramMine(p, d, pr) {
       compact(pr);

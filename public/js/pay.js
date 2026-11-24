@@ -15,7 +15,7 @@ window.Pay = (() => {
 
   // ---------- Telegram Stars ----------
   async function payStars(item, bgId, onPaid, toast) {
-    const { ok, data } = await api('/api/invoice', { item, bgId });
+    const { ok, data } = await api('/api/invoice', { item, bgId, to: giftTo });
     if (!ok) return toast(data.error || 'Оплата недоступна');
     if (data.devPaid) { toast('Покупка зачислена (тестовый режим)'); if (onPaid) onPaid(); return; }
     const w = tg();
@@ -71,7 +71,7 @@ window.Pay = (() => {
     let ui;
     try { ui = await tonConnect(); } catch (e) { return toast(e.message); }
     if (!ui) return toast('Кошелёк не подключён');
-    const { ok, data } = await api('/api/ton/order', { item, bgId });
+    const { ok, data } = await api('/api/ton/order', { item, bgId, to: giftTo });
     if (!ok) return toast(data.error || 'Оплата в GRAM недоступна');
     try {
       await ui.sendTransaction({ validUntil: Math.floor(Date.now() / 1000) + 600, messages: [{ address: data.address, amount: data.amount, payload: data.payload }] });
@@ -128,11 +128,13 @@ window.Pay = (() => {
       res(window.confirm(text));
     });
   }
-  async function buy(item, { bgId, onPaid, toast = (t) => (window.Town ? Town.toast(t) : alert(t)) } = {}) {
+  let giftTo = null; // подарок: uid получателя (платит текущий игрок)
+  async function buy(item, { bgId, onPaid, to = null, toast = (t) => (window.Town ? Town.toast(t) : alert(t)) } = {}) {
     if (!(await zbtOk())) return;
+    giftTo = to || null;
     const ti = await tonInfo();
     if (!ti.enabled) return payStars(item, bgId, onPaid, toast);
-    const q = await api('/api/ton/quote', { item, bgId });
+    const q = await api('/api/ton/quote', { item, bgId, to: giftTo });
     if (!q.ok) return payStars(item, bgId, onPaid, toast); // TON для этого товара недоступен — обычная оплата
     const how = await choose(q.data.title, q.data.stars, q.data.ton);
     if (how === 'stars') return payStars(item, bgId, onPaid, toast);
