@@ -620,11 +620,18 @@ window.GameScene = class GameScene extends Phaser.Scene {
           keep(this.add.rectangle(o.x + 24, o.y, 8, 50, 0x6a6560).setDepth(10 + o.y + 20));
           keep(this.add.rectangle(o.x, o.y - 26, 58, 8, 0x5a5550).setDepth(10 + o.y + 20));
         }
-        const swirl = keep(this.add.ellipse(o.x, o.y + 2, 38, 46, col, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setDepth(10 + o.y));
-        swirl.setInteractive().on('pointerdown', (ptr) => { if (!this.uiBlocked(ptr)) this.goTo(o); });
-        const core = keep(this.add.ellipse(o.x, o.y + 2, 18, 26, 0xffffff, 0.5).setDepth(10 + o.y + 1));
-        this.tweens.add({ targets: swirl, scaleX: 0.8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-        this.tweens.add({ targets: core, alpha: 0.15, scale: 1.4, duration: 900, yoyo: true, repeat: -1 });
+        // Проём арки целиком залит цветом портала (по форме проёма, без овала и обводки) и мягко «дышит»
+        const fillKey = art && this.portalFill(`ptl_${z.theme}_${o.world ? 'boss' : o.id === 'exit' ? 'exit' : 'arch'}`);
+        const glowAt = fillKey ? keep(this.add.image(o.x, o.y + 26, fillKey).setOrigin(0.5, 1).setTint(col).setAlpha(0.8).setDepth(10 + o.y + 19)) : null;
+        const swirl = glowAt || keep(this.add.ellipse(o.x, o.y + 2, 38, 46, col, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setDepth(10 + o.y));
+        if (glowAt) keep(this.add.zone(o.x, o.y + 2, 40, 50).setInteractive().on('pointerdown', (ptr) => { if (!this.uiBlocked(ptr)) this.goTo(o); }));
+        else swirl.setInteractive().on('pointerdown', (ptr) => { if (!this.uiBlocked(ptr)) this.goTo(o); });
+        if (glowAt) this.tweens.add({ targets: glowAt, alpha: 0.55, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        else {
+          const core = keep(this.add.ellipse(o.x, o.y + 2, 18, 26, 0xffffff, 0.5).setDepth(10 + o.y + 1));
+          this.tweens.add({ targets: swirl, scaleX: 0.8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+          this.tweens.add({ targets: core, alpha: 0.15, scale: 1.4, duration: 900, yoyo: true, repeat: -1 });
+        }
         const title = !o.num ? `${o.icon} ${o.name}${o.world ? ` · ур. ${o.lv[0]}` : ''}` : `${['I', 'II', 'III', 'IV', 'V', 'VI'][o.num - 1]} · ${o.name} · ур. ${o.lv[0]}–${o.lv[1]}`;
         keep(this.add.text(o.x, top, title, { ...labelStyle, fontSize: '10px' }).setOrigin(0.5, 1).setDepth(3000));
       }
@@ -634,6 +641,44 @@ window.GameScene = class GameScene extends Phaser.Scene {
     this.autoObj = undefined; // undefined — ещё не проверяли: объект рядом с точкой появления сам не срабатывает
     if (this.layer && this.scale) this.resize();
     this.ui.onZone(z);
+  }
+
+  // Маска проёма нарисованной арки: прозрачная середина под верхней перекладиной, построчно (нижние строки, где
+  // проём сливается с землёй, повторяют последнюю замкнутую). Белая маска, красится в цвет портала. null — проёма нет
+  portalFill(key) {
+    const out = 'pfill_' + key;
+    if (this.textures.exists(out)) return out;
+    if (!this.textures.exists(key)) return null;
+    const src = this.textures.get(key).getSourceImage(), W = src.width, H = src.height;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const cx = cv.getContext('2d'); cx.drawImage(src, 0, 0);
+    let px; try { px = cx.getImageData(0, 0, W, H).data; } catch { return null; }
+    const A = (x, y) => px[(y * W + x) * 4 + 3];
+    const c = W >> 1;
+    let y = 0;
+    while (y < H && A(c, y) < 40) y++; // пустота над аркой
+    while (y < H && A(c, y) >= 40) y++; // верхняя перекладина
+    if (y >= H * 0.8) return null;
+    const mask = cx.createImageData(W, H);
+    let last = null, rows = 0;
+    for (; y < H; y++) {
+      let run = null;
+      if (A(c, y) < 40) {
+        let l = c, r = c;
+        while (l > 0 && A(l - 1, y) < 40) l--;
+        while (r < W - 1 && A(r + 1, y) < 40) r++;
+        if (l > 0 && r < W - 1) run = [l, r];
+        else if (last) break; // проём открылся к земле — дальше не заливаем, иначе цвет торчит под аркой
+      }
+      run = run || last;
+      if (!run) continue;
+      last = run; rows++;
+      for (let x = run[0]; x <= run[1]; x++) { const i = (y * W + x) * 4; mask.data[i] = mask.data[i + 1] = mask.data[i + 2] = 255; mask.data[i + 3] = 255; }
+    }
+    if (rows < 8) return null;
+    cx.clearRect(0, 0, W, H); cx.putImageData(mask, 0, 0);
+    this.textures.addCanvas(out, cv);
+    return out;
   }
 
   // Земля под украшением (клетка 16): самый частый соседний проходимый тайл — площадь, трава или пепел
