@@ -966,7 +966,7 @@
         row('Имена над героями', 'Имена игроков и монстров на карте', opt('names'));
         row('Чат над картой', 'Сообщения игроков коротко видны в игре', opt('chatPop'));
         row('События над картой', 'Системные сообщения (боссы, награды, вход игроков)', opt('sysPop'));
-        row('Экономия батареи', '30 кадров в секунду вместо 60', opt('lowFps'));
+        row('Экономия батареи', 'Всегда 30 кадров в секунду (без неё — 60 в бою и в движении, 30 когда герой стоит)', opt('lowFps'));
         {
           const sel = document.createElement('select'); sel.className = 'set-sel';
           for (const [v, n] of [['auto', 'Авто'], ['high', 'Чёткая'], ['fast', 'Быстрая']]) { const o = document.createElement('option'); o.value = v; o.textContent = n; o.selected = Settings.get('gfx') === v; sel.append(o); }
@@ -1197,9 +1197,10 @@
       const devDpr = window.devicePixelRatio || 1;
       // Нижняя граница чёткости в «Авто»: на плотных экранах (iPhone 3×) не ниже 2× — ниже картинка «зернистая», глазам больно;
       // на экранах 2× — не ниже 1,5×. Совсем грубое 1× — только в режиме «Быстрая» на слабых телефонах
-      const AUTO_MIN = devDpr >= 2.5 ? 2 : devDpr >= 1.75 ? 1.5 : 1;
+      const AUTO_MIN = devDpr >= 1.75 ? Math.min(2, devDpr >= 2.5 ? 2 : 1.5) : 1;
       const DPR_LEVELS = [...new Set([Math.min(3, devDpr), 2, 1.5, 1].filter((x) => x <= devDpr))].sort((a, b) => b - a);
-      const AUTO_LEVELS = DPR_LEVELS.filter((x) => x >= Math.min(AUTO_MIN, 1.5)); // ниже AUTO_MIN — только в тяжёлом бою (FPS < 32), потом вернётся
+      // «Авто» — не выше 2×: 3× (iPhone) рисует в 2,25 раза больше точек — телефон грелся; 3× — только в «Чёткой»
+      const AUTO_LEVELS = DPR_LEVELS.filter((x) => x <= 2 && x >= Math.min(AUTO_MIN, 1.5)); // ниже AUTO_MIN — только в тяжёлом бою (FPS < 32), потом вернётся
       // Старые сохранённые «потолки» могли застрять на минимуме (снижали, пока игра была свёрнута) — сбрасываем один раз
       if (store.get('gfxVer') !== '2') { store.set('gfxVer', '2'); store.set('gfxCap', ''); store.set('gfxDpr', ''); }
       const gfxStart = () => {
@@ -1218,18 +1219,39 @@
         scale: { mode: Phaser.Scale.NONE, width: Math.round(window.innerWidth * DPR), height: Math.round(window.innerHeight * DPR), zoom: 1 / DPR },
         input: { activePointers: 3, windowEvents: false }, // касания поверх окон и кнопок не доходят до мира
         scene: [],
-        fps: { limit: Settings.get('lowFps') ? 30 : 0 },
+        fps: { limit: 60 }, // кадры ограничиваем сами (ниже): 60 — в бою и в движении, 30 — когда герой стоит
       });
       // Время кадра — настоящее. Phaser, считая окно «не в фокусе» (в Telegram это бывает после любого всплывающего окна,
       // а событие возврата фокуса может не прийти вовсе), режет шаг кадра до 1/60 с: при 45 FPS герой шёл на 75% скорости,
       // при 30 FPS в бою — вдвое медленнее и рывками, а таймеры и анимации тянулись. Фокус больше не учитываем
       // (свернули игру — цикл и так стоит), а «остывание» после возврата — 3 кадра вместо 120.
       game.loop.blur = function () {}; game.loop.inFocus = true; game.loop.panicMax = 3;
+      // Частота кадров против нагрева: 60 — когда герой идёт, бьёт, рядом монстры, автобой, рывок или арена; 30 — когда стоит
+      // (город, окна, чтение). «Экономия батареи» — всегда 30. На экранах 120 Гц раньше рисовалось 120 кадров — теперь не больше 60.
+      // Порог чуть ниже 1/60 с, чтобы при 60 Гц не терялись кадры из-за погрешности таймера
+      const FPS_FAST = 1000 / 70, FPS_SLOW = 1000 / 32;
+      let fpsLast = { x: 0, y: 0 }, fpsActiveAt = 0, fpsMode = '';
+      const fpsTick = (force) => {
+        const sc = window.gameScene, me = sc && sc.me, now = performance.now();
+        if (me && !me.data.dead) {
+          const moved = Math.abs(me.x - fpsLast.x) + Math.abs(me.y - fpsLast.y) > 0.5; fpsLast = { x: me.x, y: me.y };
+          let near = false;
+          if (sc.monsters) for (const e of sc.monsters.values()) if (e.data && e.data.hp > 0 && Math.abs(e.c.x - me.x) < 420 && Math.abs(e.c.y - me.y) < 420) { near = true; break; }
+          if (moved || near || sc.autoFarm || sc.myDash || (sc.input_ && sc.input_.attack) || (sc.zone && sc.zone.kind === 'pvp')) fpsActiveAt = now;
+        }
+        const mode = Settings.get('lowFps') || now - fpsActiveAt > 2500 ? 'slow' : 'fast';
+        if (mode === fpsMode && !force) return;
+        fpsMode = mode; game.loop._limitRate = mode === 'slow' ? FPS_SLOW : FPS_FAST;
+      };
+      fpsTick(true);
+      setInterval(fpsTick, 200);
+      // Нарисованные кадры в секунду (actualFps считает и пропущенные) — для строки FPS в настройках
+      let rFrames = 0; window.__rfps = 0; game.events.on('step', () => { rFrames++; }); setInterval(() => { window.__rfps = rFrames; rFrames = 0; }, 1000);
       // Настройки, которые меняются прямо в игре: имена над героями, частота кадров, подсказки
       Settings.on((k, v) => {
         const sc = window.gameScene;
         if (k === 'names' && sc) for (const m of [sc.players, sc.monsters, sc.pets]) if (m) for (const e of m.values()) if (e.label) e.label.setVisible(v);
-        if (k === 'lowFps') { const L = game.loop; L.sleep(); L.fpsLimit = v ? 30 : 0; L.hasFpsLimit = !!v; L._limitRate = v ? 1000 / 30 : 0; L.wake(true); }
+        if (k === 'lowFps') fpsTick(true);
         if (k === 'hints') document.body.classList.toggle('no-hints', !v);
         if (k === 'mapZoom' && sc && sc.resize) sc.resize();
       });
@@ -1287,7 +1309,7 @@
         const el = $('netInfo');
         if (!Settings.get('netInfo')) { el.classList.add('hidden'); return; }
         el.classList.remove('hidden');
-        const fps = Math.round(game.loop.actualFps);
+        const fps = window.__rfps || Math.round(game.loop.actualFps);
         el.innerHTML = `<span class="${fps < 45 ? 'bad' : ''}">${fps} FPS</span> · <span class="${pingMs > 250 ? 'bad' : ''}">${pingMs} мс</span> · ${window.GAME_DPR}×`;
       }, 1000);
     });
