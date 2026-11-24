@@ -1492,8 +1492,7 @@ canvas.skin { object-fit: contain; }
 .lobby-launch .l2-btn { padding: 3px 10px; font-size: 11.5px; }
 .lobby-launch .l2-btn.done { opacity: .6; }
 .lobby-online { position: absolute; z-index: 4; left: 10px; right: 130px; top: calc(76% + 50px); text-align: center; color: #bfe8a0; font-size: 12.5px; text-shadow: 0 1px 2px #000; font-family: Georgia, serif; }
-/* В городе: онлайн и плашка перерыва */
-  background: rgba(14, 18, 10, .72); border: 1px solid #6a8a4a; color: #d8f0c0; font-family: Georgia, serif; pointer-events: none; white-space: nowrap; }
+/* Плашка технического перерыва — под панелью героя */
 .brk-banner { position: absolute; left: 50%; top: calc(198px + env(safe-area-inset-top)); transform: translateX(-50%); padding: 5px 12px; border-radius: 12px; font-size: 12px; max-width: 86%; text-align: center;
   background: rgba(70, 40, 6, .9); border: 1px solid #ffb340; color: #ffe2a8; font-family: Georgia, serif; pointer-events: none; }
 /* Золото и самоцветы — одной строкой внутри панели героя (урон — в окне «Характеристики») */

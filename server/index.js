@@ -379,7 +379,7 @@ setInterval(() => {
   const b = S.brk;
   if (b) {
     const left = b.at - now, end = b.at + b.min * 60e3;
-    for (const m of [30, 15, 5, 1]) if (left <= m * 60e3 && left > 0 && !(b.warned || []).includes(m)) {
+    for (const m of [60, 30, 15, 5, 1]) if (left <= m * 60e3 && left > 0 && !(b.warned || []).includes(m)) {
       (b.warned ??= []).push(m);
       io.emit('chat', { sys: true, text: `🔧 Через ${m} мин (в ${fmtHM(b.at)} МСК) — технический перерыв на ${b.min} мин. Закончите бой и выйдите в город.` });
       io.emit('brk', launchInfo().brk);
