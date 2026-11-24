@@ -11,6 +11,7 @@
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
+  <div class="rotate-hint"><div>📱<b>Поверните телефон вертикально</b><small>Игра работает только в вертикальном положении</small></div></div>
   <!-- Заставка загрузки: держится, пока лобби не получит профиль -->
   <div id="splash" class="splash">
     <div class="splash-load"><div class="splash-bar"><i id="splashFill"></i></div><p id="splashText">Загрузка мира…</p></div>
@@ -74,10 +75,15 @@
     <div class="l2-panel lobby-menu">
       <button id="menuHeroes" class="l2-btn"><img class="ui-ic" src="assets/ui/nav_gacha.webp" alt=""><span>Призыв</span></button>
       <button id="menuRoster" class="l2-btn hidden">👥 Мои герои</button>
-      <button id="menuBg" class="l2-btn"><img class="ui-ic" src="assets/ui/ic_lobbyBg.webp" alt=""><span>Фон лобби</span></button>
+      <button id="menuWiki" class="l2-btn">📖 Энциклопедия</button>
+      <button id="menuMore" class="l2-btn">☰ Ещё</button>
+    </div>
+    <!-- Остальные пункты меню лобби — в окне «☰ Ещё» (чтобы не закрывали фон и героя) -->
+    <div id="menuMoreList" class="lobby-more hidden">
       <button id="menuInvite" class="l2-btn hidden">👥 Пригласить друга</button>
       <button id="menuChannel" class="l2-btn hidden">📢 Канал</button>
       <button id="menuPartners" class="l2-btn hidden">🤝 Партнёры</button>
+      <button id="menuBg" class="l2-btn"><img class="ui-ic" src="assets/ui/ic_lobbyBg.webp" alt=""><span>Фон лобби</span></button>
       <button id="menuAdmin" class="l2-btn hidden">⚙️ Админка</button>
       <select id="menuLang" class="l2-btn lang-sel notr" aria-label="Язык"></select>
     </div>
@@ -86,6 +92,7 @@
     <div id="renameBox" class="sheet hidden">
       <form id="renameForm" class="sheet-card l2-panel rename">
         <b>Имя героя</b>
+        <small id="renameHint" style="opacity:.7;font-size:12px">3–16 символов, менять — раз в сутки</small>
         <input id="guestName" maxlength="16" placeholder="Введите имя" autocomplete="off" />
         <button class="l2-btn">Сохранить</button>
       </form>
@@ -186,6 +193,7 @@
         <button type="button" id="chatClose" class="chat-close">✕</button>
       </div>
       <div id="townOnline" class="chat-online hidden"></div>
+      <div id="evFilter" class="ev-filter hidden"></div>
       <div id="chatList" class="chat-list"></div>
       <div id="pmTo" class="pm-to hidden"><span></span><button type="button" id="pmToClear">✕</button></div>
       <div id="stickerBar" class="sticker-bar"></div>

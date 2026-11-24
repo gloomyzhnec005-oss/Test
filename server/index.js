@@ -104,7 +104,7 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
 app.use('/vendor/phaser.min.js', (req, res) =>
   res.sendFile(path.join(__dirname, '..', 'node_modules', 'phaser', 'dist', 'phaser.min.js'), { headers: { 'Cache-Control': ASSET_CACHE } }));
 // Админ-панель (server/admin.js): свой разбор JSON с большим лимитом, поэтому подключается раньше общего
-const admin = createAdmin({
+const admin = createAdmin({ evCast: (m) => evCast(m),
   C, I, MOBX, verifyInitData, store, version: () => VERSION,
   get players() { return players; }, get monsters() { return monsters; }, get world() { return world; },
   get D() { return D; }, get meta() { return meta; }, get io() { return io; }, profiles: null,
@@ -141,7 +141,7 @@ function profileView(who) {
   }
   const bgs = C.LOBBY_BACKGROUNDS.filter((b) => b.price === 0 || pr.bgs.includes(b.id)).map((b) => b.id);
   return {
-    name: who.name, uid: who.uid, tgId: who.tg ? who.uid.slice(2) : null, heroes: pr.heroes, chars, bgs,
+    name: pr.nick || who.name, nick: pr.nick || null, nickAt: pr.nickAt || 0, uid: who.uid, tgId: who.tg ? who.uid.slice(2) : null, heroes: pr.heroes, chars, bgs,
     isAdmin: !!who.tg && admin.isAdminUid(who.uid),
     freeSpin: !pr.freeSpinUsed || FREE_SPINS || S.freeSpins, paidSpins: pr.paidSpins, spinPrice: C.GACHA.spinPrice, gold: pr.gold, dupeMax: C.GACHA.heroDupeMax,
     wish: Wish.view(pr), spin10Price: C.GACHA.spin10Price,
@@ -269,6 +269,32 @@ app.post('/api/profile', (req, res) => {
   res.json(profileView(who));
 });
 
+// Свой ник для игроков Telegram (по умолчанию — имя из Telegram). 3–16 символов, уникальный, менять — раз в сутки.
+const NICK_CD = 24 * 3600e3;
+app.post('/api/nick', (req, res) => {
+  const { initData, nick } = req.body || {};
+  const who = resolveUid(initData, null);
+  if (!who || !who.tg) return res.status(403).json({ error: 'Откройте игру через Telegram-бота' });
+  const pr = getProfile(who.uid);
+  if (pr.banned) return res.status(403).json({ error: 'Аккаунт заблокирован' });
+  const v = cleanName(nick).replace(/\s+/g, ' ').slice(0, 16);
+  if (v.length < 3) return res.status(400).json({ error: 'Ник — от 3 до 16 символов' });
+  if (!/^[\p{L}\p{N} _.\-]+$/u.test(v)) return res.status(400).json({ error: 'Только буквы, цифры, пробел, _ . -' });
+  if (v === pr.nick) return res.json(profileView(who));
+  if (pr.nickAt && Date.now() - pr.nickAt < NICK_CD) {
+    const h = Math.ceil((NICK_CD - (Date.now() - pr.nickAt)) / 3600e3);
+    return res.status(400).json({ error: `Сменить ник можно через ${h} ч` });
+  }
+  const low = v.toLowerCase();
+  for (const [uid, x] of Object.entries(profiles)) {
+    if (uid !== who.uid && x && (String(x.nick || '').toLowerCase() === low || String(x.name || '').toLowerCase() === low)) return res.status(400).json({ error: 'Этот ник уже занят' });
+  }
+  pr.nick = v; pr.nickAt = Date.now(); pr.name = v;
+  for (const o of players.values()) if (o.uid === who.uid) { o.name = v; o.lastStats = 0; markDirty(o); }
+  saveProfiles();
+  res.json(profileView(who));
+});
+
 // Призыв героев (server/wish.js): Избранный недели и Зал героев, ×1/×10, гарант
 const Wish = require('./wish')({
   C, getChar: (...a) => getChar(...a), refreshUid: (uid) => refreshUid(uid),
@@ -282,6 +308,12 @@ app.post('/api/gacha/spin', (req, res) => {
   const r = Econ.measure('heroSummon', pr, () => Wish.pull(who.uid, pr, banner, n, FREE_SPINS || S.freeSpins));
   if (r.error) return res.status(402).json(r);
   for (const x of r.results) Econ.item(x.rar, 'hero');
+  // «События»: новый мифический герой из призыва (повторы не объявляем)
+  const nm = cleanName(pr.nick || pr.name || who.name) || 'Герой';
+  for (const x of r.results) if (x.isNew && x.rar === 'mythic') {
+    const h = C.HEROES[x.hero];
+    if (h) evCast({ ev: 'hero', text: `🌟 ${nm} призвал мифического героя: ${h.name}!` });
+  }
   saveProfiles();
   const one = r.results[0];
   res.json({ results: r.results, hero: one.hero, dupe: one.dupe, profile: profileView(who) });
@@ -355,7 +387,7 @@ setInterval(() => {
   // Открытие: в момент openAt — объявление и сообщение от бота всем, кто нажал «Напомнить»
   if (S.openAt && !launchFired && now >= S.openAt) {
     launchFired = true;
-    io.emit('chat', { sys: true, text: '🎉 Mystic Horizon открыт! Добро пожаловать, герои!' });
+    evCast({ text: '🎉 Mystic Horizon открыт! Добро пожаловать, герои!' });
     // Сообщение от бота — всем игрокам Telegram, кому ещё не писали об ЭТОМ открытии (pr.openMsg), кроме отключивших
     // уведомления: и нажавшим «Напомнить», и всем, кто заходил до открытия. Кто получил сообщение о раннем (ошибочном)
     // открытии — получит и это. Отправка с паузой 50 мс (лимит Telegram ~30 сообщений в секунду)
@@ -381,7 +413,7 @@ setInterval(() => {
     const left = b.at - now, end = b.at + b.min * 60e3;
     for (const m of [60, 30, 15, 5, 1]) if (left <= m * 60e3 && left > 0 && !(b.warned || []).includes(m)) {
       (b.warned ??= []).push(m);
-      io.emit('chat', { sys: true, text: `🔧 Через ${m} мин (в ${fmtHM(b.at)} МСК) — технический перерыв на ${b.min} мин. Закончите бой и выйдите в город.` });
+      evCast({ text: `🔧 Через ${m} мин (в ${fmtHM(b.at)} МСК) — технический перерыв на ${b.min} мин. Закончите бой и выйдите в город.` });
       io.emit('brk', launchInfo().brk);
     }
     if (now >= b.at && now < end && !S.maintenance) {
@@ -400,20 +432,21 @@ app.get('/api/config', (req, res) => res.json({
 // Покупки за Telegram Stars: фон лобби (item=bg) или крутка гачи (item=spin)
 let bot = null;
 app.post('/api/invoice', async (req, res) => {
-  const { initData, guestId, item, bgId } = req.body || {};
+  const { initData, guestId, item, bgId, to } = req.body || {};
   // DEV_PAYMENTS=true — тестовый режим: покупка зачисляется сразу, без Telegram
   if (process.env.DEV_PAYMENTS === 'true') {
     const w = resolveUid(initData, guestId);
     if (!w) return res.status(403).json({ error: 'Нет игрока' });
     const no = meta.INVOICES[item] && meta.canBuy(item, getProfile(w.uid));
     if (no) return res.status(400).json({ error: no });
-    const ok = onPaid(item === 'bg' ? `bg:${w.uid}:${bgId}` : `${item}:${w.uid}`);
+    const to = req.body && req.body.to;
+    const ok = onPaid(item === 'bg' ? `bg:${w.uid}:${bgId}` : to ? `${item}:${to}:g${w.uid}` : `${item}:${w.uid}`); // тест подарка — как настоящий
     return ok ? res.json({ devPaid: true }) : res.status(400).json({ error: 'Неизвестный товар' });
   }
   const who = resolveUid(initData, null);
   if (!who || !who.tg) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   if (!bot) return res.status(503).json({ error: 'Оплата временно недоступна' });
-  const inv = buildInvoice(who, item, bgId);
+  const inv = buildInvoice(who, item, bgId, to);
   if (inv.error) return res.status(400).json({ error: inv.error });
   try {
     const link = await bot.telegram.createInvoiceLink({ ...inv.invoice, provider_token: '', currency: 'XTR' });
@@ -424,8 +457,21 @@ app.post('/api/invoice', async (req, res) => {
   }
 });
 // Счёт на товар: название, payload для зачисления (onPaid) и цена в Stars. Общий для Stars и TON
-function buildInvoice(who, item, bgId) {
+// Подарки другу (магазин → «🎁 Подарок другу»): платит дарящий, получает друг. Только эти товары (без личных:
+// ордена считаются от текущего ордена получателя, набор новичка — разовый)
+const GIFTABLE = (k) => k === 'spin' || k === 'spin10' || (meta.INVOICES[k] && !/^(starter|card30|sub|whUp)/.test(k) && !Trade.isOrder(k));
+function buildInvoice(who, item, bgId, to) {
   let invoice;
+  if (to) { // подарок: счёт выставляется дарящему, payload — на получателя с пометкой g<дарящий>
+    const tu = String(to);
+    if (!/^tg\d+$/.test(tu) || !profiles[tu]) return { error: 'Получатель не найден' };
+    if (tu === who.uid) return { error: 'Себе подарок не отправить' };
+    if (!GIFTABLE(item)) return { error: 'Этот товар нельзя подарить' };
+    const v = item === 'spin' || item === 'spin10' ? { title: item === 'spin10' ? 'Печати призыва ×10' : 'Печать призыва', description: 'Призыв героя', amount: item === 'spin10' ? C.GACHA.spin10Price : C.GACHA.spinPrice } : meta.INVOICES[item];
+    const nm = (profiles[tu].name || 'игрок').slice(0, 30);
+    invoice = { title: `🎁 ${v.title} → ${nm}`.slice(0, 32), description: `Подарок для ${nm}: ${v.description}`.slice(0, 255), payload: `${item}:${tu}:g${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
+    return { invoice, stars: v.amount }; // без скидки первой покупки
+  }
   if (/^pass[1-6]$/.test(item)) { // сезонный орден: цена — разница с уже купленным
     const v = meta.passInvoice(getProfile(who.uid), +item[4]);
     if (v.error) return { error: v.error };
@@ -479,7 +525,7 @@ app.post('/api/ton/quote', (req, res) => {
   if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в GRAM выключена' });
   const who = tonWho(req);
   if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
-  const inv = buildInvoice(who, req.body.item, req.body.bgId);
+  const inv = buildInvoice(who, req.body.item, req.body.bgId, req.body.to);
   if (inv.error) return res.status(400).json({ error: inv.error });
   res.json({ title: inv.invoice.title, stars: inv.stars, ton: ton.tonPrice(inv.stars) });
 });
@@ -487,7 +533,7 @@ app.post('/api/ton/order', (req, res) => {
   if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в GRAM выключена' });
   const who = tonWho(req);
   if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
-  const inv = buildInvoice(who, req.body.item, req.body.bgId);
+  const inv = buildInvoice(who, req.body.item, req.body.bgId, req.body.to);
   if (inv.error) return res.status(400).json({ error: inv.error });
   res.json(ton.createOrder(who.uid, inv.invoice.payload, inv.stars, inv.invoice.title));
 });
@@ -527,9 +573,35 @@ function isValidPayload(payload, beforePay = false) {
   if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass[1-6]$/.test(kind)) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
 }
+function onGiftPaid(kind, toUid, fromUid, info) {
+  const from = getProfile(fromUid), to = getProfile(toUid);
+  if (info.charge) {
+    from.charges ??= [];
+    if (from.charges.includes(info.charge)) return true;
+    from.charges.push(info.charge); if (from.charges.length > 300) from.charges.splice(0, from.charges.length - 300);
+  }
+  (from.payments ??= []).push({ t: Date.now(), kind, giftTo: toUid, amount: info.amount, cur: info.currency || 'XTR', charge: info.charge });
+  if (from.payments.length > 50) from.payments.splice(0, from.payments.length - 50);
+  from.paidOnce = true;
+  try { Q.track(fromUid, 'purchase', 1); } catch (e) { console.error('quest purchase', e); }
+  try { refPaid(from, info); } catch (e) { console.error('ref paid', e); }
+  Econ.paid(kind, info.amount, info.currency || 'XTR');
+  if (kind === 'spin') to.paidSpins += 1;
+  else if (kind === 'spin10') to.paidSpins += 10;
+  else meta.onPaid(kind, to);
+  refreshUid(toUid);
+  const title = kind === 'spin' ? 'Печать призыва' : kind === 'spin10' ? 'Печати призыва ×10' : meta.INVOICES[kind].title;
+  notifyUid(toUid, `🎁 Подарок от ${from.name || 'игрока'}: ${title}!`);
+  notifyUid(fromUid, `🎁 Подарок отправлен: ${title} → ${to.name || 'игрок'}`);
+  admin.log('pay', `${from.name || fromUid}: подарок ${kind} → ${to.name || toUid}`);
+  saveProfiles();
+  return true;
+}
 function onPaid(payload, info = {}) {
   if (!isValidPayload(payload)) return false;
   const [kind, uid, id] = String(payload).split(':');
+  // Подарок: платил дарящий (журнал оплат, скидки, задания, реферальная доля — у него), получает uid
+  if (id && /^gtg\d+$/.test(id) && GIFTABLE(kind)) return onGiftPaid(kind, uid, id.slice(1), info);
   const pr = getProfile(uid);
   // Telegram может прислать одно и то же сообщение об оплате повторно (повтор доставки после сбоя) — выдаём покупку один раз
   if (info.charge) {
@@ -577,6 +649,16 @@ const GRACE_MS = 2 * 60000; // столько герой ждёт в мире п
 const world = buildWorld(); // города и охотничьи земли за порталами (server/world.js)
 const players = new Map(); // socket.id -> player
 // Последние сообщения общего чата — сохраняются в базу, после обновления игры (перезапуска сервера) не пропадают
+// Лента «Событий» — только редкое (мифические находки и герои, боссы, войны, техперерывы). Отдельная история,
+// чтобы сообщения игроков её не вытесняли; приходит при входе вместе с чатом
+const evHistory = (() => { try { const a = store.readJSON('events.json', []); return Array.isArray(a) ? a.slice(-80) : []; } catch { return []; } })();
+let evSaveTm = null;
+function evCast(msg) {
+  const m = { sys: true, ...msg, t: Date.now() };
+  evHistory.push(m); if (evHistory.length > 80) evHistory.shift();
+  clearTimeout(evSaveTm); evSaveTm = setTimeout(() => { try { store.writeJSON('events.json', evHistory); } catch (e) { console.error('events save', e.message); } }, 3000);
+  io.emit('chat', m);
+}
 const chatHistory = (() => { try { const a = store.readJSON('chat.json', []); return Array.isArray(a) ? a.slice(-60) : []; } catch { return []; } })();
 let chatSaveTm = null;
 const chatSave = () => { clearTimeout(chatSaveTm); chatSaveTm = setTimeout(() => { try { store.writeJSON('chat.json', chatHistory); } catch (e) { console.error('chat save', e.message); } }, 3000); };
@@ -632,7 +714,7 @@ const Trade = require('./trade')({
   I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
   bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
   rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), quest: (...a) => Q.track(...a), onHouse: (uid, amount, house) => refHouse(uid, amount, house),
-  liab: () => Object.values(clans).reduce((x, c) => x + (c.reignPool || 0), 0) + (Arena && Arena.glOwed ? Arena.glOwed() : 0), // казна владык и взносы лиги — ещё не выплачены broadcast: (t) => io.emit('chat', { sys: true, text: t }), alertAdmins: (t, loud) => adminAlert(t, loud),
+  liab: () => Object.values(clans).reduce((x, c) => x + (c.reignPool || 0), 0) + (Arena && Arena.glOwed ? Arena.glOwed() : 0), // казна владык и взносы лиги — ещё не выплачены broadcast: (t) => evCast({ text: t }), alertAdmins: (t, loud) => adminAlert(t, loud),
   // Торговые ордена — ступени сезонных орденов после Чемпиона: цена — доплата до них с учётом купленного
   passTier: (pr) => meta.passTier(pr), passEnds: () => (Math.floor(Date.now() / (meta.SHOP.pass.days * 864e5)) + 1) * meta.SHOP.pass.days * 864e5,
   passOrders: (pr) => { const cur = meta.passTier(pr), paid = cur ? meta.SHOP.passTiers[cur - 1].price : 0;
@@ -662,7 +744,7 @@ const D = createDungeons({
   rollItem: (...a) => I.rollItem(...a), createBag: (...a) => I.createBag(...a),
   corpses: () => corpses,
   removeCorpse: (c) => { corpses = corpses.filter((x) => x !== c); },
-  broadcast: (text) => io.emit('chat', { sys: true, text }),
+  broadcast: (text) => evCast({ text }),
   // Отбрасывание героя (таран, воздушный удар)
   knockPlayer(p, dx, dy, distPx) {
     const l = Math.hypot(dx, dy) || 1;
@@ -690,7 +772,7 @@ const Arena = require('./arena')({
   moveToZone: (...a) => moveToZone(...a), getProfile: (uid) => getProfile(uid), partyMembers: (p) => partyMembers(p),
   revive: (p) => revivePlayer(p), addPassXp: (pr, n) => meta.addPassXp(pr, n), quest: (...a) => Q.track(...a),
   statsFor: (...a) => statsFor(...a), profiles: () => profiles, markDirty: (p) => markDirty(p),
-  store, notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => io.emit('chat', { sys: true, text: t }), save: () => saveProfiles(),
+  store, notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => evCast({ text: t }), save: () => saveProfiles(),
   get gram() { return Trade; }, // GRAM-лига турнира: взносы и призы
 });
 // ---------- Кланы (data/clans.json): название, тег, глава, участники, история кланового чата ----------
@@ -746,7 +828,7 @@ setInterval(() => {
     best.reignUntil = (w + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - 3 * 36e5;
     best.reigns = (best.reigns || 0) + 1;
     for (const uid of best.members) { const pr = getProfile(uid); pr.gems = (pr.gems || 0) + 100; notifyUid(uid, `👑 Ваш клан [${best.tag}] победил в войне кланов! +100 💎 и +10% опыта и золота всю неделю`); }
-    io.emit('chat', { sys: true, text: `👑 Война кланов: победил клан [${best.tag}] ${best.name} (${best.war.pts} очков) — владыки недели!` });
+    evCast({ text: `👑 Война кланов: победил клан [${best.tag}] ${best.name} (${best.war.pts} очков) — владыки недели!` });
     saveClans(); saveProfiles();
   }
   try { store.writeJSON('clanwar.json', warState); } catch (e) { console.error('clanwar save', e.message); }
@@ -764,7 +846,8 @@ function clanView(c) {
   return { id: c.id, name: c.name, tag: c.tag, leader: c.leader, max: CLAN.max,
     members: c.members.map((uid) => { const pr = getProfile(uid); return { uid, name: pr.name || 'Герой', online: online.has(uid), leader: uid === c.leader }; }),
     war: { pts: c.war && c.war.w === warWeek() ? c.war.pts : 0, reign: c.reignUntil > Date.now() ? c.reignUntil : 0, reigns: c.reigns || 0, pool: c.reignPool || 0 },
-    log: (c.log || []).slice(-30), vault: (c.vault || []).map((it) => ({ ...I.itemView(it), by: it.clanBy || '' })), vaultMax: CLAN.vault };
+    log: (c.log || []).slice(-30), vault: (c.vault || []).map((it) => ({ ...I.itemView(it), by: it.clanBy || '' })), vaultMax: CLAN.vault,
+    rating: clanRating(c), reqs: (c.reqs || []).map((r) => ({ uid: r.uid, name: r.name, lvl: r.lvl, at: r.at })) };
 }
 function clanQuestView(c, uid) {
   const cq = clanWeek(c), ends = (weekNo() + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - Date.now();
@@ -772,9 +855,50 @@ function clanQuestView(c, uid) {
     mine: (cq.by[uid] || {})[q.id] || 0, claimed: (cq.claimed[q.id] || []).includes(uid), reward: rewardLabel(q.reward) })) };
 }
 const rewardLabel = (r) => [r.gold && `💰 ${r.gold}`, r.gems && `💎 ${r.gems}`, r.itemSpins && `🎁 печать ×${r.itemSpins}`, r.mats && Object.entries(r.mats).map(([k, n]) => `${(I.MATS[k] || {}).name || k} ×${n}`).join(', ')].filter(Boolean).join(' · ');
+// Рейтинг клана: сумма уровней участников (лучший герой) + очки войны кланов за неделю + 100 за каждую победу в войне
+function clanRating(c) {
+  const lv = c.members.reduce((x, uid) => x + Math.max(1, ...Object.values(getProfile(uid).chars || {}).map((h) => h.level || 1)), 0);
+  return lv + (c.war && c.war.w === warWeek() ? c.war.pts : 0) + 100 * (c.reigns || 0);
+}
+// Вступил в клан — его заявки в другие кланы больше не нужны
+const clearReqs = (uid) => { for (const c of Object.values(clans)) if (c.reqs) c.reqs = c.reqs.filter((r) => r.uid !== uid); };
 function clanAct(p, d) {
   const pr = getProfile(p.uid), mine = clanOf(p.uid);
   if (d.op === 'info') return { clan: mine ? clanView(mine) : null, quests: mine ? clanQuestView(mine, p.uid) : null, price: CLAN.price };
+  // Список кланов по рейтингу и заявка на вступление (глава принимает или отклоняет во вкладке «Заявки»)
+  if (d.op === 'list') {
+    const list = Object.values(clans).map((c) => ({ id: c.id, name: c.name, tag: c.tag, n: c.members.length, max: CLAN.max, rating: clanRating(c),
+      leader: getProfile(c.leader).name || 'Герой', reign: c.reignUntil > Date.now(), applied: (c.reqs || []).some((r) => r.uid === p.uid) })).sort((a, b) => b.rating - a.rating);
+    list.forEach((x, i) => { x.place = i + 1; });
+    return { list, mine: mine ? mine.id : null };
+  }
+  if (d.op === 'apply' || d.op === 'unapply') {
+    const c = clans[String(d.id || '')];
+    if (!c) return { error: 'Клан не найден' };
+    if (d.op === 'unapply') { c.reqs = (c.reqs || []).filter((r) => r.uid !== p.uid); saveClans(); return { toast: 'Заявка отозвана' }; }
+    if (mine) return { error: 'Сначала выйдите из своего клана' };
+    if (c.members.length >= CLAN.max) return { error: 'В клане нет мест' };
+    c.reqs ??= [];
+    if (c.reqs.some((r) => r.uid === p.uid)) return { error: 'Заявка уже подана' };
+    if (c.reqs.length >= 50) return { error: 'У клана слишком много заявок — попробуйте позже' };
+    c.reqs.push({ uid: p.uid, name: p.name, lvl: p.char ? p.char.level : 1, at: Date.now() });
+    saveClans();
+    notifyUid(c.leader, `🛡️ Заявка в клан «${c.name}» от ${p.name} (ур. ${p.char ? p.char.level : 1}) — Игра → Клан → Заявки`);
+    return { toast: `Заявка в клан «${c.name}» отправлена — ждите ответа главы` };
+  }
+  if (d.op === 'reqAccept' || d.op === 'reqDecline') {
+    if (!mine || mine.leader !== p.uid) return { error: 'Заявки рассматривает глава клана' };
+    const uid = String(d.uid || ''), req = (mine.reqs || []).find((r) => r.uid === uid);
+    if (!req) return { error: 'Заявки уже нет' };
+    mine.reqs = mine.reqs.filter((r) => r.uid !== uid);
+    if (d.op === 'reqDecline') { saveClans(); notifyUid(uid, `🛡️ Клан «${mine.name}» отклонил заявку`); return { toast: 'Заявка отклонена', clan: clanView(mine) }; }
+    if (clanOf(uid)) { saveClans(); return { error: 'Игрок уже вступил в другой клан', clan: clanView(mine) }; }
+    if (mine.members.length >= CLAN.max) return { error: 'В клане нет мест' };
+    mine.members.push(uid); getProfile(uid).clan = mine.id; clearReqs(uid);
+    saveClans(); saveProfiles(); setClanTag(uid);
+    clanNotify(mine, `🛡️ ${req.name} вступил в клан`); notifyUid(uid, `🛡️ Вас приняли в клан «${mine.name}»!`);
+    return { toast: `${req.name} принят в клан`, clan: clanView(mine) };
+  }
   // Клановое хранилище: вложить вещь из сумки / забрать (участник — до 3 вещей в день, глава — без лимита)
   if (d.op === 'vaultPut') {
     if (!mine) return { error: 'Вы не в клане' };
@@ -830,7 +954,7 @@ function clanAct(p, d) {
     pr.gold -= CLAN.price;
     const id = 'c' + Date.now().toString(36);
     clans[id] = { id, name, tag, leader: p.uid, members: [p.uid], created: Date.now(), log: [] };
-    pr.clan = id; saveClans(); saveProfiles(); setClanTag(p.uid);
+    pr.clan = id; clearReqs(p.uid); saveClans(); saveProfiles(); setClanTag(p.uid);
     return { toast: `Клан «${name}» [${tag}] создан`, clan: clanView(clans[id]) };
   }
   if (d.op === 'invite') {
@@ -849,7 +973,7 @@ function clanAct(p, d) {
     if (mine) return { error: 'Сначала выйдите из своего клана' };
     if (c.members.length >= CLAN.max) return { error: 'В клане нет мест' };
     c.invited = c.invited.filter((u) => u !== p.uid);
-    c.members.push(p.uid); pr.clan = c.id; saveClans(); saveProfiles(); setClanTag(p.uid);
+    c.members.push(p.uid); pr.clan = c.id; clearReqs(p.uid); saveClans(); saveProfiles(); setClanTag(p.uid);
     clanNotify(c, `🛡️ ${p.name} вступил в клан`);
     return { toast: `Вы вступили в клан «${c.name}»`, clan: clanView(c) };
   }
@@ -959,7 +1083,7 @@ const Ranks = (() => {
     const prev = state.week; state.week = w;
     const rows = Object.entries(profiles).filter(([, pr]) => pr.wbWeek && pr.wbWeek.w === prev).sort((a, b) => b[1].wbWeek.dmg - a[1].wbWeek.dmg).slice(0, 3);
     rows.forEach(([uid, pr], i) => { pr.gems = (pr.gems || 0) + PRIZE[i]; notifyUid(uid, `🏆 Рейтинг недели «Мировые боссы»: ${i + 1} место! +${PRIZE[i]} 💎`); });
-    if (rows.length) io.emit('chat', { sys: true, text: `🏆 Итоги недели по мировым боссам: ${rows.map(([uid, pr], i) => `${['🥇', '🥈', '🥉'][i]} ${pr.name || 'Герой'}`).join(' · ')}` });
+    if (rows.length) evCast({ text: `🏆 Итоги недели по мировым боссам: ${rows.map(([uid, pr], i) => `${['🥇', '🥈', '🥉'][i]} ${pr.name || 'Герой'}`).join(' · ')}` });
     try { store.writeJSON('ranks.json', state); } catch (e) { console.error('ranks save', e.message); }
     saveProfiles(); cache = null;
   }, 60e3);
@@ -1132,7 +1256,7 @@ function publicPlayer(p) {
     emp: p.empoweredUntil > Date.now() };
 }
 function privateStats(p) {
-  return { fx: playerEffects(p), passReady: meta.passReady(getProfile(p.uid)), level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm, afLeft: afLeftMs(p),
+  return { fx: playerEffects(p), passReady: meta.passReady(getProfile(p.uid)), level: p.char.level, xp: p.char.xp, xpNext: xpForLevel(p.char.level), kills: p.char.kills, deathLeft: Math.max(0, Math.ceil(((p.deathUntil || 0) - Date.now()) / 1000)), passTier: meta.passTier(getProfile(p.uid)), autofarm: !!p.autofarm, afLeft: ((a) => (a < 0 ? -1 : Math.ceil(a / 10000) * 10000))(afLeftMs(p)), // с точностью до 10 с — статы не шлются каждую секунду; −1 — без лимита
     gold: getProfile(p.uid).gold, gems: getProfile(p.uid).gems || 0, frame: (p.look && p.look.fr) || null, unlocked: p.unlocked, hp: Math.ceil(p.hp), maxHp: p.maxHp, dmg: Math.round(p.dmg * dmgMult(p)),
     res: Math.floor(p.res), resMax: p.resMax, cd: attackCd(p),
     bonusDmg: Math.round((dmgMult(p) - 1) * 100), bonusSpd: Math.round((formOf(p).cooldown / attackCd(p) - 1) * 100), form: p.form || null,
@@ -1220,6 +1344,7 @@ function damageMonster(p, m, raw, opt = {}) {
   let crit = opt.crit ?? false;
   const ps = passiveOf(p);
   const now0 = Date.now();
+  m.hurtAt = now0; // в бою: восстановление «вне боя» — только через 6 с без урона
   // Бонус против конкретной цели (пассивки) и пробитая защита монстра (Кира)
   const tMult = D.overDmg(p, m) * (ps && ps.targetMult ? pasScale(p, ps.targetMult(p, m)) : 1) * (m.brokenUntil > now0 ? 1.25 : 1)
     * (m.curseUntil > now0 ? 1 + (m.curseAmp || 0.2) : 1) // проклятие Гидеона
@@ -1272,7 +1397,6 @@ function damageMonster(p, m, raw, opt = {}) {
     safe('share', () => shareKill(p, m, xp));
     safe('loot', () => dropLoot(p, m));
     if (ps && ps.onKill) safe('passive', () => ps.onKill(skillCtx, p, Date.now(), m));
-    if (m.rank === 'boss') io.emit('chat', { sys: true, text: `${p.name} победил босса «${m.name || def.name}»!` });
     safe('onKilled', () => D.onKilled(m, p));
     const zt = (world.byId.get(m.zone) || {}).tier;
     Q.track(p.uid, 'kill', 1, { tier: zt, zone: m.zone });
@@ -1536,7 +1660,7 @@ function grantXp(p, amount, gold, shared = false) {
     if (p.pets) rescalePets(p);
     p.res = p.resMax;
     fx.push({ t: 'levelup', id: p.id, x: p.x, y: p.y, lvl: p.char.level });
-    io.emit('chat', { sys: true, text: `${p.name} (${p.hero.name}) достиг ${p.char.level} уровня!` });
+    if (p.char.level >= 30 && p.char.level % 10 === 0) evCast({ ev: 'level', text: `${p.name} (${p.hero.name}) достиг ${p.char.level} уровня!` }); // только вехи
     // Каждые 10 уровней героя — самоцветы (на один призыв)
     if (p.char.level % 10 === 0) { pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: `💎 ${p.hero.name} — ${p.char.level} уровень: +160 самоцветов` }); }
   }
@@ -1610,7 +1734,7 @@ function companionDrop(o, chance, rare = false) {
   const [id, c] = pool[Math.floor(Math.random() * pool.length)];
   C2.owned.push(id); if (!C2.active) { C2.active = id; o.cp = id; refreshPlayer(o); }
   o.socket.emit('chat', { sys: true, text: `🐾 Новый спутник: ${c.name}! Выбрать — «Герой» → «Спутники»` });
-  io.emit('chat', { sys: true, text: `🐾 ${o.name} нашёл спутника «${c.name}»!` });
+  evCast({ text: `🐾 ${o.name} нашёл спутника «${c.name}»!` });
   markDirty(o);
 }
 // Выдать стопку материалов: всплывающая надпись, в чат — только ценное (свитки, чертежи, редкие материалы)
@@ -1639,7 +1763,9 @@ function giveLoot(o, pr, item, at) {
   Econ.item(item.rar, 'drop');
   const v = I.itemView(res.item);
   if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}${res.dupe ? ' ⇧' : ''}`, color: v.color });
-  o.socket.emit('chat', { sys: true, text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
+  o.socket.emit('chat', { sys: true, ev: 'loot', text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
+  // «События»: всем — только мифическая находка
+  if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', text: `🔴 ${o.name} добыл ${v.icon} ${v.name} · ${v.rarName}!` });
   if (res.dupe && Object.values(pr.equip || {}).includes(res.item.id)) refreshPlayer(o);
   return v;
 }
@@ -1741,7 +1867,7 @@ io.on('connection', (socket) => {
       }
       I.addMat(prj, 'potHp', 10);
     }
-    const name = (who.tg ? cleanName(who.name) : cleanName(data.guestName).slice(0, 16)) || (who.tg ? 'Герой' : 'Гость');
+    const name = (who.tg ? cleanName(getProfile(uid).nick || who.name) : cleanName(data.guestName).slice(0, 16)) || (who.tg ? 'Герой' : 'Гость');
     const char = getChar(uid, heroId);
     const p = {
       id: socket.id, uid, name: name.slice(0, 20), heroId, hero, char, socket,
@@ -1794,8 +1920,7 @@ io.on('connection', (socket) => {
       pDef: P_DEF, // поля героев, которых нет в пакете состояния, — со значениями отсюда
       x: p.x, y: p.y, // место героя (для повторного входа после долгого обрыва — без перезагрузки страницы)
     });
-    socket.emit('chatHistory', [...chatHistory, ...((clanOf(uid) || {}).log || []).slice(-30)].sort((a, b) => a.t - b.t)); // + история клана
-    io.emit('chat', { sys: true, text: `${p.name} (${hero.name}, ${hero.title}) вошёл в мир` });
+    socket.emit('chatHistory', [...evHistory, ...chatHistory, ...((clanOf(uid) || {}).log || []).slice(-30)].sort((a, b) => a.t - b.t)); // + история клана
     if (S.motd) socket.emit('chat', { sys: true, text: `📢 ${S.motd}` });
     admin.log('join', `${p.name} (${uid}) вошёл: ${hero.name}`);
   });
@@ -2109,7 +2234,6 @@ function removePlayerG(p, socket = p.socket) {
     getProfile(p.uid).lastSeen = Date.now();
     { const pr = getProfile(p.uid), left = (p.deathUntil || 0) - Date.now(); pr.deathLeft = left > 0 ? left : 0; } // остаток слабости — до следующего входа
     (p.pets || []).forEach((pet) => pets.delete(pet.id));
-    io.emit('chat', { sys: true, text: `${p.name} покинул мир` });
     saveProfiles();
   }
 }
@@ -2242,7 +2366,7 @@ setInterval(() => {
         if (hd > 120 && !m.goingHome) { m.goingHome = true; m.homeSince = now; }
         if (m.goingHome) {
           if (now - m.homeSince > 8000) { m.x = m.homeX; m.y = m.homeY; } // застрял за стеной — вернулся сам
-          if (Math.hypot(m.homeX - m.x, m.homeY - m.y) < 30) { m.goingHome = false; m.hp = m.maxHp; }
+          if (Math.hypot(m.homeX - m.x, m.homeY - m.y) < 30) { m.goingHome = false; if (now - (m.hurtAt || 0) > 6000) m.hp = m.maxHp; }
           else { moveEntity(m, (hx / hd) * mspeed * dt, (hy / hd) * mspeed * dt); continue; }
         }
       }
@@ -2260,7 +2384,9 @@ setInterval(() => {
           moveEntity(m, (dx / d) * s, (dy / d) * s);
         }
       }
-      if (m.hp < m.maxHp) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.05 * dt);
+      // Вне боя восстанавливается — только если 6 с никто не бил (раньше босс лечился 5%/с, пока Зефира на секунду
+      // взлетала «Драконьими крыльями» и он терял цель); боссы, полубоссы и мировые — 1%/с
+      if (m.hp < m.maxHp && now - (m.hurtAt || 0) > 6000) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * (m.boss || m.mini ? 0.01 : 0.05) * dt);
     }
   }
 
@@ -2293,7 +2419,8 @@ setInterval(() => {
     if (p.dirty && now - p.lastStats >= 250) {
       p.dirty = false;
       p.lastStats = now;
-      p.socket.emit('stats', privateStats(p));
+      const st = privateStats(p), js = JSON.stringify(st);
+      if (js !== p.lastStatsJs) { p.lastStatsJs = js; p.socket.emit('stats', st); } // без изменений — не шлём
     }
   }
 
@@ -2351,6 +2478,10 @@ setInterval(() => {
     fx = [];
     return;
   }
+  // Полное состояние — 5 раз в секунду (было 10): между ними лёгкие кадры (позиции, здоровье, эффекты) 10 раз в секунду.
+  // В такт без отправки эффекты копятся и уйдут со следующим кадром. Меньше трафика — модем телефона чаще «отдыхает»
+  if (tickNo % 4 === 2) return;
+  const fullNo = tickNo >> 2, refreshStatic = fullNo % 10 === 0; // раз в 2 с — постоянные данные монстров всем заново
   for (const Z of byZone.values()) {
   const state = {
     p: Z.p.map((pl) => { const o = slimPlayer(publicPlayer(pl)); o.hp = Math.ceil(o.hp); return o; }),
@@ -2371,7 +2502,7 @@ setInterval(() => {
   const important = Z.fx.filter((f) => FX_KEEP.has(f.t));
   // Монстры: полные данные — только рядом с героем (экран и запас), дальние — точками для мини-карты раз в 3 тика.
   // В данже из ~65 монстров на экране обычно 3–5: пакет в разы меньше, телефону меньше разбирать
-  const allM = state.m, mmTick = (tickNo >> 1) % 3 === 0; // мини-карта — раз в 3 полных кадра
+  const allM = state.m, mmTick = fullNo % 2 === 0; // мини-карта — 2–3 раза в секунду
   for (const p of Z.p) {
     if (p.offline) continue;
     const tr = p.socket.conn && p.socket.conn.transport;
@@ -2390,7 +2521,18 @@ setInterval(() => {
         else if (far) far.push([m.x >> 3, m.y >> 3, m.rk === 'boss' || m.rk === 'mini' ? 1 : 0]);
       }
     }
-    const out = { ...state, m: near };
+    // Постоянные данные монстра (тип, мир, уровень, ранг, имя, размер, облик) — только если в прошлом полном кадре
+    // этому игроку его не было (появился, вернулся в обзор, новая зона) и раз в 2 с; иначе только меняющееся
+    const prevSeen = p.seenM || EMPTY_SET, seen = new Set();
+    const mOut = near.map((m) => {
+      seen.add(m.id);
+      if (m.pv || refreshStatic || !prevSeen.has(m.id)) return m;
+      const o = {};
+      for (const k in m) if (!M_STATIC.has(k)) o[k] = m[k];
+      return o;
+    });
+    p.seenM = seen;
+    const out = { ...state, m: mOut };
     if (far) out.mm = far;
     if (p.pendFx) { out.fx = p.pendFx.concat(state.fx); p.pendFx = null; }
     p.socket.volatile.emit('state', out);
@@ -2408,6 +2550,7 @@ const FX_KEEP = new Set(['death', 'chest', 'loot', 'levelup', 'pdeath', 'skill',
 const FX_NEAR = new Set(['skill', 'heal', 'shield', 'absorb', 'dodge']);
 // Пустые флаги состояния монстров не отправляем: пакет в разы меньше — на медленной связи не копится очередь
 const SLIM_KEEP = new Set(['x', 'y', 'hp', 'maxHp', 'lv', 'tr']);
+const M_STATIC = new Set(['type', 'tr', 'lv', 'rk', 'nm', 'sz', 'hs']), EMPTY_SET = new Set();
 function slim(o) { for (const k in o) if ((o[k] === 0 || o[k] === null || o[k] === undefined) && !SLIM_KEEP.has(k)) delete o[k]; return o; }
 // Между тиками — только позиции героев (лёгкий пакет): чужие герои на экране двигаются плавно и без отставания
 if (C.TICK_MS >= 100) setTimeout(() => setInterval(() => { // при 20 тиках позиции идут в лёгком кадре — отдельный пакет не нужен

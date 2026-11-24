@@ -785,7 +785,7 @@ window.Lobby = (() => {
   async function init(o) {
     if (window.Sfx) Sfx.music('lobby'); // музыка лобби (заиграет после первого касания, если браузер не даёт раньше)
     opts = o;
-    if (!opts.tgUser) $('lpRename').classList.remove('hidden');
+    $('lpRename').classList.remove('hidden'); // гость — имя в браузере, Telegram — свой ник на сервере
     paintBg();
     running = true;
     requestAnimationFrame(loop);
@@ -816,6 +816,10 @@ window.Lobby = (() => {
 
     $('menuHeroes').onclick = openGacha;
     $('menuBg').onclick = () => openSheet('Фон лобби', bgSheet());
+    // Энциклопедия — та же, что в игре; «☰ Ещё» — остальные пункты меню
+    $('menuWiki').onclick = () => { if (window.Wiki) Wiki.open(); };
+    const moreList = $('menuMoreList');
+    $('menuMore').onclick = () => { moreList.classList.remove('hidden'); openSheet('☰ Меню', moreList); };
     // Пригласить друга (public/js/invite.js) — только в Telegram: у гостей своей ссылки нет
     $('menuInvite').classList.toggle('hidden', !opts.tg || !opts.tg.initData);
     $('menuInvite').onclick = async () => {
@@ -851,6 +855,15 @@ window.Lobby = (() => {
     $('renameForm').onsubmit = (e) => {
       e.preventDefault();
       const v = $('guestName').value.trim().slice(0, 16);
+      if (opts.tgUser) {
+        if (!v || v === playerName()) { $('renameBox').classList.add('hidden'); return; }
+        api('/api/nick', { nick: v }).then(({ ok, data }) => {
+          if (!ok) { toast(data.error || 'Не удалось сменить ник'); return; }
+          profile = data; renderPanel(); toast('Ник изменён');
+          $('renameBox').classList.add('hidden'); $('guestName').blur();
+        }).catch(() => toast('Нет связи с сервером'));
+        return;
+      }
       if (v) { opts.store.set('guestName', v); renderPanel(); }
       $('renameBox').classList.add('hidden');
       $('guestName').blur();

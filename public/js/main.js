@@ -6,6 +6,9 @@
     tg.ready();
     tg.expand();
     if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+    // Только вертикально: в горизонтальном положении интерфейс «съезжал». Новый Telegram держит экран вертикальным сам,
+    // в старом — накрываем экран подсказкой «поверните телефон» (CSS, .rotate-hint)
+    try { if (tg.lockOrientation) tg.lockOrientation(); } catch { /* старый Telegram */ }
     if (tg.setHeaderColor) tg.setHeaderColor('#11151c');
   }
 
@@ -92,13 +95,44 @@
   let chatTab = 'talk', unread = 0, pmTo = null; // pmTo — кому пишем в «Личные»: { id, name }
   const CH_PH = { talk: 'Сообщение всем игрокам...', party: 'Сообщение группе...', clan: 'Сообщение клану...', pm: 'Личное сообщение...' };
   const chOf = (msg) => (msg.ch && msg.ch !== 'talk' ? msg.ch : msg.sys ? 'sys' : 'talk');
+  // Фильтр чата «События»: что показывать (выбор хранится на телефоне). Объявления админа и перерывы видны всегда
+  const EV_CATS = [
+    ['myth', '🔴 Мифические вещи'], ['hero', '🌟 Мифические герои'], ['boss', '👹 Боссы'],
+    ['level', '⬆️ Уровни 30, 40, 50…'], ['loot', '🎒 Моя добыча'], ['other', '📜 Прочее'],
+  ];
+  const EV_OFF_DEF = ['loot']; // своя добыча — по желанию
+  let evOff;
+  try { evOff = new Set(JSON.parse(localStorage.getItem('evOff') || 'null') || EV_OFF_DEF); } catch { evOff = new Set(EV_OFF_DEF); }
+  function evCat(msg) {
+    if (msg.ev) return msg.ev;
+    const t = msg.text || '';
+    if (/^[📢🔧]/u.test(t)) return 'admin';
+    if (/вошёл в мир|покинул мир/.test(t)) return 'join';
+    if (/достиг \d+ уровня/.test(t)) return 'level';
+    if (/[Бб]осс|👹|👑 Боссы/u.test(t)) return 'boss';
+    if (/^(Добыча|Дубликат|🎒)/u.test(t)) return 'loot';
+    return 'other';
+  }
+  const evShown = (msg) => !msg.sys || (msg.ch && msg.ch !== 'talk') || !evOff.has(evCat(msg));
+  function renderEvFilter() {
+    const box = $('evFilter'); box.innerHTML = '';
+    for (const [k, label] of EV_CATS) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.classList.toggle('on', !evOff.has(k));
+      b.onclick = () => {
+        evOff.has(k) ? evOff.delete(k) : evOff.add(k);
+        try { localStorage.setItem('evOff', JSON.stringify([...evOff])); } catch { /* приватный режим */ }
+        renderEvFilter(); setTab(chatTab);
+      };
+      box.append(b);
+    }
+  }
   const chatOpen = () => !chatWin.classList.contains('hidden');
   const hhmm = (t) => new Date(t || Date.now()).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   function chatLine(msg, full) {
     const div = document.createElement('div');
     const st = !msg.sys && /^\[st:(\w+)\]$/.exec(msg.text || '');
     div.className = msg.sys ? 'sys' : 'talk notr'; // текст игроков не переводится
-    if (full) { div.dataset.ch = chOf(msg); if (msg.sid && socket && msg.sid === socket.id) div.classList.add('mine'); }
+    if (full) { div.dataset.ch = chOf(msg); if (!evShown(msg)) div.dataset.evoff = evCat(msg); else if (msg.sys) div.dataset.ev = evCat(msg); if (msg.sid && socket && msg.sid === socket.id) div.classList.add('mine'); }
     if (msg.ch && msg.ch !== 'talk' && !msg.sys) div.classList.add('ch-' + msg.ch);
     if (full) { const t = document.createElement('small'); t.textContent = hhmm(msg.t); div.append(t); }
     if (msg.sys) { div.append(msg.text); return div; }
@@ -116,14 +150,18 @@
   function addChat(msg, quiet) {
     const atBottom = chatList.scrollHeight - chatList.scrollTop - chatList.clientHeight < 40;
     const row = chatLine(msg, true);
-    row.classList.toggle('hidden', row.dataset.ch !== chatTab);
+    row.classList.toggle('hidden', row.dataset.ch !== chatTab || !!row.dataset.evoff);
     chatList.appendChild(row);
-    while (chatList.children.length > 150) chatList.removeChild(chatList.firstChild);
+    // Лимит — на каждую вкладку отдельно: болтовня в «Все» не вытесняет «События» (их можно листать вверх)
+    const grp = (r) => r.dataset.ch + ((r.dataset.ev || r.dataset.evoff) === 'loot' ? ':loot' : ''); // своя добыча — свой лимит
+    const g = grp(row), same = [...chatList.children].filter((r) => grp(r) === g);
+    for (let i = 0; i < same.length - 200; i++) same[i].remove();
     if (atBottom || row.classList.contains('mine')) chatList.scrollTop = chatList.scrollHeight;
     if (quiet || (chatOpen() && chatTab === row.dataset.ch)) return;
     if (!msg.sys) { unread++; $('chatBadge').textContent = unread > 9 ? '9+' : unread; $('chatBadge').classList.remove('hidden'); markTab(row.dataset.ch); }
     if (chatOpen()) return;
     if (!Settings.get(msg.sys ? 'sysPop' : 'chatPop')) return; // события и сообщения игроков отключаются по отдельности
+    if (!evShown(msg)) return; // выключено в фильтре «Событий»
     // Окно закрыто: всплывающая строка над картой и счётчик (только сообщения игроков)
     const div = chatLine(msg, false);
     chatLog.appendChild(div);
@@ -146,7 +184,13 @@
     $('stickerBar').classList.toggle('hidden', ch === 'sys');
     setPm(pmTo);
     chatWin.querySelectorAll('[data-ch]').forEach((b) => b.tagName === 'BUTTON' && b.classList.toggle('on', b.dataset.ch === ch));
-    for (const r of chatList.children) r.classList.toggle('hidden', r.dataset.ch !== ch);
+    $('evFilter').classList.toggle('hidden', ch !== 'sys');
+    if (ch === 'sys' && !$('evFilter').children.length) renderEvFilter();
+    for (const r of chatList.children) {
+      const cat = r.dataset.ev || r.dataset.evoff;
+      if (cat) { if (evOff.has(cat)) { r.dataset.evoff = cat; delete r.dataset.ev; } else { r.dataset.ev = cat; delete r.dataset.evoff; } }
+      r.classList.toggle('hidden', r.dataset.ch !== ch || !!r.dataset.evoff);
+    }
     chatList.scrollTop = chatList.scrollHeight;
   }
   // Клавиатура телефона: окно подстраивается под видимую часть экрана, игра не перехватывает клавиши
@@ -666,12 +710,32 @@
       const openClan = async () => {
         const r = await clanAct({ op: 'info' });
         const box = document.createElement('div');
+        // Все кланы по рейтингу: подать / отозвать заявку (если вы не в клане)
+        const clanList = (canApply) => async () => {
+          const L = await clanAct({ op: 'list' }), box = document.createElement('div');
+          box.innerHTML = `<p class="sheet-hint">Рейтинг клана = сумма уровней участников + очки войны кланов за неделю + 100 за каждую победу в войне.${canApply ? ' Подайте заявку — глава клана примет её во вкладке «Заявки».' : ''}</p>`;
+          if (!(L.list || []).length) box.insertAdjacentHTML('beforeend', '<div class="tw-soon">Кланов пока нет — создайте первый!</div>');
+          for (const k of L.list || []) {
+            const row = document.createElement('div'); row.className = 'tw-ev';
+            row.innerHTML = `<span class="tw-ev-i clan-place">${k.place <= 3 ? ['🥇', '🥈', '🥉'][k.place - 1] : k.place}</span><div><b></b><small>⭐ ${k.rating} · ${k.n}/${k.max} · глава ${''}${k.reign ? ' · 👑 владыки' : ''}</small></div>${canApply ? `<button class="l2-btn ${k.applied ? 'ghost' : ''}" ${k.n >= k.max && !k.applied ? 'disabled' : ''}>${k.applied ? 'Отозвать' : k.n >= k.max ? 'Мест нет' : 'Заявка'}</button>` : ''}`;
+            row.querySelector('b').textContent = `${k.name} [${k.tag}]`;
+            row.querySelector('small').childNodes[0].textContent = `⭐ ${k.rating} · ${k.n}/${k.max} · глава ${k.leader}${k.reign ? ' · 👑 владыки' : ''}`;
+            const btn = row.querySelector('button');
+            if (btn) btn.onclick = async () => { const x = await clanAct({ op: k.applied ? 'unapply' : 'apply', id: k.id }); Town.toast(x.error || x.toast); if (!x.error) { openClan.tab = 0; openClan(); } };
+            box.append(row);
+          }
+          return box;
+        };
         if (!r.clan) {
-          box.innerHTML = `<p class="sheet-hint">Вы не в клане. Создайте свой (${r.price.toLocaleString('ru-RU')} 💰) или вступите по приглашению — его присылают из профиля игрока.</p>
+          const make = () => {
+            const box = document.createElement('div');
+            box.innerHTML = `<p class="sheet-hint">Создайте свой клан (${r.price.toLocaleString('ru-RU')} 💰) — станете его главой, сможете принимать заявки.</p>
             <div class="clan-form"><input id="clName" maxlength="20" placeholder="Название клана"><input id="clTag" maxlength="4" placeholder="Тег (2–4)"><button class="l2-btn wide" id="clMake">🛡️ Создать клан · ${r.price.toLocaleString('ru-RU')} 💰</button></div>`;
-          box.querySelector('#clMake').onclick = async () => { const x = await clanAct({ op: 'create', name: box.querySelector('#clName').value, tag: box.querySelector('#clTag').value }); Town.toast(x.error || x.toast); if (!x.error) openClan(); };
-          box.querySelectorAll('input').forEach((i) => { i.addEventListener('keydown', (e) => e.stopPropagation()); i.addEventListener('focus', () => gameKeys(false)); i.addEventListener('blur', () => gameKeys(true)); });
-          Town.open('🛡️ Клан', box); return;
+            box.querySelector('#clMake').onclick = async () => { const x = await clanAct({ op: 'create', name: box.querySelector('#clName').value, tag: box.querySelector('#clTag').value }); Town.toast(x.error || x.toast); if (!x.error) openClan(); };
+            box.querySelectorAll('input').forEach((i) => { i.addEventListener('keydown', (e) => e.stopPropagation()); i.addEventListener('focus', () => gameKeys(false)); i.addEventListener('blur', () => gameKeys(true)); });
+            return box;
+          };
+          Town.open('🛡️ Клан', Town.tabs([['Кланы', clanList(true)], ['Создать клан', make]], 0)); return;
         }
         const c = r.clan, me = Lobby.profile() && Lobby.profile().uid, lead = c.leader === me;
         const fmtT = (ms) => { const h = Math.max(0, Math.floor(ms / 3600e3)); return h >= 24 ? `${Math.floor(h / 24)} д ${h % 24} ч` : `${h} ч`; };
@@ -679,7 +743,7 @@
         const reopen = (i) => { openClan.tab = i; openClan(); };
         const members = () => {
           const box = document.createElement('div');
-          box.innerHTML = `<div class="pass-head"><b><img class="clan-emb" src="assets/ui/ic_clan.webp" alt="">${c.name} [${c.tag}]</b><small>Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length} · тег [${c.tag}] виден над именами героев</small>
+          box.innerHTML = `<div class="pass-head"><b><img class="clan-emb" src="assets/ui/ic_clan.webp" alt="">${c.name} [${c.tag}]</b><small>⭐ Рейтинг ${c.rating} · Участников: ${c.members.length} / ${c.max} · в сети ${c.members.filter((m) => m.online).length} · тег [${c.tag}] виден над именами героев</small>
             <small>⚔️ Война кланов: ${c.war.pts} очков за неделю${c.war.reign ? ` · 👑 Владыки недели: +10% опыта и золота · казна ${(c.war.pool / 1e9).toFixed(2)} GRAM (10% дохода Рынка и Торгового дома, делится в понедельник)` : ''}${c.war.reigns ? ` · побед: ${c.war.reigns}` : ''}</small>
           <button class="l2-btn" id="clChat">💬 Клановый чат</button></div><div class="ic-sec">Участники</div>`;
           for (const m of c.members.sort((a, b) => b.online - a.online)) {
@@ -690,7 +754,7 @@
             if (k) k.onclick = async () => { const x = await clanAct({ op: 'kick', uid: m.uid }); Town.toast(x.error || x.toast); reopen(0); };
             box.append(row);
           }
-          box.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Пригласить: откройте профиль игрока (тап по герою на карте) → «В клан».</p><button class="l2-btn wide ghost" id="clLeave">Покинуть клан</button>');
+          box.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Новые участники подают заявку во вкладке «Клан → Кланы»; ещё можно пригласить из профиля игрока (тап по герою на карте) → «В клан».</p><button class="l2-btn wide ghost" id="clLeave">Покинуть клан</button>');
           box.querySelector('#clChat').onclick = () => { Town.close(); openChat(); setTab('clan'); };
           box.querySelector('#clLeave').onclick = async () => { const x = await clanAct({ op: 'leave' }); Town.toast(x.error || x.toast); Town.close(); };
           return box;
@@ -739,7 +803,23 @@
           return box;
         };
         const ready = r.quests ? r.quests.list.filter((q) => q.prog >= q.goal && q.mine && !q.claimed).length : 0;
-        Town.open('🛡️ Клан', Town.tabs([['Участники', members], ['Задания' + (ready ? ` (${ready})` : ''), quests], [`Хранилище (${c.vault.length})`, vault]], tabIdx));
+        const reqs = () => {
+          const box = document.createElement('div');
+          box.innerHTML = '<p class="sheet-hint">Заявки на вступление в ваш клан.</p>';
+          if (!c.reqs.length) box.insertAdjacentHTML('beforeend', '<div class="tw-soon">Заявок нет</div>');
+          for (const q of c.reqs) {
+            const row = document.createElement('div'); row.className = 'tw-ev';
+            row.innerHTML = `<div><b></b><small>ур. ${q.lvl} · ${new Date(q.at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></div><button class="l2-btn">Принять</button><button class="l2-btn ghost">✕</button>`;
+            row.querySelector('b').textContent = q.name;
+            const [ok, no] = row.querySelectorAll('button');
+            ok.onclick = async () => { const x = await clanAct({ op: 'reqAccept', uid: q.uid }); Town.toast(x.error || x.toast); reopen(3); };
+            no.onclick = async () => { const x = await clanAct({ op: 'reqDecline', uid: q.uid }); Town.toast(x.error || x.toast); reopen(3); };
+            box.append(row);
+          }
+          return box;
+        };
+        Town.open('🛡️ Клан', Town.tabs([['Участники', members], ['Задания' + (ready ? ` (${ready})` : ''), quests], [`Хранилище (${c.vault.length})`, vault],
+          ...(lead ? [[`Заявки${c.reqs.length ? ` (${c.reqs.length})` : ''}`, reqs]] : []), ['Рейтинг кланов', clanList(false)]], tabIdx));
       };
       socket.on('clanInvite', (d) => {
         const box = $('partyInvite');
@@ -1231,6 +1311,22 @@
       // (город, окна, чтение). «Экономия батареи» — всегда 30. На экранах 120 Гц раньше рисовалось 120 кадров — теперь не больше 60.
       // Порог чуть ниже 1/60 с, чтобы при 60 Гц не терялись кадры из-за погрешности таймера
       const FPS_FAST = 1000 / 70, FPS_SLOW = 1000 / 32;
+      // Сон автобоя: затемнение со сводкой (убито, золото, опыт с момента засыпания); касание — проснуться
+      let afTouchAt = performance.now(), afBase = null;
+      const afWake = () => { afTouchAt = performance.now(); if (fpsMode === 'sleep') fpsTick(true); };
+      for (const ev of ['pointerdown', 'touchstart', 'keydown']) window.addEventListener(ev, afWake, { capture: true, passive: true });
+      const afSleepShow = (on) => {
+        let el = $('afSleep');
+        if (!on) { if (el) el.classList.add('hidden'); afBase = null; return; }
+        if (!el) { el = document.createElement('div'); el.id = 'afSleep'; el.className = 'af-sleep hidden'; document.body.append(el); }
+        const st = (window.gameScene && window.gameScene.myStats) || {};
+        if (!afBase) afBase = { kills: st.kills || 0, gold: st.gold || 0, xp: st.xp || 0, lvl: st.level || 0, t: Date.now() };
+        const min = Math.floor((Date.now() - afBase.t) / 60000);
+        el.innerHTML = `<div><b>⚔️ Автобой идёт</b><small>Экран затемнён, чтобы телефон не грелся</small>
+          <p>Убито: <b>${Math.max(0, (st.kills || 0) - afBase.kills)}</b> · золото: <b>+${Math.max(0, (st.gold || 0) - afBase.gold).toLocaleString('ru-RU')}</b>${(st.level || 0) > afBase.lvl ? ` · уровень: <b>${st.level}</b>` : ''}</p>
+          <p>Здоровье: <b>${Math.ceil(st.hp || 0)} / ${st.maxHp || 0}</b> · ${min} мин</p><small>Коснитесь экрана, чтобы вернуться</small></div>`;
+        el.classList.remove('hidden');
+      };
       let fpsLast = { x: 0, y: 0 }, fpsActiveAt = 0, fpsMode = '';
       const fpsTick = (force) => {
         const sc = window.gameScene, me = sc && sc.me, now = performance.now();
@@ -1240,9 +1336,12 @@
           if (sc.monsters) for (const e of sc.monsters.values()) if (e.data && e.data.hp > 0 && Math.abs(e.c.x - me.x) < 420 && Math.abs(e.c.y - me.y) < 420) { near = true; break; }
           if (moved || near || sc.autoFarm || sc.myDash || (sc.input_ && sc.input_.attack) || (sc.zone && sc.zone.kind === 'pvp')) fpsActiveAt = now;
         }
-        const mode = Settings.get('lowFps') || now - fpsActiveAt > 2500 ? 'slow' : 'fast';
+        // Автобой и 45 с без касаний — «сон»: экран затемнён, 10 кадров в секунду (телефон можно оставить и он не греется)
+        const sleep = !!(sc && sc.autoFarm) && now - afTouchAt > 45000;
+        afSleepShow(sleep);
+        const mode = sleep ? 'sleep' : Settings.get('lowFps') || now - fpsActiveAt > 2500 ? 'slow' : 'fast';
         if (mode === fpsMode && !force) return;
-        fpsMode = mode; game.loop._limitRate = mode === 'slow' ? FPS_SLOW : FPS_FAST;
+        fpsMode = mode; game.loop._limitRate = mode === 'sleep' ? 1000 / 10 : mode === 'slow' ? FPS_SLOW : FPS_FAST;
       };
       fpsTick(true);
       setInterval(fpsTick, 200);

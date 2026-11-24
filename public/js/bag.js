@@ -91,6 +91,10 @@ window.Bag = (() => {
       btns.append(b);
     }
   }
+  // Сравнение: сверху — что надето сейчас (все его статы), ниже у нового предмета — все статы обоих: и те, которых у нового нет
+  const statKeys = (it, cmp) => { const ks = Object.keys(it.stats || {}); if (cmp) for (const k of Object.keys(cmp.stats || {})) if (!ks.includes(k)) ks.push(k); return ks; };
+  const cmpBlock = (cmp) => `<div class="ic-cmp" style="--rc:${cmp.color}"><div class="ic-cmp-h">${mini(cmp)}<div><b>Надето: ${cmp.name}</b><small>${cmp.rarName}${cmp.ench ? ` · +${cmp.ench}` : ''}</small></div></div>
+      <div class="ic-cmp-s">${Object.entries(cmp.stats || {}).map(([k, v]) => `<span>${statLine(k, v)}</span>`).join('')}</div></div>`;
   function card(it, actions, cmp) {
     if (!inv) { refresh().then(() => card(it, actions, cmp)); return; } // справочники статов ещё не загружены
     if (it.cat === 'mat') return matCard(it, actions || []);
@@ -107,9 +111,9 @@ window.Bag = (() => {
       ${it.reqLevel > 1 ? `<div class="ic-cls ${fitsLevel(it) ? 'ok' : 'bad'}">${fitsLevel(it) ? '✓' : '✕'} Требуемый уровень: ${it.reqLevel}${fitsLevel(it) ? '' : ` (у героя ${inv.hero.level})`}</div>` : ''}
       ${setBlock(it)}
       ${it.cat === 'bag' ? `<div class="ic-sec">Сумка</div><div class="ic-stat">🎒 Вместимость инвентаря +${it.bagSlots} ячеек</div>` : ''}
-      <div class="ic-sec">Итоговые статы</div>
-      ${Object.entries(it.stats).map(([k, v]) => `<div class="ic-stat">${statLine(k, v)}${cmp ? diff(v - ((cmp.stats || {})[k] || 0)) : ''}</div>`).join('')}
-      ${cmp ? `<div class="ic-attr">Сравнение с надетым: ${cmp.name}</div>` : ''}
+      ${cmp ? cmpBlock(cmp) : ''}
+      <div class="ic-sec">Итоговые статы${cmp ? ' · ▲▼ — разница с надетым' : ''}</div>
+      ${statKeys(it, cmp).map((k) => { const v = (it.stats || {})[k] || 0; return `<div class="ic-stat ${v ? '' : 'lost'}">${v ? statLine(k, v) : `${statLine(k, 0)} <small>(есть у надетого)</small>`}${cmp ? diff(v - ((cmp.stats || {})[k] || 0)) : ''}</div>`; }).join('')}
       <div class="ic-sec">Случайные атрибуты (${it.attrs.length})</div>
       ${it.attrs.map((a) => `<div class="ic-attr">◆ ${statLine(a.k, a.v)}</div>`).join('') || '<div class="ic-attr">—</div>'}
       ${runes}
@@ -378,8 +382,21 @@ window.Bag = (() => {
         Из всех атрибутов пяти предметов случайно останутся 3, остальные пропадут. Базовые статы — по новой редкости (не суммируются). Надетые вещи здесь не показываются — сначала снимите их. Легендарные в мифик не соединяются — мифики только с мировых боссов, из ларцов и призыва.</p>
         <div class="merge-slots">${[0, 1, 2, 3, 4].map((i) => { const it = inv.items.find((x) => x.id === [...sel][i]); return it ? cell(it) : '<button class="it empty"><span>·</span></button>'; }).join('')}
         <span class="arrow">→</span><button class="it empty res" ${first ? `style="--rc:${R[RO[RO.indexOf(first.rar) + 1]].color}"` : ''}><span>${first ? '?' : '·'}</span></button></div>
-        <button class="l2-btn merge-go" ${sel.size === 5 ? '' : 'disabled'}>⚒️ Соединить (${sel.size}/5)${first ? ' → ' + R[RO[RO.indexOf(first.rar) + 1]].name : ''}</button>`;
+        ${[...sel].map((id) => inv.items.find((x) => x.id === id)).some((x) => x && (x.ench || x.dupes || (x.runes || []).length || x.set)) ? '<div class="ic-attr warn">⚠️ Среди выбранных есть вещь с заточкой, дубликатами (★), рунами или из комплекта — при соединении это пропадёт</div>' : ''}
+        <button class="l2-btn merge-go" ${sel.size === 5 ? '' : 'disabled'}>⚒️ Соединить (${sel.size}/5)${first ? ' → ' + R[RO[RO.indexOf(first.rar) + 1]].name : ''}</button>
+        <button class="l2-btn merge-auto">⚡ Автосоединение до легендарного</button>`;
       box.append(grid(items, (it) => { if (sel.has(it.id)) sel.delete(it.id); else if (sel.size < 5) sel.add(it.id); draw(); }, { selected: sel, empty: 'Нет предметов для соединения' }));
+      box.querySelector('.merge-auto').onclick = async () => {
+        const pv = await act('mergeAuto', { preview: 1 });
+        if (!pv.preview) return toast(pv.error || 'Нет связи');
+        const m = pv.preview.made, R2 = inv.rarities;
+        if (!pv.preview.used) return toast('Нечего соединять: нужно 5 копий одной категории и редкости (★ тоже считаются), без заточки, рун и не из комплекта');
+        const list = Object.entries(m).filter(([, n]) => n).map(([k, n]) => `${R2[k].name} ×${n}`).join(', ');
+        if (!confirm(`Автосоединение до легендарного: из ${pv.preview.used} копий получится ${list}.\nДубликаты (★) тоже идут в дело — каждая звёздочка считается копией вещи.\nНадетое, заточенное, с рунами и комплектное не трогаем. Соединить?`)) return;
+        const r = await act('mergeAuto', {});
+        toast(r.error || r.toast);
+        if (!r.error) { sel.clear(); await refresh(); draw(); if (window.Sfx) Sfx.play('reward'); }
+      };
       box.querySelector('.merge-go').onclick = async () => {
         if (sel.size !== 5) return;
         const r = await act('merge', { ids: [...sel] });
