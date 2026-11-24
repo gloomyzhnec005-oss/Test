@@ -6,6 +6,9 @@
     tg.ready();
     tg.expand();
     if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+    // Только вертикально: в горизонтальном положении интерфейс «съезжал». Новый Telegram держит экран вертикальным сам,
+    // в старом — накрываем экран подсказкой «поверните телефон» (CSS, .rotate-hint)
+    try { if (tg.lockOrientation) tg.lockOrientation(); } catch { /* старый Telegram */ }
     if (tg.setHeaderColor) tg.setHeaderColor('#11151c');
   }
 
@@ -1231,6 +1234,22 @@
       // (город, окна, чтение). «Экономия батареи» — всегда 30. На экранах 120 Гц раньше рисовалось 120 кадров — теперь не больше 60.
       // Порог чуть ниже 1/60 с, чтобы при 60 Гц не терялись кадры из-за погрешности таймера
       const FPS_FAST = 1000 / 70, FPS_SLOW = 1000 / 32;
+      // Сон автобоя: затемнение со сводкой (убито, золото, опыт с момента засыпания); касание — проснуться
+      let afTouchAt = performance.now(), afBase = null;
+      const afWake = () => { afTouchAt = performance.now(); if (fpsMode === 'sleep') fpsTick(true); };
+      for (const ev of ['pointerdown', 'touchstart', 'keydown']) window.addEventListener(ev, afWake, { capture: true, passive: true });
+      const afSleepShow = (on) => {
+        let el = $('afSleep');
+        if (!on) { if (el) el.classList.add('hidden'); afBase = null; return; }
+        if (!el) { el = document.createElement('div'); el.id = 'afSleep'; el.className = 'af-sleep hidden'; document.body.append(el); }
+        const st = (window.gameScene && window.gameScene.myStats) || {};
+        if (!afBase) afBase = { kills: st.kills || 0, gold: st.gold || 0, xp: st.xp || 0, lvl: st.level || 0, t: Date.now() };
+        const min = Math.floor((Date.now() - afBase.t) / 60000);
+        el.innerHTML = `<div><b>⚔️ Автобой идёт</b><small>Экран затемнён, чтобы телефон не грелся</small>
+          <p>Убито: <b>${Math.max(0, (st.kills || 0) - afBase.kills)}</b> · золото: <b>+${Math.max(0, (st.gold || 0) - afBase.gold).toLocaleString('ru-RU')}</b>${(st.level || 0) > afBase.lvl ? ` · уровень: <b>${st.level}</b>` : ''}</p>
+          <p>Здоровье: <b>${Math.ceil(st.hp || 0)} / ${st.maxHp || 0}</b> · ${min} мин</p><small>Коснитесь экрана, чтобы вернуться</small></div>`;
+        el.classList.remove('hidden');
+      };
       let fpsLast = { x: 0, y: 0 }, fpsActiveAt = 0, fpsMode = '';
       const fpsTick = (force) => {
         const sc = window.gameScene, me = sc && sc.me, now = performance.now();
@@ -1240,9 +1259,12 @@
           if (sc.monsters) for (const e of sc.monsters.values()) if (e.data && e.data.hp > 0 && Math.abs(e.c.x - me.x) < 420 && Math.abs(e.c.y - me.y) < 420) { near = true; break; }
           if (moved || near || sc.autoFarm || sc.myDash || (sc.input_ && sc.input_.attack) || (sc.zone && sc.zone.kind === 'pvp')) fpsActiveAt = now;
         }
-        const mode = Settings.get('lowFps') || now - fpsActiveAt > 2500 ? 'slow' : 'fast';
+        // Автобой и 45 с без касаний — «сон»: экран затемнён, 10 кадров в секунду (телефон можно оставить и он не греется)
+        const sleep = !!(sc && sc.autoFarm) && now - afTouchAt > 45000;
+        afSleepShow(sleep);
+        const mode = sleep ? 'sleep' : Settings.get('lowFps') || now - fpsActiveAt > 2500 ? 'slow' : 'fast';
         if (mode === fpsMode && !force) return;
-        fpsMode = mode; game.loop._limitRate = mode === 'slow' ? FPS_SLOW : FPS_FAST;
+        fpsMode = mode; game.loop._limitRate = mode === 'sleep' ? 1000 / 10 : mode === 'slow' ? FPS_SLOW : FPS_FAST;
       };
       fpsTick(true);
       setInterval(fpsTick, 200);

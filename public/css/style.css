@@ -1528,3 +1528,18 @@ canvas.skin { object-fit: contain; }
 .sp-btns .l2-btn { min-width: 84px; padding: 4px 8px; font-size: 13px; }
 @keyframes spNav { 0%, 100% { filter: drop-shadow(0 0 2px rgba(255, 150, 40, .4)); } 50% { filter: drop-shadow(0 0 9px rgba(255, 160, 40, 1)); } }
 [data-nav="quests"].sp-hot span img { animation: spNav 1.6s ease-in-out infinite; }
+
+/* Горизонтальное положение телефона: игра только вертикальная — подсказка поверх всего (на ПК с широким окном не мешает: только низкие экраны) */
+.rotate-hint { display: none; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .rotate-hint { display: flex; position: fixed; inset: 0; z-index: 99999; background: #0b0d12; color: #ffe2a8; align-items: center; justify-content: center; text-align: center; font-family: Georgia, serif; }
+  .rotate-hint div { display: flex; flex-direction: column; gap: 8px; font-size: 42px; }
+  .rotate-hint b { font-size: 18px; font-weight: normal; } .rotate-hint small { font-size: 13px; color: #b8a888; }
+}
+
+/* Сон автобоя: затемнение со сводкой, касание — проснуться */
+.af-sleep { position: fixed; inset: 0; z-index: 9000; background: rgba(4, 5, 8, .93); display: flex; align-items: center; justify-content: center; text-align: center; color: #e8dcc0; font-family: Georgia, serif; }
+.af-sleep.hidden { display: none; }
+.af-sleep > div { display: flex; flex-direction: column; gap: 6px; padding: 18px; }
+.af-sleep b { color: #ffd77a; font-weight: normal; } .af-sleep > div > b { font-size: 20px; }
+.af-sleep small { color: #9a8e78; font-size: 12px; } .af-sleep p { margin: 2px 0; font-size: 14px; }
