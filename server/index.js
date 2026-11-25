@@ -1161,9 +1161,10 @@ const pasScaleTaken = (p, m) => (m >= 1 ? m : Math.max(0.3, 1 - (1 - m) * pasK(p
 const DEATH = { xpLoss: 0.15, ms: 5 * 60000, dmg: 0.3, xp: 0.3 }; // слабость после гибели идёт только пока игрок в игре
 function deathPenalty(p) {
   const pr = getProfile(p.uid), need = xpForLevel(p.char.level);
-  const lost = Math.min(p.char.xp, Math.round(need * DEATH.xpLoss * (1 - Coll.k(pr, 'deathXp')))); // уровень не теряется; «Память героев» (Чернокнижники) — меньше
+  const pkz = isPkZone(p.zone); // опасный данж: риск — вещи, а не опыт: потеря опыта втрое меньше, слабость 2 мин
+  const lost = Math.min(p.char.xp, Math.round(need * DEATH.xpLoss * (pkz ? 1 / 3 : 1) * (1 - Coll.k(pr, 'deathXp')))); // уровень не теряется; «Память героев» (Чернокнижники) — меньше
   p.char.xp -= lost;
-  p.deathUntil = pr.deathUntil = Date.now() + DEATH.ms; // сохраняется в профиле — перезаход не снимает
+  p.deathUntil = pr.deathUntil = Date.now() + (pkz ? 2 * 60000 : DEATH.ms); // сохраняется в профиле — перезаход не снимает
   const lostElx = Object.values(pr.buffs || {}).some((t) => t > Date.now());
   pr.buffs = {}; // эликсиры сгорают при гибели
   // Новый баланс: надетые вещи теряют 10% прочности (0 — вещь сломана и не даёт статов до ремонта в кузнице)
@@ -1176,7 +1177,7 @@ function deathPenalty(p) {
   }
   p.gear = I.gearStats(pr, p.heroId); p.buffSig = '';
   if (broke) p.socket.emit('chat', { sys: true, text: `🔧 Сломано вещей: ${broke} — они не дают силы, пока не почините («Сумка» → вещь → «Починить»)` });
-  p.socket.emit('chat', { sys: true, text: `💀 Вы погибли: −${lost} опыта${lostElx ? ', действие эликсиров закончилось' : ''}. Слабость на 5 минут: урон −30%, получаемый опыт −30%` });
+  p.socket.emit('chat', { sys: true, text: `💀 Вы погибли: −${lost} опыта${lostElx ? ', действие эликсиров закончилось' : ''}. Слабость на ${pkz ? 2 : 5} минут${pkz ? "ы" : ""}: урон −30%, получаемый опыт −30%` });
   p.lastStats = 0;
 }
 // ---------- Эффекты на герое: значки под полоской здоровья (тап — описание) ----------
@@ -1894,7 +1895,7 @@ const isPkZone = (zid) => { const z = world.byId.get(zid); return !!(z && z.pk);
 const pkRate = (p) => (isPkZone(p.zone) ? (p.autofarm ? 3 : 6) : 1); // золото и добыча
 const pkXpRate = (p) => (isPkZone(p.zone) ? (p.autofarm ? 1.5 : 3) : 1); // опыт: ×3, в автобое ×1,5
 function xpBonusK(p) {
-  if (!MOBX.bal2()) return pkXpRate(p);
+  if (!MOBX.bal2() || !isPkZone(p.zone)) return pkXpRate(p) * (p.autofarm && MOBX.bal2() ? 0.6 : 1); // бонус группы — только в опасном данже
   let other = 0, clan = 0;
   const myClan = clanOf(p.uid);
   for (const o of partyMembers(p)) {
