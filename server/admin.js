@@ -22,7 +22,7 @@ module.exports = function createAdmin(ctx) {
   // ---------- Настройки игры, меняются на лету ----------
   // openAt — время открытия игры (0 — открыта); onlineMin — с какого онлайна показывать общее число игроков;
   // brk — запланированный технический перерыв { at, min } (0 — нет)
-  const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '', openAt: 0, onlineMin: 20, brk: null, channel: '', chat: '', partners: [], spChannel: 150, spChat: 50, special: [], zbt: true };
+  const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '', openAt: 0, onlineMin: 20, brk: null, channel: '', chat: '', partners: [], spChannel: 150, spChat: 50, special: [], zbt: true, bal2: false };
   const settings = { ...DEFAULTS };
   Object.assign(settings, store.readJSON('admin.json', {}));
   // Награды особых заданий подняты (канал 50 → 150, чат 30 → 50): сохранённые старые значения по умолчанию — заменить один раз
@@ -610,7 +610,7 @@ module.exports = function createAdmin(ctx) {
   r.post('/settings', act((d) => {
     if (d.set) {
       for (const k of ['xpMult', 'goldMult', 'dropMult']) if (d.set[k] !== undefined) settings[k] = num(d.set[k], 0, 100, 1);
-      for (const k of ['freeSpins', 'maintenance', 'zbt']) if (d.set[k] !== undefined) settings[k] = !!d.set[k];
+      for (const k of ['freeSpins', 'maintenance', 'zbt', 'bal2']) if (d.set[k] !== undefined) settings[k] = !!d.set[k];
       if (d.set.motd !== undefined) settings.motd = String(d.set.motd).slice(0, 300);
       // Канал и чат игры: @имя, t.me/имя или https://t.me/… → https://t.me/…
       const tme = (v) => { const m = String(v || '').trim().match(/^(?:https?:\/\/)?(?:t\.me\/|@)?([A-Za-z0-9_+\/-]{4,64})$/); return m ? `https://t.me/${m[1]}` : ''; };

@@ -109,6 +109,8 @@ window.Bag = (() => {
         <small>${it.rarName} · ${inv.cats[it.cat]} · мир ${ROMAN[it.tier]}${it.dupes ? ` · дубликаты +${it.dupes * 5}%` : ''}${it.ench ? ` · заточка +${it.ench * 4}%` : ''}</small></div></div>
       ${it.classes ? `<div class="ic-cls ${fitsClass(it) ? 'ok' : 'bad'}">${fitsClass(it) ? '✓' : '✕'} Для классов: ${clsNames(it)}${it.armor ? ` · ${it.armor}` : ''}</div>` : ''}
       ${it.reqLevel > 1 ? `<div class="ic-cls ${fitsLevel(it) ? 'ok' : 'bad'}">${fitsLevel(it) ? '✓' : '✕'} Требуемый уровень: ${it.reqLevel}${fitsLevel(it) ? '' : ` (у героя ${inv.hero.level})`}</div>` : ''}
+      ${it.bound ? '<div class="ic-cls bad">🔒 Привязана к вам — продать или передать нельзя</div>' : ''}
+      ${it.dur !== null && it.dur !== undefined ? `<div class="ic-cls ${it.dur > 30 ? 'ok' : 'bad'}">🔧 Прочность: ${it.dur}%${it.dur <= 0 ? ' — сломана, не даёт статов' : ''}</div>` : ''}
       ${setBlock(it)}
       ${it.cat === 'bag' ? `<div class="ic-sec">Сумка</div><div class="ic-stat">🎒 Вместимость инвентаря +${it.bagSlots} ячеек</div>` : ''}
       ${cmp ? cmpBlock(cmp) : ''}
@@ -146,6 +148,7 @@ window.Bag = (() => {
       else if (!fitsLevel(it)) acts.push([`🔒 Нужен ${it.reqLevel} уровень`, () => toast(`Вещь откроется на ${it.reqLevel} уровне героя`)]);
       else acts.push(['Надеть', () => run('equip', { id: it.id, slot: ctx.slot }, ctx.after)]);
     }
+    if (it.repairCost > 0) acts.push([`🔧 Починить · ${it.repairCost.toLocaleString('ru-RU')} 💰`, () => run('repair', { id: it.id }, ctx.after)]);
     // Заточка: цена, шанс, камень удачи (+10%) — с +4 есть риск; с +7 неудача снижает заточку на 1
     if (it.enchCost) {
       const c = it.enchCost, L = it.ench || 0, luckN = ((inv.mats || []).find((m) => m.mat === 'luckStone') || {}).n || 0;

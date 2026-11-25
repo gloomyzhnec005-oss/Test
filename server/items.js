@@ -550,6 +550,7 @@ function gearStats(pr, heroId = null) {
   for (const slot of SLOT_ORDER) {
     const it = findItem(pr, pr.equip?.[slot]);
     if (!it || (heroId && !usable(it, heroId, pr))) continue; // не для класса или уровня этого героя — без статов
+    if (it.dur !== undefined && it.dur <= 0) continue; // сломана (прочность 0) — без статов, пока не починят
     add(itemStats(it));
     const seenRune = new Set();
     for (const r of it.runes || []) { if (seenRune.has(r.tpl)) continue; seenRune.add(r.tpl); add(itemStats(r)); } // одинаковые руны не складываются
@@ -679,6 +680,12 @@ function migrate(pr) {
 }
 
 // Описание предмета для клиента
+// Ремонт: доля потерянной прочности × 60% цены продажи вещи (мин. 10 золота)
+function repairCost(it) {
+  if (it.dur === undefined || it.dur >= 100) return 0;
+  const R = ITEM_RARITIES[it.rar] || { sell: 10 };
+  return Math.max(10, Math.ceil(R.sell * (TIER_MULT[it.tier] || 1) * (100 - it.dur) / 100 * 0.6));
+}
 function itemView(it) {
   const t = TEMPLATES[it.cat][it.tpl];
   const R = ITEM_RARITIES[it.rar];
@@ -694,6 +701,7 @@ function itemView(it) {
     classes: classesFor(it), // какие классы могут носить (null — все)
     reqLevel: reqLevel(it), // с какого уровня героя можно надеть
     armor: ARMOR_TYPE[it.cat] && ARMOR_TYPE[it.cat][it.tpl] ? ARMOR_NAMES[ARMOR_TYPE[it.cat][it.tpl]] : null,
+    dur: it.dur ?? null, bound: !!it.bound, repairCost: repairCost(it), // прочность (новый баланс) и привязка мифических
     runes: (it.runes || []).map(itemView), sell: Math.round(R.sell * TIER_MULT[it.tier] * (1 + 0.2 * (it.dupes || 0)) * (set ? 1.5 : 1) * (it.cat === 'bag' ? 4 : 1)),
   };
 }
@@ -732,7 +740,7 @@ function enchCost(it) {
   return { gold: Math.round(150 * (L + 1) ** 2 * rk * TIER_MULT[t] / 10) * 10, mats, chance: ENCH.chance[L] || 0 };
 }
 module.exports = {
-  ENCH, enchCost,
+  ENCH, enchCost, repairCost,
   LUCK_STONE, WORLD_CRAFT, worldRecipes, findRecipe, CRAFT_SLOTS, refineItem,
   RARITY_ORDER, ITEM_RARITIES, TEMPLATES, ATTRS, CATEGORIES, SLOTS, SLOT_ORDER, SLOT_NAMES, SET_SLOTS, WEAR_CATS, slotCat, TIER_MULT, DUPE_MAX, DUPE_STEP,
   SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF, COMPANIONS, TREE, TREE_MAX, treeReq, treeCost, PAS_MAX, PAS_STEP, pasReq, pasCost, CAPS, BUFF_LUCK,

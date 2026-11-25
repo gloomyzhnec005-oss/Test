@@ -454,8 +454,23 @@ module.exports = function createMeta(deps) {
       for (const s of Object.keys(pr.equip)) if (pr.equip[s] === it.id) pr.equip[s] = null;
       pr.equip[slot] = it.id;
       it.loc = 'bag';
+      // Новый баланс: надетая мифическая вещь привязывается к владельцу — продать или передать её больше нельзя
+      const bind = require('./mobs').bal2() && it.rar === 'mythic' && !it.bound;
+      if (bind) it.bound = 1;
       refreshPlayer(p);
-      return { toast: `Надето: ${I.itemView(it).name}` };
+      return { toast: `Надето: ${I.itemView(it).name}${bind ? ' · 🔒 привязана к вам' : ''}` };
+    },
+    // Ремонт в кузнице: одна вещь (d.id) или всё надетое (d.all)
+    repair(p, d, pr) {
+      const list = d.all ? Object.values(pr.equip || {}).map((id) => id && I.findItem(pr, id)).filter(Boolean) : [I.findItem(pr, d.id)].filter(Boolean);
+      const need = list.filter((it) => I.repairCost(it) > 0);
+      if (!need.length) return { error: 'Чинить нечего' };
+      const cost = need.reduce((a, it) => a + I.repairCost(it), 0);
+      if ((pr.gold || 0) < cost) return { error: `Нужно ${cost} 💰` };
+      pr.gold -= cost;
+      for (const it of need) it.dur = 100;
+      refreshPlayer(p);
+      return { toast: `🔧 Починено: ${need.length} · −${cost} 💰`, gold: pr.gold };
     },
     unequip(p, d, pr) {
       if (!pr.equip?.[d.slot]) return { error: 'Слот пуст' };

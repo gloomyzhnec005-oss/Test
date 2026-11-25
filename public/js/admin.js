@@ -556,7 +556,8 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
         <label class="switch"><input id="sFree" type="checkbox" ${s.freeSpins ? 'checked' : ''}> Бесплатные крутки героев для всех</label>
         <label class="switch"><input id="sMaint" type="checkbox" ${s.maintenance ? 'checked' : ''}> Технические работы (вход только тестерам)</label></div>
       <div class="card"><h3>🧪 Режим ЗБТ</h3><p class="muted">Включён — перед каждой покупкой (Stars и GRAM, в игре и в лобби) игрок видит предупреждение: идёт ЗБТ, будет вайп, покупки до вайпа вернём. Сохраняется кнопкой «Сохранить настройки» внизу.</p>
-        <div class="row"><label><input type="checkbox" id="sZbt" ${s.zbt ? 'checked' : ''}> Предупреждать о ЗБТ перед покупкой</label></div></div>
+        <div class="row"><label><input type="checkbox" id="sZbt" ${s.zbt ? 'checked' : ''}> Предупреждать о ЗБТ перед покупкой</label></div>
+        <div class="row"><label><input type="checkbox" id="sBal2" ${s.bal2 ? 'checked' : ''}> <b>Новый баланс</b> (включить в день вайпа): прокачка по ступеням ~600–800 ч до 50, монстры крепче с 10 ур., опыт группы и клана, автобой ×0,6, добыча и золото реже</label></div></div>
       <div class="card"><h3>📨 Рассылка от бота</h3><p class="muted">Личное сообщение от бота всем игрокам Telegram (кто открывал игру, в том числе по реферальным ссылкам) и всем, кто нажимал /start в боте, — даже не нажимавшим «Напомнить». Кроме отключивших уведомления. Под сообщением — кнопка «⚔️ Играть». Не дойдёт тем, кто не разрешал боту писать (не нажимал /start и снял галочку при входе в игру). Сначала отправьте себе — проверить текст.</p>
         <textarea id="botcastText" class="wide" rows="4" placeholder="⏰ Уже сегодня в 21:00 по Москве — открытие Mystic Horizon! …"></textarea>
         <div class="row"><button class="btn" id="botcastTest">Сначала себе</button><button class="btn primary" id="botcastAll">Разослать всем</button></div>
@@ -592,7 +593,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       <div class="row"><button id="sSave" class="btn primary">Сохранить настройки</button><button id="sDisk" class="btn">Записать данные игроков на диск</button></div>`;
     $('sSave').onclick = async () => {
       if ($('sMaint').checked && !s.maintenance && !confirm('Включить техработы? Все игроки, кроме тестеров, будут отключены.')) return;
-      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value, partners: $('sPartners').value, zbt: $('sZbt').checked, spChannel: $('sSpChannel').value, spChat: $('sSpChat').value, special: $('sSpecial').value } });
+      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value, partners: $('sPartners').value, zbt: $('sZbt').checked, bal2: $('sBal2').checked, spChannel: $('sSpChannel').value, spChat: $('sSpChat').value, special: $('sSpecial').value } });
       drawSettings();
     };
     $('sDisk').onclick = () => api('save');

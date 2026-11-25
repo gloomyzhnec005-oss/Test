@@ -127,6 +127,7 @@ const perf = { lagP50: 0, lagP99: 0, lagMax: 0, cpu: 0 };
 admin.ctx.perf = () => perf;
 admin.ctx.econ = Econ;
 const S = admin.settings;
+MOBX.setBal2(S.bal2); // «Новый баланс» — прокачка по ступеням, монстры крепче, добыча реже (админка → Настройки)
 app.get('/admin/dl/:t/:name', (req, res) => admin.download(req, res)); // одноразовая ссылка на бэкап (для телефона)
 app.use('/admin/api', admin.router);
 app.use(express.json({ limit: '16kb' }));
@@ -335,7 +336,7 @@ app.get('/api/wiki', (req, res) => {
     const towns = world.towns.map((t, i) => ({ id: t.id, name: t.name, sub: t.sub, level: t.level, tier: t.tier || (world.byId.get(t.id) || {}).tier || i + 1 }));
     const nm = (id) => (MOBX.MOBS[id] ? MOBX.MOBS[id].name : id);
     wikiCache = {
-      towns, maxLevel: MOBX.MAX_LEVEL, unlock: C.SKILL_UNLOCK, heroRar: Object.fromEntries(Object.entries(C.RARITIES).map(([k, r]) => [k, { name: r.name, color: r.color }])),
+      towns, unlock: C.SKILL_UNLOCK, heroRar: Object.fromEntries(Object.entries(C.RARITIES).map(([k, r]) => [k, { name: r.name, color: r.color }])),
       heroes: Object.entries(C.HEROES).map(([id, h]) => ({ id, name: h.name, title: h.title, rarity: h.rarity, cls: I.classOf(id), range: h.range, res: h.resource.name, passive: h.passive && h.passive.name })),
       classes: Object.fromEntries(Object.entries(I.CLASSES).map(([k, c]) => [k, { name: c.name, icon: c.icon }])),
       itemRar: I.ITEM_RARITIES, rarOrder: I.RARITY_ORDER, drops: C.DROPS, slots: I.SLOT_NAMES, attrs: I.ATTRS, caps: I.CAPS,
@@ -382,6 +383,7 @@ app.post('/api/remind', (req, res) => {
 let launchFired = !S.openAt || S.openAt <= Date.now();
 const fmtHM = (t) => new Date(t + 3 * 36e5).toISOString().slice(11, 16);
 setInterval(() => {
+  if (MOBX.bal2() !== !!S.bal2) MOBX.setBal2(S.bal2); // переключили в админке — новые монстры и опыт уже по нему
   const now = Date.now();
   io.emit('online', onlineInfo());
   // Открытие: в момент openAt — объявление и сообщение от бота всем, кто нажал «Напомнить»
@@ -905,6 +907,7 @@ function clanAct(p, d) {
     const it = I.findItem(pr, String(d.id || ''));
     if (!it) return { error: 'Предмет не найден' };
     if (Object.values(pr.equip || {}).includes(it.id)) return { error: 'Сначала снимите предмет' };
+    if (it.bound) return { error: 'Привязанную вещь нельзя передать' };
     if (it.cat === 'bag') return { error: 'Сумки в хранилище не кладут' };
     mine.vault ??= [];
     if (mine.vault.length >= CLAN.vault) return { error: `Хранилище клана заполнено (${CLAN.vault})` };
@@ -1135,7 +1138,16 @@ function deathPenalty(p) {
   p.deathUntil = pr.deathUntil = Date.now() + DEATH.ms; // сохраняется в профиле — перезаход не снимает
   const lostElx = Object.values(pr.buffs || {}).some((t) => t > Date.now());
   pr.buffs = {}; // эликсиры сгорают при гибели
+  // Новый баланс: надетые вещи теряют 10% прочности (0 — вещь сломана и не даёт статов до ремонта в кузнице)
+  let broke = 0;
+  if (MOBX.bal2()) for (const id of Object.values(pr.equip || {})) {
+    const it = id && I.findItem(pr, id);
+    if (!it || it.cat === 'bag') continue;
+    const was = it.dur ?? 100; it.dur = Math.max(0, was - 10);
+    if (was > 0 && it.dur === 0) broke++;
+  }
   p.gear = I.gearStats(pr, p.heroId); p.buffSig = '';
+  if (broke) p.socket.emit('chat', { sys: true, text: `🔧 Сломано вещей: ${broke} — они не дают силы, пока не почините («Сумка» → вещь → «Починить»)` });
   p.socket.emit('chat', { sys: true, text: `💀 Вы погибли: −${lost} опыта${lostElx ? ', действие эликсиров закончилось' : ''}. Слабость на 5 минут: урон −30%, получаемый опыт −30%` });
   p.lastStats = 0;
 }
@@ -1385,8 +1397,8 @@ function damageMonster(p, m, raw, opt = {}) {
     // Монстры намного ниже уровнем дают меньше опыта
     const diff = p.char.level - (m.level || 1);
     const baseXp = m.xp * (diff > 4 ? Math.max(0.1, 1 - 0.15 * (diff - 4)) : 1);
-    const xpF = baseXp * rw.xp, xp = Math.floor(xpF) + (Math.random() < xpF % 1 ? 1 : 0); // дробный опыт — случайным округлением
-    const gold = Math.round((baseXp / 3 + 1) * (0.5 + Math.random()) * rw.gold); // +1: на первых уровнях хоть немного золота
+    const xpF = baseXp * rw.xp * xpBonusK(p), xp = Math.floor(xpF) + (Math.random() < xpF % 1 ? 1 : 0); // дробный опыт — случайным округлением
+    const gold = Math.round((baseXp / 3 + 1) * (0.5 + Math.random()) * rw.gold * (MOBX.bal2() ? 0.5 : 1)); // +1: на первых уровнях хоть немного золота; новый баланс — золота вдвое меньше
     fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp, gold, by: p.id, contract: !!rw.contract });
     monsters.delete(m.id);
     corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type, zone: m.zone, level: m.level, maxHp: m.maxHp, dmg: m.dmg, speed: m.speed });
@@ -1662,7 +1674,7 @@ function grantXp(p, amount, gold, shared = false) {
     fx.push({ t: 'levelup', id: p.id, x: p.x, y: p.y, lvl: p.char.level });
     if (p.char.level >= 30 && p.char.level % 10 === 0) evCast({ ev: 'level', text: `${p.name} (${p.hero.name}) достиг ${p.char.level} уровня!` }); // только вехи
     // Каждые 10 уровней героя — самоцветы (на один призыв)
-    if (p.char.level % 10 === 0) { pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: `💎 ${p.hero.name} — ${p.char.level} уровень: +160 самоцветов` }); }
+    if (p.char.level % 10 === 0 && (!MOBX.bal2() || p.char.level <= 30)) { pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: `💎 ${p.hero.name} — ${p.char.level} уровень: +160 самоцветов` }); }
   }
   markDirty(p);
 }
@@ -1691,11 +1703,25 @@ function leaveParty(p) {
     sendParty(pt);
   }
 }
-// Опыт за убийство делится с группой рядом (каждый получает 70%)
+// Новый баланс: бонус опыта за группу рядом — +5% за каждого (до +25%), за соклановца +10% (до +50%), всего не больше +50%.
+// Автобой — опыт ×0,6 (ручная игра выгоднее)
+function xpBonusK(p) {
+  if (!MOBX.bal2()) return 1;
+  let other = 0, clan = 0;
+  const myClan = clanOf(p.uid);
+  for (const o of partyMembers(p)) {
+    if (o === p || o.dead || o.zone !== p.zone || Math.hypot(o.x - p.x, o.y - p.y) > 900) continue;
+    if (myClan && clanOf(o.uid) === myClan) clan++; else other++;
+  }
+  const grp = Math.min(0.5, Math.min(0.25, 0.05 * other) + Math.min(0.5, 0.1 * clan));
+  return (1 + grp) * (p.autofarm ? 0.6 : 1);
+}
+// Опыт за убийство делится с группой рядом (каждый получает 70% — от опыта без бонусов убийцы, со своими бонусами)
 function shareKill(killer, m, xp) {
+  const base = xp / xpBonusK(killer);
   for (const o of partyMembers(killer)) {
     if (o === killer || o.dead || o.zone !== killer.zone || Math.hypot(o.x - m.x, o.y - m.y) > 900) continue;
-    grantXp(o, Math.round(xp * 0.7), 0, true);
+    grantXp(o, Math.round(base * 0.7 * xpBonusK(o)), 0, true);
   }
 }
 // Добыча: обычный монстр — шанс предмета убийце; босс — 2 предмета каждому из группы рядом
@@ -1711,18 +1737,26 @@ function dropLoot(killer, m) {
     meta.addPassXp(pr, m.rank === 'boss' ? 20 : m.rank === 'mini' ? 8 : m.rank === 'rare' ? 2 : m.rank === 'magic' ? 1 : Math.random() < 0.12 ? 1 : 0); // орден — на ~3–4 недели обычной игры, а не на пару вечеров
     const luck = I.buffLuck(pr); // эликсиры удачи
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
-    const rolls = m.rank === 'boss' ? 2 : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult ? 1 : 0;
-    for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, m.rank === 'boss' ? C.DROPS.boss[tier] : m.rank === 'mini' ? C.DROPS.mini[tier] : C.DROPS.weights[tier], null, o.heroId), m); // 75% — под класс героя
+    const B2 = MOBX.bal2(), dropK = B2 ? 0.5 : 1; // новый баланс: вещей и материалов вдвое меньше
+    const rolls = m.rank === 'boss' ? (B2 ? 1 + (Math.random() < 0.5 ? 1 : 0) : 2) : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult * dropK ? 1 : 0;
+    const wt = m.rank === 'boss' ? C.DROPS.boss[tier] : m.rank === 'mini' ? C.DROPS.mini[tier] : C.DROPS.weights[tier];
+    for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, B2 ? dropW2(wt, m.rank) : wt, null, o.heroId), m); // 75% — под класс героя
     // Сумки — редкость: босс 3% (эпическая), полубосс 1% (редкая, 20% — эпическая)
     if (boss && Math.random() < (m.rank === 'boss' ? 0.03 : 0.01) * luck) giveLoot(o, pr, I.createBag(m.rank === 'boss' || Math.random() < 0.2 ? 'epic' : 'rare', tier), m);
     // Материалы, свитки, чертежи и вещи комплектов данжа (server/loot.js)
     const z = world.byId.get(m.zone);
     const dungeon = z && z.kind === 'dungeon' ? { sets: Loot.dungeonSets(z.tier, z.dgIndex) } : null;
     if (m.rank === 'boss') companionDrop(o, 0.005);
-    const drop = Loot.rollMats(m, tier, dungeon, luck * (m.lootMult ?? 1) * S.dropMult);
+    const drop = Loot.rollMats(m, tier, dungeon, luck * (m.lootMult ?? 1) * S.dropMult * dropK);
     giveMats(o, pr, drop.mats, m);
     for (const it of drop.items) giveLoot(o, pr, it, m);
   }
+}
+// Новый баланс — редкости добычи: легендарные с обычных монстров в 10 раз реже (с полубоссов и боссов — в 3 раза),
+// мифические — только с полубоссов, боссов, мировых боссов и крафта
+function dropW2(w, rank) {
+  const boss = rank === 'boss' || rank === 'mini';
+  return { ...w, legendary: (w.legendary || 0) / (boss ? 3 : 10), mythic: boss ? w.mythic || 0 : 0 };
 }
 // Спутник в добычу — очень редко: обычный (босс данжа 0,5%, мировой босс 1%), редкий — только с мирового босса (0,2%).
 // Выпадает тот, которого у игрока ещё нет

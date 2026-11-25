@@ -16,7 +16,19 @@ const MAX_LEVEL = 50;
 // Опыт на уровень героя: с 15-го уровня растёт быстрее, чем опыт с монстров (к 30-му — ×3,5),
 // поэтому дальние уровни идут дольше, а золото с монстров (оно считается от их опыта) не меняется.
 const LEVEL_SLOW = (L) => (L < 15 ? 1 : Math.min(3.5, 1 + 2.5 * (L - 15) / 15));
-const XP_NEED = (L) => Math.round(XP_LEVEL(L) * LEVEL_SLOW(L));
+const XP_NEED_OLD = (L) => Math.round(XP_LEVEL(L) * LEVEL_SLOW(L));
+// «Баланс-2» (включается в админке, Настройки → «Новый баланс»): прокачка по ступеням.
+// 1–9 — как раньше (~30 мин), 10–19 ≈ ×11 по времени, 20–29 ≈ ×22, 30–39 ≈ ×33, 40–49 ≈ ×50.
+// Цель: до 50 уровня ~600–800 часов игры (в расчёте на темп сегодняшних лидеров). Общая подстройка — «Опыт ×» в админке.
+// Вместе с монстрами покрепче (×1,5 по времени с 20-го) это время; здесь — только множитель опыта на уровень.
+const XP2_PTS = [[1, 1], [9, 1], [10, 4], [19, 12], [29, 16], [39, 27], [49, 40], [60, 55]];
+const XP2_F = (L) => { for (let i = 1; i < XP2_PTS.length; i++) if (L <= XP2_PTS[i][0]) { const [a, fa] = XP2_PTS[i - 1], [b, fb] = XP2_PTS[i]; return fa + (fb - fa) * (L - a) / (b - a); } return XP2_PTS[XP2_PTS.length - 1][1]; };
+let BAL2 = false;
+const setBal2 = (v) => { BAL2 = !!v; };
+const bal2 = () => BAL2;
+const XP_NEED = (L) => (BAL2 ? Math.round(XP_NEED_OLD(L) * XP2_F(L)) : XP_NEED_OLD(L));
+// Монстры с 10-го уровня крепче: к 15-му здоровье ×1,8, урон ×1,4 — дальше удобнее вдвоём. До 10-го — как раньше
+const MOB2 = (L) => (L < 10 ? { hp: 1, dmg: 1 } : { hp: 1 + 0.8 * Math.min(1, (L - 9) / 6), dmg: 1 + 0.4 * Math.min(1, (L - 9) / 6) });
 
 // Базовые параметры классов: hpK, dmgK, перезарядка атаки, скорость, дальность (0 — ближний бой)
 const CLASS = {
@@ -212,6 +224,10 @@ function statsAt(def, L, rank = def.rank, affixes = []) {
     hpK = T.hpK * Math.sqrt(rel.hp); dmgK = T.dmgK * Math.sqrt(rel.dmg); cd = T.cd;
   }
   let hp = PD(L) * hpK * R.hp, dmg = PH(L) * dmgK * R.dmg;
+  if (BAL2 && rank !== 'world') { // мировых боссов не трогаем — их здоровье и так считается от числа героев
+    const k = MOB2(L); hp *= k.hp; dmg *= k.dmg;
+    if (rank === 'boss' && L >= 15) hp *= 1.5; // боссы данжей второго мира и дальше — только группой
+  }
   if (L < 6) dmg *= 0.6 + 0.08 * (L - 1); // первые уровни мягче для новичков
   for (const a of affixes) { const A = AFFIXES[a]; if (A.dmg) dmg *= A.dmg; if (A.cd) cd *= A.cd; if (A.speed) speed *= A.speed; }
   // Опыт: доля уровня героя (KILLS_PER_LEVEL обычных убийств на уровень) × ранг (миньоны и призванные — меньше)
@@ -219,4 +235,4 @@ function statsAt(def, L, rank = def.rank, affixes = []) {
   return { hp: Math.round(hp), dmg: Math.max(1, Math.round(dmg)), cd: Math.round(cd), speed: Math.round(speed), xp: Math.max(0.1, Math.round(xp * 10) / 10) }; // дробный: на первых уровнях монстр даёт меньше 1 опыта, на сервере округляется случайно
 }
 
-module.exports = { MOBS: M, CLASS, CLASS_NAMES, RANK, AFFIXES, DUNGEONS, WORLD_BOSSES, WORLD_BOSS_RESPAWN, TURN, PD, PH, XP_LEVEL, XP_NEED, KILLS_PER_LEVEL, MAX_LEVEL, statsAt };
+module.exports = { MOBS: M, CLASS, CLASS_NAMES, RANK, AFFIXES, DUNGEONS, WORLD_BOSSES, WORLD_BOSS_RESPAWN, TURN, PD, PH, XP_LEVEL, XP_NEED, XP_NEED_OLD, KILLS_PER_LEVEL, MAX_LEVEL, statsAt, setBal2, bal2 };

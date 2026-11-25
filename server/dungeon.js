@@ -538,9 +538,9 @@ module.exports = function createDungeons(d) {
   }
   const hhmm = (t) => new Date(t + 3 * 36e5).toISOString().slice(11, 16) + ' МСК';
   function rollRank(depthK) {
-    const r = Math.random();
-    if (r < 0.04 + 0.06 * depthK) return 'rare';
-    if (r < 0.2 + 0.15 * depthK) return 'magic';
+    const r = Math.random(), k = X.bal2() ? 1.5 : 1; // новый баланс: «синие» и «жёлтые» в полтора раза чаще
+    if (r < (0.04 + 0.06 * depthK) * k) return 'rare';
+    if (r < (0.2 + 0.15 * depthK) * k) return 'magic';
     return 'normal';
   }
   function initHall(z) {
@@ -620,7 +620,7 @@ module.exports = function createDungeons(d) {
     const t = helpers.length && !hasHelper && Math.random() < 0.2 ? helpers[Math.floor(Math.random() * helpers.length)]
       : Math.random() < 0.6 ? r.type : fighters[Math.floor(Math.random() * fighters.length)] || r.type;
     const rank = rollRank(r.depthK);
-    const affixes = rank === 'rare' ? Object.keys(AFFIXES).sort(() => Math.random() - 0.5).slice(0, 1 + (Math.random() < 0.5 ? 1 : 0)) : [];
+    const affixes = rank === 'rare' ? Object.keys(AFFIXES).sort(() => Math.random() - 0.5).slice(0, (X.bal2() ? 2 : 1) + (Math.random() < 0.5 ? 1 : 0)) : []; // новый баланс: 2–3 свойства
     const m = create(h.z, t, spawnPoint(h.z, r, heroes), r.lv, { rank, affixes });
     m.room = r.ri; // монстр «живёт» в своей комнате (агр и погоня — server/dungeon.js → canAggro/inLeash)
     r.ids.add(m.id);
@@ -663,7 +663,7 @@ module.exports = function createDungeons(d) {
       // Комната босса за запечатанными воротами пуста — охрана появляется вместе с боссом
       if (bossRoomShut && r.ri === h.boss.ri) { for (const id of r.ids) monsters.delete(id); r.ids.clear(); r.nextAt = 0; continue; }
       if (r.ids.size >= r.target) { r.nextAt = 0; continue; }
-      if (!r.nextAt) r.nextAt = now + RESPAWN[0] + Math.random() * (RESPAWN[1] - RESPAWN[0]);
+      if (!r.nextAt) r.nextAt = now + RESPAWN[0] + Math.random() * (RESPAWN[1] - RESPAWN[0]) + (X.bal2() ? 2000 + Math.random() * 1000 : 0); // новый баланс: +2–3 с
       else if (now >= r.nextAt && heroes.length) { spawnInRoom(h, r, heroes); r.nextAt = 0; }
     }
     for (const mi of h.minis) {
