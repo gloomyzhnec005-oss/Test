@@ -1158,7 +1158,7 @@ const pasK = (p) => 1 + I.PAS_STEP * (((p.char && p.char.pasLv) || 1) - 1);
 const pasScale = (p, m) => (m === 1 ? 1 : 1 + (m - 1) * pasK(p));
 const pasScaleTaken = (p, m) => (m >= 1 ? m : Math.max(0.3, 1 - (1 - m) * pasK(p))); // снижение получаемого урона — сильнее, но не меньше ×0,3
 // Штраф за гибель (кроме PvP-арены, матчей и данжа выживания): −10% опыта уровня и «Слабость» на 2 минуты
-const DEATH = { xpLoss: 0.15, ms: 5 * 60000, dmg: 0.3, xp: 0.3 }; // слабость после гибели идёт только пока игрок в игре
+const DEATH = { xpLoss: 0.15, ms: 5 * 60000, dmg: 0.3, xp: 0.1 }; // слабость: урон −30%, опыт −10% // слабость после гибели идёт только пока игрок в игре
 function deathPenalty(p) {
   const pr = getProfile(p.uid), need = xpForLevel(p.char.level);
   const pkz = isPkZone(p.zone); // опасный данж: риск — вещи, а не опыт: потеря опыта втрое меньше, слабость 2 мин
@@ -1177,7 +1177,7 @@ function deathPenalty(p) {
   }
   p.gear = I.gearStats(pr, p.heroId); p.buffSig = '';
   if (broke) p.socket.emit('chat', { sys: true, text: `🔧 Сломано вещей: ${broke} — они не дают силы, пока не почините («Сумка» → вещь → «Починить»)` });
-  p.socket.emit('chat', { sys: true, text: pkz ? `💀 Вы погибли: −${lost} опыта${lostElx ? ', действие эликсиров закончилось' : ''}. В опасном данже слабости нет` : `💀 Вы погибли: −${lost} опыта${lostElx ? ', действие эликсиров закончилось' : ''}. Слабость на 5 минут: урон −30%, получаемый опыт −30%` });
+  p.socket.emit('chat', { sys: true, text: pkz ? `💀 Вы погибли: −${lost} опыта${lostElx ? ', действие эликсиров закончилось' : ''}. В опасном данже слабости нет` : `💀 Вы погибли: −${lost} опыта${lostElx ? ', действие эликсиров закончилось' : ''}. Слабость на 5 минут: урон −30%, получаемый опыт −10%` });
   p.lastStats = 0;
 }
 // ---------- Эффекты на герое: значки под полоской здоровья (тап — описание) ----------
@@ -1198,7 +1198,7 @@ const FX_TIMED = [
   ['reflectShieldUntil', 1, 'shield', 'Отражение', 'Часть урона возвращается врагу'], ['shieldUntil', 1, 'shield', 'Щит', 'Поглощает урон'],
   ['regenUntil', 1, 'regen', 'Регенерация', 'Здоровье восстанавливается'], ['feralLeechUntil', 1, 'regen', 'Звериная жажда', 'Удары лечат героя'],
   ['slowUntil', 0, 'slow', 'Замедление', 'Скорость снижена'], ['weakUntil', 0, 'weak', 'Проклятие слабости', 'Урон −30%'],
-  ['deathUntil', 0, 'curse', 'Слабость после гибели', 'Урон −30%, получаемый опыт −30%'],
+  ['deathUntil', 0, 'curse', 'Слабость после гибели', 'Урон −30%, получаемый опыт −10%'],
 ];
 const FX_CC = { stun: ['stun', 'Оглушение', 'Нельзя действовать'], freeze: ['freeze', 'Заморозка', 'Нельзя действовать'],
   fear: ['fear', 'Страх', 'Герой бежит и не слушается'], root: ['root', 'Корни', 'Нельзя двигаться'], taunt: ['taunt', 'Провокация', 'Атакуете только провокатора'],
@@ -1364,7 +1364,7 @@ function pvpHit(p, m, raw, opt) {
   victim.lastPvpBy = p.id; victim.lastPvpAt = Date.now();
   if (raw2 > 0) hurtPlayer(victim, raw2, null, Date.now());
   const dealt = Math.max(0, before - Math.max(0, victim.hp));
-  if (p.gear && p.gear.ls && dealt > 0 && !p.dead) { p.hp = Math.min(p.maxHp, p.hp + dealt * p.gear.ls / 100 * 0.5); markDirty(p); } // вампиризм по игрокам — вдвое слабее
+  if (p.gear && p.gear.ls && dealt > 0 && !p.dead) { p.hp = Math.min(p.maxHp, p.hp + dealt * p.gear.ls / 100 * (isPkZone(p.zone) ? 0.25 : 0.5)); markDirty(p); } // вампиризм по игрокам — вдвое слабее
   return dealt;
 }
 // Победа на арене: рейтинг по Эло; за одного и того же соперника чаще раза в 5 минут рейтинг не растёт
@@ -1411,7 +1411,7 @@ function damageMonster(p, m, raw, opt = {}) {
   const dmg = opt.fixed ? Math.max(1, Math.round(raw))
     : Math.max(1, Math.round(raw * dmgMult(p) * tMult * (0.85 + Math.random() * 0.3) * (crit ? 2 + ((p.gear && p.gear.critDmg) || 0) / 100 : 1)
       * (!opt.basic && !opt.pet && p.gear && p.gear.skill ? 1 + p.gear.skill / 100 : 1))); // сила умений с экипировки
-  if (p.gear && p.gear.ls && !opt.pet && !opt.fixed && p.hp < p.maxHp && !p.dead) { p.hp = Math.min(p.maxHp, p.hp + Math.min(dmg, m.hp) * p.gear.ls / 100); markDirty(p); } // вампиризм
+  if (p.gear && p.gear.ls && !opt.pet && !opt.fixed && p.hp < p.maxHp && !p.dead) { p.hp = Math.min(p.maxHp, p.hp + Math.min(dmg, m.hp) * p.gear.ls / 100 * (isPkZone(p.zone) ? 0.5 : 1)); markDirty(p); } // опасный данж: вампиризм вдвое слабее (умения лечения — как есть) // вампиризм
   if (ps && ps.onDealt) ps.onDealt(skillCtx, p, Math.min(dmg, m.hp), Date.now()); // вампиризм Кельт'о
   // Кровавая связь Сангвейна: 35% урона передаётся остальным связанным монстрам
   if (!opt.shared && m.bondUntil > now0) {
@@ -1902,7 +1902,8 @@ function xpBonusK(p) {
     if (o === p || o.dead || !D.groupNear(p, o)) continue; // бонус — только за тех, кто в той же или соседней комнате
     if (myClan && clanOf(o.uid) === myClan) clan++; else other++;
   }
-  const grp = Math.min(0.5, Math.min(0.25, 0.05 * other) + Math.min(0.5, 0.1 * clan));
+  // В группе до 4 героев (3 союзника): чужие — до +20% (по 6,7%), соклановцы — до +40% (по 13,3%), всего не больше +40%
+  const grp = Math.min(0.4, Math.min(0.2, (0.2 / 3) * other) + Math.min(0.4, (0.4 / 3) * clan));
   return (1 + grp) * (p.autofarm && !isPkZone(p.zone) ? 0.6 : 1) * pkXpRate(p);
 }
 // Опыт за убийство делится с группой рядом (каждый получает 70% — от опыта без бонусов убийцы, со своими бонусами)

@@ -528,6 +528,10 @@ module.exports = function createDungeons(d) {
   const MINI_RESPAWN = 15 * 60e3; // полубосс возрождается через 15 минут после гибели
   const PK_BOSS_RESPAWN = 40 * 60e3; // боссы опасного данжа — через 40 минут
   const PK_MOB = { hp: 1.3, dmg: 1.3 }; // монстры опасного данжа крепче обычных
+  // Обычные (безопасные) данжи — проще: здоровье ×0,8, урон ×0,75 (монстр ~2,4 с, стая ~4,5% здоровья в секунду).
+  // Итог по расчёту: опасный данж даёт ~в 2 раза больше опыта и ~в 4 раза больше добычи в час, чем безопасный, —
+  // монстры там в 1,6 раза крепче, но опыт ×3, добыча ×6
+  const SAFE_MOB = { hp: 0.8, dmg: 0.75 };
   const nextHour = (t) => Math.floor(t / 36e5) * 36e5 + 36e5;
   function nextBossAt(t) {
     const x = new Date(t), day = Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate());
@@ -642,7 +646,7 @@ module.exports = function createDungeons(d) {
       : Math.random() < 0.6 ? r.type : fighters[Math.floor(Math.random() * fighters.length)] || r.type;
     const rank = rollRank(r.depthK);
     const affixes = rank === 'rare' ? Object.keys(AFFIXES).sort(() => Math.random() - 0.5).slice(0, (X.bal2() ? 2 : 1) + (Math.random() < 0.5 ? 1 : 0)) : []; // новый баланс: 2–3 свойства
-    const m = create(h.z, t, spawnPoint(h.z, r, heroes), r.lv, { rank, affixes, ...(dg.pk ? { hpMult: PK_MOB.hp, dmgMult: PK_MOB.dmg } : {}) });
+    const m = create(h.z, t, spawnPoint(h.z, r, heroes), r.lv, { rank, affixes, ...(dg.pk ? { hpMult: PK_MOB.hp, dmgMult: PK_MOB.dmg } : X.bal2() ? { hpMult: SAFE_MOB.hp, dmgMult: SAFE_MOB.dmg } : {}) });
     m.room = r.ri; // монстр «живёт» в своей комнате (агр и погоня — server/dungeon.js → canAggro/inLeash)
     r.ids.add(m.id);
     return m;
