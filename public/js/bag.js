@@ -273,7 +273,7 @@ window.Bag = (() => {
     if (!F) return '';
     const c = (v) => String(v).replace('.', ',');
     const row = (name, val, cls = '') => `<div class="${cls}"><span>${name}</span><b>${val}</b></div>`;
-    const capCls = (k, v) => (F.caps[k] && v >= F.caps[k] ? 'cap' : v ? '' : 'zero');
+    const capCls = (k, v) => (F.caps[k] && v >= F.caps[k] * 0.85 ? 'cap' : v ? '' : 'zero'); // мягкий предел: близко к нему — оранжевым
     const capTxt = (k) => (F.caps[k] ? ` / ${F.caps[k]}%` : '');
     return `<div class="ic-sec">Все характеристики</div><div class="st-full">
       ${row('❤️ Здоровье', F.hp.toLocaleString('ru-RU'))}${row('⚔️ Урон за удар', F.dmg.toLocaleString('ru-RU'))}
@@ -285,7 +285,7 @@ window.Bag = (() => {
       ${row('👟 Скорость бега', F.ms + (F.msP ? ` (+${c(F.msP)}%)` : ''), capCls('ms', F.msP))}${row('📏 Дальность атаки', F.range)}
       ${row('💧 ' + F.resName, F.res + ` (+${F.regen}/с)`)}${row('🍀 Удача добычи', '+' + F.luck + '%', F.luck ? '' : 'zero')}
       ${row('💰 Золото', '+' + c(F.gold) + '%', F.gold ? '' : 'zero')}${row('📘 Опыт', '+' + c(F.xp) + '%', F.xp ? '' : 'zero')}
-    </div><p class="sheet-hint">Оранжевым — достигнут предел. Растут от снаряжения, рун, комплектов, эликсиров, спутника и Зала мастеров (ветка характеристик и пассивка).</p>`;
+    </div><p class="sheet-hint">Оранжевым — близко к пределу: у процентных характеристик отдача убывает (каждая вещь добавляет, но всё меньше), предел не достигается. Растут от снаряжения, рун, комплектов, эликсиров, спутника и Зала мастеров (ветка характеристик и пассивка).</p>`;
   }
   // «Память героев»: бонусы аккаунту за каждого героя в коллекции (по классам, сколько набрано и предел)
   function memoryBlock() {

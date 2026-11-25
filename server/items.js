@@ -41,9 +41,12 @@ const ATTRS = {
   xp:      ['Опыт', '%', 3, 8],
 };
 // Предел суммарных процентов (экипировка + комплекты + эликсиры), чтобы топ-билды не ломали игру
-// Пересмотрено под 50 уровень с мификами: без «нереальной» игры — бег не быстрее +25%, крит не чаще 40%,
-// крит. урон не выше +150% (удар ×3,5), урон/сила умений/здоровье от вещей — не больше чем вдвое-с-лишним
-const CAPS = { def: 50, crit: 40, critDmg: 150, aspd: 50, ls: 15, cdr: 30, ms: 25, atkP: 100, skill: 120, hpP: 120 };
+// Мягкие пределы (убывающая отдача): итог = предел × (1 − e^(−сумма/предел)). Предел никогда не достигается —
+// каждая новая вещь, заточка и руна всё равно добавляют, но всё меньше. Пока сумма мала, работает почти как есть
+// (сумма 10 при пределе 45 → +9). Числа подобраны так, чтобы с мификами 3-го мира +10 выйти примерно на 90% предела:
+// бег ≈ +28%, крит ≈ 40%, крит. урон ≈ +125%, скорость атаки ≈ +56% — без «нереальной» игры
+const CAPS = { def: 60, crit: 45, critDmg: 200, aspd: 65, ls: 20, cdr: 40, ms: 30, atkP: 150, skill: 180, hpP: 160 };
+const softCap = (v, cap) => (v > 0 ? Math.round(cap * (1 - Math.exp(-v / cap)) * 10) / 10 : v);
 
 // ---------- Классы героев (для комплектов) ----------
 const CLASSES = {
@@ -563,7 +566,7 @@ function gearStats(pr, heroId = null) {
   const cmp = companionOf(pr); if (cmp) add(cmp.bonus); // бонус спутника
   if (heroId) add(treeStats(pr, heroId)); // ветка характеристик и мастерство пассивки из Зала мастеров
   if (heroId) { const hp = require('./collection').perks(pr).hpP; if (hp) add({ hpP: hp }); } // «Память героев»: Воители — здоровье
-  for (const [k, cap] of Object.entries(CAPS)) if (total[k] > cap) total[k] = cap;
+  for (const [k, cap] of Object.entries(CAPS)) if (total[k]) total[k] = softCap(total[k], cap);
   for (const k of Object.keys(total)) total[k] = round1(total[k]);
   return total;
 }
