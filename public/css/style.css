@@ -1617,3 +1617,12 @@ canvas.skin { object-fit: contain; }
 .sk-cfg .btn-row { flex: none; gap: 3px; }
 .l2-btn.sm { min-width: 0; padding: 4px 7px; font-size: 13px; }
 .l2-btn.sm.on { background: linear-gradient(#6a5a18, #3e3208); border-color: #ffd23a; box-shadow: 0 0 5px rgba(255,210,58,.5); }
+
+/* Почта */
+.tw-ev.mail.new { border-color: #ffd23a; }
+.mail-text { margin: 4px 0; white-space: pre-wrap; word-break: break-word; font-size: 13px; }
+.mail-att { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.mail-att .it { width: 44px; height: 44px; }
+.wide-in { width: 100%; box-sizing: border-box; margin-bottom: 6px; padding: 8px; border-radius: 6px; border: 1px solid #5a4528; background: rgba(0,0,0,.4); color: #f3e6c8; font: inherit; }
+.mail-items { max-height: 210px; overflow-y: auto; }
+.mail-body select, .mail-body input[type=number] { flex: 1; min-width: 0; padding: 7px; border-radius: 6px; border: 1px solid #5a4528; background: rgba(0,0,0,.4); color: #f3e6c8; }

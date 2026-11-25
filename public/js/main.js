@@ -873,6 +873,60 @@
         if (!r || !r.ref || !r.ref.code) { Town.toast('Приглашения доступны в игре через Telegram'); return; }
         Town.open('👥 Пригласить друга', Invite.panel(r.ref));
       };
+      // ---------- Почта: входящие (вложения — «Забрать») и новое письмо (до 5 вещей, материал, золото) ----------
+      const openMail = async (tab = 'in') => {
+        const esc = (t) => String(t || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+        const box = document.createElement('div');
+        box.innerHTML = `<div class="tw-tabs"><button class="tw-tab ${tab === 'in' ? 'on' : ''}" data-t="in">📥 Входящие</button><button class="tw-tab ${tab === 'new' ? 'on' : ''}" data-t="new">✍️ Написать</button></div><div class="mail-body"></div>`;
+        box.querySelectorAll('[data-t]').forEach((b) => { b.onclick = () => { Town.close(); openMail(b.dataset.t); }; });
+        const body = box.querySelector('.mail-body');
+        if (tab === 'in') {
+          const r = await Bag.act('mailList');
+          if (r.error) { Town.toast(r.error); return; }
+          if (!Bag.inv()) await Bag.refresh();
+          body.innerHTML = r.mail.length ? r.mail.map((m) => `<div class="tw-ev mail ${m.read ? '' : 'new'}" data-id="${m.id}"><div>
+              <b>${m.read ? '✉️' : '📩'} ${esc(m.from)}</b><small>${new Date(m.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small>
+              ${m.text ? `<p class="mail-text">${esc(m.text)}</p>` : ''}
+              ${m.items.length || m.mat || m.gold ? `<div class="mail-att">${m.items.map((it) => Bag.cell(it, 'other')).join('')}${m.mat ? `<span class="wm-c">📦 ${esc(m.mat.name || m.mat.id)} ×${m.mat.n}</span>` : ''}${m.gold ? `<span class="wm-c">💰 ${m.gold}</span>` : ''}</div>` : ''}
+            </div><div class="btn-row">${(m.items.length || m.mat || m.gold) && !m.got ? '<button class="l2-btn sm" data-op="mailTake">📦 Забрать</button>' : ''}<button class="l2-btn sm" data-op="mailDel">🗑</button></div></div>`).join('')
+            : '<div class="tw-soon">Писем нет</div>';
+          for (const m of r.mail) if (!m.read) Bag.act('mailRead', { id: m.id });
+          body.onclick = async (e) => {
+            const it = e.target.closest('.it[data-id]'); if (it) { const m = r.mail.find((x) => x.items.some((i) => i.id === it.dataset.id)); if (m) Bag.card(m.items.find((i) => i.id === it.dataset.id)); return; }
+            const b = e.target.closest('button[data-op]'); if (!b) return;
+            const x = await Bag.act(b.dataset.op, { id: b.closest('[data-id]').dataset.id });
+            if (x.error || x.toast) Town.toast(x.error || x.toast);
+            if (!x.error) { if (x.refresh) Bag.refresh(); Town.close(); openMail('in'); }
+          };
+        } else {
+          if (!Bag.inv()) await Bag.refresh();
+          const inv = Bag.inv(), sel = new Set();
+          const items = inv.items.filter((it) => !it.bound && !Bag.isEquipped(it) && it.loc !== 'wh');
+          body.innerHTML = `<p class="sheet-hint">Письмо — бесплатно. Вещи и материалы — с 10 уровня, плата в GRAM: 15% от минимальной цены в Торговом доме + 0,05. Золото — плюс 10%. Не забранное за 30 дней вернётся вам.</p>
+            <input class="mail-to wide-in" maxlength="16" placeholder="Ник получателя" autocomplete="off">
+            <textarea class="mail-tx wide-in" maxlength="300" rows="3" placeholder="Текст письма"></textarea>
+            <div class="ic-sec">Вещи (до 5)</div><div class="grid mail-items">${items.map((it) => Bag.cell(it)).join('') || '<small>Нет вещей, которые можно отправить</small>'}</div>
+            <div class="btn-row"><select class="mail-mat"><option value="">Материал — нет</option>${(inv.mats || []).filter((m) => m.n > 0).map((m) => `<option value="${m.mat}">${esc(m.name)} (${m.n})</option>`).join('')}</select><input class="mail-n" type="number" min="1" placeholder="кол-во"></div>
+            <div class="btn-row"><input class="mail-gold" type="number" min="0" placeholder="Золото"><button class="l2-btn" data-send>✉️ Отправить</button></div>
+            <small class="mail-q"></small>`;
+          const grid = body.querySelector('.mail-items');
+          grid.onclick = (e) => { const c = e.target.closest('.it[data-id]'); if (!c) return; const id = c.dataset.id;
+            if (sel.has(id)) sel.delete(id); else if (sel.size < 5) sel.add(id); else Town.toast('Не больше 5 вещей');
+            c.classList.toggle('sel', sel.has(id)); quote(); };
+          const data = () => ({ to: body.querySelector('.mail-to').value.trim(), text: body.querySelector('.mail-tx').value, items: [...sel],
+            mat: body.querySelector('.mail-mat').value || null, n: +body.querySelector('.mail-n').value || 0, gold: +body.querySelector('.mail-gold').value || 0 });
+          const quote = async () => { const q = await Bag.act('mailQuote', data()); body.querySelector('.mail-q').textContent = q.error ? '' : `Плата: ${q.nano ? q.gram + ' GRAM' : 'бесплатно'}${q.goldFee ? ` · золото +${q.goldFee}` : ''}`; };
+          body.querySelectorAll('.mail-mat, .mail-n, .mail-gold').forEach((el) => { el.onchange = quote; });
+          body.querySelector('[data-send]').onclick = async () => {
+            let x = await Bag.act('mailSend', data());
+            if (x.confirm) { if (!confirm(`${x.text}. Отправить?`)) return; x = await Bag.act('mailSend', { ...data(), confirm: true }); }
+            Town.toast(x.error || x.toast);
+            if (!x.error) { Bag.refresh(); Town.close(); }
+          };
+        }
+        Town.open('✉️ Почта', box);
+      };
+      window.openMail = openMail;
       // ---------- Умения: авто по перезарядке, порядок и выбор для автобоя (своя настройка у каждого героя) ----------
       const openSkillCfg = () => {
         const sc = window.gameScene, heroId = sc && sc.me && sc.me.data.hero;
@@ -908,6 +962,48 @@
         Town.open('⚡ Умения: авто и порядок', box);
       };
       window.openSkillCfg = openSkillCfg;
+      // ---------- Осада замков: владельцы, казна, заявки (глава клана, взнос GRAM), «В бой» в свой ход ----------
+      const openCastles = async () => {
+        const r = await Bag.act('castleInfo');
+        if (!r || r.error) { Town.toast((r && r.error) || 'Нет связи'); return; }
+        const esc = (t) => String(t || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+        const when = new Date(r.start).toLocaleString('ru-RU', { weekday: 'long', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const mm = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
+        const box = document.createElement('div');
+        box.innerHTML = `<p class="sheet-hint">Осада — каждую субботу в 20:00 МСК. Кланы-нападающие ходят по очереди, ход ${r.slotMin} мин (первая минута — сбор). Разбейте кристалл замка — замок ваш, и вы защищаете его до конца осады. У каждого ${r.lives} жизни на ход. Казна замка делится в субботу между участниками клана-владельца: глава — две доли. Один клан — один замок.</p>
+          <div class="tw-banner pass"><b>${r.running ? '⚔️ Осада идёт!' : `🗓 Следующая осада: ${when}`}</b><small>${r.regOpen ? `Заявка — глава клана, взнос ${r.fee} GRAM` : r.running ? 'Заявки на эту осаду закрыты' : 'Заявки закрыты'}</small></div>
+          ${r.castles.map((c) => `<div class="wm-town" data-t="${c.id}"><div class="wm-h"><b>🏰 Замок ${esc(c.name)}</b><small>Владелец: ${c.owner ? esc(c.owner) : 'нет (охраняют стражи)'} · казна ${c.pool} GRAM</small></div>
+            ${c.cur ? `<div class="wm-chips"><span class="wm-c story">Ход ${c.cur.i}/${c.cur.n}: ${esc(c.cur.atk)} · ${c.cur.prep ? 'сбор' : 'бой'} · ${mm(c.cur.left)}</span>${c.lives !== null ? `<span class="wm-c here">❤️ жизней: ${c.lives}</span>` : ''}</div>` : ''}
+            ${c.reg.length ? `<small>Очередь: ${c.reg.map((x, i) => `${i + 1}. ${esc(x)}`).join(' · ')}</small>` : '<small>Заявок нет</small>'}
+            <div class="btn-row" style="margin-top:6px">${c.join ? `<button class="l2-btn" data-op="castleJoin">${c.join === 'atk' ? '⚔️ В бой' : '🛡️ На защиту'}</button>` : ''}
+              ${r.regOpen && r.myClan && r.myClan.leader && !c.mineOwn ? `<button class="l2-btn" data-op="castleReg">📜 Заявка · ${r.fee} GRAM</button>` : ''}</div>
+          </div>`).join('')}`;
+        box.onclick = async (e) => {
+          const b = e.target.closest('button[data-op]'); if (!b) return;
+          const t = b.closest('[data-t]').dataset.t;
+          if (b.dataset.op === 'castleReg' && !confirm(`Подать заявку на осаду? Взнос ${r.fee} GRAM не возвращается.`)) return;
+          const x = await Bag.act(b.dataset.op, { t });
+          if (x.error || x.toast) Town.toast(x.error || x.toast);
+          Town.close(); if (!x.close) openCastles();
+        };
+        Town.open('🏰 Осада замков', box);
+      };
+      window.openCastles = openCastles;
+      // ---------- Бесконечная башня: рекорды, попытки на сегодня, топ недели ----------
+      const openTower = async () => {
+        const r = await Bag.act('towerInfo');
+        if (!r || r.error) { Town.toast((r && r.error) || 'Нет связи'); return; }
+        const box = document.createElement('div');
+        box.innerHTML = `<p class="sheet-hint">Одиночное испытание: этаж за этажом, 90 секунд на этаж, каждый 5-й — полубосс, каждый 10-й — босс. Зелья и автобой не работают, после этажа +30% здоровья. Новый рекорд — золото, пыль, ядра, каждый 10-й этаж 30 💎. Неделя (с понедельника): топ-10 получает ${r.prize.slice(0, 3).join(' / ')} … ${r.prize[9]} 💎.</p>
+          <div class="pd-power"><span class="pw">Рекорд <b>${r.max}</b></span><span>Неделя: ${r.wkBest}</span><span>Попытки: ${r.tries}/${r.triesMax}</span></div>
+          <button class="l2-btn wide" id="twGo" ${r.tries ? '' : 'disabled'}>🗼 Войти · с ${r.start} этажа</button>
+          <div class="ic-sec">Топ недели</div>
+          ${r.top.length ? r.top.map((x, i) => `<div class="top-row"><span>${i + 1}</span><b></b><em>${x.f} эт.</em></div>`).join('') : '<small>Пока никого</small>'}`;
+        box.querySelectorAll('.top-row b').forEach((el, i) => { el.textContent = r.top[i].name; });
+        box.querySelector('#twGo').onclick = async () => { const x = await Bag.act('towerEnter'); if (x.error) Town.toast(x.error); else Town.close(); };
+        Town.open('🗼 Бесконечная башня', box);
+      };
+      window.openTower = openTower;
       // ---------- Карта мира: города и места с метками сюжета (📖), поручителей (❗ ❓ …), друзей и «вы здесь» ----------
       const openWorldMap = async () => {
         const r = await Bag.act('worldMap');
@@ -941,7 +1037,7 @@
         if (r.error) { Town.toast(r.error); return; }
         const box = document.createElement('div');
         const ago = (t) => { if (!t) return 'давно'; const m = Math.round((Date.now() - t) / 60000); return m < 60 ? `${m} мин назад` : m < 1440 ? `${Math.round(m / 60)} ч назад` : `${Math.round(m / 1440)} дн назад`; };
-        box.innerHTML = `<p class="sheet-hint">Друзья видят, кто в игре и где. Телепорт к другу — если ни вы, ни он не флагнуты и никто не в бою.</p>
+        box.innerHTML = `<p class="sheet-hint">Кто в игре и где. Телепорт к другу — если оба не флагнуты и не в бою.</p>
           <form class="fr-add btn-row"><input maxlength="16" placeholder="Ник игрока" autocomplete="off"><button class="l2-btn">➕ Добавить</button></form>
           ${r.reqs.length ? `<div class="ic-sec">Заявки</div>${r.reqs.map((q) => `<div class="tw-ev" data-u="${q.uid}"><div><b></b><small>хочет дружить</small></div><div class="btn-row"><button class="l2-btn" data-op="accept">✓</button><button class="l2-btn" data-op="decline">✕</button></div></div>`).join('')}` : ''}
           <div class="ic-sec">Друзья ${r.friends.length}/${r.max}</div>
@@ -1081,6 +1177,15 @@
         hudToast(d.draw ? '🤝 Ничья' : d.win ? '🏆 Победа!' : '💀 Поражение');
         if (window.Sfx) Sfx.play(d.win ? 'reward' : 'death');
         setTimeout(() => { $('waveBadge').classList.add('hidden'); delete $('waveBadge').dataset.m; }, 3000);
+      });
+      // Башня: этаж и обратный отсчёт в значке волны
+      let towerTm = 0;
+      socket.on('tower', (d) => {
+        const b = $('waveBadge'); clearInterval(towerTm);
+        if (!d) { b.classList.add('hidden'); return; }
+        const draw = () => { const s = Math.max(0, Math.ceil((d.endAt - Date.now()) / 1000)); b.textContent = `🗼 Этаж ${d.floor} · ${s} с`; b.classList.toggle('warn', s <= 15); };
+        draw(); b.classList.remove('hidden'); towerTm = setInterval(draw, 500);
+        hudToast(`Этаж ${d.floor}!`);
       });
       socket.on('survival', (d) => {
         const b = $('waveBadge');
@@ -1267,6 +1372,8 @@
               }]] : []),
               ['auto', 'Умения: авто и порядок', 'Само по перезарядке, порядок в автобое', () => openSkillCfg()],
               ['teleport', 'Карта мира', 'Города, данжи и куда идти по заданиям', () => openWorldMap()],
+              ['arena', 'Осада замков', 'Суббота 20:00 МСК · кланы, казна GRAM', () => openCastles()],
+              ['arena', 'Бесконечная башня', 'Этажи, рекорд, топ недели', () => openTower()],
             ], true],
             ['🧙 Герой и группа', [
               ['party', 'Сменить героя', 'Без выхода из игры', openHeroSwitch],
@@ -1280,6 +1387,7 @@
               ['party', 'Пригласить друга', 'Подарки и вам, и другу', () => openInvite()],
             ]],
             ['💬 Общение', [
+              ['events', 'Почта', 'Письма и посылки игрокам', () => openMail()],
               ['events', 'Обновления', 'Что нового в игре', () => openNews()],
               ['clan', 'Клан', 'Участники, задания, хранилище', openClan],
               ['chat', 'Чат', 'Общий чат игроков', () => { Town.close(); $('chatBtn').click(); }],

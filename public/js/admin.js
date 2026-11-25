@@ -528,6 +528,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
           ${o.sessions.map((s) => `<option value="u:${esc(s.uid)}">рядом с ${esc(s.name)} (${esc(s.zoneName)})</option>`).join('')}
           ${META.zones.map((z) => `<option value="z:${esc(z.id)}">${esc(z.name)} — у входа</option>`).join('')}</select>
           <button id="mobBtn" class="btn primary">Создать</button></div>
+        <div class="row"><label>Осада замков</label><button id="siegeNow" class="btn">🏰 Начать осаду сейчас (по поданным заявкам)</button></div>
       </div>
       <div class="card"><h3>🧹 Очистка</h3>
         <div class="row"><button id="clearAll" class="btn danger">Удалить всех монстров во всех зонах</button></div>
@@ -544,6 +545,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       if (!at) return toast('Выберите место', true);
       api('spawn', { type, level: $('mobLvl').value, count: $('mobN').value, rank: $('mobRank').value || undefined, ...(at[0] === 'u' ? { uid: at.slice(2) } : { zone: at.slice(2) }) });
     };
+    $('siegeNow').onclick = () => confirm('Начать осаду всех замков сейчас? Казна раздастся владельцам, заявки уйдут в ход.') && api('siegeNow', {});
     $('clearAll').onclick = () => confirm('Удалить всех монстров?') && api('clearZone', {});
   }
 

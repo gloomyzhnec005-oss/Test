@@ -892,7 +892,12 @@ module.exports = function createDungeons(d) {
     const town = world.byId.get(p.zone);
     if (trial && d.getProfile(p.uid).trialDay === mskDayT()) return p.socket.emit('skillFail', 'Испытание дня уже пройдено — новое завтра');
     const z = world.addSurvival(town.id);
-    const group = d.partyMembers(p).filter((o) => o.zone === p.zone && !o.dead && (!trial || d.getProfile(o.uid).trialDay !== mskDayT()));
+    // Обычное выживание — 3 захода в день на героя (испытание дня — отдельно, раз в день)
+    const SURV_DAY = 3, runsOf = (o) => { const pr = d.getProfile(o.uid); if (pr.survDay !== mskDayT()) { pr.survDay = mskDayT(); pr.survRuns = 0; } return pr.survRuns || 0; };
+    if (!trial && runsOf(p) >= SURV_DAY) return p.socket.emit('skillFail', `Данж выживания — ${SURV_DAY} раза в день, новые попытки завтра`);
+    if (p.autofarm) return p.socket.emit('skillFail', 'Выключите автобой — в выживании он не работает');
+    const group = d.partyMembers(p).filter((o) => o.zone === p.zone && !o.dead && !o.autofarm && (trial ? d.getProfile(o.uid).trialDay !== mskDayT() : runsOf(o) < SURV_DAY));
+    if (!trial) for (const o of group) d.getProfile(o.uid).survRuns = runsOf(o) + 1;
     const avgLv = Math.round(group.reduce((s, o) => s + o.char.level, 0) / group.length);
     const mod = trial ? trialMod() : null;
     survivals.set(z.id, { z, wave: 0, nextAt: Date.now() + 4000, cleared: true, lv: Math.max(TOWN_LV[town.id][0], Math.min(TOWN_LV[town.id][1], avgLv)), mod, members: group.map((o) => o.uid), rewarded: new Set() });
@@ -913,7 +918,7 @@ module.exports = function createDungeons(d) {
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + Math.random() * 0.3, r = 10.5 * C.TILE;
       const rank = w >= 3 && Math.random() < 0.15 ? 'magic' : 'normal';
-      const m = create(z, pool[Math.floor(Math.random() * pool.length)], { x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r }, lv, { rank, aggro: 2000, lootMult: 0.5 });
+      const m = create(z, pool[Math.floor(Math.random() * pool.length)], { x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r }, lv, { rank, aggro: 2000, lootMult: 0.25 });
       if (mod) mod.apply(m);
     }
     if (w % 5 === 0) {
@@ -928,13 +933,14 @@ module.exports = function createDungeons(d) {
     for (const o of inside) {
       if (o.dead) continue;
       const pr = d.getProfile(o.uid);
-      const gold = 8 * s.wave * (s.lv + 4);
+      // Новый баланс: золото волны — как с монстров (×0,25), вещь — 10% за волну, на каждой 10-й — гарантированно и как с босса
+      const gold = Math.round(8 * s.wave * (s.lv + 4) * (X.bal2() ? 0.25 : 1));
       pr.gold += gold;
       d.addPassXp(pr, 5);
       pr.survivalBest = Math.max(pr.survivalBest || 0, s.wave);
       d.quest(o.uid, 'survival', s.wave, { town: s.z.town });
       o.socket.emit('chat', { sys: true, text: `Волна ${s.wave} пройдена! +${gold} 💰 · рекорд: ${pr.survivalBest}` });
-      if (s.wave % 5 === 0 || Math.random() < 0.25) d.giveLoot(o, pr, d.rollItem(z.tier, s.wave % 5 === 0 ? C.DROPS.boss[z.tier] : C.DROPS.weights[z.tier], null, o.heroId), o);
+      if (s.wave % 10 === 0 || Math.random() < 0.1) d.giveLoot(o, pr, d.rollItem(z.tier, s.wave % 10 === 0 ? C.DROPS.boss[z.tier] : C.DROPS.weights[z.tier], null, o.heroId), o);
       d.markDirty(o);
     }
   }

@@ -596,6 +596,7 @@ module.exports = function createAdmin(ctx) {
     return botcastFn(text, !!d.test);
   }, (d) => `рассылка ботом${d.test ? ' (проба)' : ''} «${String(d.text || '').slice(0, 60)}»`));
   r.post('/spawn', act(spawn, (d) => `монстр ${d.type}`));
+  r.post('/siegeNow', act(() => { ctx.Castle.startSiege(); return { text: 'Осада начата' }; }, () => 'осада замков'));
   r.post('/clearZone', act((d) => clearZone(d.zone), (d) => `очистка ${d.zone || 'всех зон'}`));
   r.post('/worldBoss', act((d) => {
     const st = ctx.D.wbState[d.town];

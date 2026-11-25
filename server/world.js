@@ -461,6 +461,20 @@ function buildWorld() {
     z.objs.push({ id: 'back', kind: 'portal', to: w.id, name: `В город ${town.name}`, icon: '🏰', x: back.x, y: back.y });
     z.gates = []; // боссы опасного данжа — без ворот и расписания: возрождаются сами
   });
+  // Замки (осада кланов, server/castle.js): двор 36×44 — внизу лагерь нападающих, посередине стена с воротами (проход 6 клеток),
+  // наверху двор защитников и кристалл замка. Колонны — укрытия. Вход только во время осады, из окна «Осада замков»
+  WORLDS.forEach((w) => {
+    const W = 36, H = 44, tiles = new Array(W * H).fill(T.PLAZA);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (x === 0 || y === 0 || x === W - 1 || y === H - 1) tiles[y * W + x] = T.ROCK;
+      else if (y === 16 && (x < 15 || x > 20)) tiles[y * W + x] = T.ROCK; // стена с воротами
+      else if (y > 30) tiles[y * W + x] = T.DIRT; // лагерь нападающих
+    }
+    for (const [cx, cy] of [[8, 8], [27, 8], [10, 24], [25, 24], [17, 27], [6, 34], [29, 34]]) for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) tiles[(cy + dy) * W + cx + dx] = T.ROCK;
+    const z = add({ id: `castle_${w.id}`, kind: 'pvp', castle: w.id, name: `Замок ${w.name}`, sub: `${w.name} · осада кланов`, theme: w.theme, tier: w.tier,
+      w: W, h: H, tiles, spawnTile: { tx: 18, ty: 39 }, town: w.id, objs: [] });
+    z.atkSpawn = z.abs(18, 39); z.defSpawn = z.abs(18, 10); z.crystalAt = z.abs(18, 5.5);
+  });
   // PvP-арены: общая площадка мира, бой героев друг с другом в реальном времени
   WORLDS.forEach((w) => {
     const z = add({ id: `pvp_${w.id}`, kind: 'pvp', name: 'PvP-арена', sub: `${w.name} · бой игроков`, theme: w.theme, tier: w.tier,
@@ -526,7 +540,7 @@ function buildWorld() {
     return [];
   };
   // Данные зоны для клиента
-  const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, pk: !!z.pk, inst: !!z.inst, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
+  const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, pk: !!z.pk, castle: z.castle || null, inst: !!z.inst, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
     town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon', mobs: zoneMobs(z), npcs: z.npcs || [], gates: (z.gates || []).map((g) => ({ i: g.i, x: g.x, y: g.y, w: g.w, n: g.n, side: g.side, state: g.state })) });
 
   return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, addPvpInstance, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level, minLevel: w.minLevel || 1 })) };

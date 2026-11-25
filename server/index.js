@@ -127,7 +127,7 @@ app.use('/vendor/phaser.min.js', (req, res) =>
 const admin = createAdmin({ evCast: (m) => evCast(m),
   C, I, MOBX, verifyInitData, store, version: () => VERSION,
   get players() { return players; }, get monsters() { return monsters; }, get world() { return world; },
-  get D() { return D; }, get meta() { return meta; }, get io() { return io; }, profiles: null,
+  get D() { return D; }, get Castle() { return Castle; }, get meta() { return meta; }, get io() { return io; }, profiles: null,
   getProfile: (uid) => getProfile(uid), getChar: (uid, h) => getChar(uid, h), saveProfiles: () => saveProfiles(),
   refreshUid: (uid) => refreshUid(uid), markDirty: (p) => markDirty(p), moveToZone: (...a) => moveToZone(...a),
   hurtPlayer: (...a) => hurtPlayer(...a), grantXp: (...a) => grantXp(...a), unlockedSkills: (...a) => unlockedSkills(...a), xpForLevel: (l) => xpForLevel(l), syncCooldowns: (...a) => syncCooldowns(...a),
@@ -246,7 +246,9 @@ function reignPayout(c) {
   admin.log('reign', `[${c.tag}] казна ${(pool / 1e9).toFixed(2)} GRAM → ${act.length} участникам`);
 }
 function refHouse(uid, amount, house) {
-  try { reignHouse(house); } catch (e) { console.error('reign', e); }
+  // Сделка между игроками (комиссия меньше цены): игре — 15% цены, всё сверх — казне замков. Покупка у игры — 10% владыкам
+  if (house < amount) { try { Castle.onDeal(amount, house); } catch (e) { console.error('castle', e); } }
+  else { try { reignHouse(house); } catch (e) { console.error('reign', e); } }
   const pr = profiles[uid];
   if (!pr || !pr.refBy || !profiles[pr.refBy]) return;
   const share = Math.min(amount * refRate(pr), house * 0.5);
@@ -299,7 +301,33 @@ app.post('/api/profile', (req, res) => {
 
 // Свой ник для игроков Telegram (по умолчанию — имя из Telegram). 3–16 символов, уникальный, менять — раз в сутки.
 // Смена ника: первая — бесплатно, дальше 500 💎, 1000, 1500 … (не больше 2000)
-const nickCost = (pr) => (pr.nick ? Math.min(2000, 500 * ((pr.nickPaid || 0) + 1)) : 0);
+// Ники уникальны: сравнение без регистра, пробелов и знаков, ё = е, похожие латинские буквы = русские (A/А, O/О…)
+const LOOK = { a: 'а', e: 'е', o: 'о', p: 'р', c: 'с', x: 'х', y: 'у', k: 'к', m: 'м', t: 'т', h: 'н', b: 'в', '0': 'о', '3': 'з' };
+const nickKey = (s) => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[\s_.\-]+/g, '').replace(/[aeopcxykmthb03]/g, (c) => LOOK[c]);
+const nickOwner = new Map(); // ключ ника → uid
+function nickTaken(v, uid) { const o = nickOwner.get(nickKey(v)); return !!o && o !== uid && !!profiles[o]; }
+function claimNick(uid, v) { const pr = profiles[uid]; if (pr && pr.nick) { const k = nickKey(pr.nick); if (nickOwner.get(k) === uid) nickOwner.delete(k); } nickOwner.set(nickKey(v), uid); }
+// Свободный вариант имени: «Имя», занято — «Имя 2», «Имя 3»…
+function freeNick(base, uid) {
+  base = (cleanName(base).replace(/\s+/g, ' ').slice(0, 13) || 'Герой');
+  if (base.length < 3) base = base.padEnd(3, '_');
+  if (!nickTaken(base, uid)) return base;
+  for (let i = 2; i < 100000; i++) { const v = `${base} ${i}`; if (!nickTaken(v, uid)) return v; }
+  return base + ' ' + uid.slice(-5);
+}
+// При запуске: у всех игроков из Telegram — свой ник; дубли (старые одинаковые имена) — младшим аккаунтам номер
+setImmediate(() => { try {
+  const list = Object.entries(profiles).filter(([u]) => /^tg\d+$/.test(u)).sort((a, b) => (a[1].created || a[1].refAt || 0) - (b[1].created || b[1].refAt || 0) || a[0].localeCompare(b[0]));
+  let n = 0;
+  for (const [u, pr] of list) if (pr.nick && !nickTaken(pr.nick, u)) claimNick(u, pr.nick);
+  for (const [u, pr] of list) {
+    if (pr.nick && nickOwner.get(nickKey(pr.nick)) === u) continue;
+    const v = freeNick(pr.nick || pr.name || 'Герой', u);
+    if (pr.nick || pr.name) { pr.nickAuto = !pr.nick || pr.nickAuto; pr.nick = v; pr.name = v; claimNick(u, v); n++; }
+  }
+  if (n) { console.log(`[nick] уникальные ники выданы: ${n}`); saveProfiles(); }
+} catch (e) { console.error('nick index', e); } });
+const nickCost = (pr) => (pr.nick && !pr.nickAuto ? Math.min(2000, 500 * ((pr.nickPaid || 0) + 1)) : 0);
 app.post('/api/nick', (req, res) => {
   const { initData, nick } = req.body || {};
   const who = resolveUid(initData, null);
@@ -309,14 +337,12 @@ app.post('/api/nick', (req, res) => {
   const v = cleanName(nick).replace(/\s+/g, ' ').slice(0, 16);
   if (v.length < 3) return res.status(400).json({ error: 'Ник — от 3 до 16 символов' });
   if (!/^[\p{L}\p{N} _.\-]+$/u.test(v)) return res.status(400).json({ error: 'Только буквы, цифры, пробел, _ . -' });
-  if (v === pr.nick) return res.json(profileView(who));
+  if (v === pr.nick && !pr.nickAuto) return res.json(profileView(who));
   const cost = nickCost(pr);
   if (cost && (pr.gems || 0) < cost) return res.status(400).json({ error: `Смена ника стоит ${cost} 💎 — не хватает самоцветов` });
-  const low = v.toLowerCase();
-  for (const [uid, x] of Object.entries(profiles)) {
-    if (uid !== who.uid && x && (String(x.nick || '').toLowerCase() === low || String(x.name || '').toLowerCase() === low)) return res.status(400).json({ error: 'Этот ник уже занят' });
-  }
+  if (nickTaken(v, who.uid)) return res.status(400).json({ error: 'Этот ник уже занят (или очень похожий)' });
   if (cost) { pr.gems -= cost; pr.nickPaid = (pr.nickPaid || 0) + 1; }
+  claimNick(who.uid, v); pr.nickAuto = false;
   pr.nick = v; pr.nickAt = Date.now(); pr.name = v;
   for (const o of players.values()) if (o.uid === who.uid) { o.name = v; o.lastStats = 0; markDirty(o); }
   saveProfiles();
@@ -745,13 +771,16 @@ const Trade = require('./trade')({
   I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
   bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
   rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), quest: (...a) => Q.track(...a), onHouse: (uid, amount, house) => refHouse(uid, amount, house),
-  liab: () => Object.values(clans).reduce((x, c) => x + (c.reignPool || 0), 0) + (Arena && Arena.glOwed ? Arena.glOwed() : 0), // казна владык и взносы лиги — ещё не выплачены broadcast: (t) => evCast({ text: t }), alertAdmins: (t, loud) => adminAlert(t, loud),
+  liab: () => Object.values(clans).reduce((x, c) => x + (c.reignPool || 0), 0) + (typeof Castle !== 'undefined' ? Castle.liab() : 0) + (Arena && Arena.glOwed ? Arena.glOwed() : 0), // казна владык и взносы лиги — ещё не выплачены broadcast: (t) => evCast({ text: t }), alertAdmins: (t, loud) => adminAlert(t, loud),
   // Торговые ордена — ступени сезонных орденов после Чемпиона: цена — доплата до них с учётом купленного
   passTier: (pr) => meta.passTier(pr), passEnds: () => (Math.floor(Date.now() / (meta.SHOP.pass.days * 864e5)) + 1) * meta.SHOP.pass.days * 864e5,
   passOrders: (pr) => { const cur = meta.passTier(pr), paid = cur ? meta.SHOP.passTiers[cur - 1].price : 0;
     return meta.SHOP.passTiers.filter((t) => t.trade).map((t) => ({ kind: `pass${t.tier}`, tier: t.tier, id: t.id, icon: t.icon, name: t.name, perks: t.perks, price: t.price, cost: Math.max(0, t.price - paid), owned: cur >= t.tier })); },
 });
-Object.assign(meta.INVOICES, Trade.invoices()); // старые отдельные торговые ордена — только чтобы зачесть уже начатые оплаты (теперь это ступени сезонных орденов)
+Object.assign(meta.INVOICES, Trade.invoices());
+const Mail = require('./mail')({ I, Trade, getProfile: (uid) => getProfile(uid), profilesFn: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), save: () => saveProfiles(),
+  nickUid: (v) => { const u = nickOwner.get(nickKey(v)); if (u) return u; const low = String(v).toLowerCase(); return [...players.values()].filter((o) => !o.bot && o.name.toLowerCase() === low).map((o) => o.uid)[0] || null; },
+  nameOf: (uid) => (profiles[uid] && (profiles[uid].nick || profiles[uid].name)) || 'игрок' }); // старые отдельные торговые ордена — только чтобы зачесть уже начатые оплаты (теперь это ступени сезонных орденов)
 admin.ctx.trade = Trade;
 
 // Бой монстров, данжи-лабиринты, выживание и мировые боссы (server/dungeon.js)
@@ -798,6 +827,10 @@ const D = createDungeons({
   },
 });
 // Режимы арены: дуэль, команды, клон, тень чемпиона (server/arena.js)
+const Castle = require('./castle')({ world, players, monsters, D, MOBX, store, Trade, getProfile: (uid) => getProfile(uid), clansFn: () => clans, clanOf: (uid) => clanOf(uid),
+  saveClans: () => saveClans(), moveToZone: (...a) => moveToZone(...a), notifyUid: (uid, t) => notifyUid(uid, t), evCast: (m) => evCast(m), markDirty: (p) => markDirty(p), profilesFn: () => profiles });
+const Tower = require('./tower')({ world, players, monsters, D, X: MOBX, store, I, getProfile: (uid) => getProfile(uid), profilesFn: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t),
+  moveToZone: (...a) => moveToZone(...a), markDirty: (p) => markDirty(p), evCast: (m) => evCast(m), save: () => saveProfiles() });
 const Arena = require('./arena')({
   C, world, players, monsters, D,
   moveToZone: (...a) => moveToZone(...a), getProfile: (uid) => getProfile(uid), partyMembers: (p) => partyMembers(p),
@@ -1341,8 +1374,8 @@ function friendTpCheck(p, f) {
   if (p.dead || f.dead) return 'Нельзя: кто-то из вас погиб';
   if (pkState(f) !== 'white') return `${f.name} флагнут — к нему нельзя`;
   if (pkState(p) !== 'white') return 'Вы флагнуты — телепорт недоступен';
-  if (inFight(f)) return `${f.name} в бою — попробуйте чуть позже`;
-  if (inFight(p)) return 'Вы в бою — подождите 10 секунд без боя';
+  if (inFight(f)) return `${f.name} в бою`;
+  if (inFight(p)) return 'Вы в бою';
   const z = world.byId.get(f.zone), mz = world.byId.get(p.zone);
   if (!z || z.inst || !['town', 'dungeon'].includes(z.kind)) return `${f.name} там, куда телепорт не ведёт`;
   if (mz && ['survival', 'worldboss'].includes(mz.kind)) return 'Отсюда телепорт недоступен';
@@ -1529,6 +1562,7 @@ function pvpHit(p, m, raw, opt) {
   const victim = players.get(m.pvpOf);
   if (!victim || victim === p || victim.dead || !p.uid) return 0;
   if (Arena.sameTeam(p, victim)) return 0; // своя команда в матче
+  if (Castle.sameSide(p, victim)) return 0; // осада: своих не бьём
   if (!p.match && p.party && p.party === victim.party) return 0; // по своей группе не бьём
   let crit = opt.crit ?? false;
   if (opt.basic && p.nextCritUntil > Date.now()) { crit = true; p.nextCritUntil = 0; }
@@ -1578,6 +1612,7 @@ function pvpKill(victim) {
 function damageMonster(p, m, raw, opt = {}) {
   if (!monsters.has(m.id) || m.hp <= 0) return 0;
   p.lastFight = Date.now(); // «в бою» — для телепорта к другу
+  if (m.castleCrystal) { const k = Castle.crystalK(p, m); if (!k) return 0; raw *= k; } // кристалл замка: бьют только нападающие
   if (m.pvpOf) return pvpHit(p, m, raw, opt); // на PvP-арене «монстр» — цель-двойник другого героя
   if (p.oneShot) raw = m.maxHp * 1000; // тест из админки: убийство с одного удара
   let crit = opt.crit ?? false;
@@ -1618,6 +1653,12 @@ function damageMonster(p, m, raw, opt = {}) {
   if (!opt.confused) m.target = opt.pet || p.id; // монстр отвечает тому, кто ударил (кроме драки под мороком)
   fx.push({ t: 'hit', kind: 'm', target: m.id, dmg, crit, from: p.id, proj: opt.proj || null, basic: !!opt.basic, pet: opt.pet || null, pfx: opt.fromX ?? null, pfy: opt.fromY ?? null, shared: !!opt.shared, reflect: !!opt.reflect, confused: !!opt.confused,
     fx: p.x, fy: p.y, tx: m.x, ty: m.y });
+  if (m.hp <= 0 && (m.castleCrystal || m.castleGuard)) { // замок: без опыта и добычи
+    fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp: 0, gold: 0, by: p.id });
+    monsters.delete(m.id);
+    if (m.castleCrystal) Castle.crystalDown(m.castleCrystal);
+    return dmg;
+  }
   if (m.hp <= 0) {
     const def = C.MONSTERS[m.type];
     const rw = ps && ps.rewardMult ? ps.rewardMult(p, m) : { xp: 1, gold: 1 };
@@ -1777,7 +1818,9 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
     if (m) m.target = null;
     fx.push({ t: 'pdeath', target: target.id });
     const zKind = (world.byId.get(target.zone) || {}).kind;
-    if (zKind === 'pvp' && !target.match) pvpKill(target);
+    const inCastle = Castle.isCastle(target.zone);
+    if (inCastle) target.castleRes = Castle.onDeath(target);
+    if (zKind === 'pvp' && !target.match && !inCastle) pvpKill(target);
     if (isPkZone(target.zone)) { // опасный данж: выпадение вещей и карма
       const byPlayer = Date.now() - (target.lastPvpAt || 0) < 8000 && players.get(target.lastPvpBy);
       if (byPlayer) pkOnKill(target);
@@ -1804,6 +1847,13 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
       markDirty(victim);
       // Возрождение в городе своего мира; на PvP-арене — на арене, в случайной точке
       const vz = world.byId.get(victim.zone);
+      if (vz.castle) { // осада: у своего лагеря, если остались жизни; нет — в город
+        const r = victim.castleRes || { town: true }; victim.castleRes = null;
+        if (r.at) { victim.x = r.at.x; victim.y = r.at.y; victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true }); }
+        else { moveToZone(victim, vz.town); victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true }); }
+        if (r.text) victim.socket.emit('chat', { sys: true, text: r.text });
+        return;
+      }
       if (vz.kind === 'pvp') {
         const a = Math.random() * Math.PI * 2, r = (vz.w / 2 - 5) * C.TILE * Math.random();
         victim.x = vz.ox + vz.w * C.TILE / 2 + Math.cos(a) * r; victim.y = vz.oy + vz.h * C.TILE / 2 + Math.sin(a) * r;
@@ -1824,7 +1874,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
       if (home.id !== victim.zone) moveToZone(victim, home.id);
       else { victim.x = home.spawn.x; victim.y = home.spawn.y; }
       victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });
-    }, 4000);
+    }, Castle.isCastle(target.zone) ? Castle.SIEGE.respawnMs : 4000); // в замке возрождение дольше — 10 с
   }
   markDirty(target);
 }
@@ -2352,6 +2402,7 @@ io.on('connection', (socket) => {
       }
       I.addMat(prj, 'potHp', 10);
     }
+    if (who.tg && !getProfile(uid).nick) { const pj = getProfile(uid), v = freeNick(who.name || 'Герой', uid); pj.nick = v; pj.nickAuto = true; claimNick(uid, v); } // ник из Telegram, занят — с номером
     const name = (who.tg ? cleanName(getProfile(uid).nick || who.name) : cleanName(data.guestName).slice(0, 16)) || (who.tg ? 'Герой' : 'Гость');
     const char = getChar(uid, heroId);
     const p = {
@@ -2600,6 +2651,9 @@ io.on('connection', (socket) => {
       SP.act(p, d).then((res) => { cb(res); markDirty(p); }, (e) => { console.error('special', e); cb({ error: 'Ошибка сервера' }); });
       return;
     }
+    if (/^mail(List|Send|Quote|Read|Take|Del)$/.test(op)) { try { const r = Mail.act(p, d, (pr) => meta.bagSize(pr)); cb(r); if (r && (r.refresh || r.toast)) refreshPlayer(p); } catch (e) { console.error('mail', e); cb({ error: 'Ошибка сервера' }); } return; }
+    if (/^castle(Info|Reg|Join)$/.test(op)) { try { cb(Castle.act(p, d)); } catch (e) { console.error('castle', e); cb({ error: 'Ошибка сервера' }); } return; }
+    if (op === 'towerInfo' || op === 'towerEnter') { try { cb(Tower.act(p, d)); } catch (e) { console.error('tower', e); cb({ error: 'Ошибка сервера' }); } return; }
     if (op === 'worldMap') { try { cb(worldMapView(p)); } catch (e) { console.error('worldMap', e); cb({ error: 'Ошибка сервера' }); } return; }
     const src = /^(quest|story)/.test(op) ? 'quests' : /^npc/.test(op) ? 'npc' : op;
     try {
