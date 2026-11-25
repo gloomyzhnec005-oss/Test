@@ -709,10 +709,24 @@ window.GameScene = class GameScene extends Phaser.Scene {
     const r0 = (col >> 16) & 255, g0 = (col >> 8) & 255, b0 = col & 255;
     const cv = document.createElement('canvas'); cv.width = W * N; cv.height = H;
     const cx = cv.getContext('2d'), img = cx.createImageData(W * N, H), d = img.data;
+    // Низ воронки — полукругом (по краям выше, в середине ниже), а под ним стекают капли, как дождь
+    const halfW = Math.max(1, (x1 - x0) / 2), arcR = Math.min(halfW, (y1 - y0) * 0.3);
+    const arcBot = (x) => { const u = Math.min(1, Math.abs(x - cxp) / halfW); return y1 - 3 - arcR * (1 - Math.sqrt(1 - u * u)); };
+    const drips = Array.from({ length: Math.max(3, Math.round(halfW / 5)) }, (_, i) => ({ x: Math.round(x0 + 3 + ((i + 0.5) / Math.max(3, Math.round(halfW / 5))) * (x1 - x0 - 6) + (Math.sin(i * 7.3) * 2)), seed: (i * 0.37) % 1, len: 4 + (i * 5) % 7 }));
     for (let f = 0; f < N; f++) {
       const ph = (f / N) * Math.PI * 2;
+      // капли кадра: потёк растёт и отрывается, капля падает вниз и тает
+      const wet = new Map();
+      for (const dr of drips) {
+        const t = (f / N + dr.seed) % 1, top = arcBot(dr.x);
+        const stem = Math.round(dr.len * Math.min(1, t * 2)); // потёк
+        for (let k = 0; k < stem; k++) wet.set(`${dr.x},${Math.round(top + k)}`, 1 - k / (stem + 2));
+        if (t > 0.5) { const fy = Math.round(top + dr.len + (t - 0.5) * 2 * (y1 - top)), a = 1 - (t - 0.5) * 2; for (const [dx, dy] of [[0, 0], [0, 1], [1, 0], [1, 1], [0, 2]]) wet.set(`${dr.x + dx},${fy + dy}`, a); }
+      }
       for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
         if (!m[(y * W + x) * 4 + 3]) continue;
+        const bot = arcBot(x), wk = y > bot ? wet.get(`${x},${y}`) : undefined;
+        if (y > bot && wk === undefined) continue; // ниже полукруга — только капли
         const dx = (x - cxp) / R, dy = (y - cyp) / R * 1.15, r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
         const arm = 0.5 + 0.5 * Math.sin(a * 3 + r * 9 - ph * 1); // три рукава спирали
         const shim = 0.5 + 0.5 * Math.sin(r * 14 + ph * 2); // бегущие к центру кольца
@@ -722,7 +736,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         const mix = (c) => (k <= 0.75 ? c * (0.35 + k * 0.87) : c + (255 - c) * ((k - 0.75) / 0.5) * 0.85);
         const i = (y * W * N + f * W + x) * 4;
         d[i] = Math.min(255, mix(r0)); d[i + 1] = Math.min(255, mix(g0)); d[i + 2] = Math.min(255, mix(b0));
-        d[i + 3] = 235;
+        d[i + 3] = wk !== undefined ? Math.round(60 + 175 * wk) : y > bot - 3 ? Math.round(235 * (0.55 + 0.15 * (bot - y))) : 235; // край полукруга мягче
       }
     }
     cx.putImageData(img, 0, 0);
