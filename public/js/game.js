@@ -114,7 +114,16 @@ window.GameScene = class GameScene extends Phaser.Scene {
     // Тап по монстру — выбрать цель
     this.input.on('gameobjectdown', (pointer, obj) => {
       if (this.uiBlocked(pointer)) return;
-      if (obj.getData('playerId')) { if (this.ui.onPlayer) this.ui.onPlayer(obj.getData('playerId')); return; }
+      if (obj.getData('playerId')) {
+        // Опасный данж: тап по чужому герою — выбрать его целью и ударить (своя группа — профиль); иначе — профиль игрока
+        const pid = obj.getData('playerId');
+        if (this.zone && this.zone.pk) {
+          const proxy = [...this.monsters.values()].find((e) => e.pvp && e.data && e.data.pv === pid);
+          if (proxy) { this.targetId = proxy.data.id; this.tryAttack(true); return; }
+        }
+        if (this.ui.onPlayer) this.ui.onPlayer(pid);
+        return;
+      }
       if (obj.getData('monsterId')) {
         this.targetId = obj.getData('monsterId');
         this.tryAttack(true);
@@ -603,7 +612,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: beam, alpha: 0.05, duration: 1200, yoyo: true, repeat: -1 });
         placeLabel(o, o.x, o.y - 30);
       } else if (o.kind === 'portal') {
-        const col = o.world ? 0xff3a3a : o.id === 'exit' ? 0x7dff8a : !o.num ? 0xffd36a : PORTAL_COL[(o.num - 1) % 6];
+        const col = o.pk ? 0xb0103c : o.world ? 0xff3a3a : o.id === 'exit' ? 0x7dff8a : !o.num ? 0xffd36a : PORTAL_COL[(o.num - 1) % 6]; // опасный данж — багровый
         keep(this.add.ellipse(o.x, o.y + 22, 50, 14, 0x000000, 0.3).setDepth(1));
         let top = o.y - 32;
         if (art) {
@@ -632,7 +641,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
           this.tweens.add({ targets: swirl, scaleX: 0.8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
           this.tweens.add({ targets: core, alpha: 0.15, scale: 1.4, duration: 900, yoyo: true, repeat: -1 });
         }
-        const title = !o.num ? `${o.icon} ${o.name}${o.world ? ` · ур. ${o.lv[0]}` : ''}` : `${['I', 'II', 'III', 'IV', 'V', 'VI'][o.num - 1]} · ${o.name} · ур. ${o.lv[0]}–${o.lv[1]}`;
+        const title = o.pk ? `${o.icon} ${o.name} · ур. ${o.lv[0]}–${o.lv[1]} · PvP` : !o.num ? `${o.icon} ${o.name}${o.world ? ` · ур. ${o.lv[0]}` : ''}` : `${['I', 'II', 'III', 'IV', 'V', 'VI'][o.num - 1]} · ${o.name} · ур. ${o.lv[0]}–${o.lv[1]}`;
         keep(this.add.text(o.x, top, title, { ...labelStyle, fontSize: '10px' }).setOrigin(0.5, 1).setDepth(3000));
       }
     }
@@ -905,7 +914,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if ((e.cpKey || null) !== (p.cp || null)) { e.cpKey = p.cp || null; if (e.cmp) { e.cmp.destroy(); e.cmp = null; } if (p.cp) this.attachComp(e, p.cp); }
       if (e.cmp) { const dir = p.id === this.myId && this.me ? this.me.dir : p.dir || 1; e.cmp.setFlipX(dir < 0); e.cmp.x = -dir * 24; }
       // Внешний вид за самоцветы: цвет имени и сияние под героем
-      const nc = p.nc || (p.id === this.myId ? '#ffcc4d' : '#ffffff');
+      const nc = p.pk === 'red' ? '#ff3a3a' : p.pk === 'pink' ? '#ff7ad9' : p.nc || (p.id === this.myId ? '#ffcc4d' : '#ffffff'); // опасный данж: красный — убийца, розовый — напал
       if (e.nc !== nc) { e.nc = nc; e.label.setColor(nc); }
       if ((e.auKey || null) !== (p.au || null)) {
         e.auKey = p.au || null;
@@ -2598,6 +2607,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
     let best = null, bestD = range + 60;
     for (const [id, e] of this.monsters) {
       if (gone(e)) continue;
+      // Опасный данж: мирных (белых) игроков сам прицел не выбирает — только тапом по герою; розовых и красных — можно
+      if (e.pvp && this.zone && this.zone.pk) { const pl = this.players.get(e.data.pv); if (!pl || !pl.data || !pl.data.pk) continue; }
       const d = Phaser.Math.Distance.Between(me.x, me.y, e.c.x, e.c.y);
       if (d < bestD && seen(e)) { best = e; bestD = d; }
     }

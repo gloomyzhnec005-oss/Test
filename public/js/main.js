@@ -419,7 +419,7 @@
     // Другие игроки — белые точки, герой — жёлтая стрелка по направлению движения
     for (const p of state.p) {
       const [x, y] = P(p);
-      if (p.id !== myId) { dot(x, y, 1.7 * k, '#ffffff', '#1a3050'); continue; }
+      if (p.id !== myId) { if (!map.pk) dot(x, y, 1.7 * k, '#ffffff', '#1a3050'); continue; } // в опасном данже других игроков на карте не видно
       if (mmLast && Math.hypot(p.x - mmLast.x, p.y - mmLast.y) > 2) mmDir = Math.atan2(p.y - mmLast.y, p.x - mmLast.x);
       mmLast = { x: p.x, y: p.y };
       ctx.save(); ctx.translate(x, y); ctx.rotate(mmDir + Math.PI / 2);
@@ -948,7 +948,10 @@
         const at = (t) => new Date(t).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
         const mi = (d.minis || []).map((m) => (m.alive ? '⭐ здесь' : `⭐ ${mins(m.in)} мин`)).join(' ');
         const bs = d.boss ? (d.boss.alive ? '👑 здесь!' : d.boss.in < 36e5 ? `👑 ${mins(d.boss.in)} мин` : `👑 в ${at(d.boss.at)}`) : '';
-        b.textContent = `👥 ${d.online} · ${mi} · ${bs}`;
+        if (d.pk) { // опасный данж: игроков не видно, коротко — сколько полубоссов и боссов живы
+          const L = d.minis || [], boss = L.filter((m) => m.name.startsWith('👑')), mini = L.filter((m) => !m.name.startsWith('👑'));
+          b.textContent = `☠️ PvP · ⭐ ${mini.filter((m) => m.alive).length}/${mini.length} · 👑 ${boss.filter((m) => m.alive).length}/${boss.length}`;
+        } else b.textContent = `👥 ${d.online} · ${mi} · ${bs}`;
         b.classList.remove('hidden');
       });
       // Арена: очередь, ход боя и итог
@@ -1106,14 +1109,14 @@
       // Автобой в меню «Игра»: включается только в данже, нужен Золотой орден
       const autofarmRow = () => {
         const inDg = zone && zone.kind === 'dungeon';
-        // Без ордена — с 15 уровня 30 мин в день, с 30 уровня 60 мин; Золотой орден — без лимита
+        // Минут в день — по ордену (бесплатный 15 мин … Магнат 6 ч). Выйти из игры с включённым автобоем — герой фармит сам
         const unl = afLeft === -1, mins = Math.ceil(afLeft / 60e3);
-        const locked = !unl && myLvl < 15, out = !unl && !locked && afLeft <= 0 && !autoOn;
-        const desc = locked ? '🔒 С 15 уровня — 30 мин в день (с 30 ур. — 60), без лимита — Золотой орден' : out ? 'На сегодня закончился · без лимита — Золотой орден'
+        const locked = false, out = !unl && afLeft <= 0 && !autoOn;
+        const desc = out ? 'На сегодня закончился · больше времени — сезонный орден'
           : !inDg ? `Включается только в данже${unl ? '' : ` · сегодня осталось ${mins} мин`}`
-          : autoOn ? `Герой сражается сам · нажмите, чтобы выключить${unl ? '' : ` · осталось ${mins} мин`}` : `Герой будет сам искать монстров и сражаться${unl ? '' : ` · сегодня ${mins} мин`}`;
+          : autoOn ? `Герой сражается сам — можно выйти из игры, он продолжит${unl ? '' : ` · осталось ${mins} мин`}` : `Герой будет сам искать монстров и сражаться${unl ? '' : ` · сегодня ${mins} мин`}`;
         return ['auto', autoOn ? 'Автобой: включён' : 'Автобой: выключен', desc, () => {
-          if (!autoOn && (locked || out)) { Town.toast(locked ? 'Автобой открывается с 15 уровня или Золотым орденом' : 'Автобой на сегодня закончился'); Town.openPlace('pass'); return; }
+          if (!autoOn && (locked || out)) { Town.toast('Автобой на сегодня закончился'); Town.openPlace('pass'); return; }
           if (!inDg && !autoOn) { Town.toast('Автобой включается только в данже'); return; }
           Town.close();
           socket.emit('autofarm', !autoOn);

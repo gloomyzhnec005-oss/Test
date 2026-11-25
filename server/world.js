@@ -2,7 +2,7 @@
 // Все зоны лежат в одном пространстве координат, сдвинутые по X на ZONE_STRIDE, —
 // поэтому дальности умений и агро монстров сами собой не «перелетают» между зонами.
 const { TILE } = require('./config');
-const { DUNGEONS, WORLD_BOSSES, MOBS } = require('./mobs');
+const { DUNGEONS, PK_DUNGEONS, WORLD_BOSSES, MOBS } = require('./mobs');
 
 // Типы тайлов (вид зависит от темы мира, см. Gfx.tileset на клиенте)
 // DECO — клетка под нарисованным украшением (статуя, фонтан, сундук): непроходима, закрывает обзор; земля под ним рисуется как трава/пол
@@ -74,9 +74,9 @@ function makeNoise(rand, cell, W, H) {
 // ---------- Данж-лабиринт ----------
 // Сетка комнат, соединённых коридорами (остовное дерево + пара петель). Босс — в самой дальней комнате,
 // полубоссы — на пути к нему. Возвращает тайлы и список комнат с глубиной и ролью.
-function mazeMap(seed, theme, minis) {
+function mazeMap(seed, theme, minis, opt = {}) {
   const rand = mulberry32(seed);
-  const CW = 12, CC = 5, CR = 4, W = CC * CW + 2, H = CR * CW + 2;
+  const CW = 12, CC = opt.cc || 5, CR = opt.cr || 4, W = CC * CW + 2, H = CR * CW + 2; // опасный данж — 8×6 комнат
   const tiles = new Array(W * H).fill(T.ROCK);
   const floor = theme === 'abyss' ? T.DIRT : T.GRASS;
   const cells = [];
@@ -97,7 +97,7 @@ function mazeMap(seed, theme, minis) {
     const n = nb[Math.floor(rand() * nb.length)];
     cur.links.push(n); n.links.push(cur); seen.add(n); stack.push(n);
   }
-  for (let i = 0; i < 2; i++) { // петли
+  for (let i = 0; i < (opt.loops || 2); i++) { // петли
     const a = cells[Math.floor(rand() * cells.length)], b = at(a.c + 1, a.r) || at(a.c, a.r + 1);
     if (b && !a.links.includes(b)) { a.links.push(b); b.links.push(a); }
   }
@@ -164,8 +164,20 @@ function mazeMap(seed, theme, minis) {
   const rooms = cells.map((c) => ({ x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1, cx: c.cx, cy: c.cy, depth: depth.get(c), role: c === start ? 'start' : c === boss ? 'boss' : 'normal',
     links: c.links.map((n) => cells.indexOf(n)) })); // соседние комнаты (через коридор) — для погони монстров
   const maxD = depth.get(boss);
-  const miniAt = minis === 1 ? [0.6] : [0.45, 0.75];
-  miniAt.forEach((k) => { const c = path[Math.max(1, Math.min(path.length - 2, Math.round(k * (path.length - 1))))]; rooms[cells.indexOf(c)].role = 'mini'; });
+  if (opt.spread) {
+    // Опасный данж: комнаты полубоссов и боссов разбросаны по всему лабиринту (не на одном пути), подальше друг от друга
+    const cand = rooms.map((r, i) => i).filter((i) => rooms[i].role === 'normal' && rooms[i].depth >= 2);
+    const picked = [];
+    while (picked.length < minis && cand.length) {
+      let best = -1, bs = -1;
+      for (const i of cand) { const d = Math.min(99, ...picked.map((j) => Math.abs(cells[i].c - cells[j].c) + Math.abs(cells[i].r - cells[j].r)), ...[cells.indexOf(boss)].map((j) => Math.abs(cells[i].c - cells[j].c) + Math.abs(cells[i].r - cells[j].r))) + rand() * 1.5; if (d > bs) { bs = d; best = i; } }
+      picked.push(best); cand.splice(cand.indexOf(best), 1);
+    }
+    for (const i of picked) rooms[i].role = 'mini';
+  } else {
+    const miniAt = minis === 1 ? [0.6] : [0.45, 0.75];
+    miniAt.forEach((k) => { const c = path[Math.max(1, Math.min(path.length - 2, Math.round(k * (path.length - 1))))]; rooms[cells.indexOf(c)].role = 'mini'; });
+  }
   return { tiles, w: W, h: H, rooms, maxD, deco, spawn: { tx: start.cx, ty: start.cy } };
 }
 
@@ -211,8 +223,8 @@ function townMap(seed, theme) {
   // Дороги: кольцо и крест от площади
   for (let x = 2; x < W - 2; x++) { set(x, 7, T.PATH, true); set(x, 8, T.PATH, true); set(x, cy, T.PATH, true); set(x, 35, T.PATH, true); }
   for (let y = 7; y <= 36; y++) { set(9, y, T.PATH, true); set(10, y, T.PATH, true); set(38, y, T.PATH, true); set(39, y, T.PATH, true); set(cx, y, T.PATH, true); set(cx - 1, y, T.PATH, true); }
-  // Площадка портала мирового босса на юге
-  for (let x = 20; x <= 28; x++) for (let y = 36; y <= 38; y++) set(x, y, T.PATH, true);
+  // Площадка порталов мирового босса и опасного данжа на юге
+  for (let x = 12; x <= 28; x++) for (let y = 36; y <= 38; y++) set(x, y, T.PATH, true);
   // Аллея порталов на севере
   for (let x = 4; x < W - 4; x++) for (let y = 2; y <= 6; y++) set(x, y, T.PATH, true);
 
@@ -329,6 +341,10 @@ function buildWorld() {
       objs.push({ id: 'portal' + (i + 1), kind: 'portal', dungeon: i, num: i + 1, name: dg.name, lv: dg.lv, icon: '🌀', x: pos.x, y: pos.y,
         mobs: [...new Set([...dg.pool, ...(dg.minis || []), dg.boss])] }); // клиент заранее грузит их картинки, пока герой идёт к порталу
     });
+    // Опасный данж (PvP-зона) — на южной площадке, слева от мирового босса
+    const pkd = PK_DUNGEONS[w.id], pkp = town.abs(15, 37.2);
+    if (pkd) objs.push({ id: 'pkportal', kind: 'portal', pk: true, to: `pk_${w.id}`, name: pkd.name, lv: pkd.lv, icon: '☠️', x: pkp.x, y: pkp.y,
+      mobs: [...new Set([...pkd.pool, ...pkd.minis, ...pkd.bosses])] });
     const wb = town.abs(24, 37.2);
     objs.push({ id: 'worldboss', kind: 'portal', to: `wb_${w.id}`, name: 'Мировой босс', lv: [WORLD_BOSSES[w.id].lv, WORLD_BOSSES[w.id].lv], icon: '👹', x: wb.x, y: wb.y, world: true, mobs: WORLD_BOSSES[w.id].list });
     // Поручители (задания у NPC) — у площади, рядом с местом появления героя
@@ -433,6 +449,18 @@ function buildWorld() {
   }
 
   WORLDS.forEach((w) => DUNGEONS[w.id].forEach((dg, i) => addDungeon(w.id, i)));
+  // Опасный данж: большой лабиринт 8×6 комнат со всеми монстрами мира, полубоссами и боссами; PvP с выпадением вещей
+  WORLDS.forEach((w, wi) => {
+    const dg = PK_DUNGEONS[w.id];
+    if (!dg) return;
+    const town = byId.get(w.id);
+    const m = mazeMap(7700 + wi * 313, town.theme, dg.minis.length + dg.bosses.length - 1, { cc: 8, cr: 6, loops: 9, spread: true });
+    const z = add({ id: `pk_${w.id}`, kind: 'dungeon', pk: true, name: dg.name, sub: `${town.name} · опасный данж · ур. ${dg.lv[0]}–${dg.lv[1]} · PvP`, theme: town.theme, tier: town.tier,
+      w: m.w, h: m.h, tiles: m.tiles, spawnTile: m.spawn, town: w.id, objs: [], rooms: m.rooms, maxD: m.maxD, dg, dgIndex: 'pk', decoTiles: m.deco });
+    const bt = wallSpot(m), back = z.abs(bt.tx, bt.ty);
+    z.objs.push({ id: 'back', kind: 'portal', to: w.id, name: `В город ${town.name}`, icon: '🏰', x: back.x, y: back.y });
+    z.gates = []; // боссы опасного данжа — без ворот и расписания: возрождаются сами
+  });
   // PvP-арены: общая площадка мира, бой героев друг с другом в реальном времени
   WORLDS.forEach((w) => {
     const z = add({ id: `pvp_${w.id}`, kind: 'pvp', name: 'PvP-арена', sub: `${w.name} · бой игроков`, theme: w.theme, tier: w.tier,
@@ -493,12 +521,12 @@ function buildWorld() {
   };
   // Какие монстры водятся в зоне: клиент заранее грузит только их картинки
   const zoneMobs = (z) => {
-    if (z.kind === 'dungeon' && z.dg) return [...new Set([...z.dg.pool, ...(z.dg.minis || []), z.dg.boss])];
+    if (z.kind === 'dungeon' && z.dg) return [...new Set([...z.dg.pool, ...(z.dg.minis || []), ...(z.dg.bosses || [z.dg.boss])])];
     if (z.kind === 'worldboss' && WORLD_BOSSES[z.town]) return WORLD_BOSSES[z.town].list;
     return [];
   };
   // Данные зоны для клиента
-  const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, inst: !!z.inst, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
+  const payload = (z) => ({ id: z.id, idx: z.idx, kind: z.kind, pk: !!z.pk, inst: !!z.inst, name: z.name, sub: z.sub, theme: z.theme, tier: z.tier, level: z.level || null,
     town: z.town, w: z.w, h: z.h, ox: z.ox, oy: z.oy, tiles: z.tiles, objs: z.objs, deco: z.deco || [], solid: [...SOLID], fog: z.kind === 'dungeon', mobs: zoneMobs(z), npcs: z.npcs || [], gates: (z.gates || []).map((g) => ({ i: g.i, x: g.x, y: g.y, w: g.w, n: g.n, side: g.side, state: g.state })) });
 
   return { zones, byId, zoneAtX, isSolidAt, lineOfSight, freeSpot, payload, addSurvival, addDungeon, addPvpInstance, removeZone, towns: WORLDS.map((w) => ({ id: w.id, name: w.name, sub: w.sub, theme: w.theme, level: w.level, minLevel: w.minLevel || 1 })) };

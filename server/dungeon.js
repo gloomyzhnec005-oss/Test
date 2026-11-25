@@ -526,6 +526,8 @@ module.exports = function createDungeons(d) {
   const BOSS_TIMES = String(process.env.DUNGEON_BOSS_TIMES || '12:00,18:00,23:00').split(',').map((s) => s.trim().split(':').map(Number)).filter(([h]) => h >= 0 && h < 24);
   const RESPAWN = [8000, 8000], IDLE_MS = 5 * 60000, WARN_MS = 15 * 60000, GATE_OPEN_MS = 10 * 60000;
   const MINI_RESPAWN = 15 * 60e3; // полубосс возрождается через 15 минут после гибели
+  const PK_BOSS_RESPAWN = 40 * 60e3; // боссы опасного данжа — через 40 минут
+  const PK_MOB = { hp: 1.3, dmg: 1.3 }; // монстры опасного данжа крепче обычных
   const nextHour = (t) => Math.floor(t / 36e5) * 36e5 + 36e5;
   function nextBossAt(t) {
     const x = new Date(t), day = Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate());
@@ -555,9 +557,20 @@ module.exports = function createDungeons(d) {
       const fighters = dg.pool.filter((t) => !['summoner', 'support'].includes(MOBS[t].cls));
       const type = fighters[Math.floor(Math.random() * fighters.length)] || dg.pool[0];
       const target = room.role === 'normal' ? Math.round((3 + Math.floor(Math.random() * 2)) * (MOBS[type].pack || 1)) : 2; // у полубосса и босса — охрана
-      h.rooms.push({ c, R, lv, depthK, type, target, ids: new Set(), nextAt: 0, ri });
+      // Опасный данж: «синие» и «жёлтые» чаще по всему лабиринту (глубина не ниже половины)
+      h.rooms.push({ c, R, lv, depthK: dg.pk ? Math.max(0.5, depthK) : depthK, type, target, ids: new Set(), nextAt: 0, ri });
+      if (dg.pk) continue; // полубоссы и боссы опасного данжа — ниже, по глубине комнат
       if (room.role === 'mini') h.minis.push({ c, type: dg.minis[mi++ % dg.minis.length], lv: lv + 1, id: null, at: now, ri });
       if (room.role === 'boss') h.boss = { c, type: dg.boss, lv: dg.lv[1] + 1, id: null, at: nextBossAt(now), warned: false, ri };
+    }
+    if (dg.pk) {
+      // Самая дальняя комната и две следующие по глубине — боссы (возрождаются через PK_BOSS_RESPAWN), остальные — полубоссы
+      const big = z.rooms.map((r, ri) => ({ r, ri })).filter(({ r }) => r.role === 'boss' || r.role === 'mini').sort((a, b) => (b.r.role === 'boss') - (a.r.role === 'boss') || b.r.depth - a.r.depth);
+      big.forEach(({ r, ri }, k) => {
+        const c = z.abs(r.cx, r.cy), lv = lvAt(r.depth) + 1;
+        if (k < dg.bosses.length) h.minis.push({ c, type: dg.bosses[dg.bosses.length - 1 - k], name: dg.bossNames[dg.bosses.length - 1 - k], rank: 'boss', respawn: PK_BOSS_RESPAWN, lv: Math.max(lv, dg.lv[1] - k), id: null, at: now, ri });
+        else h.minis.push({ c, type: dg.minis[(k - dg.bosses.length) % dg.minis.length], lv, id: null, at: now, ri });
+      });
     }
     return h;
   }
@@ -621,7 +634,7 @@ module.exports = function createDungeons(d) {
       : Math.random() < 0.6 ? r.type : fighters[Math.floor(Math.random() * fighters.length)] || r.type;
     const rank = rollRank(r.depthK);
     const affixes = rank === 'rare' ? Object.keys(AFFIXES).sort(() => Math.random() - 0.5).slice(0, (X.bal2() ? 2 : 1) + (Math.random() < 0.5 ? 1 : 0)) : []; // новый баланс: 2–3 свойства
-    const m = create(h.z, t, spawnPoint(h.z, r, heroes), r.lv, { rank, affixes });
+    const m = create(h.z, t, spawnPoint(h.z, r, heroes), r.lv, { rank, affixes, ...(dg.pk ? { hpMult: PK_MOB.hp, dmgMult: PK_MOB.dmg } : {}) });
     m.room = r.ri; // монстр «живёт» в своей комнате (агр и погоня — server/dungeon.js → canAggro/inLeash)
     r.ids.add(m.id);
     return m;
@@ -667,12 +680,14 @@ module.exports = function createDungeons(d) {
       else if (now >= r.nextAt && heroes.length) { spawnInRoom(h, r, heroes); r.nextAt = 0; }
     }
     for (const mi of h.minis) {
-      if (mi.id && !monsters.has(mi.id)) { mi.id = null; mi.at = now + MINI_RESPAWN; }
+      if (mi.id && !monsters.has(mi.id)) { mi.id = null; mi.at = now + (mi.respawn || MINI_RESPAWN); }
       if (!mi.id && now >= mi.at) {
-        const m = create(h.z, mi.type, mi.c, mi.lv, { rank: 'mini', hpMult: MINI_K.hp, dmgMult: MINI_K.dmg, xpMult: MINI_K.xp }); // полубосс данжа — втрое крепче
+        const m = mi.rank === 'boss'
+          ? create(h.z, mi.type, mi.c, mi.lv, { rank: 'boss', name: mi.name, hpMult: bossHpMult(3) * PK_MOB.hp, dmgMult: PK_MOB.dmg }) // рассчитан на группу из ~3
+          : create(h.z, mi.type, mi.c, mi.lv, { rank: 'mini', hpMult: MINI_K.hp * (h.dg.pk ? PK_MOB.hp : 1), dmgMult: MINI_K.dmg * (h.dg.pk ? PK_MOB.dmg : 1), xpMult: MINI_K.xp }); // полубосс данжа — втрое крепче
         m.room = mi.ri;
         mi.id = m.id; m.hall = h.z.id;
-        tellHall(h, `⭐ Полубосс «${MOBS[mi.type].name}» появился`);
+        tellHall(h, mi.rank === 'boss' ? `👑 Босс «${m.name || MOBS[mi.type].name}» пробудился` : `⭐ Полубосс «${MOBS[mi.type].name}» появился`);
         h.sentAt = 0;
       }
     }
@@ -743,6 +758,26 @@ module.exports = function createDungeons(d) {
     tickHall(h, Date.now());
     sendHall(h);
   }
+  // Вход в опасный данж: по уровню (с lv[0]−2, не выше maxLv — сильные из старших миров не охотятся на новичков), группой
+  function startPk(p, townId) {
+    const z = world.byId.get(`pk_${townId}`);
+    if (!z) return;
+    const dg = z.dg, need = Math.max(1, dg.lv[0] - 2);
+    const all = d.partyMembers(p).filter((o) => o.zone === p.zone && !o.dead);
+    const bad = all.filter((o) => o.char.level < need || (dg.maxLv && o.char.level > dg.maxLv));
+    if (bad.length) {
+      const msg = `${dg.name}: уровни ${need}–${dg.maxLv || '∞'} — не подходит: ${bad.map((o) => `${o.name} (${o.char.level} ур.)`).join(', ')}`;
+      for (const o of all) o.socket.emit('skillFail', msg);
+      return;
+    }
+    const h = hallOf(z);
+    for (const o of all) {
+      d.moveToZone(o, z.id);
+      o.socket.emit('chat', { sys: true, text: `☠️ ${dg.name}: опасная зона! Опыт, золото и добыча ×6 (в автобое ×3), но здесь можно убивать других игроков. Белые (мирные) теряют 1 вещь с шансом 25%, розовые (напавшие) — 2 вещи с шансом 50%, красные (убийцы) — 3 надетые вещи. Группа друг друга не бьёт.` });
+    }
+    tickHall(h, Date.now());
+    sendHall(h);
+  }
   // Админка: боссы и полубоссы во всех данжах — сейчас, а не по расписанию (для проверки)
   function summonHallBosses() {
     const now = Date.now();
@@ -758,8 +793,8 @@ module.exports = function createDungeons(d) {
   }
   function hallInfo(h) {
     const now = Date.now(), b = h.boss;
-    return { name: h.dg.name, hall: true, online: inZone(h.z.id).length,
-      minis: h.minis.map((mi) => ({ name: MOBS[mi.type].name, alive: !!mi.id, in: mi.id ? 0 : Math.max(0, mi.at - now) })),
+    return { name: h.dg.name, hall: true, pk: !!h.dg.pk, online: h.dg.pk ? null : inZone(h.z.id).length, // в опасном данже не видно, сколько там игроков
+      minis: h.minis.map((mi) => ({ name: (mi.rank === 'boss' ? '👑 ' : '') + (mi.name || MOBS[mi.type].name), alive: !!mi.id, in: mi.id ? 0 : Math.max(0, mi.at - now) })),
       boss: b ? { name: h.dg.bossName || MOBS[b.type].name, alive: !!b.id, at: b.at, in: b.id ? 0 : Math.max(0, b.at - now) } : null };
   }
   function sendHall(h) { const info = hallInfo(h); for (const p of inZone(h.z.id)) p.socket.emit('dungeon', info); }
@@ -796,14 +831,15 @@ module.exports = function createDungeons(d) {
       d.addPassXp(pr, boss ? 25 : 10);
       pr.dungeonClears = pr.dungeonClears || {};
       const key = `${h.z.town}:${h.z.dgIndex}`;
-      const first = boss && !pr.dungeonClears[key];
+      const first = boss && !h.dg.pk && !pr.dungeonClears[key];
       if (boss) pr.dungeonClears[key] = (pr.dungeonClears[key] || 0) + 1;
       p.socket.emit('chat', { sys: true, text: `${boss ? '🏆 Босс' : '⭐ Полубосс'} «${m.name || MOBS[m.type].name}» повержен! Ваш вклад ${Math.round(part * 100)}% · +${gold} 💰${first ? ' · первая победа над боссом данжа' : ''}` });
       if (boss) d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId), m);
       if (first) { d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первая победа над боссом данжа: +160 самоцветов' }); }
       d.markDirty(p);
     }
-    if (boss) d.broadcast(`🏆 Босс «${m.name || MOBS[m.type].name}» в данже «${h.dg.name}» повержен! Следующий — в ${hhmm(nextBossAt(Date.now() + 60000))}.`);
+    if (boss && !h.dg.pk) d.broadcast(`🏆 Босс «${m.name || MOBS[m.type].name}» в данже «${h.dg.name}» повержен! Следующий — в ${hhmm(nextBossAt(Date.now() + 60000))}.`);
+    if (boss && h.dg.pk) tellHall(h, `🏆 Босс «${m.name || MOBS[m.type].name}» повержен — вернётся через ${Math.round(PK_BOSS_RESPAWN / 60000)} мин`);
     setImmediate(() => { tickHall(h, Date.now()); sendHall(h); });
   }
 
@@ -1199,6 +1235,6 @@ module.exports = function createDungeons(d) {
 
   return {
     create, act, melee, meleeRange, canAggro, inLeash, curSpeed, takenMult, onHurt, preventDeath, onKilled, onMonsterHp,
-    startDungeon, startSurvival, trialInfo, summonHallBosses, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState, overDmg, overFor, OVER_LV, nextWbAt, wbTimeText,
+    startDungeon, startPk, startSurvival, trialInfo, summonHallBosses, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState, overDmg, overFor, OVER_LV, nextWbAt, wbTimeText,
   };
 };

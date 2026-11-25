@@ -251,4 +251,18 @@ function statsAt(def, L, rank = def.rank, affixes = []) {
   return { hp: Math.round(hp), dmg: Math.max(1, Math.round(dmg)), cd: Math.round(cd), speed: Math.round(speed), xp: Math.max(0.1, Math.round(xp * 10) / 10) }; // дробный: на первых уровнях монстр даёт меньше 1 опыта, на сервере округляется случайно
 }
 
-module.exports = { MOBS: M, CLASS, CLASS_NAMES, RANK, AFFIXES, DUNGEONS, WORLD_BOSSES, WORLD_BOSS_RESPAWN, TURN, PD, PH, XP_LEVEL, XP_NEED, XP_NEED_OLD, KILLS_PER_LEVEL, MAX_LEVEL, statsAt, setBal2, bal2 };
+// Опасные данжи (по одному в городе): все монстры порталов этого мира в одном большом лабиринте, все полубоссы
+// и три босса (три последних данжа мира). PvP с выпадением вещей. Уровни — верх мира и чуть выше; вход — с lv[0]−2,
+// сильным героям из старших миров — нельзя (maxLv), чтобы не охотились на новичков
+const pkOf = (town, name, lv, maxLv) => {
+  const list = DUNGEONS[town];
+  return { pk: true, name, lv, maxLv, pool: [...new Set(list.flatMap((d) => d.pool))], minis: [...new Set(list.flatMap((d) => d.minis))],
+    bosses: list.slice(-3).map((d) => d.boss), bossNames: list.slice(-3).map((d) => d.bossName || null) };
+};
+const PK_DUNGEONS = {
+  town1: pkOf('town1', 'Проклятые катакомбы', [9, 16], 25),
+  town2: pkOf('town2', 'Бездна изгнанников', [24, 33], 40),
+  town3: pkOf('town3', 'Небесный некрополь', [40, 50], 0),
+};
+
+module.exports = { PK_DUNGEONS, MOBS: M, CLASS, CLASS_NAMES, RANK, AFFIXES, DUNGEONS, WORLD_BOSSES, WORLD_BOSS_RESPAWN, TURN, PD, PH, XP_LEVEL, XP_NEED, XP_NEED_OLD, KILLS_PER_LEVEL, MAX_LEVEL, statsAt, setBal2, bal2 };

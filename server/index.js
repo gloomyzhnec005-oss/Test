@@ -692,6 +692,7 @@ const chatHistory = (() => { try { const a = store.readJSON('chat.json', []); re
 let chatSaveTm = null;
 const chatSave = () => { clearTimeout(chatSaveTm); chatSaveTm = setTimeout(() => { try { store.writeJSON('chat.json', chatHistory); } catch (e) { console.error('chat save', e.message); } }, 3000); };
 const monsters = new Map(); // id -> monster
+const AfBot = require('./afbot')({ C, world, players, monsters, SOLID: require('./world').SOLID }); // автобой без игрока
 const pets = new Map(); // id -> зверь-спутник (Урсус)
 let monsterSeq = 1;
 let fx = []; // события за тик (удары, снаряды, смерти)
@@ -1282,13 +1283,13 @@ function moveEntity(e, dx, dy) {
 
 // Значения «по умолчанию» у записи героя в пакете состояния: такие поля не отправляем (клиент восстанавливает их из pDef,
 // присланного в welcome) — пакет с 10 героями рядом становится в несколько раз меньше
-const P_DEF = { tag: null, cp: null, dm: 0, nc: null, au: null, dead: false, form: null, rage: false, guard: false, smoke: false, sh: false, stealth: false, pact: null, elem: null, asp: null, phase: null,
+const P_DEF = { pk: null, tag: null, cp: null, dm: 0, nc: null, au: null, dead: false, form: null, rage: false, guard: false, smoke: false, sh: false, stealth: false, pact: null, elem: null, asp: null, phase: null,
   heat: 0, abyss: false, mt: null, pcc: null, pdot: null, pslow: false, pweak: false, flame: null, ash: false, rootSelf: false, cry: null, wrune: null, might: false, stoneArmor: false, vow: null,
   bless: false, song: null, haste: false, fly: false, tree: false, emp: false };
 function slimPlayer(o) { for (const k in P_DEF) if (o[k] === P_DEF[k] || o[k] === undefined) delete o[k]; return o; }
 function publicPlayer(p) {
   return { id: p.id, name: p.name, hero: p.heroId, x: Math.round(p.x), y: Math.round(p.y), dir: p.dir,
-    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, tag: p.clanTag || null, cp: p.cp || null, dm: p.deathMarkUntil > Date.now() ? 1 : 0, nc: (p.look && p.look.nc) || null, au: (p.look && p.look.au) || null, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
+    hp: p.hp, maxHp: p.maxHp, lvl: p.char.level, pk: isPkZone(p.zone) && pkState(p) !== 'white' ? pkState(p) : null, tag: p.clanTag || null, cp: p.cp || null, dm: p.deathMarkUntil > Date.now() ? 1 : 0, nc: (p.look && p.look.nc) || null, au: (p.look && p.look.au) || null, dead: p.dead, form: p.form || null, rage: p.roarUntil > Date.now() || p.frenzyUntil > Date.now(),
     guard: p.packUntil > Date.now(), smoke: p.dodgeUntil > Date.now(),
     sh: p.shieldUntil > Date.now() && p.shieldHp > 0, stealth: p.stealthUntil > Date.now(),
     pact: p.pactUntil > Date.now() ? p.pactType : null, elem: p.hero.elements ? p.form : null, asp: p.hero.aspects ? p.form : null, phase: p.hero.phases ? p.form : null, heat: Math.round(p.heat || 0), abyss: p.abyssUntil > Date.now(), mt: p.match ? `${p.match}:${p.team}` : null, pcc: D.ccActive(p), pdot: (p.pdots || []).filter((x) => x.until > Date.now()).map((x) => x.kind)[0] || null, pslow: p.slowUntil > Date.now(), pweak: p.weakUntil > Date.now(), flame: p.hero.flames ? p.form : null, ash: p.ashArmorUntil > Date.now(), rootSelf: p.rootSelfUntil > Date.now(), cry: p.crystals && p.crystals.length ? p.crystals : null, wrune: p.weaponRuneUntil > Date.now() ? p.weaponRuneType : null, might: p.mightUntil > Date.now(), stoneArmor: p.stoneArmorUntil > Date.now(), vow: p.hero.vows ? p.form : null, bless: p.blessUntil > Date.now(),
@@ -1321,7 +1322,7 @@ const PVP_LEVELS = { town1: [1, 20], town2: [15, 35], town3: [30, 99] };
 let pvpSeq = 9e6;
 function pvpSync(now) {
   for (const p of players.values()) {
-    const z = world.byId.get(p.zone), want = z && z.kind === 'pvp' && !p.dead;
+    const z = world.byId.get(p.zone), want = z && (z.kind === 'pvp' || z.pk) && !p.dead; // PvP-арена и опасный данж
     let m = p.pvpProxy && monsters.get(p.pvpProxy);
     if (!want) { if (m) monsters.delete(m.id); p.pvpProxy = null; continue; }
     if (!m) {
@@ -1349,6 +1350,7 @@ function pvpHit(p, m, raw, opt) {
   // «Добивания» по монстрам (казнь, жертва, раскол льда…) наносят здоровье цели целиком — по героям не больше 25% их здоровья
   const dmg = opt.fixed ? Math.min(raw * PVP_K, victim.maxHp * 0.25) : raw * dmgMult(p) * (0.85 + Math.random() * 0.3) * (crit ? 1.6 : 1) * PVP_K * pvpGap(p, victim)
     * (!opt.basic && !opt.pet && p.gear && p.gear.skill ? 1 + p.gear.skill / 100 : 1);
+  pkOnHit(p, victim); // опасный данж: напал на мирного — «розовый»
   const before = victim.hp;
   victim.lastPvpBy = p.id; victim.lastPvpAt = Date.now();
   hurtPlayer(victim, dmg, null, Date.now());
@@ -1429,7 +1431,7 @@ function damageMonster(p, m, raw, opt = {}) {
     const diff = p.char.level - (m.level || 1);
     const baseXp = m.xp * (diff > 4 ? Math.max(0.1, 1 - 0.15 * (diff - 4)) : 1);
     const xpF = baseXp * rw.xp * xpBonusK(p), xp = Math.floor(xpF) + (Math.random() < xpF % 1 ? 1 : 0); // дробный опыт — случайным округлением
-    const gold = Math.round((baseXp / 3 + 1) * (0.5 + Math.random()) * rw.gold * (MOBX.bal2() ? 0.25 : 1)); // +1: на первых уровнях хоть немного золота; новый баланс — золота вчетверо меньше
+    const gold = Math.round((baseXp / 3 + 1) * (0.5 + Math.random()) * rw.gold * (MOBX.bal2() ? 0.25 : 1) * pkRate(p)); // +1: на первых уровнях хоть немного золота; новый баланс — золота вчетверо меньше
     fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp, gold, by: p.id, contract: !!rw.contract });
     monsters.delete(m.id);
     corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type, zone: m.zone, level: m.level, maxHp: m.maxHp, dmg: m.dmg, speed: m.speed });
@@ -1582,6 +1584,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
     fx.push({ t: 'pdeath', target: target.id });
     const zKind = (world.byId.get(target.zone) || {}).kind;
     if (zKind === 'pvp' && !target.match) pvpKill(target);
+    if (isPkZone(target.zone)) pkOnKill(target); // опасный данж: выпадение вещей и карма
     if (zKind !== 'pvp' && zKind !== 'survival' && !target.match) deathPenalty(target);
     // Гибель союзника рядом усиливает Талмиру
     for (const o of players.values()) {
@@ -1637,17 +1640,12 @@ const skillCtx = {
   pushFx: (f) => fx.push(f),
 };
 
-// ---------- Автобой (Золотой орден и выше, server/meta.js → SHOP.passTiers) ----------
-// Только онлайн: работает, пока игра открыта; закрыл игру — герой вышел из мира, автобой выключен.
-// Без ордена: с 15 уровня героя (второй город) — 30 минут в день, с 30 уровня — 60 минут; Золотой орден и выше — без лимита.
-// Счёт минут — по дням МСК, только пока автобой включён
-const AF_FREE = [[30, 60], [15, 30]]; // [уровень героя, минут в день]
+// ---------- Автобой ----------
+// Минут в день — по ордену: бесплатный 15, Бронзовый 30, Серебряный 60, Золотой 120, Чемпион 240, Купец 300, Магнат 360
+// (meta.SHOP.autofarmMin). Работает только в данжах. Вышел из игры с включённым автобоем в данже — герой остаётся
+// и фармит сам (сервер ведёт его, afBotTick), пока не кончится время или его не убьют. Счёт — по дням МСК
 const afDay = () => new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
-function afLimitMs(p, pr) {
-  if (meta.passTier(pr) >= meta.SHOP.autofarmTier) return Infinity;
-  const lv = (p.char && p.char.level) || 1, row = AF_FREE.find(([l]) => lv >= l);
-  return row ? row[1] * 60e3 : 0;
-}
+function afLimitMs(p, pr) { return (meta.SHOP.autofarmMin[meta.passTier(pr)] ?? 15) * 60e3; }
 function afUsed(pr) { if (!pr.afUse || pr.afUse.day !== afDay()) pr.afUse = { day: afDay(), ms: 0 }; return pr.afUse.ms; }
 function afLeftMs(p) { const pr = getProfile(p.uid), lim = afLimitMs(p, pr); return lim === Infinity ? -1 : Math.max(0, lim - afUsed(pr)); }
 setInterval(() => {
@@ -1658,15 +1656,14 @@ setInterval(() => {
     p.afTick = now;
     if (lim === Infinity) continue;
     afUsed(pr); pr.afUse.ms += dt;
-    if (pr.afUse.ms >= lim) { setAutofarm(p, false); p.socket.emit('skillFail', `Автобой на сегодня закончился (${lim / 60e3} мин). Без ограничений — с Золотым орденом`); markDirty(p); }
+    if (pr.afUse.ms >= lim) { setAutofarm(p, false); p.socket.emit('skillFail', `Автобой на сегодня закончился (${lim / 60e3} мин). Больше времени — с сезонным орденом`); if (p.offline) afBotEnd(p, 'время автобоя закончилось'); }
   }
 }, 1000);
 function setAutofarm(p, on) {
   const pr = getProfile(p.uid);
   if (on) {
     const lim = afLimitMs(p, pr);
-    if (!lim) return 'Автобой открывается с 15 уровня (30 мин в день) или сразу — Золотым орденом';
-    if (lim !== Infinity && afUsed(pr) >= lim) return `Автобой на сегодня закончился (${lim / 60e3} мин). Без ограничений — с Золотым орденом`;
+    if (afUsed(pr) >= lim) return `Автобой на сегодня закончился (${lim / 60e3} мин). Больше времени — с сезонным орденом`;
   }
   if (on && (world.byId.get(p.zone) || {}).kind !== 'dungeon') return 'Автобой работает только в данжах';
   if (on && !p.autofarm) p.afTick = Date.now();
@@ -1674,6 +1671,34 @@ function setAutofarm(p, on) {
   p.socket.emit('autofarm', p.autofarm);
   return null;
 }
+
+// ---------- Автобой без игрока ----------
+function afBotStart(p, socket) {
+  const pr = getProfile(p.uid);
+  p.offline = true;
+  p.afBot = { sock: socket, skip: new Map(), nextPlan: 0, pr: () => getProfile(p.uid), at: Date.now(),
+    from: { lvl: p.char.level, xp: p.char.xp, gold: pr.gold || 0, kills: p.char.kills || 0, items: (pr.items || []).length } };
+  p.socket = offlineSocket(socket);
+  clearTimeout(p.graceTimer);
+  p.graceTimer = setTimeout(() => afBotEnd(p, 'время автобоя закончилось'), Math.min(8 * 36e5, afLeftMs(p) + 10000));
+}
+function afBotEnd(p, why) {
+  const b = p.afBot;
+  if (!b) return;
+  p.afBot = null; clearTimeout(p.graceTimer);
+  const pr = getProfile(p.uid), f = b.from, mins = Math.round((Date.now() - b.at) / 60000);
+  const gold = Math.max(0, (pr.gold || 0) - f.gold), kills = Math.max(0, (p.char.kills || 0) - f.kills), lv = p.char.level - f.lvl;
+  notifyUid(p.uid, `🤖 Автобой завершён (${why}) · ${mins} мин: побеждено ${kills} монстров, +${gold} 💰${lv > 0 ? `, +${lv} ур.` : ''}`);
+  if (players.get(b.sock.id) === p) removePlayerG(p, b.sock);
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const p of players.values()) {
+    if (!p.afBot) continue;
+    if (p.dead) { afBotEnd(p, 'герой погиб'); continue; }
+    if (AfBot.step(p, now) === 'stop') afBotEnd(p, 'герой покинул данж');
+  }
+}, 140);
 
 function grantXp(p, amount, gold, shared = false) {
   const pr = getProfile(p.uid), now = Date.now();
@@ -1736,8 +1761,62 @@ function leaveParty(p) {
 }
 // Новый баланс: бонус опыта за группу рядом — +5% за каждого (до +25%), за соклановца +10% (до +50%), всего не больше +50%.
 // Автобой — опыт ×0,6 (ручная игра выгоднее)
+// ---------- Опасный данж: PvP с выпадением вещей ----------
+// Белый (мирный) → напал на белого → розовый на 35 с (после последнего удара). Убил белого → красный (карма):
+// 30 мин за каждое убийство, до 3 ч; карма уходит только пока герой в игре (выйти и переждать нельзя).
+// Выпадение при гибели от игрока: с белого — 25% шанс 1 вещь из сумки, с розового — 50% шанс 2 вещи из сумки,
+// с красного — всегда 3 надетые вещи. Вещи достаются убийце. Привязанные (мифические) не выпадают. Группа друг друга не бьёт
+const PK = { flagMs: 35e3, redMs: 30 * 60e3, redMax: 3 * 36e5 };
+const pkState = (p) => ((getProfile(p.uid).karma || 0) > 0 ? 'red' : (p.pkFlagUntil || 0) > Date.now() ? 'pink' : 'white');
+function pkOnHit(p, victim) {
+  if (!isPkZone(p.zone) || !isPkZone(victim.zone)) return;
+  if (pkState(victim) === 'white' && pkState(p) !== 'red') {
+    const was = (p.pkFlagUntil || 0) > Date.now();
+    p.pkFlagUntil = Date.now() + PK.flagMs; markDirty(p);
+    if (!was) p.socket.emit('skillFail', '🩷 Вы напали на мирного игрока — 35 с вы «розовый»: вас можно бить без кармы, при гибели — шанс 50% потерять 2 вещи');
+  }
+}
+function pkOnKill(victim) {
+  const killer = Date.now() - (victim.lastPvpAt || 0) < 8000 ? players.get(victim.lastPvpBy) : null;
+  if (!killer || killer === victim || !isPkZone(killer.zone)) return;
+  const vs = pkState(victim) === 'red' ? 'red' : (victim.pkFlagUntil || 0) > Date.now() ? 'pink' : 'white';
+  const kpr = getProfile(killer.uid), vpr = getProfile(victim.uid);
+  if (vs === 'white') { // убил мирного — карма
+    const was = (kpr.karma || 0) > 0;
+    kpr.karma = Math.min(PK.redMax, (kpr.karma || 0) + PK.redMs); markDirty(killer);
+    killer.socket.emit('chat', { sys: true, text: `🩸 Вы убили мирного игрока — вы «красный» ещё ${Math.ceil(kpr.karma / 60000)} мин (уходит, только пока вы в игре). При гибели теряете 3 надетые вещи!` });
+    if (!was) evCast({ ev: 'boss', text: `🩸 ${killer.name} стал убийцей в опасном данже — его можно наказать!` });
+  }
+  // Что выпадает
+  const isEq = (it) => Object.values(vpr.equip || {}).includes(it.id);
+  let pool, n;
+  if (vs === 'red') { pool = (vpr.items || []).filter((it) => isEq(it) && it.cat !== 'bag' && !it.bound); n = 3; }
+  else { pool = (vpr.items || []).filter((it) => !isEq(it) && it.loc !== 'wh' && !it.bound && it.cat !== 'bag'); n = vs === 'pink' ? 2 : 1; if (process.env.PK_TEST_DROP !== '1' && Math.random() >= (vs === 'pink' ? 0.5 : 0.25)) n = 0; } // PK_TEST_DROP=1 — только для проверки
+  const lost = [];
+  for (let i = 0; i < n && pool.length; i++) {
+    const it = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    for (const sl of Object.keys(vpr.equip || {})) if (vpr.equip[sl] === it.id) vpr.equip[sl] = null;
+    I.detach && I.detach(vpr, it);
+    vpr.items = vpr.items.filter((x) => x !== it);
+    delete it.loc;
+    const v = giveLoot(killer, kpr, it, victim);
+    lost.push(v ? v.name : 'вещь');
+  }
+  if (lost.length) refreshPlayer(victim);
+  victim.socket.emit('chat', { sys: true, text: lost.length ? `💀 Вас убил ${killer.name}. Потеряно: ${lost.join(', ')}` : `💀 Вас убил ${killer.name}. На этот раз вещи уцелели` });
+  if (lost.length) killer.socket.emit('chat', { sys: true, text: `⚔️ Добыча с ${victim.name}: ${lost.join(', ')}` });
+  saveProfiles();
+}
+// Карма уходит только пока герой в игре (и в автобое без игрока — тоже: он в мире и его могут найти)
+setInterval(() => {
+  for (const p of players.values()) { const pr = getProfile(p.uid); if (pr.karma > 0) { pr.karma = Math.max(0, pr.karma - 5000); if (!pr.karma) { p.socket.emit('chat', { sys: true, text: '🕊️ Карма очищена — вы снова мирный' }); markDirty(p); } } }
+}, 5000);
+
+// Опасный данж: опыт, золото и добыча ×6, в автобое ×3 (автобойный штраф ×0,6 там не действует — вместо него половина рейта)
+const isPkZone = (zid) => { const z = world.byId.get(zid); return !!(z && z.pk); };
+const pkRate = (p) => (isPkZone(p.zone) ? (p.autofarm ? 3 : 6) : 1);
 function xpBonusK(p) {
-  if (!MOBX.bal2()) return 1;
+  if (!MOBX.bal2()) return pkRate(p);
   let other = 0, clan = 0;
   const myClan = clanOf(p.uid);
   for (const o of partyMembers(p)) {
@@ -1745,7 +1824,7 @@ function xpBonusK(p) {
     if (myClan && clanOf(o.uid) === myClan) clan++; else other++;
   }
   const grp = Math.min(0.5, Math.min(0.25, 0.05 * other) + Math.min(0.5, 0.1 * clan));
-  return (1 + grp) * (p.autofarm ? 0.6 : 1);
+  return (1 + grp) * (p.autofarm && !isPkZone(p.zone) ? 0.6 : 1) * pkRate(p);
 }
 // Опыт за убийство делится с группой рядом (каждый получает 70% — от опыта без бонусов убийцы, со своими бонусами)
 function shareKill(killer, m, xp) {
@@ -1812,8 +1891,8 @@ function lootFor(o, m, tier, boss, at) {
     meta.addPassXp(pr, m.rank === 'boss' ? 20 : m.rank === 'mini' ? 8 : m.rank === 'rare' ? 2 : m.rank === 'magic' ? 1 : Math.random() < 0.12 ? 1 : 0); // орден — на ~3–4 недели обычной игры, а не на пару вечеров
     const luck = I.buffLuck(pr); // эликсиры удачи
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
-    const B2 = MOBX.bal2(), dropK = B2 ? 0.25 : 1; // новый баланс: вещей и материалов вчетверо меньше
-    const rolls = m.rank === 'boss' ? (B2 ? 1 + (Math.random() < 0.5 ? 1 : 0) : 2) : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult * dropK ? 1 : 0;
+    const B2 = MOBX.bal2(), pk = pkRate(o), dropK = (B2 ? 0.25 : 1) * pk; // новый баланс: вещей и материалов вчетверо меньше; опасный данж ×6 (автобой ×3)
+    const rolls = m.rank === 'boss' ? (B2 ? 1 + (Math.random() < 0.5 ? 1 : 0) : 2) + (pk > 1 ? 1 : 0) : m.rank === 'mini' ? 1 + (pk > 1 ? 1 : 0) : Math.random() < Math.min(0.9, C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult * dropK) ? 1 : 0;
     const wt = m.rank === 'boss' ? C.DROPS.boss[tier] : m.rank === 'mini' ? C.DROPS.mini[tier] : C.DROPS.weights[tier];
     for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, B2 ? dropW2(wt, m.rank) : wt, null, o.heroId), at); // 75% — под класс героя
     // Сумки — редкость: босс 3% (эпическая), полубосс 1% (редкая, 20% — эпическая)
@@ -1940,7 +2019,7 @@ io.on('connection', (socket) => {
     }
     const uid = who.uid;
     // Сессию после обрыва восстановить не удалось — убираем «ожидающего» героя этого игрока
-    for (const o of [...players.values()]) if (o.uid === uid && o.offline) { clearTimeout(o.graceTimer); removePlayer(o.socket, o); }
+    for (const o of [...players.values()]) if (o.uid === uid && o.offline) { if (o.afBot) { afBotEnd(o, 'вы вернулись в игру'); continue; } clearTimeout(o.graceTimer); removePlayer(o.socket, o); }
     // Один аккаунт — один герой в мире: вход с другой вкладки или устройства отключает прежнюю сессию
     for (const o of [...players.values()]) if (o.uid === uid && !o.offline && o.socket.id !== socket.id) {
       o.socket.emit('kicked', 'Вы вошли в игру с другого устройства или вкладки');
@@ -2167,6 +2246,7 @@ io.on('connection', (socket) => {
       return socket.emit('chat', { sys: true, text: `🏟️ PvP-арена ${z.name}: бей других героев! Победа — рейтинг и золото, после гибели — возрождение на арене. Выход — портал на юге.` });
     }
     if (obj.dungeon !== undefined) return D.startDungeon(p, z.id, obj.dungeon);
+    if (obj.pk) return D.startPk(p, z.id); // опасный данж
     let to = obj.to;
     if (obj.id === 'teleport') {
       to = String(d.to || '');
@@ -2328,6 +2408,8 @@ io.on('connection', (socket) => {
     const p = players.get(socket.id);
     if (!p || p.socket !== socket) return;
     try { flushChests(p); } catch (e) { console.error('chest flush', e); }
+    // Вышел с включённым автобоем в данже — герой остаётся и фармит сам, пока есть время автобоя (его могут убить)
+    if (p.autofarm && !p.dead && !p.match && (world.byId.get(p.zone) || {}).kind === 'dungeon' && afLeftMs(p) > 0) { afBotStart(p, socket); return; }
     // Обрыв связи (не выход из игры): герой ждёт в мире, пока игрок не переподключится
     if (reason !== 'client namespace disconnect' && reason !== 'server namespace disconnect' && !p.match) {
       p.offline = true; p.autofarm = false;
