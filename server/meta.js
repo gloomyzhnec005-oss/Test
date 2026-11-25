@@ -592,7 +592,7 @@ module.exports = function createMeta(deps) {
       const it = I.findItem(pr, d.id);
       if (!it) return { error: 'Предмет не найден' };
       const up = I.upgradeCost(it);
-      if (!up) return { error: 'Этот предмет нельзя улучшить' };
+      if (!up) return { error: it.rar === 'legendary' && it.tier < 2 ? 'Мифические вещи куются только из вещей второго и третьего мира' : 'Этот предмет нельзя улучшить' };
       if (pr.gold < up.gold) return { error: `Нужно ${up.gold} золота` };
       if (!I.takeMats(pr, up.need)) return { error: 'Не хватает материалов или свитка' };
       pr.gold -= up.gold;
@@ -645,6 +645,29 @@ module.exports = function createMeta(deps) {
       pr.items = pr.items.filter((i) => i !== it);
       for (const [k, n] of Object.entries(out)) I.addMat(pr, k, n);
       return { toast: `Разобрано: ${Object.entries(out).map(([k, n]) => matName(k, n)).join(', ')}` };
+    },
+
+    // Разбор нескольких вещей сразу: quote — только показать, что выйдет (ядро у легендарных — с шансом 30%)
+    salvageMany(p, d, pr) {
+      const ids = [...new Set((Array.isArray(d.ids) ? d.ids : []).map(String))].slice(0, 200);
+      const list = ids.map((id) => I.findItem(pr, id)).filter((it) => it && !equipped(pr, it.id) && it.loc !== 'wh');
+      if (!list.length) return { error: 'Выберите вещи для разбора' };
+      if (d.quote) {
+        const sure = {}; let coreChance = 0;
+        for (const it of list) {
+          for (const [k, n] of Object.entries(I.salvage(it, true))) sure[k] = (sure[k] || 0) + n;
+          if (it.rar === 'legendary') coreChance++;
+        }
+        return { quote: { n: list.length, mats: Object.entries(sure).filter(([, n]) => n > 0).map(([k, n]) => matName(k, n)), coreChance } };
+      }
+      const got = {};
+      for (const it of list) {
+        const out = I.salvage(it);
+        I.detach(pr, it);
+        pr.items = pr.items.filter((i) => i !== it);
+        for (const [k, n] of Object.entries(out)) { I.addMat(pr, k, n); got[k] = (got[k] || 0) + n; }
+      }
+      return { toast: `♻️ Разобрано вещей: ${list.length} → ${Object.entries(got).map(([k, n]) => matName(k, n)).join(', ')}` };
     },
 
     // ---------- Расходники и ларцы ----------

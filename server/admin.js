@@ -22,7 +22,7 @@ module.exports = function createAdmin(ctx) {
   // ---------- Настройки игры, меняются на лету ----------
   // openAt — время открытия игры (0 — открыта); onlineMin — с какого онлайна показывать общее число игроков;
   // brk — запланированный технический перерыв { at, min } (0 — нет)
-  const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '', openAt: 0, onlineMin: 20, brk: null, channel: '', chat: '', partners: [], spChannel: 150, spChat: 50, special: [], zbt: true, bal2: false };
+  const DEFAULTS = { xpMult: 1, goldMult: 1, dropMult: 1, freeSpins: false, maintenance: false, motd: '', openAt: 0, onlineMin: 20, brk: null, channel: '', chat: '', partners: [], spChannel: 150, spChat: 50, special: [], zbt: true, bal2: true };
   const settings = { ...DEFAULTS };
   Object.assign(settings, store.readJSON('admin.json', {}));
   // Награды особых заданий подняты (канал 50 → 150, чат 30 → 50): сохранённые старые значения по умолчанию — заменить один раз

@@ -624,13 +624,15 @@ const UPGRADE = {
   rare:      { scroll: 'scrollR', ore: 5,  ess: 0,  core: 0, gold: 150 },
   epic:      { scroll: 'scrollE', ore: 12, ess: 5,  core: 0, gold: 600 },
   legendary: { scroll: 'scrollL', ore: 25, ess: 15, core: 1, gold: 2500 },
-  mythic:    { scroll: 'scrollM', ore: 50, ess: 30, core: 3, gold: 8000 },
+  mythic:    { scroll: 'scrollM', ore: 80, ess: 50, core: 5, gold: 15000 }, // дорого: мифик — редкость
 };
 const SET_CRAFT = { ore: 15, ess: 10, core: 1, gold: 1500 };
 function upgradeCost(it) {
   const next = RARITY_ORDER[RARITY_ORDER.indexOf(it.rar) + 1];
   if (!next || it.cat === 'rune') return null;
-  const u = UPGRADE[next], t = it.tier;
+  const t = it.tier;
+  if (next === 'mythic' && t < 2) return null; // мифические куются только из вещей второго и третьего мира
+  const u = UPGRADE[next];
   const need = { [u.scroll]: 1, [`ore${t}`]: u.ore };
   if (u.ess) need[`ess${t}`] = u.ess;
   if (u.core) need[`core${t}`] = u.core;
@@ -641,12 +643,12 @@ function setCraftCost(it, sid) {
   return { need: { [`bp_${sid}`]: 1, [`ore${t}`]: SET_CRAFT.ore, [`ess${t}`]: SET_CRAFT.ess, [`core${t}`]: SET_CRAFT.core }, gold: Math.round(SET_CRAFT.gold * TIER_MULT[t]) };
 }
 // Разбор: материалы мира предмета
-function salvage(it) {
+function salvage(it, sure = false) { // sure — без случайного ядра (для показа «что выйдет»)
   const t = it.tier, r = RARITY_ORDER.indexOf(it.rar);
   const out = { [`ore${t}`]: [1, 3, 6, 12, 25][r] };
   const ess = [0, 0, 3, 8, 20][r];
   if (ess) out[`ess${t}`] = ess;
-  if (r === 4 || (r === 3 && Math.random() < 0.3)) out[`core${t}`] = 1;
+  if (r === 4 || (!sure && r === 3 && Math.random() < 0.3)) out[`core${t}`] = 1;
   if (it.cat === 'rune') { out[`ess${t}`] = (out[`ess${t}`] || 0) + 1 + r; delete out[`ore${t}`]; }
   return out;
 }

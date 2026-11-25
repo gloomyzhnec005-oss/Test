@@ -94,11 +94,23 @@ window.Bag = (() => {
   // Сравнение: сверху — что надето сейчас (все его статы), ниже у нового предмета — все статы обоих: и те, которых у нового нет
   const statKeys = (it, cmp) => { const ks = Object.keys(it.stats || {}); if (cmp) for (const k of Object.keys(cmp.stats || {})) if (!ks.includes(k)) ks.push(k); return ks; };
   const cmpBlock = (cmp) => `<div class="ic-cmp" style="--rc:${cmp.color}"><div class="ic-cmp-h">${mini(cmp)}<div><b>Надето: ${cmp.name}</b><small>${cmp.rarName}${cmp.ench ? ` · +${cmp.ench}` : ''}</small></div></div>
-      <div class="ic-cmp-s">${Object.entries(cmp.stats || {}).map(([k, v]) => `<span>${statLine(k, v)}</span>`).join('')}</div></div>`;
+      <div class="ic-cmp-s">${Object.entries(cmp.stats || {}).map(([k, v]) => `<span>${statLine(k, v)}</span>`).join('')}</div>
+      ${(cmp.attrs || []).length ? `<div class="ic-cmp-s">${cmp.attrs.map((a) => `<span>◆ ${statLine(a.k, a.v)}</span>`).join('')}</div>` : ''}</div>`;
+  // Случайные атрибуты: у этой вещи и разница с таким же атрибутом надетой; чего у этой нет, а у надетой есть — серым
+  function attrRows(it, cmp) {
+    const sum = (list) => { const o = {}; for (const a of list || []) o[a.k] = (o[a.k] || 0) + a.v; return o; };
+    const mine = sum(it.attrs), was = cmp ? sum(cmp.attrs) : {};
+    const rows = it.attrs.map((a) => `<div class="ic-attr">◆ ${statLine(a.k, a.v)}${cmp ? diff(mine[a.k] - (was[a.k] || 0)) : ''}</div>`);
+    if (cmp) for (const [k, v] of Object.entries(was)) if (!(k in mine)) rows.push(`<div class="ic-attr lost">◇ ${statLine(k, 0)} <small>(есть у надетого)</small>${diff(-v)}</div>`);
+    return rows.join('') || '<div class="ic-attr">—</div>';
+  }
   function card(it, actions, cmp) {
     if (!inv) { refresh().then(() => card(it, actions, cmp)); return; } // справочники статов ещё не загружены
     if (it.cat === 'mat') return matCard(it, actions || []);
     actions = actions || [];
+    // Сравнение с надетым — для любой вещи, откуда бы её ни открыли (сумка, склад, лавка, Торговый дом, чужой профиль)
+    if (cmp === undefined) cmp = it.cat !== 'rune' && it.cat !== 'bag' && !isEquipped(it) && inv.equip ? (worn(it.cat) || (it.cat === 'ring' ? worn('ring2') : null)) || null : null;
+    if (cmp && cmp.id === it.id) cmp = null;
     const wrap = $('itemCard');
     const c = wrap.querySelector('.item-card');
     const runes = it.cat === 'weapon' ? `<div class="ic-sec">Гнёзда для рун: ${it.runes.length} / ${it.sockets}</div>
@@ -116,8 +128,8 @@ window.Bag = (() => {
       ${cmp ? cmpBlock(cmp) : ''}
       <div class="ic-sec">Итоговые статы${cmp ? ' · ▲▼ — разница с надетым' : ''}</div>
       ${statKeys(it, cmp).map((k) => { const v = (it.stats || {})[k] || 0; return `<div class="ic-stat ${v ? '' : 'lost'}">${v ? statLine(k, v) : `${statLine(k, 0)} <small>(есть у надетого)</small>`}${cmp ? diff(v - ((cmp.stats || {})[k] || 0)) : ''}</div>`; }).join('')}
-      <div class="ic-sec">Случайные атрибуты (${it.attrs.length})</div>
-      ${it.attrs.map((a) => `<div class="ic-attr">◆ ${statLine(a.k, a.v)}</div>`).join('') || '<div class="ic-attr">—</div>'}
+      <div class="ic-sec">Случайные атрибуты (${it.attrs.length})${cmp ? ' · ▲▼ — с надетым' : ''}</div>
+      ${attrRows(it, cmp)}
       ${runes}
       <div class="ic-btns"></div>`;
     addBtns(c, wrap, actions);

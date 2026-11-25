@@ -54,7 +54,7 @@ function rollMats(m, tier, dungeon, luck = 1) {
     if (chance(0.5)) add('scrollR');
     if (chance(0.3)) add('scrollE');
     if (tier >= 2 && chance(tier === 3 ? 0.08 : 0.05)) add('scrollL');
-    if (tier === 3 && chance(0.01)) add('scrollM');
+    if (tier >= 2 && chance(tier === 3 ? 0.01 : 0.004)) add('scrollM'); // Свиток легенды — с боссов второго и третьего мира
     if (chance(0.05)) add('luckStone');
     add('dust', n(2, 4));
     if (chance(0.1)) add('skillCrystal');

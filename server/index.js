@@ -127,6 +127,7 @@ const perf = { lagP50: 0, lagP99: 0, lagMax: 0, cpu: 0 };
 admin.ctx.perf = () => perf;
 admin.ctx.econ = Econ;
 const S = admin.settings;
+if (!S.bal2Mig) { S.bal2 = true; S.bal2Mig = 1; admin.saveSettings(); } // ЗБТ: новый баланс включён сразу (выключить можно в админке)
 MOBX.setBal2(S.bal2); // «Новый баланс» — прокачка по ступеням, монстры крепче, добыча реже (админка → Настройки)
 app.get('/admin/dl/:t/:name', (req, res) => admin.download(req, res)); // одноразовая ссылка на бэкап (для телефона)
 app.use('/admin/api', admin.router);
@@ -1398,7 +1399,7 @@ function damageMonster(p, m, raw, opt = {}) {
     const diff = p.char.level - (m.level || 1);
     const baseXp = m.xp * (diff > 4 ? Math.max(0.1, 1 - 0.15 * (diff - 4)) : 1);
     const xpF = baseXp * rw.xp * xpBonusK(p), xp = Math.floor(xpF) + (Math.random() < xpF % 1 ? 1 : 0); // дробный опыт — случайным округлением
-    const gold = Math.round((baseXp / 3 + 1) * (0.5 + Math.random()) * rw.gold * (MOBX.bal2() ? 0.5 : 1)); // +1: на первых уровнях хоть немного золота; новый баланс — золота вдвое меньше
+    const gold = Math.round((baseXp / 3 + 1) * (0.5 + Math.random()) * rw.gold * (MOBX.bal2() ? 0.25 : 1)); // +1: на первых уровнях хоть немного золота; новый баланс — золота вчетверо меньше
     fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp, gold, by: p.id, contract: !!rw.contract });
     monsters.delete(m.id);
     corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type, zone: m.zone, level: m.level, maxHp: m.maxHp, dmg: m.dmg, speed: m.speed });
@@ -1737,7 +1738,7 @@ function dropLoot(killer, m) {
     meta.addPassXp(pr, m.rank === 'boss' ? 20 : m.rank === 'mini' ? 8 : m.rank === 'rare' ? 2 : m.rank === 'magic' ? 1 : Math.random() < 0.12 ? 1 : 0); // орден — на ~3–4 недели обычной игры, а не на пару вечеров
     const luck = I.buffLuck(pr); // эликсиры удачи
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
-    const B2 = MOBX.bal2(), dropK = B2 ? 0.5 : 1; // новый баланс: вещей и материалов вдвое меньше
+    const B2 = MOBX.bal2(), dropK = B2 ? 0.25 : 1; // новый баланс: вещей и материалов вчетверо меньше
     const rolls = m.rank === 'boss' ? (B2 ? 1 + (Math.random() < 0.5 ? 1 : 0) : 2) : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult * dropK ? 1 : 0;
     const wt = m.rank === 'boss' ? C.DROPS.boss[tier] : m.rank === 'mini' ? C.DROPS.mini[tier] : C.DROPS.weights[tier];
     for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, B2 ? dropW2(wt, m.rank) : wt, null, o.heroId), m); // 75% — под класс героя

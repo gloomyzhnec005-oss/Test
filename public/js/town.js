@@ -953,19 +953,63 @@ window.Town = (() => {
     return box;
   }
   // Разбор: вещь → материалы её мира
-  async function salvageBody() {
+  // Разбор: отметьте несколько вещей — внизу видно, что выйдет, потом «Разобрать». Надетые и вещи на складе не показываются
+  async function salvageBody(keep) {
     const inv = await Bag.refresh();
+    const items = inv.items.filter((i) => i.loc !== 'wh' && i.cat !== 'rune' && !Bag.isEquipped(i));
+    const sel = new Set([...(keep || [])].filter((id) => items.some((i) => i.id === id)));
     const box = document.createElement('div');
-    box.innerHTML = '<p class="sheet-hint">Нажмите на вещь, чтобы разобрать её на материалы. Надетые вещи не показываются.</p>';
-    box.append(Bag.grid(inv.items.filter((i) => i.loc !== 'wh' && i.cat !== 'rune' && !Bag.isEquipped(i)), (it) => Bag.card(it, [['♻️ Разобрать', async () => {
-      const res = await Bag.act('salvage', { id: it.id }); toast(res.error || res.toast); box.replaceWith(await salvageBody()); }, 'warn']]), { empty: 'Нечего разбирать' }));
+    box.innerHTML = `<p class="sheet-hint">Отметьте вещи для разбора (нажатием) — внизу будет видно, какие материалы вы получите.</p>
+      <div class="salv-quick"><button type="button" class="l2-btn" data-r="common">+ Обычные</button><button type="button" class="l2-btn" data-r="rare">+ Редкие</button><button type="button" class="l2-btn" data-r="epic">+ Эпические</button><button type="button" class="l2-btn" data-r="none">Снять отметки</button></div>`;
+    const gridWrap = document.createElement('div');
+    const foot = document.createElement('div'); foot.className = 'salv-foot';
+    const draw = () => { gridWrap.innerHTML = ''; gridWrap.append(Bag.grid(items, (it) => { sel.has(it.id) ? sel.delete(it.id) : sel.add(it.id); draw(); quote(); }, { selected: sel, empty: 'Нечего разбирать' })); };
+    let qSeq = 0;
+    const quote = async () => {
+      const my = ++qSeq;
+      if (!sel.size) { foot.innerHTML = '<small>Ничего не выбрано</small>'; return; }
+      foot.innerHTML = `<small>Выбрано: ${sel.size} · считаю…</small>`;
+      const q = await Bag.act('salvageMany', { ids: [...sel], quote: 1 });
+      if (my !== qSeq) return;
+      if (!q.quote) { foot.innerHTML = `<small>${q.error || 'Нет связи'}</small>`; return; }
+      const hasLeg = [...sel].some((id) => (items.find((i) => i.id === id) || {}).rar === 'legendary'), hasMyth = [...sel].some((id) => (items.find((i) => i.id === id) || {}).rar === 'mythic');
+      foot.innerHTML = `<div><b>Выбрано: ${q.quote.n}</b> · вы получите: ${q.quote.mats.join(', ')}${q.quote.coreChance ? ` · и с шансом 30% ядро за каждую легендарную (${q.quote.coreChance})` : ''}</div>
+        <button type="button" class="l2-btn wide warn" id="salvGo">♻️ Разобрать (${q.quote.n})</button>`;
+      foot.querySelector('#salvGo').onclick = async () => {
+        if ((hasLeg || hasMyth) && !confirm(`Среди выбранных есть ${hasMyth ? 'мифические' : 'легендарные'} вещи. Разобрать их безвозвратно?`)) return;
+        const r = await Bag.act('salvageMany', { ids: [...sel] }); toast(r.error || r.toast);
+        if (!r.error) box.replaceWith(await salvageBody());
+      };
+    };
+    box.querySelector('.salv-quick').onclick = (e) => {
+      const b = e.target.closest('[data-r]'); if (!b) return;
+      if (b.dataset.r === 'none') sel.clear(); else for (const it of items) if (it.rar === b.dataset.r && !it.set && !it.ench && !(it.runes || []).length) sel.add(it.id);
+      draw(); quote();
+    };
+    box.append(gridWrap, foot); draw(); quote();
+    return box;
+  }
+  // Ремонт: всё надетое разом или по одной вещи (новый баланс: −10% прочности за гибель)
+  async function repairBody() {
+    const inv = await Bag.refresh();
+    const worn = inv.items.filter((i) => Bag.isEquipped(i) && i.repairCost > 0);
+    const other = inv.items.filter((i) => !Bag.isEquipped(i) && i.repairCost > 0);
+    const total = worn.reduce((a, i) => a + i.repairCost, 0);
+    const box = document.createElement('div');
+    box.innerHTML = `<p class="sheet-hint">При гибели надетые вещи теряют 10% прочности. Сломанная вещь (0%) не даёт силы, пока её не починят.</p>
+      ${worn.length ? `<button type="button" class="l2-btn wide" id="repAll">🔧 Починить всё надетое (${worn.length}) · ${total.toLocaleString('ru-RU')} 💰</button>` : '<p class="sheet-hint">Надетые вещи целы 👍</p>'}`;
+    const list = [...worn, ...other];
+    if (list.length) box.append(Bag.grid(list, (it) => Bag.card(it, [[`🔧 Починить · ${it.repairCost.toLocaleString('ru-RU')} 💰`, async () => {
+      const r = await Bag.act('repair', { id: it.id }); toast(r.error || r.toast); document.getElementById('itemCard').classList.add('hidden'); box.replaceWith(await repairBody()); }]])));
+    const b = box.querySelector('#repAll');
+    if (b) b.onclick = async () => { const r = await Bag.act('repair', { all: 1 }); toast(r.error || r.toast); box.replaceWith(await repairBody()); };
     return box;
   }
   function smithPanel(itemId) {
     // Из карточки вещи «В кузницу» — сразу рецепт для этой вещи
     const it = itemId && Bag.inv() && Bag.inv().items.find((i) => i.id === itemId);
     const rid = it && it.cat !== 'rune' ? `w${ctx.zone.tier}_${it.cat}` : null;
-    open('🔨 Кузница', tabs([['Рецепты', () => craftBody(ctx.zone.tier, rid, itemId)], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Разбор', salvageBody], ['Лавка кузнеца', () => shopList('smith')]]));
+    open('🔨 Кузница', tabs([['Рецепты', () => craftBody(ctx.zone.tier, rid, itemId)], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Разбор', () => salvageBody()], ['🔧 Ремонт', repairBody], ['Лавка кузнеца', () => shopList('smith')]]));
   }
 
   // ---------- Награда за вход: 7 дней подряд ----------
