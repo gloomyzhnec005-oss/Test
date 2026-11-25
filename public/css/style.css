@@ -1578,3 +1578,13 @@ canvas.skin { object-fit: contain; }
 .news-h b { color: #ffe7a8; font-size: 15px; }
 .news-h small { color: #a8977a; white-space: nowrap; }
 .news-post ul { margin: 0; padding-left: 4px; list-style: none; display: grid; gap: 5px; font-size: 14px; color: #e8d7b0; }
+
+/* «Память героев» */
+.mem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.mem { display: flex; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 10px; border: 1px solid #4a3c28; background: rgba(255,255,255,.03); opacity: .6; }
+.mem.on { opacity: 1; border-color: #8a7040; }
+.mem span { font-size: 18px; }
+.mem b { display: block; font-size: 12px; color: #ffe7a8; line-height: 1.2; }
+.mem small { font-size: 11px; color: #cdbb94; }
+.mem i { font-style: normal; opacity: .7; }
+.reveal-perk { margin: 6px 0; padding: 6px 10px; border-radius: 10px; background: rgba(201,162,90,.14); border: 1px solid rgba(201,162,90,.5); color: #ffe7a8; font-size: 13px; }

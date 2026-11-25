@@ -81,6 +81,8 @@ function periodEnd(per, t = Date.now()) {
 }
 
 module.exports = function createQuests(deps) {
+  // Новый баланс: золото за задания вдвое меньше (золото с монстров — вчетверо), самоцветы и материалы как были
+  const qGold = (g, tier) => Math.round(g * tier * (require('./mobs').bal2() ? 0.5 : 1));
   // deps: { getProfile, notifyUid, reward(pr, r, tier), addPassXp(pr, n), save() }
   function state(pr, per) {
     pr.quests = pr.quests || {};
@@ -157,7 +159,7 @@ module.exports = function createQuests(deps) {
   }
   function rewardText(r, tier) {
     const parts = [];
-    if (r.gold) parts.push(`💰 ${r.gold * tier}`);
+    if (r.gold) parts.push(`💰 ${qGold(r.gold, tier)}`);
     if (r.gems) parts.push(`💎 ${r.gems}`);
     if (r.itemSpins) parts.push(`🎁 ×${r.itemSpins}`);
     if (r.mats) parts.push(...Object.entries(r.mats).map(([k, n]) => `${{ ore: '⛏️', ess: '✨', core: '💠', scrollE: '📜', scrollL: '📜' }[k] || '📦'} ×${n}`));
@@ -173,7 +175,7 @@ module.exports = function createQuests(deps) {
     if (progOf(pr, q) < q.goal) return { error: 'Задание ещё не выполнено' };
     st.claimed[id] = true;
     const r = q.reward;
-    const msg = deps.reward(pr, { gold: (r.gold || 0) * tier, gems: r.gems, itemSpins: r.itemSpins, mats: r.mats }, tier);
+    const msg = deps.reward(pr, { gold: qGold(r.gold || 0, tier), gems: r.gems, itemSpins: r.itemSpins, mats: r.mats }, tier);
     if (r.passXp) deps.addPassXp(pr, r.passXp);
     if (POINTS[q.per]) {
       const m = state(pr, 'monthly');

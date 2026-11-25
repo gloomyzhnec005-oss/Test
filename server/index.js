@@ -17,6 +17,7 @@ const SKILL_TARGET = Object.fromEntries(Object.values(C.HEROES).flatMap((h) => h
 const { createPets, createSummon, rescalePets, updatePets, hurtPet } = require('./pets');
 const I = require('./items');
 const MOBX = require('./mobs');
+const Coll = require('./collection'); // «Память героев»: бонусы за каждого героя в коллекции
 const createDungeons = require('./dungeon');
 C.MONSTERS = MOBX.MOBS; // 75 видов монстров + миньоны (server/mobs.js)
 const createMeta = require('./meta');
@@ -76,11 +77,30 @@ function getProfile(uid) {
   const before = pr.heroes.length;
   pr.heroes = pr.heroes.filter((id) => C.HEROES[id]);
   if (before > 0 && pr.heroes.length === 0) pr.freeSpinUsed = false;
+  linkLevels(pr);
   return pr;
+}
+// Общий уровень аккаунта: уровень и опыт одни на всех героев (pr.acct). У каждого героя level/xp — ссылки на них,
+// поэтому весь код, который читает и меняет p.char.level / p.char.xp, работает как раньше, но для всех героев сразу.
+// Переход со старых профилей: берётся лучший уровень среди героев (и его опыт)
+function linkLevels(pr) {
+  if (!pr.acct) {
+    let best = { level: 1, xp: 0 };
+    for (const c of Object.values(pr.chars)) if ((c.level || 1) > best.level || ((c.level || 1) === best.level && (c.xp || 0) > best.xp)) best = { level: c.level || 1, xp: c.xp || 0 };
+    pr.acct = best;
+  }
+  for (const c of Object.values(pr.chars)) linkChar(pr, c);
+}
+const LINKED = Symbol('linked');
+function linkChar(pr, c) {
+  if (c[LINKED]) return c;
+  Object.defineProperty(c, LINKED, { value: true });
+  for (const k of ['level', 'xp']) Object.defineProperty(c, k, { enumerable: true, configurable: true, get: () => pr.acct[k], set: (v) => { pr.acct[k] = v; } });
+  return c;
 }
 function getChar(uid, heroId) {
   const pr = getProfile(uid);
-  pr.chars[heroId] ??= { level: 1, xp: 0, kills: 0, gold: 0 };
+  if (!pr.chars[heroId]) { pr.chars[heroId] = { kills: 0, gold: 0 }; linkChar(pr, pr.chars[heroId]); } // уровень — общий (pr.acct)
   return pr.chars[heroId];
 }
 
@@ -170,6 +190,7 @@ const REF = { newGems: 100, newSpins: 1, l10: { gems: 100 }, l20: { gems: 100, i
 const refCode = (uid) => (/^tg\d+$/.test(uid) ? 'r' + Number(uid.slice(2)).toString(36) : null);
 const refUid = (code) => (/^r[0-9a-z]{1,14}$/.test(code || '') ? 'tg' + parseInt(code.slice(1), 36) : null);
 // При запуске: кто уже пришёл по чьей-то ссылке, но не был засчитан (ошибка до открытия) — засчитать сейчас
+setImmediate(() => { try { for (const uid of Object.keys(profiles)) getProfile(uid); } catch (e) { console.error('levels link', e); } }); // общий уровень: связать героев всех профилей сразу (рейтинги читают pr.chars)
 setImmediate(() => { try { let n = 0; for (const [uid, pr] of Object.entries(profiles)) if (pr.tgInfo && pr.tgInfo.src && !pr.refBy) { refJoin(uid, pr, pr.tgInfo.src); if (pr.refBy) n++; } if (n) { console.log(`[ref] засчитано приглашений задним числом: ${n}`); saveProfiles(); } } catch (e) { console.error('ref migrate', e); } });
 function refJoin(uid, pr, code) {
   const inv = refUid(code);
@@ -432,6 +453,7 @@ setInterval(() => {
 }, 5000);
 
 app.get('/api/config', (req, res) => res.json({
+  heroPerks: Object.fromEntries(Object.keys(C.HEROES).map((id) => [id, Coll.heroPerk(id)])), // «Память героев»: что даёт каждый
   heroes: C.HEROES, rarities: C.RARITIES, monsters: C.MONSTERS, backgrounds: C.LOBBY_BACKGROUNDS, gacha: C.GACHA, skillUnlock: C.SKILL_UNLOCK,
   botName: (bot && bot.botInfo && bot.botInfo.username) || process.env.BOT_USERNAME || null, // для кнопки «Помощь с покупками»
 }));
@@ -1138,7 +1160,7 @@ const pasScaleTaken = (p, m) => (m >= 1 ? m : Math.max(0.3, 1 - (1 - m) * pasK(p
 const DEATH = { xpLoss: 0.15, ms: 5 * 60000, dmg: 0.3, xp: 0.3 }; // слабость после гибели идёт только пока игрок в игре
 function deathPenalty(p) {
   const pr = getProfile(p.uid), need = xpForLevel(p.char.level);
-  const lost = Math.min(p.char.xp, Math.round(need * DEATH.xpLoss)); // уровень не теряется
+  const lost = Math.min(p.char.xp, Math.round(need * DEATH.xpLoss * (1 - Coll.k(pr, 'deathXp')))); // уровень не теряется; «Память героев» (Чернокнижники) — меньше
   p.char.xp -= lost;
   p.deathUntil = pr.deathUntil = Date.now() + DEATH.ms; // сохраняется в профиле — перезаход не снимает
   const lostElx = Object.values(pr.buffs || {}).some((t) => t > Date.now());
@@ -1148,7 +1170,7 @@ function deathPenalty(p) {
   if (MOBX.bal2()) for (const id of Object.values(pr.equip || {})) {
     const it = id && I.findItem(pr, id);
     if (!it || it.cat === 'bag') continue;
-    const was = it.dur ?? 100; it.dur = Math.max(0, was - 10);
+    const was = it.dur ?? 100; it.dur = Math.max(0, Math.round((was - 10 * (1 - Coll.k(pr, 'dur'))) * 10) / 10); // Рыцари в коллекции — износ меньше
     if (was > 0 && it.dur === 0) broke++;
   }
   p.gear = I.gearStats(pr, p.heroId); p.buffSig = '';
@@ -1654,7 +1676,7 @@ function grantXp(p, amount, gold, shared = false) {
   const pr = getProfile(p.uid), now = Date.now();
   const sub = (meta.isSub(pr) ? meta.SHOP.sub.xpBonus : 0) + (meta.SHOP.passXpGold[meta.passTier(pr)] || 0) + reignBonus(p.uid); // подписка + орден (бесплатный Странника — тоже) + клан-владыка
   amount = Math.round(amount * (1 + ((p.gear && p.gear.xp) || 0) / 100 + sub) * S.xpMult * (p.deathUntil > now ? 1 - DEATH.xp : 1));
-  gold = Math.round(gold * (1 + ((p.gear && p.gear.gold) || 0) / 100 + sub) * S.goldMult);
+  gold = Math.round(gold * (1 + ((p.gear && p.gear.gold) || 0) / 100 + sub + Coll.k(pr, 'gold')) * S.goldMult); // + «Память героев» (Тени)
   p.char.xp += amount;
   p.char.gold += gold;
   pr.gold += gold; // общий кошелёк аккаунта

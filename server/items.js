@@ -31,7 +31,7 @@ const ATTRS = {
   hpP:     ['Здоровье', '%', 2, 5],
   def:     ['Защита', '%', 1, 3],
   crit:    ['Шанс крита', '%', 1, 3],
-  critDmg: ['Крит. урон', '%', 5, 12],
+  critDmg: ['Крит. урон', '%', 3, 7],
   aspd:    ['Скорость атаки', '%', 2, 5],
   ls:      ['Вампиризм', '%', 0.5, 1.5],
   skill:   ['Сила умений', '%', 2, 6],
@@ -41,7 +41,9 @@ const ATTRS = {
   xp:      ['Опыт', '%', 3, 8],
 };
 // Предел суммарных процентов (экипировка + комплекты + эликсиры), чтобы топ-билды не ломали игру
-const CAPS = { def: 60, crit: 60, aspd: 80, ls: 25, cdr: 40, ms: 40 };
+// Пересмотрено под 50 уровень с мификами: без «нереальной» игры — бег не быстрее +25%, крит не чаще 40%,
+// крит. урон не выше +150% (удар ×3,5), урон/сила умений/здоровье от вещей — не больше чем вдвое-с-лишним
+const CAPS = { def: 50, crit: 40, critDmg: 150, aspd: 50, ls: 15, cdr: 30, ms: 25, atkP: 100, skill: 120, hpP: 120 };
 
 // ---------- Классы героев (для комплектов) ----------
 const CLASSES = {
@@ -379,7 +381,7 @@ const BUFF_STATS = { atk: { atkP: 10 }, def: { def: 8, hpP: 10 }, agi: { aspd: 1
   xp2: { xp: 50 }, gold2: { gold: 50 }, hero: { atkP: 15, hpP: 15, crit: 5, aspd: 10 }, titan: { def: 15, hpP: 25, ls: 2 } };
 // Удача эликсиров: прибавка к шансу добычи
 const BUFF_LUCK = { luck: 0.15, luck2: 0.3 };
-const buffLuck = (pr, now = Date.now()) => 1 + Object.entries(BUFF_LUCK).reduce((s, [k, v]) => s + ((pr.buffs || {})[k] > now ? v : 0), 0);
+const buffLuck = (pr, now = Date.now()) => 1 + Object.entries(BUFF_LUCK).reduce((s, [k, v]) => s + ((pr.buffs || {})[k] > now ? v : 0), 0) + require('./collection').k(pr, 'luck'); // + Охотники в коллекции
 // Эликсир по ключу баффа (значок в HUD)
 const ELIXIR_OF = Object.fromEntries(Object.entries(MATS).filter(([, m]) => m.kind === 'elixir').map(([id, m]) => [m.buff, id]));
 
@@ -560,6 +562,7 @@ function gearStats(pr, heroId = null) {
   for (const [k, st] of Object.entries(BUFF_STATS)) if ((pr.buffs || {})[k] > now) add(st);
   const cmp = companionOf(pr); if (cmp) add(cmp.bonus); // бонус спутника
   if (heroId) add(treeStats(pr, heroId)); // ветка характеристик и мастерство пассивки из Зала мастеров
+  if (heroId) { const hp = require('./collection').perks(pr).hpP; if (hp) add({ hpP: hp }); } // «Память героев»: Воители — здоровье
   for (const [k, cap] of Object.entries(CAPS)) if (total[k] > cap) total[k] = cap;
   for (const k of Object.keys(total)) total[k] = round1(total[k]);
   return total;

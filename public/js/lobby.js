@@ -6,7 +6,7 @@ window.Lobby = (() => {
   const BACK_SLOTS = [3, 4, 5, 6];
   const RES_KEYS = { 'Мана': 'MP', 'Энергия': 'EP', 'Ярость': 'RP', 'Ци': 'Ци', 'Безумие': 'BP', 'Детали': 'ДТ', 'Руны': 'RP', 'Вера': 'FP', 'Стойкость': 'SP', 'Мрак': 'DP', 'Сила камня': 'SP' };
 
-  let opts, heroes = {}, rarities = {}, backgrounds = [];
+  let opts, heroes = {}, rarities = {}, backgrounds = [], heroPerks = {};
   let profile = { heroes: [], chars: {}, bgs: ['throne', 'forest'], freeSpin: true, paidSpins: 0, spinPrice: 25 };
   let order = []; // полученные герои; order[0] — выбранный
   let bgId = 'city'; // 'city' — фон города, из которого игрок вышел; иначе выбранный фон
@@ -650,6 +650,7 @@ window.Lobby = (() => {
       <h2>${h.name}</h2>
       <div class="reveal-title">«${h.title}»${h.race ? ' · ' + h.race : ''} · ${atk} · ${h.resource.name}</div>
       ${h.tagline ? `<div class="reveal-tagline">— ${h.tagline} —</div>` : ''}
+      ${heroPerks[id] ? `<div class="reveal-perk">🏛️ Память героя (навсегда, всему аккаунту): ${heroPerks[id]}</div>` : ''}
       <p class="reveal-desc">${h.desc}</p>
       ${h.style ? `<p class="reveal-style"><b>Стиль боя:</b> ${h.style}</p>` : ''}
       ${h.skills.map((sk, i) => `<div class="reveal-skill"><span>${SkillArt.icon(id, i, sk.icon)}</span><div><b>${sk.name}</b>
@@ -792,7 +793,7 @@ window.Lobby = (() => {
 
     try {
       const cfg = await (await fetchRetry('/api/config')).json();
-      heroes = cfg.heroes;
+      heroes = cfg.heroes; heroPerks = cfg.heroPerks || {};
       rarities = cfg.rarities;
       backgrounds = cfg.backgrounds;
     } catch {

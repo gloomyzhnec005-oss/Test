@@ -6,7 +6,7 @@ const MSK = 3 * 36e5;
 const dayKey = () => new Date(Date.now() + MSK).toISOString().slice(0, 10);
 
 module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPlayer, notifyUid, save }) {
-  const xpAt = (L) => Math.round(X.XP_NEED(Math.max(1, L)) * 0.12); // ~12% уровня за поручение
+  const xpAt = (L) => Math.round(X.XP_NEED(Math.max(1, L)) * (X.bal2() ? 0.06 : 0.12)); // ~12% уровня за поручение (новый баланс — 6%)
   const TOWN_TIER = { town1: 1, town2: 2, town3: 3 };
   const mobName = (id) => (X.MOBS[id] ? X.MOBS[id].name : id);
 
@@ -22,7 +22,7 @@ module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPl
     const old = q.goal, goal = Math.round(old * k), rk = 1 + (k - 1) * 0.75, r = q.reward;
     const at = q.desc.lastIndexOf(String(old)); // число цели в тексте (последнее вхождение)
     const desc = at < 0 ? q.desc : q.desc.slice(0, at) + goal + q.desc.slice(at + String(old).length);
-    return { ...q, goal, desc, reward: { ...r, gold: r.gold && Math.round(r.gold * rk / 10) * 10, xp: r.xp && Math.round(r.xp * rk),
+    return { ...q, goal, desc, reward: { ...r, gold: r.gold && Math.round(r.gold * rk * (X.bal2() ? 0.5 : 1) / 10) * 10, xp: r.xp && Math.round(r.xp * rk),
       mats: r.mats && Object.fromEntries(Object.entries(r.mats).map(([m, n]) => [m, Math.max(n, Math.round(n * rk))])) } };
   }
   const add = (giver, q) => { q = harder(q); q.giver = giver; Q[q.id] = q; GIVERS[giver].chain.push(q.id); };

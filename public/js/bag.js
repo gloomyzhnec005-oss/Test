@@ -287,6 +287,14 @@ window.Bag = (() => {
       ${row('💰 Золото', '+' + c(F.gold) + '%', F.gold ? '' : 'zero')}${row('📘 Опыт', '+' + c(F.xp) + '%', F.xp ? '' : 'zero')}
     </div><p class="sheet-hint">Оранжевым — достигнут предел. Растут от снаряжения, рун, комплектов, эликсиров, спутника и Зала мастеров (ветка характеристик и пассивка).</p>`;
   }
+  // «Память героев»: бонусы аккаунту за каждого героя в коллекции (по классам, сколько набрано и предел)
+  function memoryBlock() {
+    const M = inv.memory || [];
+    if (!M.length) return '';
+    return `<div class="ic-sec">🏛️ Память героев · героев в коллекции: ${inv.heroesN || 0}</div>
+      <p class="sheet-hint">Каждый герой навсегда даёт небольшой бонус всему аккаунту — свой для каждого класса. Чем реже герой, тем больше.</p>
+      <div class="mem-grid">${M.map((m) => `<div class="mem ${m.value ? 'on' : ''}"><span>${m.icon}</span><div><b>${m.name}</b><small>${m.clsName} · ${m.value ? m.text : '—'} <i>(предел ${m.capText})</i></small></div></div>`).join('')}</div>`;
+  }
   function statsTab() {
     const box = document.createElement('div');
     const h = inv.hero, H = Town.heroes()[h.id], P = inv.power || {};
@@ -297,6 +305,7 @@ window.Bag = (() => {
         <div><small>${ic('crown')}Сила героя</small><b>${P.power || '—'}</b></div><div><small>${ic('hp')}Здоровье</small><b>${P.hp || '—'}</b></div>
         <div><small>${ic('atk')}Атака</small><b>${P.dmg || '—'}</b></div><div><small>${ic('crit')}Крит</small><b>${P.crit || 0}%</b></div>
         <div><small>${ic('xp')}Уровень</small><b>${h.level}</b></div><div><small>${ic('star')}Дубликаты</small><b>${h.dupes}</b></div></div>
+      ${memoryBlock()}
       ${fullStats()}
       <div class="ic-sec">Умения</div>
       <div class="st-skills">${H.skills.map((sk, i) => `<div class="${i < h.unlocked ? '' : 'lock'}"><span>${SkillArt.icon(h.id, i, i < h.unlocked ? sk.icon : '🔒')}</span><b>${sk.name}</b></div>`).join('')}</div>

@@ -43,7 +43,7 @@ const SHOP = {
   marketFee: 0.10, marketFeeSub: 0.05, auctionFee: 0.12, marketSlots: 5, marketSlotsSub: 10, auctionSlots: 3,
   itemSpin: { price: 15, price10: 135 }, // Telegram Stars
   freeItemSpins: 1, freeItemSpinsSub: 2, // бесплатно каждый день
-  pity: 50, // гарантированный легендарный предмет каждые 50 круток
+  pity: 80, // гарантированный легендарный предмет каждые 80 круток (добыча редкая — призыв за ⭐ не должен быть её заменой)
   gemsPerWish: 100, // самоцветов за один призыв снаряжения, если печатей нет (≈ цене печати в ⭐; призыв героя — 160, server/wish.js)
   gems: { gems1: { gems: 330, amount: 50 }, gems2: { gems: 1090, amount: 150 }, gems3: { gems: 2240, amount: 300 }, gems4: { gems: 6480, amount: 800 } }, // пачки самоцветов за Stars
   pass: { levels: 30, xpPerLevel: 100, days: 30 },
@@ -71,7 +71,7 @@ const gearBanner = (t = Date.now()) => {
   const week = Math.floor((t - Date.UTC(2024, 0, 1)) / (7 * DAY)), cls = Object.keys(I.CLASSES)[week % Object.keys(I.CLASSES).length];
   return { cls, name: I.CLASSES[cls].name, ends: Date.UTC(2024, 0, 1) + (week + 1) * 7 * DAY };
 };
-const ITEM_GACHA = { rare: 65.5, epic: 30, legendary: 4, mythic: 0.5 }; // мифики редки и в добыче — призыв за ⭐ не должен быть проще
+const ITEM_GACHA = { rare: 66.6, epic: 30, legendary: 3, mythic: 0.4 }; // мифики редки и в добыче — призыв за ⭐ не должен быть проще
 
 const isSub = (pr) => (pr.subUntil || 0) > Date.now();
 // Размер инвентаря: база (подписка — больше) + надетая сумка
@@ -113,7 +113,8 @@ const passReady = (pr) => {
 function addPassXp(pr, n) {
   const ps = passOf(pr);
   const k = ps.tier >= 2 ? 1.5 : 1; // Серебряный орден и выше: опыт пропуска +50%
-  ps.xp = Math.min(SHOP.pass.levels * SHOP.pass.xpPerLevel, ps.xp + Math.round(n * k));
+  const f = n * k * (1 + require('./collection').k(pr, 'passXp')); // Светоносцы в коллекции — опыт ордена быстрее
+  ps.xp = Math.min(SHOP.pass.levels * SHOP.pass.xpPerLevel, ps.xp + Math.floor(f) + (Math.random() < f % 1 ? 1 : 0));
 }
 // Счёт на орден: цена — разница с уже купленным в этом сезоне
 // Личная цена ордена (админка → игрок → «Личная цена ордена»): { tier, stars } — разово, на один указанный орден.
@@ -189,7 +190,7 @@ module.exports = function createMeta(deps) {
   // Цена материала в лавке мира tier (у материалов мира цена своя, свитки и зелья дорожают по миру лавки)
 // Новый баланс: золота с монстров вчетверо меньше — цены лавок снижены, чтобы ~1 час фарма своего мира хватало
   // на запас зелий и пару эликсиров, а вещи лавки оставались запасным вариантом (дешевле продажи назад не бывает)
-  const B2K = { potion: 0.2, elixir: 0.25, mat: 0.4, scroll: 0.5 };
+  const B2K = { potion: 0.4, elixir: 0.25, mat: 0.4, scroll: 0.5 }; // зелья — вдвое дороже прежнего снижения: осторожнее в бою, автобой тратит золото
   const b2k = (kind) => (require('./mobs').bal2() ? B2K[kind] || 1 : 1);
   const shopPrice = (id, tier) => Math.max(Math.round(I.MATS[id].price * (I.MATS[id].tier ? 1 : F(tier)) * b2k(I.MATS[id].kind)), Math.round((I.MATS[id].buy || 0) * (I.MATS[id].tier ? 1 : F(tier)) * 1.5));
 
@@ -239,7 +240,7 @@ module.exports = function createMeta(deps) {
     const pr = getProfile(p.uid);
     const st = I.setState(pr, p.heroId);
     return {
-      items: (pr.items || []).map(I.itemView), equip: pr.equip, gear: I.gearStats(pr, p.heroId), gold: pr.gold,
+      items: (pr.items || []).map(I.itemView), equip: pr.equip, gear: I.gearStats(pr, p.heroId), gold: pr.gold, memory: require('./collection').view(pr), heroesN: (pr.heroes || []).length,
       mats: Object.entries(pr.mats || {}).filter(([id, n]) => n > 0 && I.MATS[id]).map(([id, n]) => I.matView(id, n, tierOf(p))),
       sets: { counts: st.counts, active: st.active, cls: st.cls, clsName: st.cls ? I.CLASSES[st.cls].name : null },
       bagSize: bagSize(pr), bagBase: isSub(pr) ? SHOP.bagSub : SHOP.bag, whSize: whSize(pr), whLvl: pr.whLvl || 0, whNext: WH_UPGRADES[pr.whLvl || 0] || null, whMax: WH_UPGRADES.length, sub: isSub(pr) ? pr.subUntil : 0, buffs: pr.buffs || {}, tier: tierOf(p),
@@ -688,11 +689,12 @@ module.exports = function createMeta(deps) {
         if (now < (p.potionAt || 0)) return { error: `Зелье будет готово через ${Math.ceil((p.potionAt - now) / 1000)} с` };
         if (m.heal && !m.res && p.hp >= p.maxHp) return { error: 'Здоровье и так полное' }; // не тратим зелье впустую
         p.potionAt = now + 8000;
-        if (m.heal) { healed = Math.round(Math.min(p.maxHp - p.hp, p.maxHp * m.heal)); p.hp = Math.min(p.maxHp, p.hp + p.maxHp * m.heal); msg = `${m.icon} +${healed} здоровья`; }
+        const hk = m.heal ? m.heal * (1 + require('./collection').k(pr, 'potion')) : 0; // Друиды в коллекции — зелья сильнее
+        if (m.heal) { healed = Math.round(Math.min(p.maxHp - p.hp, p.maxHp * hk)); p.hp = Math.min(p.maxHp, p.hp + p.maxHp * hk); msg = `${m.icon} +${healed} здоровья`; }
         if (m.res) { p.res = Math.min(p.resMax, p.res + p.resMax * m.res); msg = `${m.icon} ресурс восстановлен`; }
       } else if (m.kind === 'elixir') {
         pr.buffs ??= {};
-        const mins = m.mins || 30;
+        const mins = Math.round((m.mins || 30) * (1 + require('./collection').k(pr, 'elixir'))); // Стихийники в коллекции — дольше
         pr.buffs[m.buff] = Math.max(now, pr.buffs[m.buff] || 0) + mins * 60000;
         msg = `${m.icon} ${m.name}: ещё ${mins >= 60 ? `${mins / 60} ч` : `${mins} минут`}`;
       } else if (m.kind === 'scrollTp') {
