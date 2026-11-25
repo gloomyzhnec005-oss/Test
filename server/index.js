@@ -365,7 +365,7 @@ app.get('/api/wiki', (req, res) => {
       towns, unlock: C.SKILL_UNLOCK, heroRar: Object.fromEntries(Object.entries(C.RARITIES).map(([k, r]) => [k, { name: r.name, color: r.color }])),
       heroes: Object.entries(C.HEROES).map(([id, h]) => ({ id, name: h.name, title: h.title, rarity: h.rarity, cls: I.classOf(id), range: h.range, res: h.resource.name, passive: h.passive && h.passive.name })),
       classes: Object.fromEntries(Object.entries(I.CLASSES).map(([k, c]) => [k, { name: c.name, icon: c.icon }])),
-      itemRar: I.ITEM_RARITIES, rarOrder: I.RARITY_ORDER, drops: C.DROPS, slots: I.SLOT_NAMES, attrs: I.ATTRS, caps: I.CAPS,
+      itemRar: I.ITEM_RARITIES, rarOrder: I.RARITY_ORDER, drops: MOBX.bal2() ? { ...C.DROPS, chance: C.DROPS.chance * 0.25, weights: Object.fromEntries(Object.entries(C.DROPS.weights).map(([t, w]) => [t, dropW2(w, 'normal')])) } : C.DROPS, bal2: MOBX.bal2(), slots: I.SLOT_NAMES, attrs: I.ATTRS, caps: I.CAPS,
       wish: { rates: Wish.RATES, soft: Wish.SOFT, hard: Wish.HARD, legEvery: Wish.LEG_EVERY, gemsPerWish: Wish.GEMS_PER_WISH, dupeMax: C.GACHA.heroDupeMax },
       gear: { pity: meta.SHOP.pity, free: meta.SHOP.freeItemSpins, freeSub: meta.SHOP.freeItemSpinsSub, gemsPerWish: meta.SHOP.gemsPerWish },
       craft: I.WORLD_CRAFT, luck: I.LUCK_STONE, upgrade: I.UPGRADE, craftSlots: I.CRAFT_SLOTS, mats: Object.fromEntries(Object.entries(I.MATS).filter(([, m]) => !m.removed).map(([k, m]) => [k, { name: m.name, icon: m.icon, kind: m.kind, desc: m.desc, buy: m.buy }])),
