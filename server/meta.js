@@ -10,9 +10,10 @@ const dayKey = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
 // В каждом разделе две вещи за самоцветы (price, 💎), остальные — за GRAM (stars: цена в ⭐, в GRAM — по курсу, с GRAM-баланса)
 const COSMETICS = {
   name: {
-    crimson: { name: 'Алое имя', color: '#ff6a5a', price: 900 }, azure: { name: 'Лазурное имя', color: '#6ac8ff', price: 900 },
+    // Красный и розовый цвет имени заняты опасным данжем (убийца / напавший) — у купивших они заменены на янтарный и бирюзовый
+    crimson: { name: 'Янтарное имя', color: '#ffa64a', price: 900 }, azure: { name: 'Лазурное имя', color: '#6ac8ff', price: 900 },
     emerald: { name: 'Изумрудное имя', color: '#6aff9a', stars: 240 }, violet: { name: 'Фиолетовое имя', color: '#c890ff', stars: 240 },
-    rose: { name: 'Розовое имя', color: '#ff8ad8', stars: 240 }, gold: { name: 'Золотое имя', color: '#ffd36a', stars: 400 },
+    rose: { name: 'Бирюзовое имя', color: '#5ae6d0', stars: 240 }, gold: { name: 'Золотое имя', color: '#ffd36a', stars: 400 },
   },
   aura: {
     frost: { name: 'Ледяное сияние', color: 0x8ad3ff, price: 1200 }, life: { name: 'Сияние жизни', color: 0x6aff8a, price: 1200 },
@@ -690,9 +691,10 @@ module.exports = function createMeta(deps) {
         if (now < (p.potionAt || 0)) return { error: `Зелье будет готово через ${Math.ceil((p.potionAt - now) / 1000)} с` };
         if (m.heal && !m.res && p.hp >= p.maxHp) return { error: 'Здоровье и так полное' }; // не тратим зелье впустую
         p.potionAt = now + 8000;
-        const hk = m.heal ? m.heal * (1 + require('./collection').k(pr, 'potion')) : 0; // Друиды в коллекции — зелья сильнее
+        const pkz = /^pk_/.test(String(p.zone)); // опасный данж: зелья на 70% слабее (и лечение, и ресурс)
+        const hk = m.heal ? m.heal * (1 + require('./collection').k(pr, 'potion')) * (pkz ? 0.3 : 1) : 0; // Друиды в коллекции — зелья сильнее
         if (m.heal) { healed = Math.round(Math.min(p.maxHp - p.hp, p.maxHp * hk)); p.hp = Math.min(p.maxHp, p.hp + p.maxHp * hk); msg = `${m.icon} +${healed} здоровья`; }
-        if (m.res) { p.res = Math.min(p.resMax, p.res + p.resMax * m.res); msg = `${m.icon} ресурс восстановлен`; }
+        if (m.res) { p.res = Math.min(p.resMax, p.res + p.resMax * m.res * (pkz ? 0.3 : 1)); msg = `${m.icon} ресурс восстановлен`; }
       } else if (m.kind === 'elixir') {
         pr.buffs ??= {};
         const mins = Math.round((m.mins || 30) * (1 + require('./collection').k(pr, 'elixir'))); // Стихийники в коллекции — дольше

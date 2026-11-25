@@ -876,8 +876,31 @@ window.GameScene = class GameScene extends Phaser.Scene {
     e.bar.fillColor = k > 0.5 ? 0x5ad65a : k > 0.25 ? 0xffc040 : 0xe24c4c;
   }
 
+  // Вещи на земле (опасный данж): значок цвета редкости и название; тап — подобрать (герой должен быть рядом)
+  syncGround(list) {
+    const have = this.groundObjs || (this.groundObjs = new Map());
+    if (list === undefined) { for (const g of have.values()) { g.img.destroy(); g.txt.destroy(); } have.clear(); return; }
+    const LOOT = { '#b8c4d6': 'lootCommon', '#4da3ff': 'lootRare', '#b86bff': 'lootEpic', '#ffb340': 'lootLegend', '#ff4d6a': 'lootLegend' };
+    const seen = new Set();
+    for (const [id, x, y, color, name, owner] of list) {
+      seen.add(id);
+      if (have.has(id)) continue;
+      const key = 'loot_' + (LOOT[String(color).toLowerCase()] || 'lootCommon');
+      const img = (this.textures.exists(key) ? this.add.image(x, y, key).setDisplaySize(28, 28) : this.add.circle(x, y, 9, parseInt(String(color).slice(1), 16))).setDepth(5 + y);
+      const txt = this.add.text(x, y - 20, name, { fontFamily: 'Georgia, serif', fontSize: '10px', color, stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(2999);
+      img.setInteractive({ useHandCursor: true }).on('pointerdown', (ptr) => {
+        if (this.uiBlocked(ptr)) return;
+        this.net.emit('pickup', { id }, (r) => { if (r && window.Town) Town.toast(r.error || r.toast); });
+      });
+      this.tweens.add({ targets: img, y: y - 4, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      have.set(id, { img, txt });
+    }
+    for (const [id, g] of have) if (!seen.has(id)) { g.img.destroy(); g.txt.destroy(); have.delete(id); }
+  }
+
   onState(s) {
     this.netClock(s.ts);
+    this.syncGround(s.gl);
     // Игроки
     const seen = new Set();
     for (const p of s.p) {
@@ -926,6 +949,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
         }
       }
       this.setBar(e, p.hp, p.maxHp);
+      // PvP-щит (опасный данж и арены): синяя полоса над полосой здоровья — сначала бьют по нему
+      if (p.psh !== undefined) {
+        if (!e.shBar) { e.shBar = this.add.rectangle(-14, e.bar.y - 5, 28, 3, 0x4aa8ff).setOrigin(0, 0.5); e.shBg = this.add.rectangle(0, e.bar.y - 5, 28, 3, 0x0a1a30).setOrigin(0.5); e.c.add([e.shBg, e.shBar]); }
+        e.shBar.width = (e.bigBar || 28) * Phaser.Math.Clamp(p.psh, 0, 1); e.shBar.y = e.shBg.y = e.bar.y - 5;
+      } else if (e.shBar) { e.shBar.destroy(); e.shBg.destroy(); e.shBar = e.shBg = null; }
       e.c.setAlpha(p.dead ? 0.35 : 1);
       // Аура усиления (рёв ярости, кровавое безумие)
       if (p.rage && !e.aura && e.skinOn && HeroFx.hasFx(this, e.skin, 'aura')) {
