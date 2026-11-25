@@ -1565,3 +1565,16 @@ canvas.skin { object-fit: contain; }
 .salv-quick .l2-btn { padding: 6px 10px; font-size: 13px; }
 .salv-foot { position: sticky; bottom: 0; margin-top: 8px; padding: 8px; border-radius: 10px; background: rgba(20,14,8,.92); border: 1px solid #5a4830; display: grid; gap: 6px; font-size: 13px; }
 .ic-attr.lost { opacity: .55; }
+.salv-got { display: flex; flex-wrap: wrap; gap: 8px; }
+.salv-m { display: flex; flex-direction: column; align-items: center; width: 74px; text-align: center; }
+.salv-m .it { width: 56px; height: 56px; }
+.salv-m small { font-size: 11px; line-height: 1.2; color: #e8d7b0; }
+
+/* Окно «Обновления» */
+.news-box { display: grid; gap: 10px; }
+.news-post { padding: 10px 12px; border-radius: 12px; border: 1px solid #5a4830; background: rgba(255,255,255,.04); }
+.news-post.fresh { border-color: #c9a25a; box-shadow: 0 0 12px rgba(201,162,90,.35); }
+.news-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.news-h b { color: #ffe7a8; font-size: 15px; }
+.news-h small { color: #a8977a; white-space: nowrap; }
+.news-post ul { margin: 0; padding-left: 4px; list-style: none; display: grid; gap: 5px; font-size: 14px; color: #e8d7b0; }

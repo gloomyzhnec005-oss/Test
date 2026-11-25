@@ -370,7 +370,7 @@ Object.assign(MATS, {
   tpScroll: { name: 'Свиток возвращения', icon: '🌀', color: '#5fd1c8', kind: 'scrollTp', desc: 'Мгновенно переносит в город текущего мира.', price: 60, buy: 10 },
   // Платные ларцы (Telegram Stars) — открываются в сумке, мир берётся по месту открытия
   kitSmith: { name: 'Сундук кузнеца', icon: '🧰', color: '#ffd36a', kind: 'chest', desc: '30 руды, 15 эссенции и 2 свитка мастера мира, где вы его открыли.', price: 0, buy: 0 },
-  chestSet: { name: 'Ларец комплекта', icon: '🎁', color: '#ffb340', kind: 'chest', desc: 'Вещь комплекта вашего класса мира, где вы открыли ларец: эпическая, 25% легендарная, 3% мифическая.', price: 0, buy: 0 },
+  chestSet: { name: 'Ларец комплекта', icon: '🎁', color: '#ffb340', kind: 'chest', desc: 'Вещь комплекта вашего класса мира, где вы открыли ларец: эпическая, 15% легендарная, 1,5% мифическая.', price: 0, buy: 0 },
   chestLegend: { name: 'Ларец грандмастера', icon: '👑', color: '#ff4d6a', kind: 'chest', desc: '2 свитка грандмастера и 1 редкий материал мира, где вы его открыли.', price: 0, buy: 0 },
 });
 // Бонусы эликсиров (добавляются к статам экипировки, пока действуют)
@@ -682,11 +682,11 @@ function migrate(pr) {
 }
 
 // Описание предмета для клиента
-// Ремонт: доля потерянной прочности × 60% цены продажи вещи (мин. 10 золота)
+// Ремонт: доля потерянной прочности × 30% цены продажи вещи (мин. 10 золота)
 function repairCost(it) {
   if (it.dur === undefined || it.dur >= 100) return 0;
   const R = ITEM_RARITIES[it.rar] || { sell: 10 };
-  return Math.max(10, Math.ceil(R.sell * (TIER_MULT[it.tier] || 1) * (100 - it.dur) / 100 * 0.6));
+  return Math.max(10, Math.ceil(R.sell * (TIER_MULT[it.tier] || 1) * (100 - it.dur) / 100 * 0.3));
 }
 function itemView(it) {
   const t = TEMPLATES[it.cat][it.tpl];

@@ -261,6 +261,10 @@ app.post('/api/ref', (req, res) => {
   if (!who || !who.tg) return res.status(403).json({ error: 'Приглашения доступны в игре через Telegram' });
   res.json(refInfoUid(who.uid));
 });
+// Окно «Обновления»: только опубликованные (не черновики), новые сверху
+const NEWS = require('./news');
+app.get('/api/news', (req, res) => res.json({ list: NEWS.filter((n) => !n.draft).slice(0, 20) }));
+
 app.post('/api/profile', (req, res) => {
   const { initData, guestId } = req.body || {};
   const who = resolveUid(initData, guestId);
@@ -1210,6 +1214,7 @@ const zoneOf = (e) => world.zoneAtX(e.x);
 function moveToZone(p, zoneId, pos) {
   const z = world.byId.get(zoneId);
   if (!z) return;
+  if (p.zone && p.zone !== zoneId) flushChests(p); // ушёл из зоны — неоткрытая добыча из сундуков сразу в сумку
   if (p.zone) p.socket.leave('z:' + p.zone);
   p.zone = z.id;
   p.zoneTier = z.tier;
@@ -1729,11 +1734,55 @@ function shareKill(killer, m, xp) {
 function dropLoot(killer, m) {
   const tier = m.tier || 1, boss = m.rank === 'boss' || m.rank === 'mini';
   if (m.rank === 'world') return; // награда мирового босса — по вкладу (server/dungeon.js)
-  // Босс и полубосс оставляют сундук: клиент открывает его, и добыча вылетает из него
-  if (boss) fx.push({ t: 'chest', x: m.x, y: m.y + 10, big: m.rank === 'boss' });
   const receivers = boss ? partyMembers(killer).filter((o) => o.zone === killer.zone && Math.hypot(o.x - m.x, o.y - m.y) < 900) : [killer];
+  // Босс и полубосс оставляют сундук: добыча каждого из группы лежит в нём, пока он не нажмёт на сундук
+  // (в автобое, при уходе из зоны, выходе из игры и через 3 минуты — открывается сам, ничего не теряется)
+  let chest = null;
+  if (boss) {
+    chest = { id: 'c' + (++chestSeq), x: m.x, y: m.y + 10, zone: m.zone, big: m.rank === 'boss', until: Date.now() + CHEST_MS, pend: new Map() };
+    chests.set(chest.id, chest);
+  }
   for (const o of receivers) {
     if (boss && D.overFor(o, m)) continue; // перерос данж — с его босса и полубоссов добычи нет
+    if (chest) chest.pend.set(o.uid, () => lootFor(o, m, tier, boss, { x: chest.x, y: chest.y }));
+    else lootFor(o, m, tier, boss, m);
+  }
+  if (chest) {
+    fx.push({ t: 'chest', id: chest.id, x: chest.x, y: chest.y, big: chest.big, own: [...receivers].filter((o) => chest.pend.has(o.uid)).map((o) => o.id) });
+    for (const o of receivers) if (o.autofarm) openChest(o, chest.id); // автобой — сундук открывается сам
+    if (!chest.pend.size) chests.delete(chest.id);
+  }
+}
+// Сундуки боссов с неоткрытой добычей
+const chests = new Map();
+let chestSeq = 0;
+const CHEST_MS = 3 * 60e3;
+function openChest(o, id, auto = false) {
+  const c = chests.get(id);
+  if (!c) return { error: 'Сундук уже пуст' };
+  const fn = c.pend.get(o.uid);
+  if (!fn) return { error: 'В этом сундуке нет вашей добычи' };
+  if (!auto && (o.zone !== c.zone || Math.hypot(o.x - c.x, o.y - c.y) > 220)) return { error: 'Подойдите к сундуку' };
+  c.pend.delete(o.uid);
+  if (!c.pend.size) chests.delete(id);
+  fx.push({ t: 'chestOpen', id, x: c.x, y: c.y, to: o.id, big: c.big });
+  try { fn(); } catch (e) { console.error('chest loot', e); }
+  return { ok: true };
+}
+// Уход из зоны, выход из игры: всё своё из сундуков — сразу в сумку
+function flushChests(o) {
+  for (const c of [...chests.values()]) if (c.pend.has(o.uid)) openChest(o, c.id, true);
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const c of [...chests.values()]) {
+    if (now < c.until) continue;
+    for (const uid of [...c.pend.keys()]) { const o = [...players.values()].find((x) => x.uid === uid); if (o) openChest(o, c.id, true); else c.pend.delete(uid); }
+    chests.delete(c.id);
+  }
+}, 5000);
+function lootFor(o, m, tier, boss, at) {
+  {
     const pr = getProfile(o.uid);
     meta.addPassXp(pr, m.rank === 'boss' ? 20 : m.rank === 'mini' ? 8 : m.rank === 'rare' ? 2 : m.rank === 'magic' ? 1 : Math.random() < 0.12 ? 1 : 0); // орден — на ~3–4 недели обычной игры, а не на пару вечеров
     const luck = I.buffLuck(pr); // эликсиры удачи
@@ -1741,16 +1790,16 @@ function dropLoot(killer, m) {
     const B2 = MOBX.bal2(), dropK = B2 ? 0.25 : 1; // новый баланс: вещей и материалов вчетверо меньше
     const rolls = m.rank === 'boss' ? (B2 ? 1 + (Math.random() < 0.5 ? 1 : 0) : 2) : m.rank === 'mini' ? 1 : Math.random() < C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult * dropK ? 1 : 0;
     const wt = m.rank === 'boss' ? C.DROPS.boss[tier] : m.rank === 'mini' ? C.DROPS.mini[tier] : C.DROPS.weights[tier];
-    for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, B2 ? dropW2(wt, m.rank) : wt, null, o.heroId), m); // 75% — под класс героя
+    for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, B2 ? dropW2(wt, m.rank) : wt, null, o.heroId), at); // 75% — под класс героя
     // Сумки — редкость: босс 3% (эпическая), полубосс 1% (редкая, 20% — эпическая)
-    if (boss && Math.random() < (m.rank === 'boss' ? 0.03 : 0.01) * luck) giveLoot(o, pr, I.createBag(m.rank === 'boss' || Math.random() < 0.2 ? 'epic' : 'rare', tier), m);
+    if (boss && Math.random() < (m.rank === 'boss' ? 0.03 : 0.01) * luck) giveLoot(o, pr, I.createBag(m.rank === 'boss' || Math.random() < 0.2 ? 'epic' : 'rare', tier), at);
     // Материалы, свитки, чертежи и вещи комплектов данжа (server/loot.js)
     const z = world.byId.get(m.zone);
     const dungeon = z && z.kind === 'dungeon' ? { sets: Loot.dungeonSets(z.tier, z.dgIndex) } : null;
     if (m.rank === 'boss') companionDrop(o, 0.005);
     const drop = Loot.rollMats(m, tier, dungeon, luck * (m.lootMult ?? 1) * S.dropMult * dropK);
-    giveMats(o, pr, drop.mats, m);
-    for (const it of drop.items) giveLoot(o, pr, it, m);
+    giveMats(o, pr, drop.mats, at);
+    for (const it of drop.items) giveLoot(o, pr, it, at);
   }
 }
 // Новый баланс — редкости добычи: легендарные с обычных монстров в 10 раз реже (с полубоссов и боссов — в 3 раза),
@@ -2238,6 +2287,11 @@ io.on('connection', (socket) => {
     cb(Arena.info(p));
   });
 
+  socket.on('openChest', (d = {}, cb) => {
+    const p = players.get(socket.id);
+    const r = p && !p.dead ? openChest(p, String(d.id || '')) : { error: 'Недоступно' };
+    if (typeof cb === 'function') cb(r);
+  });
   socket.on('autofarm', (on) => {
     const p = players.get(socket.id);
     if (!p) return;
@@ -2248,6 +2302,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', (reason) => {
     const p = players.get(socket.id);
     if (!p || p.socket !== socket) return;
+    try { flushChests(p); } catch (e) { console.error('chest flush', e); }
     // Обрыв связи (не выход из игры): герой ждёт в мире, пока игрок не переподключится
     if (reason !== 'client namespace disconnect' && reason !== 'server namespace disconnect' && !p.match) {
       p.offline = true; p.autofarm = false;
@@ -2580,7 +2635,7 @@ setInterval(() => {
 const VIEW = { x: 520, y: 720 };
 let tickNo = 0;
 // Эффекты, которые нельзя терять при плохой связи: гибель монстра, сундук, добыча, повышение уровня
-const FX_KEEP = new Set(['death', 'chest', 'loot', 'levelup', 'pdeath', 'skill', 'heal', 'shield', 'absorb', 'dodge']);
+const FX_KEEP = new Set(['death', 'chest', 'chestOpen', 'loot', 'levelup', 'pdeath', 'skill', 'heal', 'shield', 'absorb', 'dodge']);
 // Умения и лечение при плохой связи тоже не теряем (иначе умение «не срабатывало» — ни картинки, ни звука), но только те, что рядом
 const FX_NEAR = new Set(['skill', 'heal', 'shield', 'absorb', 'dodge']);
 // Пустые флаги состояния монстров не отправляем: пакет в разы меньше — на медленной связи не копится очередь
@@ -2684,8 +2739,13 @@ admin.setWipe((keep) => {
   for (const uid of Object.keys(profiles)) if (!keep.has(uid)) {
     const old = profiles[uid], remind = old.remindOpen, gram = old.gram, pays = old.payments;
     const lvl = Math.max(old.wdLevel || 0, ...Object.values(old.chars || {}).map((c) => c.level || 0));
+    // Приглашения переживают обнуление: кто кого пригласил, список друзей, заработанное с них и источник визита.
+    // Флаги «друг дошёл до 10/20 уровня» тоже — награда за одного друга не выдаётся дважды
+    const REF_KEEP = ['refBy', 'refAt', 'refs', 'refN', 'refGram', 'refL10', 'refL20', 'tgInfo'];
+    const ref = Object.fromEntries(REF_KEEP.filter((k) => old[k] !== undefined).map((k) => [k, old[k]]));
     delete profiles[uid]; nP++;
-    const np = (remind || gram || pays) ? getProfile(uid) : null;
+    const np = (remind || gram || pays || Object.keys(ref).length) ? getProfile(uid) : null;
+    if (np) Object.assign(np, ref);
     if (remind) np.remindOpen = true; // подписку «Напомнить об открытии» сохраняем — это не прогресс
     // GRAM-кошелёк; дата регистрации и достигнутый уровень — чтобы условия вывода (30 ур., 7 дней) не «сбросились» вайпом
     if (gram) { np.gram = gram; np.created = old.created || np.created; if (lvl >= 30) np.wdLevel = lvl; nG++; }

@@ -1258,6 +1258,21 @@ window.GameScene = class GameScene extends Phaser.Scene {
   }
 
   // Вспышка частиц: один общий генератор на сцену вместо нового на каждый удар
+  // Лучи света из открытого сундука: веер вращающихся золотых лучей и вспышка
+  chestRays(x, y, big) {
+    const g = this.add.graphics({ x, y }).setDepth(2999).setBlendMode(Phaser.BlendModes.ADD);
+    const R = big ? 120 : 90, n = 12;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2, w = 0.11;
+      g.fillStyle(i % 2 ? 0xffe9a0 : 0xffc24a, 0.55);
+      g.fillTriangle(0, 0, Math.cos(a - w) * R, Math.sin(a - w) * R, Math.cos(a + w) * R, Math.sin(a + w) * R);
+    }
+    g.fillStyle(0xfff6d0, 0.9).fillCircle(0, 0, big ? 16 : 12);
+    g.setScale(0.2).setAlpha(0.95);
+    this.tweens.add({ targets: g, scale: 1, angle: 40, duration: 900, ease: 'Cubic.easeOut' });
+    this.tweens.add({ targets: g, alpha: 0, delay: 500, duration: 700, onComplete: () => g.destroy() });
+  }
+
   burst(x, y, color, n = 10) {
     if (!this.burstEm || !this.burstEm.scene) {
       this.burstEm = this.add.particles(0, 0, 'particle', { speed: { min: 40, max: 140 }, lifespan: 450, scale: { start: 1, end: 0 }, emitting: false, maxParticles: 400 }).setDepth(900);
@@ -1464,25 +1479,55 @@ window.GameScene = class GameScene extends Phaser.Scene {
     } else if (f.t === 'petGone') {
       this.burst(f.x, f.y, 0x5fffb0, 10);
     } else if (f.t === 'chest') {
-      // Сундук на месте босса: падает, открывается — добыча вылетает из него
+      // Сундук босса: падает и светится. Своя добыча — внутри: нажмите, чтобы открыть (в автобое открывается сам)
       if (!this.textures.exists('prop_chestClosed')) return;
-      if (window.Sfx) this.time.delayedCall(450, () => Sfx.play('chest'));
+      const mine = (f.own || []).includes(this.myId);
       const s = f.big ? 1.25 : 1;
       const img = this.add.image(f.x, f.y - 60, 'prop_chestClosed').setOrigin(0.5, 1).setScale(s).setDepth(10 + f.y).setAlpha(0);
-      this.zoneObjs.push(img);
-      const chest = { x: f.x, y: f.y, openAt: performance.now() + 650, n: 0 };
-      (this.chests = (this.chests || []).filter((c) => performance.now() - c.openAt < 60000)).push(chest);
+      const glow = mine ? this.add.ellipse(f.x, f.y - 14 * s, 70 * s, 34 * s, 0xffd36a, 0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(9 + f.y) : null;
+      const tip = mine ? this.add.text(f.x, f.y - 52 * s, '👆 Открыть', { fontFamily: 'Georgia, serif', fontSize: '11px', color: '#ffe7a8', stroke: '#2a1a08', strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(3000).setAlpha(0) : null;
+      this.zoneObjs.push(img); if (glow) this.zoneObjs.push(glow); if (tip) this.zoneObjs.push(tip);
+      const chest = { id: f.id, x: f.x, y: f.y, openAt: Infinity, n: 0, img, glow, tip, big: f.big, s };
+      (this.chests = (this.chests || []).filter((c) => c.img && c.img.active)).push(chest);
       this.tweens.add({ targets: img, y: f.y, alpha: 1, duration: 380, ease: 'Bounce.easeOut' });
-      this.time.delayedCall(650, () => {
-        if (!img.active) return;
-        img.setTexture('prop_chestOpen');
-        this.burst(f.x, f.y - 16, 0xffd36a, 22);
-        Sfx.play('reward');
+      if (window.Sfx) this.time.delayedCall(300, () => Sfx.play('chest'));
+      if (mine) {
+        this.tweens.add({ targets: glow, alpha: 0.12, scaleX: 1.25, scaleY: 1.25, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        this.tweens.add({ targets: tip, alpha: 1, y: tip.y - 6, duration: 600, delay: 400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        img.setInteractive({ useHandCursor: true }).on('pointerdown', (ptr) => {
+          if (this.uiBlocked(ptr) || chest.asked) return;
+          chest.asked = true;
+          this.net.emit('openChest', { id: f.id }, (r) => {
+            chest.asked = false;
+            if (r && r.error && window.Town) Town.toast(r.error);
+          });
+        });
+        // Подсказка, если игрок не заметил сундук
+        this.time.delayedCall(1500, () => { if (chest.openAt === Infinity && window.Town) Town.toast('📦 Сундук босса — нажмите на него, чтобы забрать добычу'); });
+      }
+      this.time.delayedCall(185000, () => { if (img.active) this.tweens.add({ targets: [img, glow, tip].filter(Boolean), alpha: 0, duration: 800, onComplete: () => { img.destroy(); if (glow) glow.destroy(); if (tip) tip.destroy(); } }); });
+    } else if (f.t === 'chestOpen') {
+      // Открытие своего сундука: дрожит, крышка распахивается, лучи света и золотые искры — добыча вылетает следом
+      const ch = (this.chests || []).find((c) => c.id === f.id);
+      if (!ch || f.to !== this.myId) return;
+      ch.openAt = performance.now() + 520;
+      ch.img.disableInteractive();
+      if (ch.tip) ch.tip.destroy();
+      this.tweens.add({ targets: ch.img, x: ch.x + 3, duration: 55, yoyo: true, repeat: 4, ease: 'Sine.easeInOut', onComplete: () => { ch.img.x = ch.x; } });
+      this.time.delayedCall(520, () => {
+        if (!ch.img.active) return;
+        ch.img.setTexture('prop_chestOpen');
+        this.tweens.add({ targets: ch.img, scaleX: ch.s * 1.12, scaleY: ch.s * 0.9, duration: 90, yoyo: true });
+        this.chestRays(ch.x, ch.y - 18 * ch.s, ch.big);
+        this.burst(ch.x, ch.y - 16, 0xffd36a, 26);
+        if (ch.glow) { this.tweens.killTweensOf(ch.glow); this.tweens.add({ targets: ch.glow, alpha: 0, scaleX: 2, scaleY: 2, duration: 900, onComplete: () => ch.glow.destroy() }); }
+        if (window.Sfx) Sfx.play('reward');
+        this.ui.vibrate('success');
       });
-      this.time.delayedCall(60000, () => { if (img.active) this.tweens.add({ targets: img, alpha: 0, duration: 800, onComplete: () => img.destroy() }); });
+      this.time.delayedCall(20000, () => { if (ch.img.active) this.tweens.add({ targets: ch.img, alpha: 0, duration: 800, onComplete: () => ch.img.destroy() }); });
     } else if (f.t === 'loot') {
       // Выпавший предмет: название цветом редкости. Если рядом сундук босса — вылетает из него после открытия
-      const ch = (this.chests || []).find((c) => Math.hypot(c.x - f.x, c.y - f.y) < 60 && performance.now() - c.openAt < 3000);
+      const ch = (this.chests || []).find((c) => c.openAt !== Infinity && Math.hypot(c.x - f.x, c.y - f.y) < 60 && performance.now() - c.openAt < 3000);
       // Значок добычи на земле: сундучок цвета редкости, у материалов — свиток
       const LOOT = { '#b8c4d6': 'lootCommon', '#4da3ff': 'lootRare', '#b86bff': 'lootEpic', '#ffb340': 'lootLegend', '#ff4d6a': 'lootLegend' };
       const show = (x, y) => {

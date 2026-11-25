@@ -53,15 +53,15 @@ const SHOP = {
   passTiers: [
     { tier: 1, id: 'bronze', icon: '🥉', name: 'Бронзовый орден', price: 149, perks: ['Премиум-награды всех 30 уровней сезона'] },
     { tier: 2, id: 'silver', icon: '🥈', name: 'Серебряный орден', price: 299, perks: ['Опыт пропуска +50%', '+1 бесплатный призыв снаряжения в день', '+8% опыта и золота'] },
-    { tier: 3, id: 'gold', icon: '🥇', name: 'Золотой орден', price: 599, perks: ['Автобой в данжах без ограничения времени (без ордена — с 15 ур., 30–60 мин в день)', '+15% опыта и золота'] },
-    { tier: 4, id: 'champion', icon: '👑', name: 'Орден Чемпиона', price: 1199, perks: ['Премиум-награды ×2', 'Мифический предмет на 30 уровне', '+30% опыта и золота'] },
+    { tier: 3, id: 'gold', icon: '🥇', name: 'Золотой орден', price: 599, perks: ['Автобой в данжах без ограничения времени (без ордена — с 15 ур., 30–60 мин в день)', '+12% опыта и золота'] },
+    { tier: 4, id: 'champion', icon: '👑', name: 'Орден Чемпиона', price: 1199, perks: ['Премиум-награды ×2', 'Мифический предмет на 30 уровне', '+20% опыта и золота'] },
     // Торговые ордена — только поверх Ордена Чемпиона: в цену входят все предыдущие ордена (server/trade.js — скидки комиссий)
     { tier: 5, id: 'merchant', icon: '🟢', name: 'Орден Купца', price: 1499, trade: true, perks: ['Включает Орден Чемпиона и все предыдущие ордена', 'Комиссия Торгового дома 15% вместо 20%', 'Комиссия вывода 8% вместо 10%', '+5 лотов в Торговом доме', 'Лоты висят 14 дней', 'Знак купца у ваших лотов', 'Выплаты — в первую очередь', '+1 печать снаряжения сразу'] },
     { tier: 6, id: 'magnate', icon: '🏦', name: 'Орден Магната', price: 1899, trade: true, perks: ['Включает Орден Купца, Орден Чемпиона и все предыдущие ордена', 'Комиссия Торгового дома 10% вместо 20%', 'Комиссия вывода 5% вместо 10%', '+15 лотов в Торговом доме', 'Лоты висят 30 дней', 'Ваши лоты — вверху списка', 'Золотой знак магната у лотов', 'Выплаты — в первую очередь', '+3 печати снаряжения сразу'] },
   ],
   autofarmTier: 3, // с какого ордена доступен автобой
-  passXpGold: { 0: 0.05, 1: 0.05, 2: 0.08, 3: 0.15, 4: 0.3, 5: 0.3, 6: 0.3 }, // бонус к опыту и золоту в бою по ордену (не складывается — берётся свой)
-  sub: { price: 250, days: 30, xpBonus: 0.25, goldBonus: 0.25 },
+  passXpGold: { 0: 0.05, 1: 0.05, 2: 0.08, 3: 0.12, 4: 0.2, 5: 0.2, 6: 0.2 }, // новый баланс: прокачка в десятки раз дольше — +30% было бы слишком сильно // бонус к опыту и золоту в бою по ордену (не складывается — берётся свой)
+  sub: { price: 250, days: 30, xpBonus: 0.15, goldBonus: 0.15 },
   ads: { perDay: 5, cooldownMs: 30000 },
   arena: { perDay: 5, perDaySub: 8 },
 };
@@ -71,7 +71,7 @@ const gearBanner = (t = Date.now()) => {
   const week = Math.floor((t - Date.UTC(2024, 0, 1)) / (7 * DAY)), cls = Object.keys(I.CLASSES)[week % Object.keys(I.CLASSES).length];
   return { cls, name: I.CLASSES[cls].name, ends: Date.UTC(2024, 0, 1) + (week + 1) * 7 * DAY };
 };
-const ITEM_GACHA = { rare: 62, epic: 29, legendary: 7.5, mythic: 1.5 };
+const ITEM_GACHA = { rare: 65.5, epic: 30, legendary: 4, mythic: 0.5 }; // мифики редки и в добыче — призыв за ⭐ не должен быть проще
 
 const isSub = (pr) => (pr.subUntil || 0) > Date.now();
 // Размер инвентаря: база (подписка — больше) + надетая сумка
@@ -187,7 +187,11 @@ module.exports = function createMeta(deps) {
   // Ключи 'ore' / 'ess' / 'core' в наградах — материал мира tier
   const matKey = (k, tier) => (['ore', 'ess', 'core'].includes(k) ? `${k}${tier}` : k);
   // Цена материала в лавке мира tier (у материалов мира цена своя, свитки и зелья дорожают по миру лавки)
-  const shopPrice = (id, tier) => Math.round(I.MATS[id].price * (I.MATS[id].tier ? 1 : F(tier)));
+// Новый баланс: золота с монстров вчетверо меньше — цены лавок снижены, чтобы ~1 час фарма своего мира хватало
+  // на запас зелий и пару эликсиров, а вещи лавки оставались запасным вариантом (дешевле продажи назад не бывает)
+  const B2K = { potion: 0.2, elixir: 0.25, mat: 0.4, scroll: 0.5 };
+  const b2k = (kind) => (require('./mobs').bal2() ? B2K[kind] || 1 : 1);
+  const shopPrice = (id, tier) => Math.max(Math.round(I.MATS[id].price * (I.MATS[id].tier ? 1 : F(tier)) * b2k(I.MATS[id].kind)), Math.round((I.MATS[id].buy || 0) * (I.MATS[id].tier ? 1 : F(tier)) * 1.5));
 
   // ---------- Витрины магазинов (обновляются раз в день, свои в каждом мире) ----------
   const shopCache = new Map();
@@ -208,16 +212,17 @@ module.exports = function createMeta(deps) {
     const key = `${dayKey()}:${kind}:${tier}:${cls || ''}`;
     if (shopCache.has(key)) return shopCache.get(key);
     const list = [];
-    const price = (rar) => Math.round(ITEM_PRICE[rar] * F(tier));
+    const B2 = require('./mobs').bal2();
+    const price = (rar) => Math.round(ITEM_PRICE[rar] * F(tier) * (B2 ? 0.35 : 1));
     const matOffer = (mat, limit = 0) => list.push({ oid: list.length, mat, price: shopPrice(mat, tier), limit: limit || I.MATS[mat].limit || 0 });
     if (kind === 'equip') {
       // По обычному и редкому предмету на каждый слот и два эпических на день
       // Только то, что может надеть класс героя
       const mk = (cat, rar) => { const fit = I.TEMPLATES[cat] && Object.keys(I.TEMPLATES[cat]).filter((t) => !I.TEMPLATES[cat][t].setCls && (!cls || I.canWear({ cat, tpl: t }, I.CLASSES[cls].heroes[0]))); return I.createItem(cat, rar, tier, fit && fit.length ? fit[Math.floor(Math.random() * fit.length)] : null); };
       for (const cat of I.WEAR_CATS) for (const rar of ['common', 'rare']) list.push({ oid: list.length, item: mk(cat, rar), price: price(rar) });
-      list.push({ oid: list.length, item: I.createBag('rare', tier), price: Math.round(40000 * F(tier)) }); // сумка — дорогое удовольствие
+      list.push({ oid: list.length, item: I.createBag('rare', tier), price: Math.round(40000 * F(tier) * (B2 ? 0.4 : 1)) }); // сумка — дорогое удовольствие
     } else if (kind === 'runes') {
-      for (const rar of ['common', 'common', 'common', 'rare', 'rare', 'rare', 'epic']) list.push({ oid: list.length, item: I.createItem('rune', rar, tier), price: Math.round(RUNE_PRICE[rar] * F(tier)) });
+      for (const rar of ['common', 'common', 'common', 'rare', 'rare', 'rare', 'epic']) list.push({ oid: list.length, item: I.createItem('rune', rar, tier), price: Math.round(RUNE_PRICE[rar] * F(tier) * (B2 ? 0.4 : 1)) });
     } else if (kind === 'smith') {
       // Руду и эссенцию продают только в Эльдмире: материалы Морграта и Аэлиона — только фармом
       if (tier === 1) { matOffer('ore1'); matOffer('ess1'); }
@@ -323,7 +328,7 @@ module.exports = function createMeta(deps) {
     if (id === 'chestSet') {
       const cls = I.CLASSES[d.cls] ? d.cls : I.classOf(p.heroId);
       const roll = Math.random();
-      const res = grant(pr, I.refineItem(I.createSetItem(cls, t, roll < 0.03 ? 'mythic' : roll < 0.28 ? 'legendary' : 'epic'))); // за Stars — отборная
+      const res = grant(pr, I.refineItem(I.createSetItem(cls, t, roll < 0.015 ? 'mythic' : roll < 0.165 ? 'legendary' : 'epic'))); // за Stars — отборная
       return grantMsg(res);
     }
     return null;
@@ -658,7 +663,7 @@ module.exports = function createMeta(deps) {
           for (const [k, n] of Object.entries(I.salvage(it, true))) sure[k] = (sure[k] || 0) + n;
           if (it.rar === 'legendary') coreChance++;
         }
-        return { quote: { n: list.length, mats: Object.entries(sure).filter(([, n]) => n > 0).map(([k, n]) => matName(k, n)), coreChance } };
+        return { quote: { n: list.length, mats: Object.entries(sure).filter(([, n]) => n > 0).map(([k, n]) => matName(k, n)), icons: Object.entries(sure).filter(([, n]) => n > 0).map(([k, n]) => I.matView(k, n, tierOf(p))), coreChance } };
       }
       const got = {};
       for (const it of list) {
@@ -1082,7 +1087,7 @@ module.exports = function createMeta(deps) {
     bagEpic: { n: 1, amount: 199, bag: 'epic', title: 'Рюкзак искателя', description: 'Эпическая сумка: +20 ячеек инвентаря' },
     bagLegend: { n: 1, amount: 499, bag: 'legendary', title: 'Сума гномьего торговца', description: 'Легендарная сумка: +35 ячеек инвентаря' },
     kitSmith: { n: 1, amount: 49, title: 'Сундук кузнеца', description: '30 руды, 15 эссенции и 2 свитка мастера' },
-    chestSet: { n: 1, amount: 199, title: 'Ларец комплекта', description: 'Вещь комплекта вашего класса: эпическая, 25% легендарная, 3% мифическая' },
+    chestSet: { n: 1, amount: 199, title: 'Ларец комплекта', description: 'Вещь комплекта вашего класса: эпическая, 15% легендарная, 1,5% мифическая' },
     chestSet5: { n: 5, amount: 899, title: 'Ларцы комплекта ×5', description: 'Пять ларцов комплекта со скидкой 10%' },
     chestLegend: { n: 1, amount: 149, title: 'Ларец грандмастера', description: '2 свитка грандмастера и редкий материал' },
     // Особые предложения (своя витрина в магазине)
@@ -1103,7 +1108,7 @@ module.exports = function createMeta(deps) {
     ispin: { title: 'Призыв предмета', description: 'Одна крутка призыва предметов', amount: SHOP.itemSpin.price },
     ispin10: { title: 'Призыв предметов ×10', description: 'Десять круток призыва предметов', amount: SHOP.itemSpin.price10 },
     ...Object.fromEntries(Object.entries(SHOP.gems).map(([k, g]) => [k, { title: `Самоцветы ×${g.gems}`, description: `${g.gems} самоцветов: 160 = призыв героя, 100 = призыв снаряжения`, amount: g.amount }])),
-    sub: { title: 'Подписка на 30 дней', description: '+25% опыта и золота, +3 лота в Торговом доме, больше сумка', amount: SHOP.sub.price },
+    sub: { title: 'Подписка на 30 дней', description: '+15% опыта и золота, +3 лота в Торговом доме, больше сумка', amount: SHOP.sub.price },
     ...Object.fromEntries(WH_UPGRADES.filter((u) => u.stars).map((u) => [u.kind, { title: `Склад: уровень ${u.kind.slice(4)}`, description: '+50 ячеек склада навсегда', amount: u.stars }])),
   };
 

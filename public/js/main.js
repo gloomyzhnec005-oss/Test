@@ -1008,6 +1008,23 @@
         }
         Town.open(title, box);
       };
+      // ---------- Обновления игры ----------
+      // Список с сервера; при входе в игру новое (ещё не виденное) открывается само один раз
+      async function openNews(auto) {
+        let list = [];
+        try { list = (await (await fetch('/api/news')).json()).list || []; } catch { /* нет связи */ }
+        if (!list.length) { if (!auto) Town.toast('Пока новостей нет'); return; }
+        let seen = ''; try { seen = localStorage.getItem('newsSeen') || ''; } catch { /* приватный режим */ }
+        if (auto && list[0].id === seen) return;
+        try { localStorage.setItem('newsSeen', list[0].id); } catch { /* приватный режим */ }
+        const box = document.createElement('div'); box.className = 'news-box';
+        box.innerHTML = list.map((n, i) => `<div class="news-post ${i === 0 && n.id !== seen ? 'fresh' : ''}"><div class="news-h"><b>${n.title}</b><small>${n.date}</small></div>
+          <ul>${n.items.map((t) => `<li>${t}</li>`).join('')}</ul></div>`).join('');
+        Town.open('📰 Обновления', box);
+      }
+      window.openNews = openNews;
+      // Не поверх других окон (награда за вход и т. п.): ждём, пока игрок их закроет
+      (function newsWhenFree(n) { setTimeout(() => { if (document.querySelector('.sheet:not(.hidden)') && n < 20) newsWhenFree(n + 1); else openNews(true); }, n ? 6000 : 4000); })(0);
       const menuSheet = (title, rows) => { const box = document.createElement('div'); box.className = 'nav-menu'; rows.forEach((r) => box.append(menuRow(...r))); Town.open(title, box); };
       // ---------- Настройки ----------
       // Звук (вкл/выкл, громкость эффектов и музыки, вибрация), экран, подсказки, экономия батареи, аккаунт
@@ -1149,6 +1166,7 @@
               ['party', 'Пригласить друга', 'Подарки и вам, и другу', () => openInvite()],
             ]],
             ['💬 Общение', [
+              ['events', 'Обновления', 'Что нового в игре', () => openNews()],
               ['clan', 'Клан', 'Участники, задания, хранилище', openClan],
               ['chat', 'Чат', 'Общий чат игроков', () => { Town.close(); $('chatBtn').click(); }],
               ...(L.chat ? [['chat', 'Чат в Telegram', 'Советы, поиск группы, ошибки', () => openTgLink(L.chat)]] : []),

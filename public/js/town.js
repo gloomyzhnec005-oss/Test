@@ -973,7 +973,9 @@ window.Town = (() => {
       if (my !== qSeq) return;
       if (!q.quote) { foot.innerHTML = `<small>${q.error || 'Нет связи'}</small>`; return; }
       const hasLeg = [...sel].some((id) => (items.find((i) => i.id === id) || {}).rar === 'legendary'), hasMyth = [...sel].some((id) => (items.find((i) => i.id === id) || {}).rar === 'mythic');
-      foot.innerHTML = `<div><b>Выбрано: ${q.quote.n}</b> · вы получите: ${q.quote.mats.join(', ')}${q.quote.coreChance ? ` · и с шансом 30% ядро за каждую легендарную (${q.quote.coreChance})` : ''}</div>
+      foot.innerHTML = `<div><b>Выбрано: ${q.quote.n}</b> · вы получите:</div>
+        <div class="salv-got">${(q.quote.icons || []).map((m) => `<div class="salv-m">${Bag.cell(m)}<small>${m.name}<br><b>×${m.n}</b></small></div>`).join('')}</div>
+        ${q.quote.coreChance ? `<small>+ с шансом 30% ядро за каждую легендарную (${q.quote.coreChance})</small>` : ''}
         <button type="button" class="l2-btn wide warn" id="salvGo">♻️ Разобрать (${q.quote.n})</button>`;
       foot.querySelector('#salvGo').onclick = async () => {
         if ((hasLeg || hasMyth) && !confirm(`Среди выбранных есть ${hasMyth ? 'мифические' : 'легендарные'} вещи. Разобрать их безвозвратно?`)) return;
