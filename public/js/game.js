@@ -3009,16 +3009,43 @@ window.GameScene = class GameScene extends Phaser.Scene {
     } else if (!e.moveT || now - e.moveT > 160) { e.vx = 0; e.vy = 0; } // стоит на месте
     e.tx = x; e.ty = y;
   }
-  // Указатель для новичка: маленькая золотая стрелка у героя — куда идти по текущему шагу сюжета (только в городе)
+  // Указатель для новичка (до 15 ур.): золотая стрелка у героя и подпись — куда идти по текущему шагу сюжета.
+  // В городе — к нужному зданию или порталу; в данже — к ближайшему подходящему монстру (обычному, «синему»/«жёлтому»,
+  // полубоссу, боссу) или, если шаг городской, — к выходу
   guideArrow(time) {
-    const GOAL = { s1: 'portal1', s4: 'alchemy', s6: 'gacha', s9: 'arena', s14: 'teleport', s17: 'teleport' };
-    const id = GOAL[window.storyStep], me = this.me;
-    const o = id && me && this.zone && this.zone.kind === 'town' && (this.zone.objs || []).find((x) => x.id === id);
-    const d = o ? Math.hypot(o.x - me.x, o.y - me.y) : 0;
-    if (!o || d < 110) { if (this.guide) this.guide.setVisible(false); return; }
-    if (!this.guide) this.guide = this.add.triangle(0, 0, 0, -9, 18, 0, 0, 9, 0xffd36a).setStrokeStyle(2, 0x5a3a10).setDepth(950);
-    const a = Math.atan2(o.y - me.y, o.x - me.x), r = 40 + Math.sin(time / 200) * 4;
-    this.guide.setVisible(true).setPosition(me.x + Math.cos(a) * r, me.y - 12 + Math.sin(a) * r).setRotation(a).setAlpha(0.75 + Math.sin(time / 200) * 0.25);
+    const me = this.me, step = window.storyStep, z = this.zone;
+    if (!me || !z || !step || (me.data && me.data.lvl >= 15 && !['s13', 's14'].includes(step)) || !Settings.get('hints')) { if (this.guide) { this.guide.setVisible(false); this.guideTxt.setVisible(false); } return; }
+    const TOWN = { s1: ['portal1', 'К порталу I'], s2: ['portal1', 'В данж'], s4: ['alchemy', 'В лавку эликсиров'], s5: ['portal2', 'В данж'], s6: ['gacha', 'К алтарю призыва'],
+      s7: ['portal2', 'В данж'], s9: ['arena', 'На арену'], s10: ['portal2', 'В данж за полубоссом'], s11: ['portal3', 'В данж'], s12: ['portal3', 'В данж за боссом'],
+      s13: ['portal5', 'В данж'], s14: ['teleport', 'К телепорту → Морграт'], s17: ['teleport', 'К телепорту → Аэлион'] };
+    const MOB = { s2: (m) => m.rk === 'normal' || !m.rk, s5: () => true, s7: (m) => m.rk === 'magic' || m.rk === 'rare', s10: (m) => m.rk === 'mini', s11: () => true, s12: (m) => m.rk === 'boss', s13: () => true };
+    let tx = null, ty = null, label = '';
+    if (z.kind === 'town' && TOWN[step]) {
+      const o = (z.objs || []).find((x) => x.id === TOWN[step][0]);
+      if (o) { tx = o.x; ty = o.y; label = TOWN[step][1]; }
+    } else if (z.kind === 'dungeon' && !z.pk) {
+      if (MOB[step]) {
+        let bd = 1e9;
+        for (const e of this.monsters.values()) {
+          if (e.pvp || !e.data || !e.data.hp || !MOB[step](e.data)) continue;
+          const d = Math.hypot(e.c.x - me.x, e.c.y - me.y);
+          if (d < bd) { bd = d; tx = e.c.x; ty = e.c.y; }
+        }
+        label = step === 's10' ? 'Полубосс' : step === 's12' ? 'Босс' : step === 's7' ? 'Сильный монстр' : 'Монстры';
+      } else if (TOWN[step]) { const o = (z.objs || []).find((x) => x.id === 'back'); if (o) { tx = o.x; ty = o.y; label = 'Выход в город'; } }
+    }
+    const d = tx == null ? 0 : Math.hypot(tx - me.x, ty - me.y);
+    if (tx == null || d < 110) { if (this.guide) { this.guide.setVisible(false); this.guideTxt.setVisible(false); } return; }
+    if (!this.guide) {
+      this.guide = this.add.triangle(0, 0, 0, -9, 18, 0, 0, 9, 0xffd36a).setStrokeStyle(2, 0x5a3a10).setDepth(950);
+      this.guideTxt = this.add.text(0, 0, '', { fontFamily: 'Georgia, serif', fontSize: '10px', color: '#ffe7a8', stroke: '#2a1a08', strokeThickness: 3 }).setOrigin(0.5).setDepth(951);
+    }
+    const a = Math.atan2(ty - me.y, tx - me.x), r = 40 + Math.sin(time / 200) * 4;
+    const gx = me.x + Math.cos(a) * r, gy = me.y - 12 + Math.sin(a) * r;
+    this.guide.setVisible(true).setPosition(gx, gy).setRotation(a).setAlpha(0.75 + Math.sin(time / 200) * 0.25);
+    const tl = window.I18N ? I18N.tr(label) : label;
+    if (this.guideTxt.text !== tl) this.guideTxt.setText(tl);
+    this.guideTxt.setVisible(true).setPosition(me.x + Math.cos(a) * (r + 26), me.y - 12 + Math.sin(a) * (r + 26) - 10);
   }
 
   update(time, delta) {

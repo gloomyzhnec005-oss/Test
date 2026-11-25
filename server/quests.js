@@ -62,7 +62,21 @@ const STORY = [
 ].map(([id, ch, icon, name, desc, type, goal, reward]) => ({ id, ch, icon, name, desc, type, goal, reward }));
 const CHAPTERS = { 1: 'Глава I · Солнечная долина', 2: 'Глава II · Город над Бездной', 3: 'Глава III · Небесная цитадель' };
 const BY_ID = {};
+// «Путь новичка»: первые 7 дней после регистрации — каждый день одно особое задание, ведущее по игре
+// (показывается в ежедневных только в свой день; прогресс — как у ежедневных)
+const NOVICE = [
+  ['n1', '🌱', 'Путь новичка · день 1', 'Победите 30 монстров в данже — порталы на севере города', 'kill', 30, null, { gold: 300, gems: 40, mats: { ore: 5 } }],
+  ['n2', '🌱', 'Путь новичка · день 2', 'Купите что-нибудь в лавке города (зелья — у алхимика)', 'buy', 1, null, { gold: 200, gems: 40 }],
+  ['n3', '🌱', 'Путь новичка · день 3', 'Победите 5 сильных монстров — синие и жёлтые имена', 'elite', 5, null, { gold: 300, gems: 50, mats: { ess: 5 } }],
+  ['n4', '🌱', 'Путь новичка · день 4', 'Проведите бой на PvP-арене (можно с клоном) — дом арены в городе', 'arena', 1, null, { gold: 300, gems: 50 }],
+  ['n5', '🌱', 'Путь новичка · день 5', 'Победите полубосса в данже (вместе — легче)', 'dungeon', 1, null, { gold: 400, gems: 60, mats: { scrollE: 1 } }],
+  ['n6', '🌱', 'Путь новичка · день 6', 'Сделайте призыв героя или снаряжения', 'summon', 1, null, { gold: 300, gems: 80 }],
+  ['n7', '🌱', 'Путь новичка · день 7', 'Победите 20 монстров в группе (союзник рядом)', 'partyKill', 20, null, { gold: 600, gems: 160, itemSpins: 1 }],
+];
+DEFS.daily.push(...NOVICE);
 for (const per of PERIODS) for (const d of DEFS[per]) BY_ID[d[0]] = { per, id: d[0], icon: d[1], name: d[2], desc: d[3], type: d[4], goal: d[5], tier: d[6], reward: d[7] };
+NOVICE.forEach((d, i) => { BY_ID[d[0]].nov = i; });
+const novDay = (pr) => Math.floor((Date.now() - (pr.created || Date.now())) / 864e5); // 0 — день регистрации
 
 // Ключ и конец периода (UTC)
 function periodKey(per, t = Date.now()) {
@@ -150,7 +164,7 @@ module.exports = function createQuests(deps) {
       out[per] = {
         endsIn: periodEnd(per) - Date.now(),
         list: DEFS[per].map((d) => BY_ID[d[0]])
-          .filter((q) => !q.tier || q.tier === tier || (st.prog[q.id] || 0) > 0)
+          .filter((q) => (q.nov === undefined ? !q.tier || q.tier === tier || (st.prog[q.id] || 0) > 0 : q.nov === novDay(pr)))
           .map((q) => ({ id: q.id, icon: q.icon, name: q.name, desc: q.desc, goal: q.goal, prog: Math.min(q.goal, progOf(pr, q)), claimed: !!st.claimed[q.id],
             reward: rewardText(q.reward, tier), points: POINTS[per] })),
       };
@@ -170,6 +184,7 @@ module.exports = function createQuests(deps) {
   function claim(pr, id, tier) {
     const q = BY_ID[id];
     if (!q) return { error: 'Нет такого задания' };
+    if (q.nov !== undefined && q.nov !== novDay(pr)) return { error: 'Это задание уже недоступно' };
     const st = state(pr, q.per);
     if (st.claimed[id]) return { error: 'Награда уже получена' };
     if (progOf(pr, q) < q.goal) return { error: 'Задание ещё не выполнено' };

@@ -853,7 +853,7 @@ setInterval(() => {
   if (warState.week === w) return;
   const prev = warState.week; warState.week = w;
   for (const c of Object.values(clans)) if (c.reignPool) try { reignPayout(c); } catch (e) { console.error('reign payout', e); } // казна прошлых владык
-  const best = Object.values(clans).filter((c) => c.war && c.war.w === prev && c.war.pts > 0).sort((a, b) => b.war.pts - a.war.pts)[0];
+  const best = Object.values(clans).filter((c) => !c.system && c.war && c.war.w === prev && c.war.pts > 0).sort((a, b) => b.war.pts - a.war.pts)[0];
   if (best) {
     best.reignUntil = (w + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - 3 * 36e5;
     best.reigns = (best.reigns || 0) + 1;
@@ -873,7 +873,7 @@ const clanOf = (uid) => { const id = getProfile(uid).clan; const c = id && clans
 const clanNotify = (c, text) => { for (const o of players.values()) if (c.members.includes(o.uid)) o.socket.emit('chat', { sys: true, ch: 'clan', text }); };
 function clanView(c) {
   const online = new Set([...players.values()].map((o) => o.uid));
-  return { id: c.id, name: c.name, tag: c.tag, leader: c.leader, max: CLAN.max,
+  return { id: c.id, name: c.name, tag: c.tag, leader: c.leader, max: c.system ? 999 : CLAN.max, system: !!c.system,
     members: c.members.map((uid) => { const pr = getProfile(uid); return { uid, name: pr.name || 'Герой', online: online.has(uid), leader: uid === c.leader }; }),
     war: { pts: c.war && c.war.w === warWeek() ? c.war.pts : 0, reign: c.reignUntil > Date.now() ? c.reignUntil : 0, reigns: c.reigns || 0, pool: c.reignPool || 0 },
     log: (c.log || []).slice(-30), vault: (c.vault || []).map((it) => ({ ...I.itemView(it), by: it.clanBy || '' })), vaultMax: CLAN.vault,
@@ -892,13 +892,56 @@ function clanRating(c) {
 }
 // Вступил в клан — его заявки в другие кланы больше не нужны
 const clearReqs = (uid) => { for (const c of Object.values(clans)) if (c.reqs) c.reqs = c.reqs.filter((r) => r.uid !== uid); };
+// ---------- Академия героев: системный клан для новичков ----------
+// Новичок без клана (до 20 ур.) при входе попадает в Академию: клан-чат с такими же новичками, тег [АКД].
+// В 20 ур. — выпуск (+100 💎). Вступление в обычный клан (заявка, приглашение, создание) — выход из Академии сам.
+// Наставники: герой на 10+ уровней старше в группе с новичком (до 20 ур.) рядом — +15 💎 за каждый уровень новичка (до 150 в день)
+const ACADEMY = 'academy';
+function academy() {
+  return clans[ACADEMY] ??= { id: ACADEMY, name: 'Академия героев', tag: 'АКД', leader: null, system: true, members: [], created: Date.now(), log: [] };
+}
+function leaveAcademy(uid) {
+  const a = clans[ACADEMY];
+  if (!a || !a.members.includes(uid)) return;
+  a.members = a.members.filter((u) => u !== uid);
+  if (getProfile(uid).clan === ACADEMY) getProfile(uid).clan = null;
+  saveClans();
+}
+function academyJoin(p) {
+  const pr = getProfile(p.uid);
+  if (pr.clan || pr.academyLeft || p.char.level >= 20) return;
+  const a = academy();
+  if (!a.members.includes(p.uid)) a.members.push(p.uid);
+  pr.clan = ACADEMY; saveClans(); setClanTag(p.uid);
+  setTimeout(() => p.socket.emit('chat', { sys: true, text: '🎓 Вы в Академии героев: спрашивайте в клан-чате, ищите группу. Выпуск — на 20 уровне. Выйти или вступить в свой клан — Игра → Клан' }), 5000);
+}
+function academyLevel(p, pr) {
+  const L = p.char.level;
+  if (L >= 20 && pr.clan === ACADEMY) {
+    leaveAcademy(p.uid); setClanTag(p.uid);
+    pr.gems = (pr.gems || 0) + 100;
+    p.socket.emit('chat', { sys: true, text: '🎓 Выпуск из Академии героев! +100 💎. Теперь найдите свой клан — Игра → Клан' });
+  }
+  if (L >= 20) return;
+  const day = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
+  for (const o of partyMembers(p)) {
+    if (o === p || o.dead || o.char.level < L + 10 || !D.groupNear(p, o)) continue;
+    const opr = getProfile(o.uid), m = opr.mentor && opr.mentor.day === day ? opr.mentor : (opr.mentor = { day, gems: 0 });
+    if (m.gems >= 150) continue;
+    m.gems += 15; opr.gems = (opr.gems || 0) + 15;
+    o.socket.emit('chat', { sys: true, text: `🎓 Наставник: ${p.name} достиг ${L} уровня рядом с вами — +15 💎 (сегодня ${m.gems}/150)` });
+  }
+}
 function clanAct(p, d) {
-  const pr = getProfile(p.uid), mine = clanOf(p.uid);
+  const pr = getProfile(p.uid);
+  let mine = clanOf(p.uid);
+  // Из Академии — сами: создать свой клан, подать заявку, принять приглашение
+  if (mine && mine.system && ['create', 'apply', 'accept'].includes(d.op)) { leaveAcademy(p.uid); mine = null; }
   if (d.op === 'info') return { clan: mine ? clanView(mine) : null, quests: mine ? clanQuestView(mine, p.uid) : null, price: CLAN.price };
   // Список кланов по рейтингу и заявка на вступление (глава принимает или отклоняет во вкладке «Заявки»)
   if (d.op === 'list') {
-    const list = Object.values(clans).map((c) => ({ id: c.id, name: c.name, tag: c.tag, n: c.members.length, max: CLAN.max, rating: clanRating(c),
-      leader: getProfile(c.leader).name || 'Герой', reign: c.reignUntil > Date.now(), applied: (c.reqs || []).some((r) => r.uid === p.uid) })).sort((a, b) => b.rating - a.rating);
+    const list = Object.values(clans).map((c) => ({ id: c.id, name: c.name, tag: c.tag, n: c.members.length, max: c.system ? 999 : CLAN.max, rating: clanRating(c),
+      leader: c.system ? 'Наставники' : getProfile(c.leader).name || 'Герой', reign: c.reignUntil > Date.now(), applied: (c.reqs || []).some((r) => r.uid === p.uid) })).sort((a, b) => b.rating - a.rating);
     list.forEach((x, i) => { x.place = i + 1; });
     return { list, mine: mine ? mine.id : null };
   }
@@ -907,6 +950,7 @@ function clanAct(p, d) {
     if (!c) return { error: 'Клан не найден' };
     if (d.op === 'unapply') { c.reqs = (c.reqs || []).filter((r) => r.uid !== p.uid); saveClans(); return { toast: 'Заявка отозвана' }; }
     if (mine) return { error: 'Сначала выйдите из своего клана' };
+    if (c.system) { if (p.char.level >= 20) return { error: 'Академия — для героев до 20 уровня' }; pr.academyLeft = false; academyJoin(p); return { toast: '🎓 Вы снова в Академии героев' }; }
     if (c.members.length >= CLAN.max) return { error: 'В клане нет мест' };
     c.reqs ??= [];
     if (c.reqs.some((r) => r.uid === p.uid)) return { error: 'Заявка уже подана' };
@@ -922,6 +966,7 @@ function clanAct(p, d) {
     if (!req) return { error: 'Заявки уже нет' };
     mine.reqs = mine.reqs.filter((r) => r.uid !== uid);
     if (d.op === 'reqDecline') { saveClans(); notifyUid(uid, `🛡️ Клан «${mine.name}» отклонил заявку`); return { toast: 'Заявка отклонена', clan: clanView(mine) }; }
+    if (clanOf(uid) && clanOf(uid).system) leaveAcademy(uid);
     if (clanOf(uid)) { saveClans(); return { error: 'Игрок уже вступил в другой клан', clan: clanView(mine) }; }
     if (mine.members.length >= CLAN.max) return { error: 'В клане нет мест' };
     mine.members.push(uid); getProfile(uid).clan = mine.id; clearReqs(uid);
@@ -992,7 +1037,8 @@ function clanAct(p, d) {
     if (!mine) return { error: 'Вы не в клане' };
     const t = players.get(String(d.target || ''));
     if (!t) return { error: 'Игрок не в сети' };
-    if (clanOf(t.uid)) return { error: `${t.name} уже в клане` };
+    if (clanOf(t.uid) && !clanOf(t.uid).system) return { error: `${t.name} уже в клане` };
+    if (mine.system) return { error: 'В Академию приглашать не нужно — новички попадают туда сами' };
     if (mine.members.length >= CLAN.max) return { error: 'В клане нет мест' };
     (mine.invited ??= []).push(t.uid);
     t.socket.emit('clanInvite', { id: mine.id, name: mine.name, tag: mine.tag, from: p.name });
@@ -1010,6 +1056,7 @@ function clanAct(p, d) {
   }
   if (d.op === 'leave') {
     if (!mine) return { error: 'Вы не в клане' };
+    if (mine.system) { leaveAcademy(p.uid); pr.academyLeft = true; setClanTag(p.uid); return { toast: 'Вы вышли из Академии героев' }; }
     mine.members = mine.members.filter((u) => u !== p.uid); pr.clan = null;
     if (!mine.members.length) delete clans[mine.id];
     else { if (mine.leader === p.uid) mine.leader = mine.members[0]; clanNotify(mine, `🛡️ ${p.name} покинул клан`); }
@@ -1085,6 +1132,16 @@ const notifyUid = (uid, text) => {
   for (const p of players.values()) if (p.uid === uid) { p.socket.emit('chat', { sys: true, text }); if (!p.offline) on = true; }
   if (!on) Push.send(uid, 'notify', text);
 };
+// Не заходил сутки (но играл за последние 2 недели) — бот зовёт обратно: «+50 💎 за возвращение» (раз в неделю, Push.KINDS.comeback)
+setInterval(() => {
+  const now = Date.now();
+  for (const [uid, pr] of Object.entries(profiles)) {
+    if (!uid.startsWith('tg') || !(pr.heroes || []).length) continue;
+    const away = now - (pr.lastSeen || now);
+    if (away < 864e5 || away > 14 * 864e5 || (pr.comeback && pr.comeback.for === pr.lastSeen)) continue;
+    if (Push.send(uid, 'comeback', '⚔️ Ваш герой ждёт вас в Mystic Horizon! Зайдите сегодня — +50 💎 за возвращение')) pr.comeback = { for: pr.lastSeen, gift: true };
+  }
+}, 30 * 60e3).unref();
 // ---------- Рейтинги: уровень, сила, кланы, мировые боссы за неделю (кэш на 2 минуты) ----------
 const Ranks = (() => {
   const weekNo = () => Math.floor((Date.now() + 3 * 36e5 - Date.UTC(2024, 0, 1)) / (7 * 864e5)); // неделя по МСК, с понедельника
@@ -1752,6 +1809,13 @@ function grantXp(p, amount, gold, shared = false) {
     p.res = p.resMax;
     fx.push({ t: 'levelup', id: p.id, x: p.x, y: p.y, lvl: p.char.level });
     if (p.char.level >= 30 && p.char.level % 10 === 0) evCast({ ev: 'level', text: `${p.name} (${p.hero.name}) достиг ${p.char.level} уровня!` }); // только вехи
+    academyLevel(p, pr); // Академия: выпуск на 20 ур., награда наставникам
+    // Новичку на 10 уровне — гарантированная эпическая вещь под класс (один раз на аккаунт)
+    if (p.char.level >= 10 && !pr.gift10) {
+      pr.gift10 = Date.now();
+      const v = giveLoot(p, pr, I.rollItem(Math.min(2, p.zoneTier || 1), { epic: 1 }, null, p.heroId), p);
+      p.socket.emit('chat', { sys: true, text: `🎁 10 уровень! Подарок новичку: ${v ? v.name : 'эпическая вещь'}` });
+    }
     // Каждые 10 уровней героя — самоцветы (на один призыв)
     if (p.char.level % 10 === 0 && (!MOBX.bal2() || p.char.level <= 30)) { pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: `💎 ${p.hero.name} — ${p.char.level} уровень: +160 самоцветов` }); }
   }
@@ -2144,6 +2208,7 @@ io.on('connection', (socket) => {
       const C2 = (prj.cosm ??= { owned: [] }); if (!C2.owned.includes('frame:founder')) { C2.owned.push('frame:founder'); C2.frame = 'founder'; } // знак основателя — навсегда, не продаётся
       setTimeout(() => socket.emit('chat', { sys: true, text: '🎁 Подарок основателя: 300 💎, 2 печати призыва героев, 3 печати снаряжения, Великий эликсир опыта и Рамка основателя (больше никогда не будет в продаже). Спасибо, что вы с нами с первых дней!' }), 2500);
     }
+    if (prj.comeback && prj.comeback.gift) { prj.comeback.gift = false; prj.gems = (prj.gems || 0) + 50; setTimeout(() => socket.emit('chat', { sys: true, text: '💎 С возвращением! +50 самоцветов' }), 3000); }
     if (!C.HEROES[heroId] || !getProfile(uid).heroes.includes(heroId)) {
       socket.emit('error_msg', 'Сначала получите персонажа');
       return;
@@ -2204,6 +2269,7 @@ io.on('connection', (socket) => {
     }
     for (const pet of p.pets || []) { pet.x = p.x; pet.y = p.y + 16; }
     players.set(socket.id, p);
+    academyJoin(p); // новичок без клана — в Академию героев
     p.clanTag = (clanOf(uid) || {}).tag || null;
     p.look = meta.cosmLook(getProfile(uid)); // цвет имени, сияние, рамка аватара
     p.cp = (getProfile(uid).comp || {}).active || null; // спутник рядом с героем
@@ -2989,7 +3055,7 @@ admin.setWipe((keep) => {
   for (const [id, c] of Object.entries(clans)) {
     c.members = c.members.filter((u) => keep.has(u));
     if (!c.members.length) { delete clans[id]; nC++; continue; }
-    if (!keep.has(c.leader)) c.leader = c.members[0];
+    if (!c.system && !keep.has(c.leader)) c.leader = c.members[0];
   }
   saveProfiles(); saveClans(); Ranks.reset();
   return { players: nP, clans: nC, lots, gram: nG };
