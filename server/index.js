@@ -1814,7 +1814,8 @@ function pkOnKill(victim) {
   if (lost.length) killer.socket.emit('chat', { sys: true, text: `⚔️ С ${victim.name} выпало на землю: ${lost.join(', ')} — 60 с подобрать можете только вы` });
   saveProfiles();
 }
-// PvP-щит ×2 здоровья в опасном данже и на аренах: полный при входе, восстанавливается через 8 с без урона от игроков (15%/с)
+// PvP-щит ×2 здоровья в опасном данже и на аренах: полный при входе, восстанавливается через 30 с без урона от игроков (15%/с) —
+// убежать и «отхилить» щит за пару секунд нельзя
 const pvpZone = (zid) => { const z = world.byId.get(zid); return !!(z && (z.pk || z.kind === 'pvp')); };
 setInterval(() => {
   const now = Date.now();
@@ -1822,7 +1823,7 @@ setInterval(() => {
     if (!pvpZone(p.zone) || p.dead) { if (p.pvpShZone) { p.pvpShZone = null; p.pvpSh = 0; } continue; }
     const max = p.maxHp * 2;
     if (p.pvpShZone !== p.zone) { p.pvpShZone = p.zone; p.pvpSh = max; markDirty(p); continue; }
-    if (p.pvpSh < max && now - (p.pvpShAt || 0) > 8000) { p.pvpSh = Math.min(max, p.pvpSh + max * 0.15); markDirty(p); }
+    if (p.pvpSh < max && now - (p.pvpShAt || 0) > 30000) { p.pvpSh = Math.min(max, p.pvpSh + max * 0.15); markDirty(p); }
   }
 }, 1000);
 // Тело флагнутого без игрока: исчезает, когда флаг спал (или герой погиб); место — для возвращения в игру
