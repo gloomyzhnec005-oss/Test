@@ -1313,7 +1313,10 @@ const markDirty = (p) => { p.dirty = true; };
 // ---------- PvP-арена: бой героев в реальном времени ----------
 // На арене у каждого героя есть невидимая цель-двойник (запись в monsters с pvpOf), которая каждый тик стоит на месте героя.
 // Атаки и умения бьют по двойникам как по монстрам, а урон и контроль переходят на самого героя — так работают все 44 героя без доработки умений.
-const PVP_K = 0.45; // урон героев рассчитан на монстров — по игрокам он ниже
+const PVP_K = 0.3; // урон героев рассчитан на монстров — по игрокам он ниже: равные бьются ~10–20 с, без убийств в одно касание
+// Разница в снаряжении в PvP сглажена: урон по игроку × (сила цели / сила атакующего)^0,25, в пределах 0,6…1,6.
+// Сильный всё равно выигрывает (впятеро сильнее — ~в 2,2 раза быстрее), но слабый успевает ответить. Сила = урон × здоровье
+const pvpGap = (a, v) => Math.min(1.6, Math.max(0.6, ((v.dmg * v.maxHp) / Math.max(1, a.dmg * a.maxHp)) ** 0.25));
 const PVP_LEVELS = { town1: [1, 20], town2: [15, 35], town3: [30, 99] };
 let pvpSeq = 9e6;
 function pvpSync(now) {
@@ -1344,13 +1347,13 @@ function pvpHit(p, m, raw, opt) {
   let crit = opt.crit ?? false;
   if (opt.basic && p.nextCritUntil > Date.now()) { crit = true; p.nextCritUntil = 0; }
   // «Добивания» по монстрам (казнь, жертва, раскол льда…) наносят здоровье цели целиком — по героям не больше 25% их здоровья
-  const dmg = opt.fixed ? Math.min(raw * PVP_K, victim.maxHp * 0.25) : raw * dmgMult(p) * (0.85 + Math.random() * 0.3) * (crit ? 1.6 : 1) * PVP_K
+  const dmg = opt.fixed ? Math.min(raw * PVP_K, victim.maxHp * 0.25) : raw * dmgMult(p) * (0.85 + Math.random() * 0.3) * (crit ? 1.6 : 1) * PVP_K * pvpGap(p, victim)
     * (!opt.basic && !opt.pet && p.gear && p.gear.skill ? 1 + p.gear.skill / 100 : 1);
   const before = victim.hp;
   victim.lastPvpBy = p.id; victim.lastPvpAt = Date.now();
   hurtPlayer(victim, dmg, null, Date.now());
   const dealt = Math.max(0, before - Math.max(0, victim.hp));
-  if (p.gear && p.gear.ls && dealt > 0 && !p.dead) { p.hp = Math.min(p.maxHp, p.hp + dealt * p.gear.ls / 100); markDirty(p); }
+  if (p.gear && p.gear.ls && dealt > 0 && !p.dead) { p.hp = Math.min(p.maxHp, p.hp + dealt * p.gear.ls / 100 * 0.5); markDirty(p); } // вампиризм по игрокам — вдвое слабее
   return dealt;
 }
 // Победа на арене: рейтинг по Эло; за одного и того же соперника чаще раза в 5 минут рейтинг не растёт
