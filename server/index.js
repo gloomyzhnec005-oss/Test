@@ -693,7 +693,7 @@ const chatHistory = (() => { try { const a = store.readJSON('chat.json', []); re
 let chatSaveTm = null;
 const chatSave = () => { clearTimeout(chatSaveTm); chatSaveTm = setTimeout(() => { try { store.writeJSON('chat.json', chatHistory); } catch (e) { console.error('chat save', e.message); } }, 3000); };
 const monsters = new Map(); // id -> monster
-const AfBot = require('./afbot')({ C, world, players, monsters, SOLID: require('./world').SOLID }); // автобой без игрока
+const AfBot = require('./afbot')({ C, world, players, monsters, SOLID: require('./world').SOLID, getProfile: (uid) => getProfile(uid) }); // автобой без игрока
 const pets = new Map(); // id -> зверь-спутник (Урсус)
 let monsterSeq = 1;
 let fx = []; // события за тик (удары, снаряды, смерти)
@@ -2633,6 +2633,15 @@ io.on('connection', (socket) => {
       p.party = pt.id;
       sendParty(pt);
     } else if (d.op === 'leave') leaveParty(p);
+  });
+
+  // Настройка умений героя для оффлайн-автобоя: порядок и выключенные (клиент шлёт при входе и при изменении)
+  socket.on('skillCfg', (d = {}) => {
+    const p = players.get(socket.id);
+    if (!p || !d || typeof d.hero !== 'string' || !C.HEROES[d.hero]) return;
+    const ids = new Set(C.HEROES[d.hero].skills.map((s) => s.id));
+    const pr = getProfile(p.uid); pr.skillCfg ??= {};
+    pr.skillCfg[d.hero] = { order: (Array.isArray(d.order) ? d.order : []).filter((x) => ids.has(x)).slice(0, 12), off: (Array.isArray(d.off) ? d.off : []).filter((x) => ids.has(x)).slice(0, 12) };
   });
 
   // Друзья (до 50): заявка → принять. Телепорт к другу онлайн — если ни он, ни вы не флагнуты (розовый/красный)

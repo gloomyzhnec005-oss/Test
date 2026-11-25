@@ -493,7 +493,15 @@
       box.appendChild(b);
       skillBtns[sk.id] = { el: b, cd: b.querySelector('.sk-cd'), timer: 0, sk, idx: i };
     });
+    markAutoSkills(hero.id);
   }
+  // Значок «A» на кнопке умения, которое срабатывает само по перезарядке; настройка уходит на сервер (оффлайн-автобой)
+  function markAutoSkills(heroId) {
+    const cfg = (Settings.get('skillCfg') || {})[heroId] || {};
+    for (const b of Object.values(skillBtns)) b.el.classList.toggle('auto-sk', !!(cfg.auto || {})[b.sk.id]);
+    if (socket) socket.emit('skillCfg', { hero: heroId, order: cfg.order || [], off: Object.keys(cfg.off || {}).filter((k) => cfg.off[k]) });
+  }
+  window.markAutoSkills = markAutoSkills;
   function startSkillCd(id, ms, total = ms) {
     // Точное время готовности от сервера: нажатие на перезарядке — без звука и надписи (см. game.js → predictSkill)
     if (window.gameScene) (window.gameScene.skillReady ??= {})[id] = performance.now() + Math.max(0, ms) - 120;
@@ -865,6 +873,41 @@
         if (!r || !r.ref || !r.ref.code) { Town.toast('Приглашения доступны в игре через Telegram'); return; }
         Town.open('👥 Пригласить друга', Invite.panel(r.ref));
       };
+      // ---------- Умения: авто по перезарядке, порядок и выбор для автобоя (своя настройка у каждого героя) ----------
+      const openSkillCfg = () => {
+        const sc = window.gameScene, heroId = sc && sc.me && sc.me.data.hero;
+        if (!heroId) return;
+        const all = Settings.get('skillCfg') || {}, cfg = all[heroId] || (all[heroId] = {});
+        cfg.auto ??= {}; cfg.off ??= {};
+        const save = () => { Settings.set('skillCfg', { ...all, [heroId]: cfg }); markAutoSkills(heroId); };
+        const box = document.createElement('div');
+        const draw = () => {
+          const plan = sc.skillPlan(heroId), unl = (sc.myStats || {}).unlocked ?? 1;
+          cfg.order = plan.map((x) => x.s.id);
+          box.innerHTML = `<p class="sheet-hint">⚡ Авто — умение срабатывает само по перезарядке, пока герой бьёт цель. ⚔️ Автобой — использовать в автобое (и оффлайн). Порядок сверху вниз — кто первый, когда готовы несколько. Переключатели облика и стихии жмите сами.</p>
+            ${plan.map((x, i) => `<div class="tw-ev sk-cfg ${x.idx < unl ? '' : 'locked'}" data-id="${x.s.id}">
+              <span class="sk-cfg-ic">${SkillArt.icon(heroId, x.idx, x.s.icon)}</span>
+              <div><b>${i + 1}. ${x.s.name}</b><small>${x.idx < unl ? `перезарядка ${Math.round((x.s.cooldown || 0) / 100) / 10} с` : 'ещё закрыто'}${x.toggle ? ' · переключатель' : ''}</small></div>
+              <div class="btn-row">
+                <button class="l2-btn sm" data-op="up" ${i ? '' : 'disabled'}>▲</button><button class="l2-btn sm" data-op="down" ${i < plan.length - 1 ? '' : 'disabled'}>▼</button>
+                ${x.toggle ? '' : `<button class="l2-btn sm ${x.auto ? 'on' : ''}" data-op="auto">⚡</button><button class="l2-btn sm ${x.af ? 'on' : ''}" data-op="af">⚔️</button>`}
+              </div></div>`).join('')}
+            <button class="l2-btn wide" data-op="reset">Сбросить по умолчанию</button>`;
+        };
+        box.onclick = (e) => {
+          const b = e.target.closest('button[data-op]'); if (!b) return;
+          const op = b.dataset.op, id = b.closest('[data-id]') && b.closest('[data-id]').dataset.id, i = cfg.order.indexOf(id);
+          if (op === 'reset') { cfg.order = []; cfg.auto = {}; cfg.off = {}; }
+          else if (op === 'up' && i > 0) [cfg.order[i - 1], cfg.order[i]] = [cfg.order[i], cfg.order[i - 1]];
+          else if (op === 'down' && i < cfg.order.length - 1) [cfg.order[i + 1], cfg.order[i]] = [cfg.order[i], cfg.order[i + 1]];
+          else if (op === 'auto') cfg.auto[id] = !cfg.auto[id];
+          else if (op === 'af') cfg.off[id] = !cfg.off[id];
+          save(); draw();
+        };
+        draw();
+        Town.open('⚡ Умения: авто и порядок', box);
+      };
+      window.openSkillCfg = openSkillCfg;
       // ---------- Карта мира: города и места с метками сюжета (📖), поручителей (❗ ❓ …), друзей и «вы здесь» ----------
       const openWorldMap = async () => {
         const r = await Bag.act('worldMap');
@@ -1222,6 +1265,7 @@
                 if (autoOn) socket.emit('autofarm', false); // иначе герой не выходит из боя, а в бою телепорт запрещён
                 socket.emit('recall');
               }]] : []),
+              ['auto', 'Умения: авто и порядок', 'Само по перезарядке, порядок в автобое', () => openSkillCfg()],
               ['teleport', 'Карта мира', 'Города, данжи и куда идти по заданиям', () => openWorldMap()],
             ], true],
             ['🧙 Герой и группа', [

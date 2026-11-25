@@ -1,7 +1,8 @@
 // Автобой без игрока: герой, оставленный в данже с включённым автобоем, фармит сам.
 // Сервер вызывает обработчики настоящего сокета героя (move / attack / skill / act) — те же проверки, что у игрока
 // (скорость, стены, перезарядки, ресурс), поэтому бот не сильнее живого игрока. Путь по лабиринту — поиск в ширину по клеткам.
-module.exports = function createAfBot({ C, world, players, monsters, SOLID }) {
+module.exports = function createAfBot({ C, world, players, monsters, SOLID, getProfile }) {
+  const deps = { getProfile };
   const TILE = C.TILE, solid = new Set(SOLID);
   const call = (p, ev, d, cb) => { const f = p.afBot && p.afBot.sock.listeners(ev)[0]; if (f) { try { f(d, cb || (() => {})); } catch (e) { console.error('afbot', ev, e.message); } } };
   const tileOf = (z, x, y) => [Math.floor((x - z.ox) / TILE), Math.floor((y - z.oy) / TILE)];
@@ -65,8 +66,12 @@ module.exports = function createAfBot({ C, world, players, monsters, SOLID }) {
       // Умения — по очереди, когда готовы (сервер сам откажет, если перезарядка или нет ресурса)
       if (now - (b.skAt || 0) > 900) {
         b.skAt = now;
-        const sk = p.hero.skills.slice(0, p.unlocked || 1);
-        const s = sk[(b.skI = ((b.skI || 0) + 1) % sk.length)];
+        // Порядок и выбор умений — из настройки игрока (окно «Умения: авто и порядок»); переключатели не трогаем
+        const open = p.hero.skills.slice(0, p.unlocked || 1).filter((x) => !(x.cost === 0 && x.costLabel === 'бесплатно'));
+        const cfg = (deps.getProfile(p.uid).skillCfg || {})[p.heroId] || {}, off = new Set(cfg.off || []), ord = cfg.order || [];
+        const rank = (x) => { const i = ord.indexOf(x.id); return i < 0 ? 100 + p.hero.skills.indexOf(x) : i; };
+        const sk = open.filter((x) => !off.has(x.id)).sort((a, c) => rank(a) - rank(c));
+        const s = sk.find((x) => now >= ((p.skillReadyAt || {})[x.id] || 0) && (p.res === undefined || p.res >= (x.cost || 0)));
         if (s) call(p, 'skill', { id: s.id, targetId: m.id, x: m.x, y: m.y });
       }
       b.movedAt = now; b.path = null;

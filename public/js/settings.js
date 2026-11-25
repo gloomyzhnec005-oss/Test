@@ -10,6 +10,7 @@ window.Settings = (() => {
     ctrlSize: 100, ctrlOpacity: 100, leftHand: false, // размер и прозрачность кнопок управления (%), джойстик справа
     autoPot: true, autoPotAt: 35, // автозелье: пить само, когда здоровья меньше autoPotAt %
     lang: null, // язык; null — по языку Telegram или браузера
+    skillCfg: {}, // умения по героям: { герой: { order: [id…], auto: { id: true } — само по перезарядке, off: { id: true } — не в автобое } }
   };
   let cur = { ...DEF };
   try { Object.assign(cur, JSON.parse(localStorage.getItem('settings') || '{}')); } catch (e) { /* без хранилища */ }

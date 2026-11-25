@@ -1609,3 +1609,11 @@ canvas.skin { object-fit: contain; }
 .wm-c.npc { background: rgba(255,200,60,.15); color: #ffd23a; }
 .wm-c.fr { background: rgba(120,255,140,.15); color: #b8ffbf; }
 .fr-add input { flex: 1; min-width: 0; }
+/* Автоумения: значок «A» на кнопке и окно настройки */
+.skill.auto-sk:not(.locked)::after { content: 'A'; position: absolute; top: -3px; right: -3px; width: 15px; height: 15px; border-radius: 50%; background: #ffd23a; color: #2a1a08; font: bold 10px/15px Georgia, serif; text-align: center; box-shadow: 0 0 4px rgba(255,210,58,.8); pointer-events: none; }
+.sk-cfg .sk-cfg-ic { width: 34px; height: 34px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.sk-cfg .sk-cfg-ic img { width: 34px; height: 34px; border-radius: 6px; }
+.sk-cfg.locked { opacity: .5; }
+.sk-cfg .btn-row { flex: none; gap: 3px; }
+.l2-btn.sm { min-width: 0; padding: 4px 7px; font-size: 13px; }
+.l2-btn.sm.on { background: linear-gradient(#6a5a18, #3e3208); border-color: #ffd23a; box-shadow: 0 0 5px rgba(255,210,58,.5); }

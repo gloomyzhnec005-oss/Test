@@ -97,7 +97,7 @@ window.Skins = (() => {
       beast: { sheet: 'assets/heroes/taliesin_beast.png', w: 60, h: 50, down: [0, 1, 2, 3, 4], side: [5, 6, 7, 8, 9], up: [10, 11, 12, 13, 14], attack: [15, 16, 17, 18, 19] },
     },
     aurelius: {
-      sheet: 'assets/heroes/aurelius_sheet.png', portrait: 'assets/heroes/aurelius_portrait.png', w: 56, h: 48, frames: 5,
+      sheet: 'assets/heroes/aurelius_sheet.png?v=2', portrait: 'assets/heroes/aurelius_portrait.png', w: 56, h: 48, frames: 5,
       // Атака: 7 рядов — 5 направлений, второй каст и поза умения (последний)
       attack: { sheet: 'assets/heroes/aurelius_attack.png', w: 72, h: 60, frames: 5, rows: 7, cast: 6 },
       // По стихиям (fire/ice/lightning/earth): снаряд, шторм, вспышка попадания и кольцо ауры

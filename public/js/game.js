@@ -631,11 +631,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
         }
         // Проём арки целиком залит цветом портала (по форме проёма, без овала и обводки) и мягко «дышит»
         const fillKey = art && this.portalFill(`ptl_${z.theme}_${o.pk && this.textures.exists(`ptl_${z.theme}_pk`) ? 'pk' : o.world ? 'boss' : o.id === 'exit' ? 'exit' : 'arch'}`);
-        const glowAt = fillKey ? keep(this.add.image(o.x, o.y + 26, fillKey).setOrigin(0.5, 1).setTint(col).setAlpha(0.8).setDepth(10 + o.y + 19)) : null;
+        // Внутри проёма — переливающаяся воронка цвета портала (кадры спирали), как у врат босса и порталов города
+        const swKey = fillKey && this.portalSwirl(fillKey, col);
+        const glowAt = swKey ? keep(this.add.sprite(o.x, o.y + 26, swKey, 0).setOrigin(0.5, 1).setAlpha(0.92).setDepth(10 + o.y + 19).play(swKey))
+          : fillKey ? keep(this.add.image(o.x, o.y + 26, fillKey).setOrigin(0.5, 1).setTint(col).setAlpha(0.8).setDepth(10 + o.y + 19)) : null;
         const swirl = glowAt || keep(this.add.ellipse(o.x, o.y + 2, 38, 46, col, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setDepth(10 + o.y));
         if (glowAt) keep(this.add.zone(o.x, o.y + 2, 40, 50).setInteractive().on('pointerdown', (ptr) => { if (!this.uiBlocked(ptr)) this.goTo(o); }));
         else swirl.setInteractive().on('pointerdown', (ptr) => { if (!this.uiBlocked(ptr)) this.goTo(o); });
-        if (glowAt) this.tweens.add({ targets: glowAt, alpha: 0.55, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        if (glowAt) this.tweens.add({ targets: glowAt, alpha: swKey ? 0.75 : 0.55, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
         else {
           const core = keep(this.add.ellipse(o.x, o.y + 2, 18, 26, 0xffffff, 0.5).setDepth(10 + o.y + 1));
           this.tweens.add({ targets: swirl, scaleX: 0.8, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
@@ -687,6 +690,45 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (rows < 8) return null;
     cx.clearRect(0, 0, W, H); cx.putImageData(mask, 0, 0);
     this.textures.addCanvas(out, cv);
+    return out;
+  }
+
+  // Воронка в проёме арки: 12 кадров вращающейся спирали цвета портала (тёмные и светлые рукава, светлая середина),
+  // по форме маски portalFill. Кадры рисуются один раз на арку и цвет, дальше — обычная анимация спрайта
+  portalSwirl(maskKey, col) {
+    const out = `pswirl_${maskKey}_${col.toString(16)}`;
+    if (this.textures.exists(out)) return out;
+    const src = this.textures.get(maskKey).getSourceImage(), W = src.width, H = src.height, N = 12;
+    const mc = document.createElement('canvas'); mc.width = W; mc.height = H;
+    const mx = mc.getContext('2d'); mx.drawImage(src, 0, 0);
+    let m; try { m = mx.getImageData(0, 0, W, H).data; } catch { return null; }
+    let x0 = W, x1 = 0, y0 = H, y1 = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (m[(y * W + x) * 4 + 3] > 0) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 <= x0) return null;
+    const cxp = (x0 + x1) / 2, cyp = y0 + (y1 - y0) * 0.45, R = Math.max(x1 - x0, y1 - y0) / 2 || 1;
+    const r0 = (col >> 16) & 255, g0 = (col >> 8) & 255, b0 = col & 255;
+    const cv = document.createElement('canvas'); cv.width = W * N; cv.height = H;
+    const cx = cv.getContext('2d'), img = cx.createImageData(W * N, H), d = img.data;
+    for (let f = 0; f < N; f++) {
+      const ph = (f / N) * Math.PI * 2;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        if (!m[(y * W + x) * 4 + 3]) continue;
+        const dx = (x - cxp) / R, dy = (y - cyp) / R * 1.15, r = Math.hypot(dx, dy), a = Math.atan2(dy, dx);
+        const arm = 0.5 + 0.5 * Math.sin(a * 3 + r * 9 - ph * 1); // три рукава спирали
+        const shim = 0.5 + 0.5 * Math.sin(r * 14 + ph * 2); // бегущие к центру кольца
+        const core = Math.max(0, 1 - r * 1.4); // светлая середина
+        let k = 0.28 + arm * 0.5 + shim * 0.12 + core * 0.55; // 0 — тёмный цвет портала, 1 — почти белый
+        k = Math.min(1.25, k);
+        const mix = (c) => (k <= 0.75 ? c * (0.35 + k * 0.87) : c + (255 - c) * ((k - 0.75) / 0.5) * 0.85);
+        const i = (y * W * N + f * W + x) * 4;
+        d[i] = Math.min(255, mix(r0)); d[i + 1] = Math.min(255, mix(g0)); d[i + 2] = Math.min(255, mix(b0));
+        d[i + 3] = 235;
+      }
+    }
+    cx.putImageData(img, 0, 0);
+    const tex = this.textures.addCanvas(out, cv);
+    for (let f = 0; f < N; f++) tex.add(f, 0, f * W, 0, W, H);
+    if (!this.anims.exists(out)) this.anims.create({ key: out, frames: Array.from({ length: N }, (_, f) => ({ key: out, frame: f })), frameRate: 10, repeat: -1 });
     return out;
   }
 
@@ -2723,6 +2765,22 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (window.Sfx) Sfx.play(proj ? 'shoot' : 'hit', { pitch: 0.9 + Math.random() * 0.2 });
   }
 
+  // Умения героя по настройке игрока: порядок и флаги (Settings.skillCfg[герой]). Переключатели облика/стихии
+  // (бесплатные) в автоматику не входят. mode 'af' — для автобоя (все, кроме выключенных), 'auto' — само по перезарядке
+  skillPlan(heroId) {
+    const skills = (this.heroes[heroId] || {}).skills || [], cfg = (Settings.get('skillCfg') || {})[heroId] || {};
+    const ord = (cfg.order || []).filter((id) => skills.some((s) => s.id === id));
+    const list = [...ord, ...skills.map((s) => s.id).filter((id) => !ord.includes(id))].map((id) => skills.find((s) => s.id === id));
+    return list.map((s) => ({ s, idx: skills.indexOf(s), toggle: s.cost === 0 && s.costLabel === 'бесплатно', auto: !!(cfg.auto || {})[s.id], af: !(cfg.off || {})[s.id] }));
+  }
+  readySkill(mode) {
+    const me = this.me, st = this.myStats || {};
+    const row = this.skillPlan(me.data.hero).find((x) => !x.toggle && x.idx < (st.unlocked ?? 1) && (mode === 'af' ? x.af : x.auto)
+      && (st.res === undefined || st.res >= (x.s.cost || 0)) && this.ui.skillReady && this.ui.skillReady(x.s.id)
+      && performance.now() >= ((this.skillReady || {})[x.s.id] || 0));
+    return row ? row.s : null;
+  }
+
   autoFarmTick(time) {
     const me = this.me, range = this.prof().range;
     const skip = this.afSkip || (this.afSkip = new Map()); // недостижимые цели (за стенами лабиринта): id → до какого времени не брать
@@ -2755,9 +2813,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
       // Умения: готовые по перезарядке и ресурсу; переключатели облика/стихии/обета не трогаем
       if (d <= range + 20 && time > (this.afSkillAt || 0) && this.lineOfSight(me.x, me.y, t.c.x, t.c.y)) {
         this.afSkillAt = time + 450;
-        const skills = this.heroes[me.data.hero].skills, st = this.myStats || {};
-        const sk = skills.find((s, i) => i < (st.unlocked ?? 1) && !(s.cost === 0 && s.costLabel === 'бесплатно')
-          && (st.res === undefined || st.res >= (s.cost || 0)) && this.ui.skillReady && this.ui.skillReady(s.id));
+        const sk = this.readySkill('af'); // порядок и выбор умений — из настройки «Умения: авто и порядок»
         if (sk) this.input_.skill = sk.id;
       }
       return;
@@ -3244,6 +3300,14 @@ window.GameScene = class GameScene extends Phaser.Scene {
     }
 
     if (this.input_.attack || this.keys.SPACE.isDown || this.autoWalk || this.autoFarm) this.tryAttack(false);
+    // Авто по перезарядке: пока герой бьёт цель (удар был меньше 2,5 с назад), отмеченные умения срабатывают сами
+    const acT = this.targetId && this.monsters.get(this.targetId);
+    if (!this.autoFarm && !me.data.dead && !this.input_.skill && this.lastAttack && this.time.now - this.lastAttack < 2500 && this.time.now > (this.acSkillAt || 0)
+      && acT && acT.data && acT.data.hp > 0 && !acT.killAt && Math.hypot(acT.c.x - me.x, acT.c.y - me.y) <= this.prof().range + 30) {
+      this.acSkillAt = this.time.now + 400;
+      const sk = this.readySkill('auto');
+      if (sk) this.input_.skill = sk.id;
+    }
     // Умения: кнопки HUD или клавиши Q / E / R
     const skills = this.heroes[me.data.hero].skills;
     let skillId = this.input_.skill;
