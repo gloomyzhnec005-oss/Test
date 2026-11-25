@@ -21,6 +21,8 @@ Flat solid pure magenta #FF00FF background everywhere, no shadows on the backgro
 
 Пришлите результат с кодом «СБ-1» (PNG, от 1200 px по ширине).
 
+✅ СБ-1 получен и подключён (`public/assets/world/props/chestAnim.png`, 6 кадров 48×61).
+
 ---
 
 # Промты: врата опасных данжей (ОД-1 … ОД-3)
@@ -51,3 +53,5 @@ Flat solid pure magenta #FF00FF background, no shadow on the background, no text
 | ОД-3 | Аэлион | Брань мёртвых небес | `Theme: sky world of white marble and gold. A broken, corrupted angelic arch: cracked white marble with tarnished gold, torn dark feathered wings on both sides, a cracked halo above, crimson light leaking from the cracks.` |
 
 Файлы после обработки: `public/assets/world/<мир>/portals/pk.png` — я подключу их вместо общей арки (заливка проёма останется).
+
+✅ ОД-1…3 получены и подключены (нарезка: `python3 tools/cut_prop.py вход.png выход.png 96`).

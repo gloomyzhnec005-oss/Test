@@ -617,7 +617,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         let top = o.y - 32;
         if (art) {
           // Нарисованная арка: обычная, выход из данжа или драконьи врата мирового босса
-          const kind = o.world ? 'boss' : o.id === 'exit' ? 'exit' : 'arch';
+          const kind = o.pk && this.textures.exists(`ptl_${z.theme}_pk`) ? 'pk' : o.world ? 'boss' : o.id === 'exit' ? 'exit' : 'arch';
           // Возврат в город из данжа — алтарь с порталом
           const tex = z.kind === 'dungeon' && o.id === 'back' && this.textures.exists('prop_exitAltar') ? 'prop_exitAltar' : `ptl_${z.theme}_${kind}`;
           const arch = keep(this.add.image(o.x, o.y + 26, tex).setOrigin(0.5, 1).setDepth(10 + o.y + 20));
@@ -630,7 +630,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
           keep(this.add.rectangle(o.x, o.y - 26, 58, 8, 0x5a5550).setDepth(10 + o.y + 20));
         }
         // Проём арки целиком залит цветом портала (по форме проёма, без овала и обводки) и мягко «дышит»
-        const fillKey = art && this.portalFill(`ptl_${z.theme}_${o.world ? 'boss' : o.id === 'exit' ? 'exit' : 'arch'}`);
+        const fillKey = art && this.portalFill(`ptl_${z.theme}_${o.pk && this.textures.exists(`ptl_${z.theme}_pk`) ? 'pk' : o.world ? 'boss' : o.id === 'exit' ? 'exit' : 'arch'}`);
         const glowAt = fillKey ? keep(this.add.image(o.x, o.y + 26, fillKey).setOrigin(0.5, 1).setTint(col).setAlpha(0.8).setDepth(10 + o.y + 19)) : null;
         const swirl = glowAt || keep(this.add.ellipse(o.x, o.y + 2, 38, 46, col, 0.55).setStrokeStyle(3, 0xffffff, 0.7).setDepth(10 + o.y));
         if (glowAt) keep(this.add.zone(o.x, o.y + 2, 40, 50).setInteractive().on('pointerdown', (ptr) => { if (!this.uiBlocked(ptr)) this.goTo(o); }));
@@ -1298,13 +1298,13 @@ window.GameScene = class GameScene extends Phaser.Scene {
   // Лучи света из открытого сундука: веер вращающихся золотых лучей и вспышка
   chestRays(x, y, big) {
     const g = this.add.graphics({ x, y }).setDepth(2999).setBlendMode(Phaser.BlendModes.ADD);
-    const R = big ? 120 : 90, n = 12;
+    const R = big ? 90 : 70, n = 12; // мягче: свечение есть и в нарисованной анимации сундука
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2, w = 0.11;
-      g.fillStyle(i % 2 ? 0xffe9a0 : 0xffc24a, 0.55);
+      g.fillStyle(i % 2 ? 0xffe9a0 : 0xffc24a, 0.3);
       g.fillTriangle(0, 0, Math.cos(a - w) * R, Math.sin(a - w) * R, Math.cos(a + w) * R, Math.sin(a + w) * R);
     }
-    g.fillStyle(0xfff6d0, 0.9).fillCircle(0, 0, big ? 16 : 12);
+    g.fillStyle(0xfff6d0, 0.5).fillCircle(0, 0, big ? 12 : 9);
     g.setScale(0.2).setAlpha(0.95);
     this.tweens.add({ targets: g, scale: 1, angle: 40, duration: 900, ease: 'Cubic.easeOut' });
     this.tweens.add({ targets: g, alpha: 0, delay: 500, duration: 700, onComplete: () => g.destroy() });
@@ -1520,7 +1520,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
       if (!this.textures.exists('prop_chestClosed')) return;
       const mine = (f.own || []).includes(this.myId);
       const s = f.big ? 1.25 : 1;
-      const img = this.add.image(f.x, f.y - 60, 'prop_chestClosed').setOrigin(0.5, 1).setScale(s).setDepth(10 + f.y).setAlpha(0);
+      const anim = this.textures.exists('prop_chestAnim'); // нарисованное открытие (6 кадров); нет — две картинки
+      const img = (anim ? this.add.sprite(f.x, f.y - 60, 'prop_chestAnim', 0) : this.add.image(f.x, f.y - 60, 'prop_chestClosed')).setOrigin(0.5, 1).setScale(s).setDepth(10 + f.y).setAlpha(0);
       const glow = mine ? this.add.ellipse(f.x, f.y - 14 * s, 70 * s, 34 * s, 0xffd36a, 0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(9 + f.y) : null;
       const tip = mine ? this.add.text(f.x, f.y - 52 * s, '👆 Открыть', { fontFamily: 'Georgia, serif', fontSize: '11px', color: '#ffe7a8', stroke: '#2a1a08', strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(3000).setAlpha(0) : null;
       this.zoneObjs.push(img); if (glow) this.zoneObjs.push(glow); if (tip) this.zoneObjs.push(tip);
@@ -1553,7 +1554,10 @@ window.GameScene = class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: ch.img, x: ch.x + 3, duration: 55, yoyo: true, repeat: 4, ease: 'Sine.easeInOut', onComplete: () => { ch.img.x = ch.x; } });
       this.time.delayedCall(520, () => {
         if (!ch.img.active) return;
-        ch.img.setTexture('prop_chestOpen');
+        if (ch.img.texture.key === 'prop_chestAnim') {
+          if (!this.anims.exists('chestOpen')) this.anims.create({ key: 'chestOpen', frames: this.anims.generateFrameNumbers('prop_chestAnim', { start: 1, end: 5 }), frameRate: 11, repeat: 0 });
+          ch.img.play('chestOpen');
+        } else ch.img.setTexture('prop_chestOpen');
         this.tweens.add({ targets: ch.img, scaleX: ch.s * 1.12, scaleY: ch.s * 0.9, duration: 90, yoyo: true });
         this.chestRays(ch.x, ch.y - 18 * ch.s, ch.big);
         this.burst(ch.x, ch.y - 16, 0xffd36a, 26);
