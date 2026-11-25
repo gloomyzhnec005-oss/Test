@@ -219,5 +219,7 @@ module.exports = function createQuests(deps) {
 
   // Текущий шаг сюжета — для подсказки на экране
   const storyNow = (pr, tier) => storyView(pr, tier).cur;
-  return { track, handle, ready, storyNow, DEFS: BY_ID };
+  // Для карты мира: текущий шаг сюжета — тип, глава (мир) и цель
+  const storyRaw = (pr) => { const q = STORY[storyOf(pr).i]; return q ? { id: q.id, ch: q.ch, icon: q.icon, name: q.name, type: q.type, goal: q.goal, prog: storyProg(pr) } : null; };
+  return { track, handle, ready, storyNow, storyRaw, DEFS: BY_ID };
 };

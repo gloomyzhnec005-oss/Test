@@ -286,6 +286,10 @@ module.exports = function createAdmin(ctx) {
         pr.refs = []; pr.refN = 0;
         return { text: `Приглашения сняты: ${n} аккаунтов отвязано, у приглашённых забрано ${back} 💎 неистраченного бонуса` };
       }
+      case 'blogger': case 'partner':
+        pr.test ??= {};
+        pr.test[d.action] = !!d.value;
+        return { text: d.action === 'blogger' ? `Блогер: ${d.value ? 'вкл — 7% GRAM с покупок приглашённых' : 'выкл — 5%'}` : `Партнёр: ${d.value ? 'вкл — комиссия вывода на 5% меньше' : 'выкл'}` };
       case 'wdTest':
         pr.test ??= {};
         pr.test.wdTest = !!d.value;

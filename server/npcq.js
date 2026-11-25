@@ -172,5 +172,11 @@ module.exports = function createNpcQuests({ X, I, getProfile, grantXp, refreshPl
     const pr = getProfile(p.uid);
     return Object.fromEntries(Object.values(GIVERS).filter((g) => g.town === town).map((g) => [g.id, mark(pr, g.id, p.char.level)]));
   }
-  return { GIVERS, Q, track, act, marks }; // Q — для проверок
+  // Для карты мира: поручители всех городов — значок, задание и (если взято и привязано к данжу) куда идти
+  function mapInfo(p) {
+    const pr = getProfile(p.uid);
+    return Object.values(GIVERS).map((g) => { const c = current(pr, g.id), m = mark(pr, g.id, p.char.level);
+      return { town: g.town, name: g.name, title: g.title, mark: m, quest: c.q && m !== 'none' ? c.q.name : null, zone: c.acc && c.q && c.q.zone ? c.q.zone : null, prog: c.acc ? `${c.prog || 0}/${c.q.goal}` : null }; });
+  }
+  return { GIVERS, Q, track, act, marks, mapInfo }; // Q — для проверок
 };

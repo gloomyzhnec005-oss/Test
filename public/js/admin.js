@@ -378,6 +378,12 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
           ${p.banned ? `<span class="tag red">бан: ${esc(p.banned.reason)}</span>` : ''}</div>
       </div>
 
+      <div class="card"><h3>🤝 Блогер / партнёр</h3>
+        <label class="switch"><input type="checkbox" data-flag="blogger" ${p.test.blogger ? 'checked' : ''}> Блогер: 7% GRAM с покупок приглашённых (вместо 5%)</label>
+        <label class="switch"><input type="checkbox" data-flag="partner" ${p.test.partner ? 'checked' : ''}> Особый партнёр: комиссия вывода GRAM на 5% меньше</label>
+        <small class="muted">Канал блогера — в «Особые задания» (настройки → ссылки)</small>
+      </div>
+
       <div class="card"><h3>🧪 Тесты</h3>
         <label class="switch"><input type="checkbox" data-flag="god" ${p.test.god ? 'checked' : ''}> Бессмертие (монстры не наносят урон)</label>
         <label class="switch"><input type="checkbox" data-flag="oneShot" ${p.test.oneShot ? 'checked' : ''}> Убийство монстров с одного удара</label>
@@ -426,10 +432,10 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
 
       <div class="card"><h3>⭐ Подписка и пропуск</h3>
         <div class="row"><label>Подписка: ${p.subUntil > Date.now() ? 'до ' + new Date(p.subUntil).toLocaleDateString('ru-RU') : 'нет'}</label><input id="subDays" type="number" value="30"><label>дн.</label><button class="btn" data-a="sub">Выдать</button><button class="btn" data-a="subOff">Снять</button></div>
-        <div class="row"><label>Орден сезона (уровень пропуска ${p.pass.level})</label><select id="passTier">${['🎖️ Странника (бесплатный)', '🥉 Бронзовый', '🥈 Серебряный', '🥇 Золотой (автобой)', '👑 Чемпиона', '🟢 Купца (торговый)', '🏦 Магната (торговый)'].map((n, i) => `<option value="${i}" ${p.pass.tier === i ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn" data-a="passTier">Выдать</button></div>
+        <div class="row"><label>Орден сезона (уровень пропуска ${p.pass.level})</label><select id="passTier">${['🎖️ Странника (бесплатный)', '🥉 Бронзовый', '🥈 Серебряный', '🥇 Золотой (автобой)', '👑 Чемпиона', '🟢 Купца (торговый)', '🏦 Магната (торговый)', '🛡️ Хранителя', '⚜️ Архонта', '🐉 Дракона', '💠 Вечности'].map((n, i) => `<option value="${i}" ${p.pass.tier === i ? 'selected' : ''}>${n}</option>`).join('')}</select><button class="btn" data-a="passTier">Выдать</button></div>
         <div class="row"><label>Опыт пропуска</label><input id="passXp" type="number" value="100"><button class="btn" data-a="passXp">Добавить</button></div>
-        <div class="row"><label>Личная цена ордена${p.passDeal ? ` (сейчас: ${['', 'Бронзовый', 'Серебряный', 'Золотой', 'Чемпиона', 'Купца', 'Магната'][p.passDeal.tier]} — ${p.passDeal.stars} ⭐)` : ''}</label>
-          <select id="dealTier">${['🥉 Бронзовый', '🥈 Серебряный', '🥇 Золотой', '👑 Чемпиона', '🟢 Купца', '🏦 Магната'].map((n, i) => `<option value="${i + 1}" ${(p.passDeal ? p.passDeal.tier : 6) === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select>
+        <div class="row"><label>Личная цена ордена${p.passDeal ? ` (сейчас: ${['', 'Бронзовый', 'Серебряный', 'Золотой', 'Чемпиона', 'Купца', 'Магната', 'Хранителя', 'Архонта', 'Дракона', 'Вечности'][p.passDeal.tier]} — ${p.passDeal.stars} ⭐)` : ''}</label>
+          <select id="dealTier">${['🥉 Бронзовый', '🥈 Серебряный', '🥇 Золотой', '👑 Чемпиона', '🟢 Купца', '🏦 Магната', '🛡️ Хранителя', '⚜️ Архонта', '🐉 Дракона', '💠 Вечности'].map((n, i) => `<option value="${i + 1}" ${(p.passDeal ? p.passDeal.tier : 6) === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select>
           <input id="dealStars" type="number" min="0" placeholder="⭐" value="${p.passDeal ? p.passDeal.stars : ''}"><button class="btn" data-a="passDeal">Задать</button></div>
         <p class="muted">Разово: игрок увидит эту цену у выбранного ордена в окне орденов и заплатит её звёздами или GRAM (без скидки первой покупки). После оплаты цена сгорает. 0 — снять.</p>
       </div>

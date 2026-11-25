@@ -266,7 +266,7 @@ window.Town = (() => {
   async function tradeHousePanel(tab = 0) {
     const r = await Bag.act('th');
     if (r.error) return toast(r.error);
-    const badge = (l) => (l.badge === 'magnate' ? '👑 ' : l.badge === 'merchant' ? '🟢 ' : '');
+    const badge = (l) => (({ eternal: '💠', dragon: '🐉', archon: '⚜️', warden: '🛡️', magnate: '👑', merchant: '🟢' })[l.badge] || '').replace(/.+/, '$& ');
     const buyTab = () => {
       const box = el(`${balLine(r.bal)}<p class="sheet-hint">Товары игроков за GRAM. Покупка — сразу с баланса, предмет приходит в сумку.</p>`);
       bindWallet(box);
@@ -626,7 +626,7 @@ window.Town = (() => {
         <small>${s.passTiers.map((t) => `${orderIc(t, 'sm')} ${t.name} · ${t.price} ⭐`).join('<br>')}<br>Мифический предмет на 30 уровне — в Ордене Чемпиона · автобой с Золотого ордена</small>
         ${s.passTier ? `<small class="ok">${orderIc(s.passTiers[s.passTier - 1], 'sm')} ${s.passTiers[s.passTier - 1].name} активен</small>` : ''}
         <button class="l2-btn" id="openOrders">${s.passTier >= 4 ? 'Награды сезона' : s.passTier ? 'Улучшить орден' : 'Выбрать орден'}</button></div>
-      <div class="tw-banner items"><b>💎 GRAM-кошелёк · торговые ордена</b><small>Баланс для Рынка и Торгового дома, пополнение, вывод денег с продаж. Ордена Купца и Магната — меньше комиссии и больше лотов.</small>
+      <div class="tw-banner items"><b>💎 GRAM-кошелёк · торговые ордена</b><small>Баланс для Рынка и Торгового дома, пополнение, вывод денег с продаж. Торговые ордена (от Купца до Вечности) — меньше комиссии и больше лотов.</small>
         <button class="l2-btn" id="openWallet">Открыть кошелёк</button></div>
       <div class="tw-banner pass"><b>⚗️ Великие эликсиры · 1 час</b><small>Намного сильнее эликсиров из лавки и действуют вместе с ними. Попадают в сумку — выпейте, когда нужно. Сгорают при гибели героя.</small></div>
       ${(s.chests || []).filter((c) => c.elixir).map((c) => `<div class="tw-banner items elx has-art"><img class="tw-art" src="assets/items/mat_${c.id === 'elxXp2x5' ? 'elxXp2' : c.id}.webp" alt=""><b>${c.title}</b><small>${c.desc}</small>

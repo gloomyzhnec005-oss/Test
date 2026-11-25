@@ -41,10 +41,15 @@ const CFG = {
   // не больше perUser в одни руки; дальше — только перепродажа в Торговом доме (цена ×k к обычной мифической)
   ltd: { id: 's1', name: 'Первый Рассвет', of: 100, perUser: 3, k: 1.5 },
   orders: {
-    tord1: { id: 'merchant', name: 'Орден Купца', icon: '🟢', stars: 299, days: 30, fee: 0.05, wFee: 0.02, slots: 5, lotDays: 14, top: false, itemSpins: 1,
-      perks: ['Комиссия Торгового дома 15% вместо 20%', 'Комиссия вывода 8% вместо 10%', '+5 лотов в Торговом доме', 'Лоты висят 14 дней', 'Знак купца у ваших лотов', 'Выплаты — в первую очередь', '+1 печать снаряжения сразу'] },
-    tord2: { id: 'magnate', name: 'Орден Магната', icon: '👑', stars: 699, days: 30, fee: 0.10, wFee: 0.05, slots: 15, lotDays: 30, top: true, itemSpins: 3,
-      perks: ['Комиссия Торгового дома 10% вместо 20%', 'Комиссия вывода 5% вместо 10%', '+15 лотов в Торговом доме', 'Лоты висят 30 дней', 'Ваши лоты — вверху списка', 'Золотой знак магната у лотов', 'Выплаты — в первую очередь', '+3 печати снаряжения сразу'] },
+    tord1: { id: 'merchant', name: 'Орден Купца', icon: '🟢', stars: 299, days: 30, fee: 0.025, wFee: 0.01, slots: 5, lotDays: 14, top: false, itemSpins: 1,
+      perks: ['Комиссия Торгового дома 17.5% вместо 20%', 'Комиссия вывода 9% вместо 10%', '+5 лотов в Торговом доме', 'Лоты висят 14 дней', 'Знак купца у ваших лотов', 'Выплаты — в первую очередь', '+1 печать снаряжения сразу'] },
+    tord2: { id: 'magnate', name: 'Орден Магната', icon: '👑', stars: 699, days: 30, fee: 0.05, wFee: 0.025, slots: 15, lotDays: 30, top: true, itemSpins: 3,
+      perks: ['Комиссия Торгового дома 15% вместо 20%', 'Комиссия вывода 7.5% вместо 10%', '+15 лотов в Торговом доме', 'Лоты висят 30 дней', 'Ваши лоты — вверху списка', 'Золотой знак магната у лотов', 'Выплаты — в первую очередь', '+3 печати снаряжения сразу'] },
+    // Старшие ордена — только ступени сезонных орденов (отдельно не продаются)
+    tord3: { id: 'warden', pass: true, name: 'Орден Хранителя', icon: '🛡️', fee: 0.06, wFee: 0.03, slots: 20, lotDays: 30, top: true },
+    tord4: { id: 'archon', pass: true, name: 'Орден Архонта', icon: '⚜️', fee: 0.07, wFee: 0.035, slots: 25, lotDays: 30, top: true },
+    tord5: { id: 'dragon', pass: true, name: 'Орден Дракона', icon: '🐉', fee: 0.08, wFee: 0.04, slots: 30, lotDays: 30, top: true },
+    tord6: { id: 'eternal', pass: true, name: 'Орден Вечности', icon: '💠', fee: 0.10, wFee: 0.05, slots: 40, lotDays: 30, top: true },
   },
 };
 
@@ -70,11 +75,13 @@ module.exports = function createTrade(deps) {
     pr.gram.earn ??= []; pr.gram.log ??= [];
     return pr.gram;
   }
+  // Комиссия вывода: база − скидка ордена − 5% особому партнёру (флаг в админке), не ниже нуля
+  const wFeeOf = (pr) => Math.max(0, CFG.wFee - ((order(pr) || {}).wFee || 0) - (((pr.test || {}).partner) ? 0.05 : 0));
   const byId = (id) => Object.values(CFG.orders).find((x) => x.id === id) || null;
   const order = (pr) => {
     const t = deps.passTier ? deps.passTier(pr) : 0; // сезонный орден 6 — Магнат, 5 — Купец
-    if (t >= 6) return byId('magnate');
-    if (t >= 5) return byId('merchant');
+    const PASS_ORD = { 10: 'eternal', 9: 'dragon', 8: 'archon', 7: 'warden', 6: 'magnate', 5: 'merchant' };
+    if (t >= 5) return byId(PASS_ORD[Math.min(10, t)]);
     const o = pr.tOrder; return o && o.until >= now() ? byId(o.id) : null; // купленный раньше отдельно — до конца срока
   };
   // Тест вывода (админка → игрок → «Тест вывода»): без условий уровня/возраста, к выводу — весь баланс, включая
@@ -255,7 +262,7 @@ module.exports = function createTrade(deps) {
       const b = bal(pr), o = order(pr), g = G(pr), mine = st.wd.filter((w) => w.uid === p.uid).slice(0, 10), tw = wdTest(pr);
       return { gram: {
         dep: b.dep, free: tw ? b.total : b.free, wdTest: tw, hold: b.hold, next: b.next, total: b.total, wallet: g.wallet || '', log: g.log.slice(0, 30),
-        fee: CFG.fee - ((o && o.fee) || 0), wFee: CFG.wFee - ((o && o.wFee) || 0), holdDays: CFG.holdDays, wMin: toNano(CFG.wMin), depMin: CFG.depMin,
+        fee: CFG.fee - ((o && o.fee) || 0), wFee: wFeeOf(pr), holdDays: CFG.holdDays, wMin: toNano(CFG.wMin), depMin: CFG.depMin,
         wLevel: CFG.wLevel, wAgeDays: CFG.wAgeDays, level: tw ? Math.max(CFG.wLevel, maxLevel(pr)) : maxLevel(pr), ageDays: tw ? Math.max(CFG.wAgeDays, Math.floor((now() - (pr.created || now())) / 864e5)) : Math.floor((now() - (pr.created || now())) / 864e5),
         order: o ? { ...o, until: deps.passEnds ? (deps.passTier(pr) >= 5 ? deps.passEnds() : pr.tOrder.until) : 0 } : null, wd: mine,
         orders: deps.passOrders ? deps.passOrders(pr).map((x) => ({ ...x, gram: gramOf(x.cost) })) : [],
@@ -362,7 +369,7 @@ module.exports = function createTrade(deps) {
     th(p, d, pr) {
       sweep();
       sweepBids();
-      const lots = st.lots.map((l) => ({ ...lotView(l, p.uid), hist: histView(l.mat ? matKey(l.mat) : itemKey(l.item)) })).sort((a, b) => (b.badge === 'magnate') - (a.badge === 'magnate') || b.id - a.id);
+      const lots = st.lots.map((l) => ({ ...lotView(l, p.uid), hist: histView(l.mat ? matKey(l.mat) : itemKey(l.item)) })).sort((a, b) => !!(byId(b.badge) || {}).top - !!(byId(a.badge) || {}).top || b.id - a.id);
       const bids = st.bids.map((b) => bidView(b, p.uid)).sort((a, b) => b.price - a.price);
       // Сколько комиссии заплачено за 30 дней — и сколько сэкономили бы торговые ордена
       const fees30 = -G(pr).log.filter((e) => e.kind === 'fee' && now() - e.t < 30 * 864e5).reduce((x, e) => x + e.a, 0), o = order(pr);
@@ -524,7 +531,7 @@ module.exports = function createTrade(deps) {
       for (const c of g.earn) { if (!left || (c.at > now() && !tw)) continue; const k = Math.min(c.a, left); c.a -= k; left -= k; }
       g.earn = g.earn.filter((c) => c.a > 0);
       if (left && tw) { const k = Math.min(g.dep, left); g.dep -= k; left -= k; } // тест: и из пополнений
-      const o = order(pr), fee = Math.round(gross * (CFG.wFee - ((o && o.wFee) || 0)));
+      const o = order(pr), fee = Math.round(gross * wFeeOf(pr));
       const w = { id: st.seq++, uid: p.uid, name: p.name, gross, fee, net: gross - fee, address: addr, at: now(), status: 'wait', prio: o ? (o.top ? 2 : 1) : 0 };
       st.wd.unshift(w); st.wd.length = Math.min(st.wd.length, 3000);
       g.wallet = addr;
@@ -558,7 +565,7 @@ module.exports = function createTrade(deps) {
   // ---------- Торговые ордена ----------
   function grantOrder(pr, kind) {
     const o = CFG.orders[kind];
-    if (!o) return false;
+    if (!o || o.pass) return false;
     const cur = pr.tOrder && pr.tOrder.until > now() ? pr.tOrder : null;
     // Тот же орден — продлевается; другой — заменяется (остаток не переносится)
     const base = cur && cur.id === o.id ? cur.until : now();
@@ -566,7 +573,7 @@ module.exports = function createTrade(deps) {
     pr.itemSpins = (pr.itemSpins || 0) + (o.itemSpins || 0);
     return true;
   }
-  const invoices = () => Object.fromEntries(Object.entries(CFG.orders).map(([k, o]) => [k, { title: `${o.name} · 30 дней`, description: o.perks.join(', ').slice(0, 250), amount: o.stars }]));
+  const invoices = () => Object.fromEntries(Object.entries(CFG.orders).filter(([, o]) => !o.pass).map(([k, o]) => [k, { title: `${o.name} · 30 дней`, description: o.perks.join(', ').slice(0, 250), amount: o.stars }]));
 
   // ---------- Админка ----------
   function adminView() {
@@ -640,6 +647,6 @@ module.exports = function createTrade(deps) {
     save();
     return n - st.lots.length;
   }
-  return { publicStats, wipe, spendGram, grant, take, giveBack: refundTo, houseAdd, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k), adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
+  return { publicStats, wipe, spendGram, grant, take, giveBack: refundTo, houseAdd, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k) && !CFG.orders[k].pass, adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
 };
 module.exports.CFG = CFG;

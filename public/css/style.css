@@ -1588,3 +1588,24 @@ canvas.skin { object-fit: contain; }
 .mem small { font-size: 11px; color: #cdbb94; }
 .mem i { font-style: normal; opacity: .7; }
 .reveal-perk { margin: 6px 0; padding: 6px 10px; border-radius: 10px; background: rgba(201,162,90,.14); border: 1px solid rgba(201,162,90,.5); color: #ffe7a8; font-size: 13px; }
+
+/* Карта мира */
+.wm-town { margin: 8px 0 12px; padding: 8px; border-radius: 8px; border: 1px solid #5a4528; background: linear-gradient(180deg, rgba(60,90,40,.35), rgba(0,0,0,.35)); }
+.wm-town.wm-abyss { background: linear-gradient(180deg, rgba(110,30,40,.38), rgba(0,0,0,.35)); }
+.wm-town.wm-sky { background: linear-gradient(180deg, rgba(50,90,150,.38), rgba(0,0,0,.35)); }
+.wm-town.locked { opacity: .55; }
+.wm-h b { color: #ffe9b0; font-size: 16px; display: block; }
+.wm-h small { opacity: .75; }
+.wm-pl { margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: rgba(0,0,0,.35); border: 1px solid #3a2f22; }
+.wm-pl.hot { border-color: #ffd23a; box-shadow: 0 0 6px rgba(255,210,58,.35); }
+.wm-pl.locked { opacity: .5; }
+.wm-pl b { color: #ffe9b0; font-weight: normal; }
+.wm-pl small { display: block; opacity: .7; font-size: 12px; }
+.wm-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.wm-chips:empty { display: none; }
+.wm-c { font-size: 12px; padding: 2px 6px; border-radius: 10px; background: rgba(255,255,255,.08); }
+.wm-c.here { background: rgba(255,210,58,.25); color: #ffe27a; }
+.wm-c.story { background: rgba(120,200,255,.2); color: #bfe6ff; }
+.wm-c.npc { background: rgba(255,200,60,.15); color: #ffd23a; }
+.wm-c.fr { background: rgba(120,255,140,.15); color: #b8ffbf; }
+.fr-add input { flex: 1; min-width: 0; }

@@ -851,7 +851,7 @@ window.Lobby = (() => {
     $('sheet').onclick = (e) => { if (e.target === $('sheet')) closeSheet(); };
     $('playBtn').onclick = () => (order[0] ? opts.onStart(order[0], playerName()) : openGacha());
 
-    $('lpRename').onclick = () => { $('guestName').value = playerName(); $('renameBox').classList.remove('hidden'); $('guestName').focus(); };
+    $('lpRename').onclick = () => { if (opts.tgUser && profile) $('renameHint').textContent = profile.nickCost ? `3–16 символов · смена ника — ${profile.nickCost} 💎` : '3–16 символов · первая смена ника — бесплатно'; $('guestName').value = playerName(); $('renameBox').classList.remove('hidden'); $('guestName').focus(); };
     $('renameBox').onclick = (e) => { if (e.target === $('renameBox')) $('renameBox').classList.add('hidden'); };
     $('renameForm').onsubmit = (e) => {
       e.preventDefault();
@@ -860,7 +860,7 @@ window.Lobby = (() => {
         if (!v || v === playerName()) { $('renameBox').classList.add('hidden'); return; }
         api('/api/nick', { nick: v }).then(({ ok, data }) => {
           if (!ok) { toast(data.error || 'Не удалось сменить ник'); return; }
-          profile = data; renderPanel(); toast('Ник изменён');
+          profile = data; renderPanel(); toast('Ник изменён'); if (window.refreshGems) window.refreshGems();
           $('renameBox').classList.add('hidden'); $('guestName').blur();
         }).catch(() => toast('Нет связи с сервером'));
         return;

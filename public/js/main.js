@@ -677,7 +677,7 @@
           <div class="ic-sec">Снаряжение</div>
           <div class="pp-gear">${pl.slots.map((s) => `<div class="pp-slot" data-s="${s}">${bySlot[s] ? Bag.cell(bySlot[s], 'other') : '<span class="pp-empty"></span>'}<em>${pl.slotNames[s]}</em></div>`).join('')}</div>
           ${pl.me ? '' : `<button class="l2-btn wide" id="ppInvite" ${pl.party ? 'disabled' : ''}>${inMyParty ? '✓ В вашей группе' : pl.party ? 'Уже в другой группе' : '👥 Пригласить в группу'}</button>
-          <div class="btn-row"><button class="l2-btn" id="ppPm">✉️ Написать</button><button class="l2-btn" id="ppClan">🛡️ В клан</button></div>`}`;
+          <div class="btn-row"><button class="l2-btn" id="ppPm">✉️ Написать</button><button class="l2-btn" id="ppClan">🛡️ В клан</button><button class="l2-btn" id="ppFr">🤝 В друзья</button></div>`}`;
         box.querySelector('.pp-name').textContent = pl.name;
         const art = window.Lobby && Lobby.heroCanvas(pl.hero, true);
         if (art) box.querySelector('.pp-art').append(art);
@@ -687,6 +687,8 @@
         const pmB = box.querySelector('#ppPm'), clB = box.querySelector('#ppClan');
         if (pmB) pmB.onclick = () => { Town.close(); window.openPm(pl.id, pl.name); };
         if (clB) clB.onclick = async () => { const x = await clanAct({ op: 'invite', target: pl.id }); Town.toast(x.error || x.toast); };
+        const frB = box.querySelector('#ppFr');
+        if (frB) frB.onclick = async () => { const x = await friendAct({ op: 'add', target: pl.id }); Town.toast(x.error || x.toast); if (!x.error) frB.disabled = true; };
         Town.open(`👤 ${pl.name}`, box);
       };
       // ---------- Рейтинги ----------
@@ -863,6 +865,69 @@
         if (!r || !r.ref || !r.ref.code) { Town.toast('Приглашения доступны в игре через Telegram'); return; }
         Town.open('👥 Пригласить друга', Invite.panel(r.ref));
       };
+      // ---------- Карта мира: города и места с метками сюжета (📖), поручителей (❗ ❓ …), друзей и «вы здесь» ----------
+      const openWorldMap = async () => {
+        const r = await Bag.act('worldMap');
+        if (!r || r.error) { Town.toast((r && r.error) || 'Карта недоступна'); return; }
+        const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+        const NM = { new: ['❗', 'новое задание'], ready: ['❓', 'сдать задание'], prog: ['…', 'в работе'] };
+        const KIND = { dungeon: '🕳️', pk: '☠️', wb: '👹' };
+        const chips = (x) => [
+          x.here ? '<span class="wm-c here">📍 вы здесь</span>' : '',
+          x.story ? `<span class="wm-c story">📖 ${esc(r.story.name)} · ${r.story.prog}</span>` : '',
+          ...(x.npc || []).map((n) => `<span class="wm-c npc">${n.mark ? NM[n.mark][0] : '📜'} ${esc(n.name)}${n.quest ? ': ' + esc(n.quest) : ''}${n.prog ? ' · ' + n.prog : ''}</span>`),
+          (x.friends || []).length ? `<span class="wm-c fr">🤝 ${x.friends.map(esc).join(', ')}</span>` : '',
+        ].join('');
+        const box = document.createElement('div');
+        box.innerHTML = `<p class="sheet-hint">📖 — шаг сюжета · ❗ новое задание у поручителя · ❓ можно сдать · … задание в работе · 🤝 друзья · 📍 вы здесь. Между городами — телепорт в центре города, в данжи — порталы.</p>
+          ${r.story ? `<div class="tw-banner pass"><b>${r.story.icon} ${esc(r.story.name)} · ${r.story.prog}</b><small>Текущий шаг сюжета — отмечен 📖 на карте</small></div>` : ''}
+          ${r.towns.map((t) => `<div class="wm-town wm-${t.theme} ${t.open ? '' : 'locked'}">
+            <div class="wm-h"><b>${t.open ? '🏰' : '🔒'} ${esc(t.name)}</b><small>${esc(t.sub)} · ур. ${t.level}${t.open ? '' : ` · откроется с ${t.minLevel} ур.`}</small></div>
+            <div class="wm-chips">${chips({ ...t, here: t.inTown })}</div>
+            ${t.places.map((pl) => `<div class="wm-pl ${pl.open ? '' : 'locked'} ${pl.here || pl.story || pl.npc.length ? 'hot' : ''}">
+              <div><b>${pl.open ? KIND[pl.kind] : '🔒'} ${esc(pl.name)}</b>${pl.lv ? `<small>ур. ${pl.lv}${pl.kind === 'pk' ? ' · опасный, PvP' : ''}</small>` : ''}</div>
+              <div class="wm-chips">${chips(pl)}</div></div>`).join('')}
+          </div>`).join('')}`;
+        Town.open('🌍 Карта мира', box);
+      };
+      window.openWorldMap = openWorldMap;
+      // ---------- Друзья: заявки, кто онлайн и где, телепорт к другу (если он не флагнут и не в бою) ----------
+      const friendAct = (d) => new Promise((res) => socket.emit('friend', d, (r) => res(r || {})));
+      const openFriends = async () => {
+        const r = await friendAct({ op: 'list' });
+        if (r.error) { Town.toast(r.error); return; }
+        const box = document.createElement('div');
+        const ago = (t) => { if (!t) return 'давно'; const m = Math.round((Date.now() - t) / 60000); return m < 60 ? `${m} мин назад` : m < 1440 ? `${Math.round(m / 60)} ч назад` : `${Math.round(m / 1440)} дн назад`; };
+        box.innerHTML = `<p class="sheet-hint">Друзья видят, кто в игре и где. Телепорт к другу — если ни вы, ни он не флагнуты и никто не в бою.</p>
+          <form class="fr-add btn-row"><input maxlength="16" placeholder="Ник игрока" autocomplete="off"><button class="l2-btn">➕ Добавить</button></form>
+          ${r.reqs.length ? `<div class="ic-sec">Заявки</div>${r.reqs.map((q) => `<div class="tw-ev" data-u="${q.uid}"><div><b></b><small>хочет дружить</small></div><div class="btn-row"><button class="l2-btn" data-op="accept">✓</button><button class="l2-btn" data-op="decline">✕</button></div></div>`).join('')}` : ''}
+          <div class="ic-sec">Друзья ${r.friends.length}/${r.max}</div>
+          ${r.friends.length ? r.friends.map((f) => `<div class="tw-ev" data-u="${f.uid}"><div><b>${f.online ? '🟢 ' : '⚪ '}<span class="fr-n"></span></b><small>ур. ${f.lvl} · ${f.online ? '' : 'был(а) ' + ago(f.seen)}<span class="fr-w"></span></small></div>
+            <div class="btn-row">${f.online ? `<button class="l2-btn" data-op="tp" ${f.tp ? '' : 'disabled'}>🌀</button><button class="l2-btn" data-op="pm">✉️</button>` : ''}<button class="l2-btn" data-op="remove">🗑</button></div></div>`).join('') : '<div class="tw-soon">Пока никого. Добавьте по нику или в профиле игрока (тап по герою)</div>'}`;
+        // имена и места — текстом (без HTML из ников)
+        for (const q of r.reqs) box.querySelector(`[data-u="${q.uid}"] b`).textContent = q.name;
+        for (const f of r.friends) {
+          const row = box.querySelector(`[data-u="${f.uid}"]`);
+          row.querySelector('.fr-n').textContent = f.name;
+          row.querySelector('.fr-w').textContent = f.online ? (f.where || '') + (f.why ? ` · ${f.why}` : '') : '';
+        }
+        box.querySelector('.fr-add').onsubmit = async (e) => {
+          e.preventDefault();
+          const v = e.target.querySelector('input').value.trim(); if (!v) return;
+          const x = await friendAct({ op: 'add', name: v }); Town.toast(x.error || x.toast); if (!x.error) openFriends();
+        };
+        box.onclick = async (e) => {
+          const b = e.target.closest('button[data-op]'); if (!b) return;
+          const uid = b.closest('[data-u]').dataset.u, op = b.dataset.op;
+          if (op === 'pm') { const f = r.friends.find((x) => x.uid === uid); Town.close(); window.openPm(f.sid, f.name); return; }
+          if (op === 'remove' && !confirm('Удалить из друзей?')) return;
+          const x = await friendAct({ op, uid });
+          if (x.error || x.toast) Town.toast(x.error || x.toast);
+          if (x.close) Town.close(); else if (!x.error || op !== 'tp') openFriends();
+        };
+        Town.open('🤝 Друзья', box);
+      };
+      window.openFriends = openFriends;
       const openParty = () => {
         const box = document.createElement('div');
         const me = socket.id;
@@ -1109,7 +1174,7 @@
       // Автобой в меню «Игра»: включается только в данже, нужен Золотой орден
       const autofarmRow = () => {
         const inDg = zone && zone.kind === 'dungeon';
-        // Минут в день — по ордену (бесплатный 15 мин … Магнат 6 ч). Выйти из игры с включённым автобоем — герой фармит сам
+        // Минут в день — по ордену (бесплатный 15 мин … Вечность 12 ч). Выйти из игры с включённым автобоем — герой фармит сам
         const unl = afLeft === -1, mins = Math.ceil(afLeft / 60e3);
         const locked = false, out = !unl && afLeft <= 0 && !autoOn;
         const desc = out ? 'На сегодня закончился · больше времени — сезонный орден'
@@ -1157,10 +1222,12 @@
                 if (autoOn) socket.emit('autofarm', false); // иначе герой не выходит из боя, а в бою телепорт запрещён
                 socket.emit('recall');
               }]] : []),
+              ['teleport', 'Карта мира', 'Города, данжи и куда идти по заданиям', () => openWorldMap()],
             ], true],
             ['🧙 Герой и группа', [
               ['party', 'Сменить героя', 'Без выхода из игры', openHeroSwitch],
               ['party', 'Группа', 'До 4 игроков: общий опыт и добыча', openParty],
+              ['party', 'Друзья', 'Заявки, кто в игре, телепорт к другу', () => openFriends()],
               ['smith', 'Соединение 5 → 1', 'Повысить редкость вещей', () => Bag.open('merge')],
             ]],
             ['🎁 Награды', [

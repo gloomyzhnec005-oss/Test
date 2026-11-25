@@ -163,7 +163,7 @@ function profileView(who) {
   }
   const bgs = C.LOBBY_BACKGROUNDS.filter((b) => b.price === 0 || pr.bgs.includes(b.id)).map((b) => b.id);
   return {
-    name: pr.nick || who.name, nick: pr.nick || null, nickAt: pr.nickAt || 0, uid: who.uid, tgId: who.tg ? who.uid.slice(2) : null, heroes: pr.heroes, chars, bgs,
+    name: pr.nick || who.name, nick: pr.nick || null, nickAt: pr.nickAt || 0, nickCost: nickCost(pr), uid: who.uid, tgId: who.tg ? who.uid.slice(2) : null, heroes: pr.heroes, chars, bgs,
     isAdmin: !!who.tg && admin.isAdminUid(who.uid),
     freeSpin: !pr.freeSpinUsed || FREE_SPINS || S.freeSpins, paidSpins: pr.paidSpins, spinPrice: C.GACHA.spinPrice, gold: pr.gold, dupeMax: C.GACHA.heroDupeMax,
     wish: Wish.view(pr), spin10Price: C.GACHA.spin10Price,
@@ -227,7 +227,8 @@ function refPaid(pr, info) {
 // а тем, кто пригласил друга ДО открытия игры, — 7%. Платится из дохода игры (на Торговом доме — не больше половины комиссии,
 // чтобы торговля «сам с собой» через второй аккаунт не становилась выгодной). К выводу — через 3 дня, как деньги с продаж
 const REF_GRAM = { rate: 0.05, early: 0.07 };
-const refRate = (pr) => (S.openAt && pr.refAt && pr.refAt < S.openAt ? REF_GRAM.early : REF_GRAM.rate);
+// Блогер (флаг в админке у пригласившего) — 7% со всех покупок приглашённых
+const refRate = (pr) => (((profiles[pr.refBy] || {}).test || {}).blogger || (S.openAt && pr.refAt && pr.refAt < S.openAt) ? REF_GRAM.early : REF_GRAM.rate);
 // Владыки недели (клан-победитель войны кланов): 10% дохода игры с Рынка и Торгового дома — в казну, в понедельник
 // делится поровну между участниками, заходившими за неделю. Деньги — только из дохода игры, новых не появляется
 const REIGN_SHARE = 0.1;
@@ -297,7 +298,8 @@ app.post('/api/profile', (req, res) => {
 });
 
 // Свой ник для игроков Telegram (по умолчанию — имя из Telegram). 3–16 символов, уникальный, менять — раз в сутки.
-const NICK_CD = 24 * 3600e3;
+// Смена ника: первая — бесплатно, дальше 500 💎, 1000, 1500 … (не больше 2000)
+const nickCost = (pr) => (pr.nick ? Math.min(2000, 500 * ((pr.nickPaid || 0) + 1)) : 0);
 app.post('/api/nick', (req, res) => {
   const { initData, nick } = req.body || {};
   const who = resolveUid(initData, null);
@@ -308,14 +310,13 @@ app.post('/api/nick', (req, res) => {
   if (v.length < 3) return res.status(400).json({ error: 'Ник — от 3 до 16 символов' });
   if (!/^[\p{L}\p{N} _.\-]+$/u.test(v)) return res.status(400).json({ error: 'Только буквы, цифры, пробел, _ . -' });
   if (v === pr.nick) return res.json(profileView(who));
-  if (pr.nickAt && Date.now() - pr.nickAt < NICK_CD) {
-    const h = Math.ceil((NICK_CD - (Date.now() - pr.nickAt)) / 3600e3);
-    return res.status(400).json({ error: `Сменить ник можно через ${h} ч` });
-  }
+  const cost = nickCost(pr);
+  if (cost && (pr.gems || 0) < cost) return res.status(400).json({ error: `Смена ника стоит ${cost} 💎 — не хватает самоцветов` });
   const low = v.toLowerCase();
   for (const [uid, x] of Object.entries(profiles)) {
     if (uid !== who.uid && x && (String(x.nick || '').toLowerCase() === low || String(x.name || '').toLowerCase() === low)) return res.status(400).json({ error: 'Этот ник уже занят' });
   }
+  if (cost) { pr.gems -= cost; pr.nickPaid = (pr.nickPaid || 0) + 1; }
   pr.nick = v; pr.nickAt = Date.now(); pr.name = v;
   for (const o of players.values()) if (o.uid === who.uid) { o.name = v; o.lastStats = 0; markDirty(o); }
   saveProfiles();
@@ -501,8 +502,8 @@ function buildInvoice(who, item, bgId, to) {
     invoice = { title: `🎁 ${v.title} → ${nm}`.slice(0, 32), description: `Подарок для ${nm}: ${v.description}`.slice(0, 255), payload: `${item}:${tu}:g${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
     return { invoice, stars: v.amount }; // без скидки первой покупки
   }
-  if (/^pass[1-6]$/.test(item)) { // сезонный орден: цена — разница с уже купленным
-    const v = meta.passInvoice(getProfile(who.uid), +item[4]);
+  if (/^pass([1-9]|10)$/.test(item)) { // сезонный орден: цена — разница с уже купленным
+    const v = meta.passInvoice(getProfile(who.uid), +item.slice(4));
     if (v.error) return { error: v.error };
     invoice = { title: v.title, description: v.description, payload: `${item}:${who.uid}`, prices: [{ label: v.title, amount: v.amount }] };
     if (v.personal) return { invoice, stars: v.amount }; // личная цена от администрации — без скидки первой покупки
@@ -596,10 +597,10 @@ function isValidPayload(payload, beforePay = false) {
   if (beforePay) {
     const pr = profiles[uid];
     if (pr && kind === 'starter' && pr.starterBought) return false;
-    if (pr && /^pass[1-6]$/.test(kind) && meta.passTier(pr) >= +kind[4]) return false;
+    if (pr && /^pass([1-9]|10)$/.test(kind) && meta.passTier(pr) >= +kind.slice(4)) return false;
     if (pr && /^whUp[2-5]$/.test(kind) && (pr.whLvl || 0) !== +kind[4] - 1) return false; // уровень склада — строго следующий
   }
-  if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass[1-6]$/.test(kind)) return true;
+  if (kind === 'spin' || kind === 'spin10' || meta.INVOICES[kind] || kind === 'pass' || /^pass([1-9]|10)$/.test(kind)) return true;
   return kind === 'bg' && C.LOBBY_BACKGROUNDS.some((b) => b.id === id && b.price > 0);
 }
 function onGiftPaid(kind, toUid, fromUid, info) {
@@ -650,7 +651,7 @@ function onPaid(payload, info = {}) {
   else if (kind === 'spin10') pr.paidSpins += 10;
   else if (Trade.isOrder(kind)) { Trade.grantOrder(pr, kind); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
   else if (meta.INVOICES[kind]) { meta.onPaid(kind, pr); refreshUid(uid); notifyUid(uid, `Покупка получена: ${meta.INVOICES[kind].title}`); }
-  else if (kind === 'pass' || /^pass[1-6]$/.test(kind)) {
+  else if (kind === 'pass' || /^pass([1-9]|10)$/.test(kind)) {
     meta.onPaid(kind, pr);
     const t = meta.SHOP.passTiers[meta.passTier(pr) - 1];
     notifyUid(uid, `Покупка получена: ${t.icon} ${t.name}`);
@@ -1292,6 +1293,132 @@ const attackCd = (p, now = Date.now()) => {
 const zoneOf = (e) => world.zoneAtX(e.x);
 
 // Перенос игрока в другую зону (город, портал, телепорт)
+// ---------- Карта мира: города, данжи, логова — с метками сюжета, поручителей, друзей и «вы здесь» ----------
+function worldMapView(p) {
+  const pr = getProfile(p.uid), lvl = p.char.level;
+  const mz = world.byId.get(p.zone), hereTown = mz ? (mz.town || mz.id) : null;
+  const st = Q.storyRaw ? Q.storyRaw(pr) : null;
+  let storyZone = null;
+  if (st) {
+    const town = `town${Math.min(3, st.ch)}`;
+    if (st.type === 'town') storyZone = `town${st.goal}`;
+    else if (st.type === 'world') storyZone = `wb_${town}`;
+    else if (['kill', 'elite', 'dungeon', 'boss'].includes(st.type)) {
+      let best = null;
+      for (let i = 0; world.byId.has(`dg_${town}_${i}`); i++) { const dg = world.byId.get(`dg_${town}_${i}`).dg; if (Math.max(1, dg.lv[0] - 2) <= lvl) best = `dg_${town}_${i}`; }
+      storyZone = best || `dg_${town}_0`;
+    } else storyZone = town;
+  }
+  const npcs = NQ.mapInfo ? NQ.mapInfo(p) : [];
+  const fr = {}; // зона → ники друзей онлайн
+  for (const u of pr.friends || []) { const o = onlineOf(u); if (o) (fr[o.zone] ??= []).push(o.name); }
+  const place = (z, kind, name, lv, open) => ({ id: z.id, kind, name, lv, open, here: p.zone === z.id, story: storyZone === z.id,
+    npc: npcs.filter((n) => n.zone === z.id).map((n) => ({ name: n.name, quest: n.quest, prog: n.prog })), friends: fr[z.id] || [] });
+  const towns = world.towns.map((t) => {
+    const z = world.byId.get(t.id), places = [];
+    for (let i = 0; world.byId.has(`dg_${t.id}_${i}`); i++) {
+      const dz = world.byId.get(`dg_${t.id}_${i}`), dg = dz.dg;
+      places.push(place(dz, 'dungeon', dg.name, `${dg.lv[0]}–${dg.lv[1]}`, lvl >= Math.max(1, dg.lv[0] - 2)));
+    }
+    const pz = world.byId.get(`pk_${t.id}`);
+    if (pz) places.push(place(pz, 'pk', pz.dg.name, `${pz.dg.lv[0]}–${pz.dg.maxLv || '∞'}`, lvl >= Math.max(1, pz.dg.lv[0] - 2) && !(pz.dg.maxLv && lvl > pz.dg.maxLv)));
+    const wz = world.byId.get(`wb_${t.id}`);
+    if (wz) places.push(place(wz, 'wb', 'Логово мирового босса', '', lvl >= (t.minLevel || 1)));
+    // Поручители города: «!» новое, «?» сдать, «…» в работе
+    const tn = npcs.filter((n) => n.town === t.id && ['new', 'ready', 'prog'].includes(n.mark)).map((n) => ({ name: n.name, mark: n.mark, quest: n.quest, prog: n.prog }));
+    return { id: t.id, name: t.name, sub: t.sub, theme: t.theme, level: t.level, open: lvl >= (t.minLevel || 1), minLevel: t.minLevel || 1,
+      here: hereTown === t.id, inTown: p.zone === t.id, story: storyZone === t.id, npc: tn, friends: z ? fr[z.id] || [] : [], places };
+  });
+  return { towns, story: st ? { icon: st.icon, name: st.name, prog: `${Math.min(st.prog, st.goal)}/${st.goal}`, zone: storyZone } : null, lvl };
+}
+
+// ---------- Друзья ----------
+const FRIEND_MAX = 50, FIGHT_MS = 10000;
+const onlineOf = (uid) => [...players.values()].find((o) => o.uid === uid && !o.bot) || null;
+const inFight = (o) => Date.now() - Math.max(o.lastHurt || 0, o.lastFight || 0) < FIGHT_MS;
+function friendTpCheck(p, f) {
+  if (!f) return 'Друг не в игре';
+  if (p.dead || f.dead) return 'Нельзя: кто-то из вас погиб';
+  if (pkState(f) !== 'white') return `${f.name} флагнут — к нему нельзя`;
+  if (pkState(p) !== 'white') return 'Вы флагнуты — телепорт недоступен';
+  if (inFight(f)) return `${f.name} в бою — попробуйте чуть позже`;
+  if (inFight(p)) return 'Вы в бою — подождите 10 секунд без боя';
+  const z = world.byId.get(f.zone), mz = world.byId.get(p.zone);
+  if (!z || z.inst || !['town', 'dungeon'].includes(z.kind)) return `${f.name} там, куда телепорт не ведёт`;
+  if (mz && ['survival', 'worldboss'].includes(mz.kind)) return 'Отсюда телепорт недоступен';
+  if (mz && mz.inst) return 'С арены телепорт недоступен';
+  if (z.kind === 'town') { const need = (world.towns.find((t) => t.id === z.id) || {}).minLevel || 1; if (p.char.level < need) return `${z.name}: нужен ${need} уровень`; }
+  if (z.dg) {
+    const need = Math.max(1, z.dg.lv[0] - 2);
+    if (p.char.level < need) return `${z.dg.name || z.name}: нужен ${need} уровень`;
+    if (z.pk && z.dg.maxLv && p.char.level > z.dg.maxLv) return `${z.dg.name}: только до ${z.dg.maxLv} уровня`;
+  }
+  return null;
+}
+function friendAct(p, d) {
+  const pr = getProfile(p.uid); pr.friends ??= []; pr.friendReq ??= [];
+  const nameOf = (uid) => (profiles[uid] && (profiles[uid].nick || profiles[uid].name)) || 'игрок';
+  const link = (a, b) => { const pa = getProfile(a), pb = getProfile(b); pa.friends ??= []; pb.friends ??= [];
+    if (!pa.friends.includes(b)) pa.friends.push(b); if (!pb.friends.includes(a)) pb.friends.push(a);
+    pa.friendReq = (pa.friendReq || []).filter((u) => u !== b); pb.friendReq = (pb.friendReq || []).filter((u) => u !== a); };
+  if (d.op === 'list') {
+    pr.friends = pr.friends.filter((u) => profiles[u]);
+    const fr = pr.friends.map((u) => {
+      const o = onlineOf(u), fp = profiles[u], z = o && world.byId.get(o.zone);
+      return { uid: u, sid: o ? o.id : null, name: nameOf(u), lvl: (fp.acct && fp.acct.level) || 1, online: !!o, where: z ? z.name : null, seen: fp.lastSeen || 0, tp: o ? !friendTpCheck(p, o) : false, why: o ? friendTpCheck(p, o) : null };
+    }).sort((a, b) => b.online - a.online || b.seen - a.seen);
+    return { friends: fr, reqs: pr.friendReq.filter((u) => profiles[u]).map((u) => ({ uid: u, name: nameOf(u) })), max: FRIEND_MAX };
+  }
+  if (d.op === 'add') {
+    let uid = null;
+    if (d.target) { const t = players.get(d.target); uid = t && t.uid; }
+    else if (d.name) {
+      // Ник из Telegram может совпадать у разных игроков: сначала — кто в игре, затем уникальный ник
+      const low = String(d.name).trim().toLowerCase();
+      const on = [...new Set([...players.values()].filter((o) => !o.bot && String(o.name || '').toLowerCase() === low).map((o) => o.uid))];
+      const all = on.length ? on : Object.keys(profiles).filter((u) => String(profiles[u].nick || profiles[u].name || '').toLowerCase() === low);
+      if (all.length > 1) return { error: 'Игроков с таким ником несколько — добавьте через профиль (тап по герою)' };
+      uid = all[0] || null;
+    }
+    if (!uid || !profiles[uid]) return { error: 'Игрок не найден' };
+    if (uid === p.uid) return { error: 'Это вы' };
+    if (pr.friends.includes(uid)) return { error: 'Уже в друзьях' };
+    if (pr.friends.length >= FRIEND_MAX) return { error: `Друзей не больше ${FRIEND_MAX}` };
+    const op = getProfile(uid); op.friendReq ??= [];
+    if (pr.friendReq.includes(uid)) { link(p.uid, uid); saveProfiles(); notifyUid(uid, `🤝 ${p.name} теперь ваш друг`); return { toast: `🤝 ${nameOf(uid)} теперь ваш друг` }; }
+    if ((op.friends || []).length >= FRIEND_MAX) return { error: 'У игрока уже максимум друзей' };
+    if (!op.friendReq.includes(p.uid)) { op.friendReq.push(p.uid); op.friendReq = op.friendReq.slice(-30); }
+    saveProfiles();
+    const o = onlineOf(uid);
+    if (o) o.socket.emit('chat', { sys: true, text: `🤝 ${p.name} хочет добавить вас в друзья — меню → Друзья` });
+    return { toast: `Заявка отправлена: ${nameOf(uid)}` };
+  }
+  const uid = String(d.uid || '');
+  if (d.op === 'accept') {
+    if (!pr.friendReq.includes(uid) || !profiles[uid]) return { error: 'Заявка устарела' };
+    if (pr.friends.length >= FRIEND_MAX) return { error: `Друзей не больше ${FRIEND_MAX}` };
+    link(p.uid, uid); saveProfiles();
+    const o = onlineOf(uid); if (o) o.socket.emit('chat', { sys: true, text: `🤝 ${p.name} принял(а) вашу заявку в друзья` });
+    return { toast: `🤝 ${nameOf(uid)} теперь ваш друг` };
+  }
+  if (d.op === 'decline') { pr.friendReq = pr.friendReq.filter((u) => u !== uid); saveProfiles(); return { ok: true }; }
+  if (d.op === 'remove') {
+    pr.friends = pr.friends.filter((u) => u !== uid);
+    if (profiles[uid]) profiles[uid].friends = (profiles[uid].friends || []).filter((u) => u !== p.uid);
+    saveProfiles(); return { toast: 'Удалён из друзей' };
+  }
+  if (d.op === 'tp') {
+    if (!pr.friends.includes(uid)) return { error: 'Это не ваш друг' };
+    const f = onlineOf(uid), err = friendTpCheck(p, f);
+    if (err) return { error: err };
+    flushChests(p);
+    moveToZone(p, f.zone, { x: f.x + (Math.random() - 0.5) * 30, y: f.y + 12 });
+    f.socket.emit('chat', { sys: true, text: `🌀 ${p.name} телепортировался к вам` });
+    return { toast: `🌀 Вы рядом с ${f.name}`, close: true };
+  }
+  return { error: 'Неизвестное действие' };
+}
+
 function moveToZone(p, zoneId, pos) {
   const z = world.byId.get(zoneId);
   if (!z) return;
@@ -1450,6 +1577,7 @@ function pvpKill(victim) {
 // Урон монстру с учётом разброса и усилений; возвращает нанесённый урон
 function damageMonster(p, m, raw, opt = {}) {
   if (!monsters.has(m.id) || m.hp <= 0) return 0;
+  p.lastFight = Date.now(); // «в бою» — для телепорта к другу
   if (m.pvpOf) return pvpHit(p, m, raw, opt); // на PvP-арене «монстр» — цель-двойник другого героя
   if (p.oneShot) raw = m.maxHp * 1000; // тест из админки: убийство с одного удара
   let crit = opt.crit ?? false;
@@ -2472,6 +2600,7 @@ io.on('connection', (socket) => {
       SP.act(p, d).then((res) => { cb(res); markDirty(p); }, (e) => { console.error('special', e); cb({ error: 'Ошибка сервера' }); });
       return;
     }
+    if (op === 'worldMap') { try { cb(worldMapView(p)); } catch (e) { console.error('worldMap', e); cb({ error: 'Ошибка сервера' }); } return; }
     const src = /^(quest|story)/.test(op) ? 'quests' : /^npc/.test(op) ? 'npc' : op;
     try {
       const res = Econ.measure(src, getProfile(p.uid), () => (/^(quest|story)/.test(op) ? Q.handle(p, d) : op === 'npcMarks' ? NQ.marks(p, p.zone) : op === 'refInfo' ? refInfo(p) : /^npc/.test(op) ? NQ.act(p, d) : Trade.isOp(op) ? Trade.act(p, d) : meta.handle(p, d || {})));
@@ -2504,6 +2633,14 @@ io.on('connection', (socket) => {
       p.party = pt.id;
       sendParty(pt);
     } else if (d.op === 'leave') leaveParty(p);
+  });
+
+  // Друзья (до 50): заявка → принять. Телепорт к другу онлайн — если ни он, ни вы не флагнуты (розовый/красный)
+  // и никто не в бою (10 с без урона и ударов); только в город, обычный или опасный данж по своему уровню
+  socket.on('friend', (d = {}, cb) => {
+    const p = players.get(socket.id);
+    if (!p || typeof cb !== 'function') return;
+    try { cb(friendAct(p, d) || {}); markDirty(p); } catch (e) { console.error('friend', e); cb({ error: 'Ошибка сервера' }); }
   });
 
   // Общий чат: последние сообщения хранятся, чтобы вошедший видел, о чём говорили; не чаще раза в 0,7 с
