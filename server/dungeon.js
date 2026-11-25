@@ -614,6 +614,14 @@ module.exports = function createDungeons(d) {
     if (r === m.room || links.includes(r)) return true;
     return !!(m.boss || m.mini) && links.some((l) => (z.rooms[l].links || []).includes(r));
   }
+  // Рядом для группы: в лабиринте — та же комната или соседняя (через коридор), иначе — по расстоянию
+  function groupNear(a, b) {
+    if (a.zone !== b.zone || Math.hypot(a.x - b.x, a.y - b.y) > 900) return false;
+    const z = world.byId.get(a.zone);
+    if (!z || !z.rooms) return true;
+    const ra = roomOf(z, a, true), rb = roomOf(z, b, true);
+    return ra === rb || (ra >= 0 && (z.rooms[ra].links || []).includes(rb));
+  }
   const hallOf = (z) => { let h = halls.get(z.id); if (!h) { h = initHall(z); halls.set(z.id, h); } return h; };
   // Точка возрождения: в комнате, по возможности не рядом с героями
   function spawnPoint(z, r, heroes) {
@@ -1235,6 +1243,6 @@ module.exports = function createDungeons(d) {
 
   return {
     create, act, melee, meleeRange, canAggro, inLeash, curSpeed, takenMult, onHurt, preventDeath, onKilled, onMonsterHp,
-    startDungeon, startPk, startSurvival, trialInfo, summonHallBosses, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState, overDmg, overFor, OVER_LV, nextWbAt, wbTimeText,
+    groupNear, startDungeon, startPk, startSurvival, trialInfo, summonHallBosses, worldBossInfo, ccActive, ccPlayer, tickPlayer, halls, hallInfo, survivals, wbState, overDmg, overFor, OVER_LV, nextWbAt, wbTimeText,
   };
 };

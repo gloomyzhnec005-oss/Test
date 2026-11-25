@@ -1898,7 +1898,7 @@ function xpBonusK(p) {
   let other = 0, clan = 0;
   const myClan = clanOf(p.uid);
   for (const o of partyMembers(p)) {
-    if (o === p || o.dead || o.zone !== p.zone || Math.hypot(o.x - p.x, o.y - p.y) > 900) continue;
+    if (o === p || o.dead || !D.groupNear(p, o)) continue; // бонус — только за тех, кто в той же или соседней комнате
     if (myClan && clanOf(o.uid) === myClan) clan++; else other++;
   }
   const grp = Math.min(0.5, Math.min(0.25, 0.05 * other) + Math.min(0.5, 0.1 * clan));
@@ -1908,7 +1908,7 @@ function xpBonusK(p) {
 function shareKill(killer, m, xp) {
   const base = xp / xpBonusK(killer);
   for (const o of partyMembers(killer)) {
-    if (o === killer || o.dead || o.zone !== killer.zone || Math.hypot(o.x - m.x, o.y - m.y) > 900) continue;
+    if (o === killer || o.dead || !D.groupNear(killer, o)) continue; // опыт за убийство — тем, кто в той же или соседней комнате
     grantXp(o, Math.round(base * 0.7 * xpBonusK(o)), 0, true);
   }
 }
