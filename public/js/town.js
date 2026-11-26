@@ -268,7 +268,7 @@ window.Town = (() => {
     if (r.error) return toast(r.error);
     const badge = (l) => (({ eternal: '💠', dragon: '🐉', archon: '⚜️', warden: '🛡️', magnate: '👑', merchant: '🟢' })[l.badge] || '').replace(/.+/, '$& ');
     const buyTab = () => {
-      const box = el(`${balLine(r.bal)}<p class="sheet-hint">Товары игроков за GRAM. Покупка — сразу с баланса, предмет приходит в сумку.</p>`);
+      const box = el(`${balLine(r.bal)}<p class="sheet-hint">${r.city ? `🏛️ Торговый дом города ${r.city}: здесь — лоты этого города, в других городах свои. ` : ''}Товары игроков за GRAM. Покупка — сразу с баланса, предмет приходит в сумку.</p>`);
       bindWallet(box);
       const lots = r.lots.filter((l) => !l.mine);
       if (!lots.length) box.insertAdjacentHTML('beforeend', soon('Лотов пока нет'));
@@ -285,7 +285,7 @@ window.Town = (() => {
       const mine = r.lots.filter((l) => l.mine);
       const box = el(`<p class="sheet-hint">Ваши лоты ${mine.length} / ${r.slots} · комиссия ${Math.round(r.fee * 100)}% · деньги с продажи можно вывести через 3 дня.<br>Продаются вещи и руны от эпических (с заточкой и рунами — дороже) и ценные материалы. Минимальная цена считается от цен Рынка.</p>
         ${r.orderSave && r.orderSave.fees > 0 ? `<div class="tw-banner pass"><b>💡 Комиссия за 30 дней: ${gfmt(r.orderSave.fees)} GRAM</b><small>С Орденом Купца вы сэкономили бы ${gfmt(r.orderSave.merchant)} GRAM, с Орденом Магната — ${gfmt(r.orderSave.magnate)} GRAM. Ордена — в GRAM-кошельке.</small></div>` : ''}`);
-      for (const l of mine) box.append(row(l.item, l.item.name, `за ${gfmt(l.price)} GRAM · до ${new Date(l.until).toLocaleDateString('ru-RU')}`, 'Снять', async () => { const res = await Bag.act('thCancel', { id: l.id }); toast(res.error || res.toast); tradeHousePanel(1); }));
+      for (const l of mine) box.append(row(l.item, l.item.name, `за ${gfmt(l.price)} GRAM · до ${new Date(l.until).toLocaleDateString('ru-RU')}${l.away ? ` · 🏛️ ${l.away}` : ''}`, 'Снять', async () => { const res = await Bag.act('thCancel', { id: l.id }); toast(res.error || res.toast); tradeHousePanel(1); }));
       const add = document.createElement('button');
       add.className = 'l2-btn wide'; add.textContent = '＋ Выставить предмет';
       add.onclick = () => Bag.pick('Что продаём?', tradableItem, async (it) => {

@@ -245,9 +245,9 @@ function reignPayout(c) {
   for (const u of act) { Trade.grant(u, each, 'reign', `Казна владык клана [${c.tag}]: доля за неделю`); notifyUid(u, `👑 Казна владык [${c.tag}]: ваша доля ${(each / 1e9).toFixed(2)} GRAM — к выводу через 3 дня`); }
   admin.log('reign', `[${c.tag}] казна ${(pool / 1e9).toFixed(2)} GRAM → ${act.length} участникам`);
 }
-function refHouse(uid, amount, house) {
+function refHouse(uid, amount, house, city) {
   // Сделка между игроками (комиссия меньше цены): игре — 15% цены, всё сверх — казне замков. Покупка у игры — 10% владыкам
-  if (house < amount) { try { Castle.onDeal(amount, house); } catch (e) { console.error('castle', e); } }
+  if (house < amount) { try { Castle.onDeal(amount, house, city); } catch (e) { console.error('castle', e); } }
   else { try { reignHouse(house); } catch (e) { console.error('reign', e); } }
   const pr = profiles[uid];
   if (!pr || !pr.refBy || !profiles[pr.refBy]) return;
@@ -770,7 +770,8 @@ const SP = require('./special')({ S, getProfile: (uid) => getProfile(uid), botTo
 const Trade = require('./trade')({
   I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
   bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
-  rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), quest: (...a) => Q.track(...a), onHouse: (uid, amount, house) => refHouse(uid, amount, house),
+  rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), quest: (...a) => Q.track(...a), onHouse: (uid, amount, house, city) => refHouse(uid, amount, house, city),
+  cityOf: (p) => { const z = world.byId.get(p.zone); return z ? (z.kind === 'town' ? z.id : z.town || 'town1') : 'town1'; }, cityName: (id) => (world.byId.get(id) || {}).name || id,
   liab: () => Object.values(clans).reduce((x, c) => x + (c.reignPool || 0), 0) + (typeof Castle !== 'undefined' ? Castle.liab() : 0) + (Arena && Arena.glOwed ? Arena.glOwed() : 0), // казна владык и взносы лиги — ещё не выплачены broadcast: (t) => evCast({ text: t }), alertAdmins: (t, loud) => adminAlert(t, loud),
   // Торговые ордена — ступени сезонных орденов после Чемпиона: цена — доплата до них с учётом купленного
   passTier: (pr) => meta.passTier(pr), passEnds: () => (Math.floor(Date.now() / (meta.SHOP.pass.days * 864e5)) + 1) * meta.SHOP.pass.days * 864e5,

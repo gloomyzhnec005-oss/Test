@@ -79,6 +79,9 @@ module.exports = function createTrade(deps) {
   }
   // Комиссия вывода: база − скидка ордена − 5% особому партнёру (флаг в админке), не ниже нуля
   const wFeeOf = (pr) => Math.max(0, CFG.wFee - ((order(pr) || {}).wFee || 0) - (((pr.test || {}).partner) ? 0.05 : 0));
+  // Торговый дом — свой в каждом городе: лоты и заявки видны и покупаются в городе, где выставлены (старые — Эльдмир)
+  const cityOf = (p) => (deps.cityOf ? deps.cityOf(p) : 'town1');
+  const lotCity = (x) => x.city || 'town1';
   const byId = (id) => Object.values(CFG.orders).find((x) => x.id === id) || null;
   const order = (pr) => {
     const t = deps.passTier ? deps.passTier(pr) : 0; // сезонный орден 6 — Магнат, 5 — Купец
@@ -139,7 +142,7 @@ module.exports = function createTrade(deps) {
   }
   // Покупка за GRAM принесла игре доход house (вся цена на Рынке, комиссия в Торговом доме) — для реферальной доли
   // и доли владык (server/index.js). amount — сумма покупки покупателя uid
-  function onHouse(uid, amount, house) { st.vol = (st.vol || 0) + amount; st.house = (st.house || 0) + house; if (deps.onHouse) try { deps.onHouse(uid, amount, house); } catch (e) { console.error('onHouse', e); } }
+  function onHouse(uid, amount, house, city) { st.vol = (st.vol || 0) + amount; st.house = (st.house || 0) + house; if (city) { st.cityVol ??= {}; st.cityVol[city] = (st.cityVol[city] || 0) + amount; } if (deps.onHouse) try { deps.onHouse(uid, amount, house, city); } catch (e) { console.error('onHouse', e); } }
   // Вернуть замороженное (заявка снята/истекла): пополненные — в пополненные, деньги с продаж — с прежним сроком.
   // Так через заявку нельзя превратить невыводимые пополнения в выводимые
   function refundParts(uid, parts, text) {
@@ -371,12 +374,13 @@ module.exports = function createTrade(deps) {
     th(p, d, pr) {
       sweep();
       sweepBids();
-      const lots = st.lots.map((l) => ({ ...lotView(l, p.uid), hist: histView(l.mat ? matKey(l.mat) : itemKey(l.item)) })).sort((a, b) => !!(byId(b.badge) || {}).top - !!(byId(a.badge) || {}).top || b.id - a.id);
-      const bids = st.bids.map((b) => bidView(b, p.uid)).sort((a, b) => b.price - a.price);
+      const city = cityOf(p), here = (x, who) => lotCity(x) === city || who === p.uid; // свои — видны из любого города (снять)
+      const lots = st.lots.filter((l) => here(l, l.seller)).map((l) => ({ ...lotView(l, p.uid), away: lotCity(l) !== city ? (deps.cityName ? deps.cityName(lotCity(l)) : lotCity(l)) : null, hist: histView(l.mat ? matKey(l.mat) : itemKey(l.item)) })).sort((a, b) => !!(byId(b.badge) || {}).top - !!(byId(a.badge) || {}).top || b.id - a.id);
+      const bids = st.bids.filter((b) => here(b, b.buyer)).map((b) => bidView(b, p.uid)).sort((a, b) => b.price - a.price);
       // Сколько комиссии заплачено за 30 дней — и сколько сэкономили бы торговые ордена
       const fees30 = -G(pr).log.filter((e) => e.kind === 'fee' && now() - e.t < 30 * 864e5).reduce((x, e) => x + e.a, 0), o = order(pr);
       const oSave = o ? null : { fees: fees30, merchant: Math.round(fees30 * byId('merchant').fee / CFG.fee), magnate: Math.round(fees30 * byId('magnate').fee / CFG.fee) };
-      return { lots, bids, bal: bal(pr), slots: slotsOf(pr), fee: CFG.fee - ((order(pr) || {}).fee || 0), bidDays: CFG.lotDays, orderSave: oSave,
+      return { city: deps.cityName ? deps.cityName(city) : city, lots, bids, bal: bal(pr), slots: slotsOf(pr), fee: CFG.fee - ((order(pr) || {}).fee || 0), bidDays: CFG.lotDays, orderSave: oSave,
         mats: Object.keys(CFG.matMinStars).filter((m) => I.MATS[m]).map((m) => ({ id: m, name: I.MATS[m].name, icon: I.MATS[m].icon })),
         slotsList: I.WEAR_CATS.concat('rune').map((c) => ({ id: c, name: (I.SLOT_NAMES && I.SLOT_NAMES[c]) || c })) };
     },
@@ -411,7 +415,7 @@ module.exports = function createTrade(deps) {
         lot = { item: it };
       }
       const o = order(pr);
-      st.lots.push({ id: st.seq++, seller: p.uid, sellerName: p.name, ...lot, price, at: now(), until: now() + ((o && o.lotDays) || CFG.lotDays) * 864e5, badge: o ? o.id : null });
+      st.lots.push({ id: st.seq++, city: cityOf(p), seller: p.uid, sellerName: p.name, ...lot, price, at: now(), until: now() + ((o && o.lotDays) || CFG.lotDays) * 864e5, badge: o ? o.id : null });
       save();
       return { toast: 'Лот выставлен в Торговый дом', refresh: true };
     },
@@ -419,6 +423,7 @@ module.exports = function createTrade(deps) {
       const l = st.lots.find((x) => x.id === d.id);
       if (!l) return { error: 'Лот уже продан' };
       if (l.seller === p.uid) return { error: 'Это ваш лот' };
+      if (lotCity(l) !== cityOf(p)) return { error: 'Этот лот — в Торговом доме другого города' };
       if (!l.mat && pr.items.filter((i) => i.loc !== 'wh').length >= bagSize(pr)) return { error: 'Сумка полна — освободите место' };
       const name = l.mat ? `${I.MATS[l.mat].name} ×${l.n}` : I.itemView(l.item).name;
       if (!spend(p.uid, l.price, 'buy', `Торговый дом: ${name} у ${l.sellerName}`)) return { error: `Нужно ${fmt(l.price)} GRAM — пополните баланс`, needGram: true };
@@ -429,7 +434,7 @@ module.exports = function createTrade(deps) {
       credit(l.seller, 'sale', income, `Продано: ${name} за ${fmt(l.price)} GRAM (комиссия ${fmt(fee)})`, true);
       if (deps.quest) try { deps.quest(p.uid, 'trade', 1); deps.quest(l.seller, 'trade', 1); } catch { /* задание — не главное */ } // «Честная сделка» — обоим
       note(l.seller, 'fee', -fee, `Комиссия Торгового дома: ${name}`);
-      onHouse(p.uid, l.price, fee); // доход игры — комиссия
+      onHouse(p.uid, l.price, fee, lotCity(l)); // доход игры — комиссия; город — для казны его замка
       if (l.mat) I.addMat(pr, l.mat, l.n); else { l.item.loc = 'bag'; I.addItem(pr, l.item, bagSize(pr), false); }
       notifyUid(l.seller, `Торговый дом: продано «${name}» за ${fmt(l.price)} GRAM — вам ${fmt(income)} GRAM, к выводу через ${CFG.holdDays} дня`);
       save();
@@ -454,7 +459,7 @@ module.exports = function createTrade(deps) {
       const parts = spend(p.uid, total, 'escrow', `Заявка на покупку: ${bidName(b)}${b.mat ? ' ×' + n : ''} — GRAM заморожены`);
       if (!parts) return { error: `Нужно ${fmt(total)} GRAM — пополните баланс`, needGram: true };
       const o = order(pr);
-      st.bids.push({ id: st.seq++, buyer: p.uid, buyerName: p.name, ...b, n, price, parts, at: now(), until: now() + ((o && o.lotDays) || CFG.lotDays) * 864e5 });
+      st.bids.push({ id: st.seq++, city: cityOf(p), buyer: p.uid, buyerName: p.name, ...b, n, price, parts, at: now(), until: now() + ((o && o.lotDays) || CFG.lotDays) * 864e5 });
       save();
       return { toast: `Заявка создана: заморожено ${fmt(total)} GRAM`, refresh: true };
     },
@@ -472,6 +477,7 @@ module.exports = function createTrade(deps) {
       const b = st.bids.find((x) => x.id === d.id);
       if (!b) return { error: 'Заявка уже исполнена или снята' };
       if (b.buyer === p.uid) return { error: 'Это ваша заявка' };
+      if (lotCity(b) !== cityOf(p)) return { error: 'Эта заявка — в Торговом доме другого города' };
       const bpr = getProfile(b.buyer);
       let q = 1, name, give;
       if (b.mat) {
@@ -501,7 +507,7 @@ module.exports = function createTrade(deps) {
       note(p.uid, 'fee', -fee, `Комиссия Торгового дома: ${name}`);
       note(b.buyer, 'buy', 0, `Куплено по заявке: ${name} у ${p.name} за ${fmt(pay)} GRAM`);
       if (deps.quest) try { deps.quest(p.uid, 'trade', 1); deps.quest(b.buyer, 'trade', 1); deps.quest(b.buyer, 'purchase', 1); } catch { /* задание — не главное */ }
-      onHouse(b.buyer, pay, fee);
+      onHouse(b.buyer, pay, fee, lotCity(b));
       notifyUid(b.buyer, `Торговый дом: ваша заявка исполнена — «${name}» за ${fmt(pay)} GRAM`);
       save();
       return { toast: `Продано по заявке: ${name} — вам ${fmt(income)} GRAM (к выводу через ${CFG.holdDays} дня)`, refresh: true };
