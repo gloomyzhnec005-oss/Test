@@ -986,17 +986,17 @@
         const mm = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
         const box = document.createElement('div');
         box.innerHTML = `<p class="sheet-hint">Осада — каждую субботу в 20:00 МСК. Кланы-нападающие ходят по очереди, ход ${r.slotMin} мин (первая минута — сбор). Разбейте кристалл замка — замок ваш, и вы защищаете его до конца осады. У каждого ${r.lives} жизни на ход. Казна замка делится в субботу между участниками клана-владельца: глава — две доли. Один клан — один замок.</p>
-          <div class="tw-banner pass"><b>${r.running ? '⚔️ Осада идёт!' : `🗓 Следующая осада: ${when}`}</b><small>${r.regOpen ? `Заявка — глава клана, взнос ${r.fee} GRAM` : r.running ? 'Заявки на эту осаду закрыты' : 'Заявки закрыты'}</small></div>
-          ${r.castles.map((c) => `<div class="wm-town" data-t="${c.id}"><div class="wm-h"><b>🏰 Замок ${esc(c.name)}</b><small>Владелец: ${c.owner ? esc(c.owner) : 'нет (охраняют стражи)'} · казна ${c.pool} GRAM</small></div>
+          <div class="tw-banner pass"><b>${r.running ? '⚔️ Осада идёт!' : `🗓 Следующая осада: ${when}`}</b><small>${r.regOpen ? 'Заявка — глава клана; взнос — половина средней недельной казны замка (не меньше ' + r.fee + ' GRAM)' : r.running ? 'Заявки на эту осаду закрыты' : 'Заявки закрыты'}</small></div>
+          ${r.castles.map((c) => `<div class="wm-town" data-t="${c.id}"><div class="wm-h"><b>🏰 Замок ${esc(c.name)}</b><small>Владелец: ${c.owner ? esc(c.owner) : 'нет (охраняют стражи)'} · казна ${c.pool} GRAM · за прошлую неделю ${c.week}</small></div>
             ${c.cur ? `<div class="wm-chips"><span class="wm-c story">Ход ${c.cur.i}/${c.cur.n}: ${esc(c.cur.atk)} · ${c.cur.prep ? 'сбор' : 'бой'} · ${mm(c.cur.left)}</span>${c.lives !== null ? `<span class="wm-c here">❤️ жизней: ${c.lives}</span>` : ''}</div>` : ''}
             ${c.reg.length ? `<small>Очередь: ${c.reg.map((x, i) => `${i + 1}. ${esc(x)}`).join(' · ')}</small>` : '<small>Заявок нет</small>'}
             <div class="btn-row" style="margin-top:6px">${c.join ? `<button class="l2-btn" data-op="castleJoin">${c.join === 'atk' ? '⚔️ В бой' : '🛡️ На защиту'}</button>` : ''}
-              ${r.regOpen && r.myClan && r.myClan.leader && !c.mineOwn ? `<button class="l2-btn" data-op="castleReg">📜 Заявка · ${r.fee} GRAM</button>` : ''}</div>
+              ${r.regOpen && r.myClan && r.myClan.leader && !c.mineOwn ? `<button class="l2-btn" data-op="castleReg" data-fee="${c.fee}">📜 Заявка · ${c.fee} GRAM</button>` : ''}</div>
           </div>`).join('')}`;
         box.onclick = async (e) => {
           const b = e.target.closest('button[data-op]'); if (!b) return;
           const t = b.closest('[data-t]').dataset.t;
-          if (b.dataset.op === 'castleReg' && !confirm(`Подать заявку на осаду? Взнос ${r.fee} GRAM не возвращается.`)) return;
+          if (b.dataset.op === 'castleReg' && !confirm(`Подать заявку на осаду? Взнос ${b.dataset.fee} GRAM не возвращается.`)) return;
           const x = await Bag.act(b.dataset.op, { t });
           if (x.error || x.toast) Town.toast(x.error || x.toast);
           Town.close(); if (!x.close) openCastles();

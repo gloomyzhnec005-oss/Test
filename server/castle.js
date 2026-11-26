@@ -42,8 +42,11 @@ module.exports = function createCastle(dep) {
     const extra = Math.max(0, house - price * SIEGE.keep);
     if (!(extra > 0)) return 0;
     let given = 0;
-    for (const t of TOWNS) if (st[t].owner && clans()[st[t].owner]) { const a = extra / 3; st[t].pool += a; given += a; }
-    if (given) save();
+    for (const t of TOWNS) {
+      st[t].wk = (st[t].wk || 0) + extra / 3; // «сколько стоит замок за неделю» — для взноса, даже если владельца нет
+      if (st[t].owner && clans()[st[t].owner]) { const a = extra / 3; st[t].pool += a; given += a; }
+    }
+    save();
     return given;
   }
   // Раздача казны: глава ×2, остальные ×1 — только заходившие за 7 дней
@@ -65,6 +68,18 @@ module.exports = function createCastle(dep) {
   }
   const liab = () => TOWNS.reduce((s, t) => s + (st[t].pool || 0), 0);
 
+  // ---------- Взнос за заявку ----------
+  // Взнос = max(150 ⭐, 50% средней недельной казны этого замка за 4 последние недели). Пока Торговый дом маленький,
+  // взнос — минимальный; растёт вместе с тем, сколько замок реально приносит. При 2+ заявках на замок взносы
+  // покрывают выплату владельцу целиком — игра в плюсе; при одной — окупают половину, остальное окупает рост торговли.
+  const FEE_SHARE = 0.5, FEE_WEEKS = 4;
+  function feeNano(t) {
+    const h = (st[t].hist || []).slice(0, FEE_WEEKS), avg = h.length ? h.reduce((a, x) => a + x, 0) / h.length : 0;
+    return Math.max(Trade.nanoOf(SIEGE.feeStars), Math.round(avg * FEE_SHARE / 1e7) * 1e7);
+  }
+  // Неделя закрыта (суббота, перед осадой): запоминаем, сколько замок принёс за неделю
+  function closeWeek(t) { st[t].hist = [st[t].wk || 0, ...(st[t].hist || [])].slice(0, 8); st[t].wk = 0; }
+
   // ---------- Заявки ----------
   function ownedBy(clanId) { return TOWNS.find((t) => st[t].owner === clanId) || null; }
   function register(p, t) {
@@ -79,7 +94,7 @@ module.exports = function createCastle(dep) {
     const start = nextStart();
     if (run || Date.now() > start - SIEGE.regCloseMin * 60e3) return { error: 'Заявки на эту осаду закрыты' };
     if (st[t].reg.length >= SIEGE.maxAtk) return { error: `На этот замок уже ${SIEGE.maxAtk} заявок` };
-    const nano = Trade.nanoOf(SIEGE.feeStars);
+    const nano = feeNano(t);
     if (!Trade.spendGram(p.uid, nano, `Взнос за осаду замка ${world.byId.get(t).name}`)) return { error: `Не хватает GRAM: взнос ${fmt(nano)}` };
     st[t].reg.push({ clan: cl.id, at: Date.now() }); save();
     for (const u of cl.members) notifyUid(u, `🏰 Клан подал заявку на осаду замка ${world.byId.get(t).name} — суббота, 20:00 МСК. Ваш ход — ${st[t].reg.length}-й`);
@@ -122,7 +137,7 @@ module.exports = function createCastle(dep) {
   function startSiege(now = Date.now()) {
     run = { start: now, towns: {} };
     for (const t of TOWNS) {
-      try { payout(t); } catch (e) { console.error('castle payout', e); }
+      try { payout(t); closeWeek(t); } catch (e) { console.error('castle payout', e); }
       const queue = st[t].reg.map((r) => r.clan).filter((id) => clans()[id]);
       st[t].reg = [];
       run.towns[t] = { queue, i: -1, slotStart: 0, side: {}, lives: {}, crystal: null, guards: [], defender: st[t].owner && clans()[st[t].owner] ? st[t].owner : null, done: !queue.length };
@@ -234,7 +249,7 @@ module.exports = function createCastle(dep) {
       castles: TOWNS.map((t) => {
         const c = st[t], R = run && run.towns[t];
         const mine = R && cl && !R.done && (cl.id === R.queue[R.i] ? 'atk' : cl.id === R.defender ? 'def' : null);
-        return { id: t, name: world.byId.get(t).name, owner: c.owner && clans()[c.owner] ? tag(c.owner) : null, mineOwn: !!(cl && c.owner === cl.id), pool: fmt(c.pool || 0),
+        return { id: t, fee: fmt(feeNano(t)), week: fmt((st[t].hist || [])[0] || 0), name: world.byId.get(t).name, owner: c.owner && clans()[c.owner] ? tag(c.owner) : null, mineOwn: !!(cl && c.owner === cl.id), pool: fmt(c.pool || 0),
           reg: (R ? R.queue : c.reg.map((r) => r.clan)).map(tag), cur: R && !R.done ? { i: R.i + 1, n: R.queue.length, atk: tag(R.queue[R.i]), left: Math.max(0, R.slotStart + SIEGE.slotMin * 60e3 - now), prep: now < R.slotStart + SIEGE.prepMs } : null,
           join: mine || null, lives: R && R.lives[p.uid] !== undefined ? R.lives[p.uid] : null, log: c.log.slice(0, 5) };
       }),
