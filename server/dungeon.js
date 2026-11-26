@@ -846,7 +846,7 @@ module.exports = function createDungeons(d) {
       const first = boss && !h.dg.pk && !pr.dungeonClears[key];
       if (boss) pr.dungeonClears[key] = (pr.dungeonClears[key] || 0) + 1;
       p.socket.emit('chat', { sys: true, text: `${boss ? '🏆 Босс' : '⭐ Полубосс'} «${m.name || MOBS[m.type].name}» повержен! Ваш вклад ${Math.round(part * 100)}% · +${gold} 💰${first ? ' · первая победа над боссом данжа' : ''}` });
-      if (boss) d.giveLoot(p, pr, d.bindLoot(d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId)), m);
+      if (boss) d.giveLoot(p, pr, d.bindLoot(d.rollItem(h.z.tier, d.bossW(C.DROPS.boss[h.z.tier], p), null, p.heroId)), m);
       if (first) { d.giveLoot(p, pr, d.bindLoot(d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId)), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первая победа над боссом данжа: +160 самоцветов' }); }
       d.markDirty(p);
     }

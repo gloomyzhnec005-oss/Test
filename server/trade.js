@@ -21,7 +21,7 @@ const NANO = 1e9;
 const RAR_OK = ['epic', 'legendary', 'mythic'];
 const CFG = {
   fee: 0.20, wFee: 0.10, holdDays: 3,
-  wMin: 1, wMaxDay: 300, wLevel: 30, wAgeDays: 7, depMin: 0.5,
+  wMin: 1, wMaxDay: 300, wLevel: 15, wAgeDays: 7, depMin: 0.5,
   slots: 5, slotsSub: 3, lotDays: 7,
   // Цена на Рынке в ⭐ для мира I: ожидаемая цена вещи этой редкости в призыве снаряжения (15 ⭐ за крутку) × 1.5.
   // В GRAM — по курсу TON_PER_STAR (как остальные покупки)

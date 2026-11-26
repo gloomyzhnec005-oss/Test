@@ -33,6 +33,9 @@ const XP2_G = (L) => (L <= 9 ? 1 : L >= 12 ? 0.5 : 1 - (L - 9) / 6);
 // Опыт и золото с монстров не меняются — меняется только, сколько опыта нужно на уровень
 const XP2_D = (L) => (L <= 9 ? 1 : L >= 12 ? 2 : 1 + (L - 9) / 3);
 const XP_NEED = (L) => (BAL2 ? Math.round(XP_NEED_OLD(L) * XP2_F(L) * XP2_G(L) * XP2_D(L)) : XP_NEED_OLD(L));
+// Добыча на уровень не должна расти вместе с длиной уровня — иначе герои одеты лучше своего уровня.
+// Множитель шанса вещей и материалов с монстров (и доли легендарок/мификов у боссов) по уровню героя: 1 до 9, ½ с 12-го
+const LOOT_K = (L) => (BAL2 ? 1 / XP2_D(L) : 1);
 // Монстры с 10-го уровня крепче: к 15-му здоровье ×1,8, урон ×1,4 — дальше удобнее вдвоём. До 10-го — как раньше
 // Монстры под реальную силу героя (расчёт: типичная для уровня экипировка, 8 героев разных классов, умения ≈ +50%).
 // Цель — обычный монстр живёт ~1,6 с до 10 ур. и ~3 с с 15-го; стая из 4 снимает ~3% здоровья в секунду до 10 ур.
@@ -268,4 +271,4 @@ const PK_DUNGEONS = {
   town3: pkOf('town3', 'Брань мёртвых небес', [40, 50], 0),
 };
 
-module.exports = { PK_DUNGEONS, MOBS: M, CLASS, CLASS_NAMES, RANK, AFFIXES, DUNGEONS, WORLD_BOSSES, WORLD_BOSS_RESPAWN, TURN, PD, PH, XP_LEVEL, XP_NEED, XP_NEED_OLD, KILLS_PER_LEVEL, MAX_LEVEL, statsAt, setBal2, bal2 };
+module.exports = { PK_DUNGEONS, MOBS: M, CLASS, CLASS_NAMES, RANK, AFFIXES, DUNGEONS, WORLD_BOSSES, WORLD_BOSS_RESPAWN, TURN, PD, PH, XP_LEVEL, XP_NEED, XP_NEED_OLD, LOOT_K, KILLS_PER_LEVEL, MAX_LEVEL, statsAt, setBal2, bal2 };

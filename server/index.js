@@ -806,7 +806,7 @@ const D = createDungeons({
   quest: (...a) => Q.track(...a),
   giveLoot: (...a) => giveLoot(...a),
   giveMats: (...a) => giveMats(...a), rollMats: (...a) => Loot.rollMats(...a), mail: (uid, o) => Mail.system(uid, o),
-  rollItem: (...a) => I.rollItem(...a), bindLoot: (it) => I.bindLoot(it), createBag: (...a) => I.createBag(...a),
+  rollItem: (...a) => I.rollItem(...a), bossW: (w, p) => topW(w, MOBX.LOOT_K(p.char.level)), bindLoot: (it) => I.bindLoot(it), createBag: (...a) => I.createBag(...a),
   corpses: () => corpses,
   removeCorpse: (c) => { corpses = corpses.filter((x) => x !== c); },
   broadcast: (t) => evCast(typeof t === 'string' ? { text: t } : t),
@@ -2356,9 +2356,10 @@ function lootFor(o, m, tier, boss, at) {
     meta.addPassXp(pr, m.rank === 'boss' ? 20 : m.rank === 'mini' ? 8 : m.rank === 'rare' ? 2 : m.rank === 'magic' ? 1 : Math.random() < 0.12 ? 1 : 0); // орден — на ~3–4 недели обычной игры, а не на пару вечеров
     const luck = I.buffLuck(pr); // эликсиры удачи
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
-    const B2 = MOBX.bal2(), pk = pkRate(o), dropK = (B2 ? 0.25 : 1) * pk; // новый баланс: вещей и материалов вчетверо меньше; опасный данж ×6 (автобой ×3)
+    const lk = MOBX.LOOT_K(o.char.level); // прокачка с 10 ур. вдвое дольше — добыча за убийство вдвое реже, чтобы на уровень её было столько же
+    const B2 = MOBX.bal2(), pk = pkRate(o), dropK = (B2 ? 0.25 : 1) * pk * lk; // новый баланс: вещей и материалов вчетверо меньше; опасный данж ×8 (автобой ×4)
     const rolls = m.rank === 'boss' ? (B2 ? 1 + (Math.random() < 0.5 ? 1 : 0) : 2) + (pk > 1 ? 1 : 0) : m.rank === 'mini' ? 1 + (pk > 1 ? 1 : 0) : Math.random() < Math.min(0.9, C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult * dropK) ? 1 : 0;
-    const wt = m.rank === 'boss' ? C.DROPS.boss[tier] : m.rank === 'mini' ? C.DROPS.mini[tier] : C.DROPS.weights[tier];
+    const wt = m.rank === 'boss' ? topW(C.DROPS.boss[tier], lk) : m.rank === 'mini' ? topW(C.DROPS.mini[tier], lk) : C.DROPS.weights[tier];
     for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.bindLoot(I.rollItem(tier, B2 ? dropW2(wt, m.rank) : wt, null, o.heroId)), at); // 75% — под класс героя; эпик+ — личные
     // Сумки — редкость: босс 3% (эпическая), полубосс 1% (редкая, 20% — эпическая)
     if (boss && Math.random() < (m.rank === 'boss' ? 0.03 : 0.01) * luck) giveLoot(o, pr, I.createBag(m.rank === 'boss' || Math.random() < 0.2 ? 'epic' : 'rare', tier), at);
@@ -2373,6 +2374,8 @@ function lootFor(o, m, tier, boss, at) {
 }
 // Новый баланс — редкости добычи: легендарные с обычных монстров в 10 раз реже (с полубоссов, боссов и редких «жёлтых»
 // монстров — в 3 раза: жёлтые — джекпот, за ними стоит охотиться), мифические — только с полубоссов, боссов, мировых боссов и крафта
+// Боссы и полубоссы: вещь падает всегда, но доля легендарных и мифических — × k (k = LOOT_K по уровню героя)
+function topW(w, k) { return k >= 1 ? w : { ...w, legendary: (w.legendary || 0) * k, mythic: (w.mythic || 0) * k }; }
 function dropW2(w, rank) {
   const boss = rank === 'boss' || rank === 'mini';
   return { ...w, legendary: (w.legendary || 0) / (boss || rank === 'rare' ? 3 : 10), mythic: boss ? w.mythic || 0 : 0 };
@@ -3477,7 +3480,7 @@ admin.setWipe((keep, opt = {}) => {
     if (np) Object.assign(np, ref);
     if (remind) np.remindOpen = true; // подписку «Напомнить об открытии» сохраняем — это не прогресс
     // GRAM-кошелёк; дата регистрации и достигнутый уровень — чтобы условия вывода (30 ур., 7 дней) не «сбросились» вайпом
-    if (gram) { np.gram = gram; np.created = old.created || np.created; if (lvl >= 30) np.wdLevel = lvl; nG++; }
+    if (gram) { np.gram = gram; np.created = old.created || np.created; if (lvl >= 15) np.wdLevel = lvl; nG++; }
     if (pays) np.payments = pays; // для возвратов и проверки оплат после обнуления
   }
   for (const [id, c] of Object.entries(clans)) {
