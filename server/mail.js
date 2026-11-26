@@ -31,6 +31,7 @@ module.exports = function createMail({ I, Trade, getProfile, profilesFn, notifyU
     if (d.mat) {
       const n = Math.floor(Number(d.n) || 0);
       if (!I.MATS[d.mat] || !(n > 0)) return { error: 'Укажите материал и количество' };
+      if (I.MATS[d.mat].personal) return { error: 'Осколки личные — их нельзя отправить' };
       if (((pr.mats || {})[d.mat] || 0) < n) return { error: 'Не хватает материалов' };
       mat = { id: d.mat, n };
     }

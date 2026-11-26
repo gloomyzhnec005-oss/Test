@@ -340,6 +340,27 @@ for (const [id, s] of Object.entries(SETS)) {
   MATS[`bp_${id}`] = { name: `Чертёж: ${s.short}`, icon: '🗺️', color: '#ffd36a', kind: 'blueprint', set: id, tier: s.tier,
     desc: `Превращает эпический или лучший предмет мира ${TIER_TAG[s.tier]} в вещь «${s.name}» того же слота и редкости.`, price: 0, buy: 400 * TIER_MULT[s.tier] };
 }
+// Осколки вещей: разбор эпической и лучшей вещи даёт 1 осколок её редкости и мира. Осколки личные (не продаются,
+// не передаются) — из них в кузнице куют новую вещь той же редкости любого слота и класса (SHARD_CRAFT), и она уже свободная
+const SHARD_RAR = { epic: ['shardE', 'Эпический осколок', '#b86bff', '🔮'], legendary: ['shardL', 'Легендарный осколок', '#ffb340', '🔶'], mythic: ['shardM', 'Мифический осколок', '#ff4d6a', '❤️‍🔥'] };
+for (const [rar, [id, name, color, icon]] of Object.entries(SHARD_RAR)) {
+  for (const t of [1, 2, 3]) if (!(rar === 'mythic' && t === 1)) MATS[`${id}${t}`] = { name: `${name} ${TIER_TAG[t]}`, icon, color, tier: t, kind: 'shard', rar, personal: true,
+    desc: `Остаётся от разбора ${rar === 'epic' ? 'эпической' : rar === 'legendary' ? 'легендарной' : 'мифической'} вещи мира ${TIER_TAG[t]}. В кузнице мира ${TIER_TAG[t]} из осколков куют новую вещь той же редкости — любого слота и класса, и её уже можно продать. Личный: не продаётся и не передаётся.`, price: 0, buy: 0 };
+}
+const shardOf = (rar, t) => (SHARD_RAR[rar] && MATS[`${SHARD_RAR[rar][0]}${t}`] ? `${SHARD_RAR[rar][0]}${t}` : null); // мификов I мира не куют — их осколков нет
+// Ковка из осколков: осколки × 2 + материалы мира + золото (× мир). Успех 100%, свойства — случайные
+const SHARD_CRAFT = {
+  epic:      { shards: 2, ore: 6,  ess: 3,  core: 0, gold: 600 },
+  legendary: { shards: 2, ore: 15, ess: 8,  core: 1, gold: 2500 },
+  mythic:    { shards: 2, ore: 40, ess: 20, core: 3, gold: 10000 },
+};
+function shardCraftCost(rar, t) {
+  const c = SHARD_CRAFT[rar];
+  if (!c || ![1, 2, 3].includes(t) || (rar === 'mythic' && t < 2)) return null; // мифики — только во втором и третьем мире
+  const need = { [shardOf(rar, t)]: c.shards, [`ore${t}`]: c.ore, [`ess${t}`]: c.ess };
+  if (c.core) need[`core${t}`] = c.core;
+  return { need, gold: Math.round(c.gold * TIER_MULT[t]) };
+}
 // Камень удачи: +10% к шансу ковки за штуку, до 3 камней на одну ковку (сгорает и при удаче, и при неудаче)
 const LUCK_STONE = { per: 0.1, max: 3, cap: 0.95 };
 // Улучшение умений героя (server/meta.js → skillUp): только с полубоссов, боссов и мировых боссов, в лавках не продаются
@@ -396,8 +417,8 @@ const matView = (id, n = 1, tier = 1) => {
   if (!m) return null;
   const scale = m.tier ? 1 : TIER_MULT[tier] || 1;
   return { id: 'mat:' + id, mat: id, cat: 'mat', kind: m.kind, name: m.name + (m.tier && m.kind === 'mat' ? '' : ''), icon: m.icon, color: m.color,
-    rarName: { mat: 'Материал', scroll: 'Свиток', blueprint: 'Чертёж', potion: 'Зелье', elixir: 'Эликсир', scrollTp: 'Свиток', chest: 'Ларец' }[m.kind] || '',
-    desc: m.desc, n, tier: m.tier || 0, dupes: 0, attrs: [], stats: {}, runes: [], sockets: 0, sell: Math.round(m.buy * scale),
+    rarName: { shard: 'Осколок', mat: 'Материал', scroll: 'Свиток', blueprint: 'Чертёж', potion: 'Зелье', elixir: 'Эликсир', scrollTp: 'Свиток', chest: 'Ларец' }[m.kind] || '',
+    desc: m.desc, n, tier: m.tier || 0, personal: !!m.personal, dupes: 0, attrs: [], stats: {}, runes: [], sockets: 0, sell: Math.round(m.buy * scale),
     usable: ['potion', 'elixir', 'scrollTp', 'chest'].includes(m.kind) };
 };
 function addMat(pr, id, n = 1) {
@@ -579,7 +600,7 @@ function findItem(pr, id) {
 // Добавить предмет: дубликат усиливает оригинал, иначе — в сумку (если сумка полна — на склад)
 function addItem(pr, item, bagSize, allowDupe = true) {
   pr.items ??= [];
-  const orig = allowDupe && item.cat !== 'bag' && pr.items.find((i) => i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < DUPE_MAX);
+  const orig = allowDupe && item.cat !== 'bag' && pr.items.find((i) => !!i.bound === !!item.bound && i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < DUPE_MAX);
   if (orig) { orig.dupes = (orig.dupes || 0) + 1; return { dupe: true, item: orig }; }
   // Всегда в сумку — на склад вещи переносит только сам игрок. Полная сумка проверяется до вызова (добыча продаётся,
   // покупка в лавке не проходит); награды и покупки за Stars кладутся сверх лимита, чтобы не пропасть
@@ -618,6 +639,7 @@ function mergeItems(pr, ids) {
   const sameSet = items.every((i) => setIdOf(i) && setIdOf(i) === setIdOf(items[0]));
   const tpl = sameSet ? items[0].tpl : pick(items.filter((i) => !setIdOf(i)).map((i) => i.tpl).concat(plainTpls(cat)).slice(0, 5));
   const result = { id: newId(), cat, tpl: TEMPLATES[cat][tpl] ? tpl : pick(plainTpls(cat)), rar: next, tier, attrs, dupes: 0, loc: 'bag' };
+  if (items.some((i) => i.bound)) result.bound = 1; // из личных вещей выходит личная
   if (cat === 'weapon') result.runes = [];
   pr.items = pr.items.filter((i) => !uniq.includes(i.id));
   pr.items.push(result);
@@ -633,6 +655,11 @@ const UPGRADE = {
   mythic:    { scroll: 'scrollM', ore: 80, ess: 50, core: 5, gold: 15000 }, // дорого: мифик — редкость
 };
 const SET_CRAFT = { ore: 15, ess: 10, core: 1, gold: 1500 };
+// Добыча с монстров: эпические и лучшие вещи — личные (привязаны к добывшему). Продать нельзя, носить и разобрать на осколок — можно
+function bindLoot(it) {
+  if (it && SHARD_RAR[it.rar] && it.cat !== 'bag' && it.cat !== 'rune') { it.bound = 1; it.loot = 1; }
+  return it;
+}
 function upgradeCost(it) {
   const next = RARITY_ORDER[RARITY_ORDER.indexOf(it.rar) + 1];
   if (!next || it.cat === 'rune') return null;
@@ -656,6 +683,8 @@ function salvage(it, sure = false) { // sure — без случайного я�
   if (ess) out[`ess${t}`] = ess;
   if (r === 4 || (!sure && r === 3 && Math.random() < 0.3)) out[`core${t}`] = 1;
   if (it.cat === 'rune') { out[`ess${t}`] = (out[`ess${t}`] || 0) + 1 + r; delete out[`ore${t}`]; }
+  else if (it.cat !== 'bag' && shardOf(it.rar, t)) out[shardOf(it.rar, t)] = 1; // осколок для ковки новой вещи
+  else if (it.cat !== 'bag' && it.rar === 'mythic') out[shardOf('legendary', t)] = 2; // мифик I мира — 2 легендарных осколка
   return out;
 }
 
@@ -709,7 +738,7 @@ function itemView(it) {
     classes: classesFor(it), // какие классы могут носить (null — все)
     reqLevel: reqLevel(it), // с какого уровня героя можно надеть
     armor: ARMOR_TYPE[it.cat] && ARMOR_TYPE[it.cat][it.tpl] ? ARMOR_NAMES[ARMOR_TYPE[it.cat][it.tpl]] : null,
-    dur: it.dur ?? null, bound: !!it.bound, trophy: (it.trophy || 0) > Date.now() ? it.trophy : 0, repairCost: repairCost(it), // прочность (новый баланс) и привязка мифических
+    dur: it.dur ?? null, bound: !!it.bound, loot: !!it.loot, smith: it.smith || null, trophy: (it.trophy || 0) > Date.now() ? it.trophy : 0, repairCost: repairCost(it), // прочность (новый баланс) и привязка мифических
     runes: (it.runes || []).map(itemView), sell: Math.round(R.sell * TIER_MULT[it.tier] * (1 + 0.2 * (it.dupes || 0)) * (set ? 1.5 : 1) * (it.cat === 'bag' ? 4 : 1)),
   };
 }
@@ -754,5 +783,5 @@ module.exports = {
   SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF, COMPANIONS, TREE, TREE_MAX, treeReq, treeCost, PAS_MAX, PAS_STEP, pasReq, pasCost, CAPS, BUFF_LUCK,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
-  upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, cleanItem, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
+  SHARD_CRAFT, shardOf, shardCraftCost, bindLoot, upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, cleanItem, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
 };

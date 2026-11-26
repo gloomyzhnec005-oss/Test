@@ -991,6 +991,37 @@ window.Town = (() => {
     box.append(gridWrap, foot); draw(); quote();
     return box;
   }
+  // Ковка из осколков: осколки остаются от разбора эпических и лучших вещей; новая вещь — любого слота и класса, свободная
+  let shSel = { cls: null, slot: 'weapon' };
+  async function shardBody() {
+    const r = await Bag.act('shardRecipes');
+    const box = document.createElement('div');
+    if (r.error) { box.innerHTML = soon(r.error); return box; }
+    if (!shSel.cls) shSel.cls = r.myCls;
+    const reload = async () => box.replaceWith(await shardBody());
+    box.innerHTML = `<p class="sheet-hint">Добыча эпической и лучшей редкости с монстров — личная. Не подошла — разберите её (вкладка «Разбор»): получите осколок её редкости. Из 2 осколков здесь куётся новая вещь той же редкости — <b>любого слота и класса</b>, и её уже можно продать в Торговом доме. Успех 100%, свойства случайные · 💰 ${r.gold.toLocaleString('ru-RU')}</p>
+      <div class="ic-sec">Класс</div><div class="cr-worlds sh-cls">${r.classes.map((c) => `<button data-c="${c.id}" class="${c.id === shSel.cls ? 'on' : ''}">${c.name}</button>`).join('')}</div>
+      <div class="ic-sec">Что ковать</div><div class="cr-worlds sh-slot">${r.slots.map((s) => `<button data-s="${s.id}" class="${s.id === shSel.slot ? 'on' : ''}">${s.name}</button>`).join('')}</div>`;
+    box.querySelector('.sh-cls').onclick = (e) => { const b = e.target.closest('[data-c]'); if (b) { shSel.cls = b.dataset.c; reload(); } };
+    box.querySelector('.sh-slot').onclick = (e) => { const b = e.target.closest('[data-s]'); if (b) { shSel.slot = b.dataset.s; reload(); } };
+    for (const x of r.list) {
+      const row = document.createElement('div');
+      row.className = 'sh-row';
+      if (x.off) { row.innerHTML = `<div class="ic-sec" style="color:${x.color}">${x.rarName}</div><p class="sheet-hint">${x.off}</p>`; box.append(row); continue; }
+      row.innerHTML = `<div class="ic-sec" style="color:${x.color}">${x.rarName}</div>
+        <div class="cr-need">${x.mats.map((m) => `<div class="cr-slot ${m.have >= m.need ? 'ok' : 'no'}"><div class="cr-cell">${Bag.cell({ ...m, n: 1 })}</div><small>${m.name} <b>${m.have}/${m.need}</b></small></div>`).join('')}
+        <div class="cr-slot ${r.gold >= x.gold ? 'ok' : 'no'}"><div class="cr-cell"><button class="it" style="--rc:#d4a63c"><span><img class="it-art" src="assets/ui/ic_coin.webp" alt=""></span></button></div><small>Золото <b>${x.gold.toLocaleString('ru-RU')}</b></small></div></div>
+        <button type="button" class="l2-btn wide" ${x.ok ? '' : 'disabled'}>⚒️ Выковать: ${x.rarName.toLowerCase()} · ${(r.slots.find((s) => s.id === shSel.slot) || {}).name || ''}</button>`;
+      row.querySelector('button.l2-btn').onclick = async () => {
+        const res = await Bag.act('shardCraft', { rar: x.rar, slot: shSel.slot, cls: shSel.cls });
+        toast(res.error || res.toast);
+        if (res.result) { if (window.Sfx) Sfx.play('reward'); Bag.card(res.result, []); }
+        reload();
+      };
+      box.append(row);
+    }
+    return box;
+  }
   // Ремонт: всё надетое разом или по одной вещи (новый баланс: −10% прочности за гибель)
   async function repairBody() {
     const inv = await Bag.refresh();
@@ -1011,7 +1042,7 @@ window.Town = (() => {
     // Из карточки вещи «В кузницу» — сразу рецепт для этой вещи
     const it = itemId && Bag.inv() && Bag.inv().items.find((i) => i.id === itemId);
     const rid = it && it.cat !== 'rune' ? `w${ctx.zone.tier}_${it.cat}` : null;
-    open('🔨 Кузница', tabs([['Рецепты', () => craftBody(ctx.zone.tier, rid, itemId)], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Разбор', () => salvageBody()], ['🔧 Ремонт', repairBody], ['Лавка кузнеца', () => shopList('smith')]]));
+    open('🔨 Кузница', tabs([['Рецепты', () => craftBody(ctx.zone.tier, rid, itemId)], ['🔮 Из осколков', shardBody], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Разбор', () => salvageBody()], ['🔧 Ремонт', repairBody], ['Лавка кузнеца', () => shopList('smith')]]));
   }
 
   // ---------- Награда за вход: 7 дней подряд ----------

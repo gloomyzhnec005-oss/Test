@@ -608,6 +608,35 @@ module.exports = function createMeta(deps) {
       return { result: I.itemView(res), toast: `⚒️ Создано: ${I.itemView(res).name} (${I.ITEM_RARITIES[res.rar].name})` };
     },
 
+    // ---------- Кузница: ковка из осколков (любой слот и класс, вещь свободная — её можно продать) ----------
+    shardRecipes(p, d, pr) {
+      const t = tierOf(p), M = pr.mats || {};
+      return { tier: t, gold: pr.gold, myCls: I.classOf(p.heroId),
+        classes: I.CLASS_ORDER.map((c) => ({ id: c, name: I.CLASSES[c].name })),
+        slots: I.CRAFT_SLOTS.map((s) => ({ id: s, name: I.SLOT_NAMES[s] })),
+        list: Object.keys(I.SHARD_CRAFT).map((rar) => {
+          const c = I.shardCraftCost(rar, t);
+          if (!c) return { rar, rarName: I.ITEM_RARITIES[rar].name, color: I.ITEM_RARITIES[rar].color, off: 'Мифические вещи куют только во втором и третьем мире' };
+          const mats = Object.entries(c.need).map(([k, n]) => ({ ...I.matView(k, n), need: n, have: M[k] || 0 }));
+          return { rar, rarName: I.ITEM_RARITIES[rar].name, color: I.ITEM_RARITIES[rar].color, gold: c.gold, mats, ok: mats.every((m) => m.have >= m.need) && pr.gold >= c.gold };
+        }) };
+    },
+    shardCraft(p, d, pr) {
+      const t = tierOf(p), c = I.shardCraftCost(d.rar, t);
+      if (!c) return { error: 'Такую вещь здесь не выковать' };
+      if (!I.CRAFT_SLOTS.includes(d.slot)) return { error: 'Выберите, что ковать' };
+      const cls = I.CLASSES[d.cls] ? d.cls : I.classOf(p.heroId);
+      if ((pr.gold || 0) < c.gold) return { error: `Нужно ${c.gold.toLocaleString('ru-RU')} 💰` };
+      const miss = Object.entries(c.need).filter(([k, n]) => ((pr.mats || {})[k] || 0) < n);
+      if (miss.length) return { error: `Не хватает: ${miss.map(([k, n]) => matName(k, n - ((pr.mats || {})[k] || 0))).join(', ')}` };
+      const out = put(pr, I.createItem(d.slot, d.rar, t, null, cls));
+      if (out.error) return { error: out.error };
+      I.takeMats(pr, c.need); pr.gold -= c.gold;
+      out.item.smith = p.name;
+      refreshPlayer(p);
+      return { result: I.itemView(out.item), toast: `⚒️ Выковано: ${I.itemView(out.item).name} (${I.ITEM_RARITIES[d.rar].name}) — её можно продать` };
+    },
+
     // ---------- Кузница: улучшение, вещи комплектов, разбор ----------
     craftInfo(p, d, pr) {
       const it = I.findItem(pr, d.id);

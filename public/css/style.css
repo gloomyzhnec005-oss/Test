@@ -1642,3 +1642,8 @@ canvas.skin { object-fit: contain; }
 .ev-card.ev-loot { border-left-color: #7dff8a; }
 .mail-q { margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: rgba(120,200,255,.12); color: #bfe6ff; font-size: 13px; }
 .mail-q.warn { background: rgba(255,80,80,.15); color: #ffb0b0; }
+/* Кузница: ковка из осколков */
+.sh-row { margin-top: 8px; padding: 8px; border: 1px solid #4a3a24; border-radius: 10px; background: rgba(0,0,0,.25); }
+.sh-row .cr-need { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 8px; }
+.sh-slot { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.sh-cls { grid-template-columns: repeat(4, minmax(0, 1fr)); }
