@@ -418,13 +418,15 @@ window.Bag = (() => {
         const m = pv.preview.made, R2 = inv.rarities;
         if (!pv.preview.used) return toast('Нечего соединять: нужно 5 копий одной категории и редкости (★ тоже считаются), без заточки, рун и не из комплекта');
         const list = Object.entries(m).filter(([, n]) => n).map(([k, n]) => `${R2[k].name} ×${n}`).join(', ');
-        if (!confirm(`Автосоединение до легендарного: из ${pv.preview.used} копий получится ${list}.\nДубликаты (★) тоже идут в дело — каждая звёздочка считается копией вещи.\nНадетое, заточенное, с рунами и комплектное не трогаем. Соединить?`)) return;
+        if (!confirm(`Автосоединение до легендарного: из ${pv.preview.used} копий получится ${list}.\nДубликаты (★) тоже идут в дело — каждая звёздочка считается копией вещи.\nНадетое, заточенное, с рунами и комплектное не трогаем. Личные вещи соединяются только с личными, свободные — со свободными. Соединить?`)) return;
         const r = await act('mergeAuto', {});
         toast(r.error || r.toast);
         if (!r.error) { sel.clear(); await refresh(); draw(); if (window.Sfx) Sfx.play('reward'); }
       };
       box.querySelector('.merge-go').onclick = async () => {
         if (sel.size !== 5) return;
+        const pick = inv.items.filter((i) => sel.has(i.id));
+        if (pick.some((i) => i.bound) && pick.some((i) => !i.bound) && !confirm('Среди выбранных есть личные вещи — новая вещь тоже будет личной: продать или передать её будет нельзя. Соединить?')) return;
         const r = await act('merge', { ids: [...sel] });
         if (r.error) return toast(r.error);
         sel.clear();
