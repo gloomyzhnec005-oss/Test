@@ -180,7 +180,7 @@ function simulate(a, b) {
 // от базовой цены (⭐ / STAR_K) — выручка с обеих оплат почти одинаковая, а GRAM для игрока на треть дешевле и приходит сразу.
 // Цены, которые и так только в GRAM (внешний вид, Рынок, взносы), не трогаем.
 const STAR_K = Number(process.env.STAR_K) || 1.5;
-const starPrice = (n) => { const v = n * STAR_K; return v < 60 ? Math.round(v) : Math.round(v / 10) * 10 - 1; }; // красивые цены: 74, 149, 229…
+const starPrice = (n) => Math.round(n * STAR_K); // ровно ×STAR_K — тогда цена в GRAM (⭐ / STAR_K) совпадает с прежней
 if (STAR_K !== 1) {
   SHOP.itemSpin.price = starPrice(SHOP.itemSpin.price); SHOP.itemSpin.price10 = starPrice(SHOP.itemSpin.price10);
   for (const g of Object.values(SHOP.gems)) g.amount = starPrice(g.amount);

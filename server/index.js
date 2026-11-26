@@ -585,7 +585,7 @@ app.post('/api/ton/quote', (req, res) => {
   if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   const inv = buildInvoice(who, req.body.item, req.body.bgId, req.body.to);
   if (inv.error) return res.status(400).json({ error: inv.error });
-  res.json({ title: inv.invoice.title, stars: inv.stars, base: Math.ceil(inv.stars / STAR_K), ton: ton.tonPrice(inv.stars / STAR_K) }); // GRAM/TON — от базовой цены (без наценки на звёзды)
+  res.json({ title: inv.invoice.title, stars: inv.stars, base: Math.round(inv.stars / STAR_K), ton: ton.tonPrice(Math.round(inv.stars / STAR_K)) }); // GRAM/TON — от базовой цены (без наценки на звёзды)
 });
 app.post('/api/ton/order', (req, res) => {
   if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в GRAM выключена' });
@@ -593,7 +593,7 @@ app.post('/api/ton/order', (req, res) => {
   if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   const inv = buildInvoice(who, req.body.item, req.body.bgId, req.body.to);
   if (inv.error) return res.status(400).json({ error: inv.error });
-  res.json(ton.createOrder(who.uid, inv.invoice.payload, inv.stars / STAR_K, inv.invoice.title));
+  res.json(ton.createOrder(who.uid, inv.invoice.payload, Math.round(inv.stars / STAR_K), inv.invoice.title));
 });
 // Пополнение GRAM-баланса: адрес кошелька игры и личный комментарий игрока (перевод с ним зачисляется на баланс)
 app.post('/api/gram/deposit', (req, res) => {
@@ -3303,7 +3303,7 @@ function zbtPay(p, d) {
   if (!(pr.zbtCredit > 0)) return { error: 'Кредита ЗБТ нет' };
   const r = buildInvoice({ uid: p.uid }, String(d.item || ''), d.bgId);
   if (r.error) return r;
-  const need = Math.ceil(r.stars / STAR_K); // кредит — в базовых ⭐ (как GRAM), без наценки Telegram
+  const need = Math.round(r.stars / STAR_K); // кредит — в базовых ⭐ (как GRAM), без наценки Telegram
   if (pr.zbtCredit < need) return { error: `Кредита ЗБТ не хватает: нужно ${need} ⭐, осталось ${Math.floor(pr.zbtCredit)} ⭐` };
   pr.zbtCredit = Math.round((pr.zbtCredit - need) * 100) / 100;
   onPaid(r.invoice.payload, { amount: need, currency: 'ZBT', charge: 'zbt' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
