@@ -933,7 +933,7 @@
         if (!r || r.error) { Town.toast((r && r.error) || 'Нет связи'); return; }
         const box = document.createElement('div');
         box.innerHTML = `<p class="sheet-hint">Спасибо, что тестируете игру! Перед релизом мир обнулится, а участники ЗБТ получат подарки.</p>
-          <div class="tw-banner pass"><b>🎖️ Ветеран ЗБТ</b><small>Рамка, титул и ${r.vetGems} 💎 за ваш уровень на ЗБТ (${r.lvl}). Больше уровень — больше самоцветов: 10 — 150, 20 — 300, 30 — 600, 40 — 1000, 50 — 1500</small></div>
+          <div class="tw-banner pass"><b>🎖️ Ветеран ЗБТ</b><small>Рамка, титул и ${r.vetGems} 💎 за ваш уровень на ЗБТ (${r.lvl}). Больше уровень — больше самоцветов: до 10 — 50, 10 — 100, 20 — 150, 30 — 250, 40 — 350, 50 — 500</small></div>
           ${r.stars ? `<div class="ic-sec">Ваши вложения: ${r.stars} ⭐</div>
             <div class="tw-ev ${r.choice === 'keep' ? 'new' : ''}"><div><b>💎 Оставить в игре</b><small>После релиза — ${r.keepGems} 💎 (в 1,5 раза больше вложенного)</small></div>${r.released ? '' : `<button class="l2-btn sm ${r.choice === 'keep' ? 'on' : ''}" data-c="keep">${r.choice === 'keep' ? '✓ Выбрано' : 'Выбрать'}</button>`}</div>
             <div class="tw-ev ${r.choice === 'refund' ? 'new' : ''}"><div><b>↩️ Вернуть звёзды</b><small>Звёзды вернутся на ваш счёт Telegram, самоцветы за них не начисляются</small></div>${r.released ? '' : `<button class="l2-btn sm ${r.choice === 'refund' ? 'on' : ''}" data-c="refund">${r.choice === 'refund' ? '✓ Выбрано' : 'Выбрать'}</button>`}</div>
