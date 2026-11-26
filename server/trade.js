@@ -187,6 +187,7 @@ module.exports = function createTrade(deps) {
     if (!(isWear(it.cat) || it.cat === 'rune')) return 'В Торговом доме продаются вещи, руны и ценные материалы';
     if (!RAR_OK.includes(it.rar)) return 'Продавать можно вещи и руны от эпических';
     if (it.bound) return 'Вещь привязана к владельцу — её нельзя продать или передать';
+    if (I.boundRune(it)) return 'В оружии личная руна — извлеките её, чтобы продать оружие';
     return '';
   }
 

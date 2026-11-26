@@ -1020,6 +1020,7 @@ function clanAct(p, d) {
     if (!it) return { error: 'Предмет не найден' };
     if (Object.values(pr.equip || {}).includes(it.id)) return { error: 'Сначала снимите предмет' };
     if (it.bound) return { error: 'Привязанную вещь нельзя передать' };
+    if (I.boundRune(it)) return { error: 'В оружии личная руна — извлеките её, чтобы передать оружие' };
     if ((it.trophy || 0) > Date.now()) return { error: 'Трофей из опасного данжа — передать можно через 7 дней после добычи' };
     if (it.cat === 'bag') return { error: 'Сумки в хранилище не кладут' };
     mine.vault ??= [];

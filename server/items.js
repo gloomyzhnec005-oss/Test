@@ -656,11 +656,13 @@ const UPGRADE = {
   mythic:    { scroll: 'scrollM', ore: 80, ess: 50, core: 5, gold: 15000 }, // дорого: мифик — редкость
 };
 const SET_CRAFT = { ore: 15, ess: 10, core: 1, gold: 1500 };
-// Добыча с монстров: эпические и лучшие вещи — личные (привязаны к добывшему). Продать нельзя, носить и разобрать на осколок — можно
+// Добыча с монстров: эпические и лучшие вещи и руны — личные (привязаны к добывшему). Продать нельзя, носить, вставить и разобрать — можно
 function bindLoot(it) {
-  if (it && SHARD_RAR[it.rar] && it.cat !== 'bag' && it.cat !== 'rune') { it.bound = 1; it.loot = 1; }
+  if (it && SHARD_RAR[it.rar] && it.cat !== 'bag') { it.bound = 1; it.loot = 1; }
   return it;
 }
+// Личная руна в оружии: такое оружие не продать и не передать, пока руну не извлекут
+const boundRune = (it) => (it.runes || []).some((r) => r.bound);
 function upgradeCost(it) {
   const next = RARITY_ORDER[RARITY_ORDER.indexOf(it.rar) + 1];
   if (!next || it.cat === 'rune') return null;
@@ -784,5 +786,5 @@ module.exports = {
   SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF, COMPANIONS, TREE, TREE_MAX, treeReq, treeCost, PAS_MAX, PAS_STEP, pasReq, pasCost, CAPS, BUFF_LUCK,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
-  SHARD_CRAFT, shardOf, shardCraftCost, bindLoot, upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, cleanItem, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
+  boundRune, SHARD_CRAFT, shardOf, shardCraftCost, bindLoot, upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, cleanItem, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
 };
