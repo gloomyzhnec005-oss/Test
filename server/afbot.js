@@ -15,7 +15,6 @@ module.exports = function createAfBot({ C, world, players, monsters, SOLID, getP
     const want = new Map();
     for (const m of monsters.values()) {
       if (m.zone !== p.zone || m.pvpOf || m.hp <= 0 || m.still || (skip.get(m.id) || 0) > Date.now()) continue;
-      if (Math.hypot(m.x - p.x, m.y - p.y) > 70 * TILE) continue;
       const [mx, my] = tileOf(z, m.x, m.y); const k = my * W + mx;
       if (!want.has(k)) want.set(k, m);
     }
@@ -28,7 +27,7 @@ module.exports = function createAfBot({ C, world, players, monsters, SOLID, getP
         const path = []; for (let k = c; k !== s && k >= 0; k = prev[k]) path.push(k);
         return { m: want.get(c), path: path.reverse() };
       }
-      if (dist[c] > 90) continue;
+      if (dist[c] > 600) continue;
       const cx = c % W, cy = (c - cx) / W;
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = cx + dx, ny = cy + dy;
@@ -39,6 +38,31 @@ module.exports = function createAfBot({ C, world, players, monsters, SOLID, getP
       }
     }
     return null;
+  }
+  // Рядом никого — путь к случайной проходимой клетке подальше (лабиринт большой, монстры появляются в других комнатах)
+  function wander(p, z) {
+    const W = z.w, H = z.h, [sx, sy] = tileOf(z, p.x, p.y), N = W * H;
+    if (sx < 0 || sy < 0 || sx >= W || sy >= H) return null;
+    const prev = new Int32Array(N).fill(-1), dist = new Int16Array(N).fill(-1), q = new Int32Array(N);
+    let h = 0, t = 0; const s = sy * W + sx; q[t++] = s; dist[s] = 0;
+    const far = [];
+    while (h < t) {
+      const c = q[h++];
+      if (dist[c] >= 25) far.push(c);
+      if (dist[c] > 400) continue;
+      const cx = c % W, cy = (c - cx) / W;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = cx + dx, ny = cy + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const n = ny * W + nx;
+        if (dist[n] >= 0 || solid.has(z.tiles[n])) continue;
+        dist[n] = dist[c] + 1; prev[n] = c; q[t++] = n;
+      }
+    }
+    if (!far.length) return null;
+    const goal = far[Math.floor(Math.random() * far.length)], path = [];
+    for (let k = goal; k !== s && k >= 0; k = prev[k]) path.push(k);
+    return path.reverse();
   }
   // Один шаг бота (зовётся ~7 раз в секунду)
   function step(p, now) {
@@ -53,10 +77,16 @@ module.exports = function createAfBot({ C, world, players, monsters, SOLID, getP
     }
     let m = b.tgt && monsters.get(b.tgt);
     if (!m || m.hp <= 0) { m = null; b.tgt = null; b.path = null; }
+    if (!m && now < b.nextPlan) { if (b.walk && b.walk.length) walkPath(p, z, b, b.walk, now); return; } // поиск — не чаще раза в 1,2 с
     if (!m || (!b.path && now >= b.nextPlan)) {
       b.nextPlan = now + 1200;
       const r = plan(p, z, b.skip);
-      if (!r) return;
+      if (!r) { // монстров не видно — идём бродить по лабиринту, по пути цель найдётся
+        if (!b.walk || !b.walk.length) { b.walk = wander(p, z); b.lastPos = [p.x, p.y]; b.movedAt = now; }
+        if (b.walk && b.walk.length) walkPath(p, z, b, b.walk, now);
+        return;
+      }
+      b.walk = null;
       m = r.m; b.tgt = m.id; b.path = r.path; b.since = now; b.lastPos = [p.x, p.y]; b.movedAt = now;
     }
     const range = (p.form ? p.hero.forms[p.form].range : p.hero.range) || 60;
@@ -79,16 +109,20 @@ module.exports = function createAfBot({ C, world, players, monsters, SOLID, getP
     }
     // Идём по пути (монстр мог отойти — путь пересчитаем)
     if (!b.path || !b.path.length) { b.path = null; b.nextPlan = 0; return; }
-    const k = b.path[0], [tx, ty] = [k % z.w, Math.floor(k / z.w)], to = center(z, tx, ty);
+    walkPath(p, z, b, b.path, now);
+    if (now - b.movedAt > 3000) { b.skip.set(m.id, now + 20000); b.tgt = null; b.path = null; b.nextPlan = 0; } // застрял — другая цель
+    if (now - b.since > 25000 && d > range + 6) { b.skip.set(m.id, now + 15000); b.tgt = null; b.path = null; b.nextPlan = 0; } // долго не дойти
+  }
+  // Шаг по пути клеток (как игрок: обработчик move проверяет скорость и стены)
+  function walkPath(p, z, b, path, now) {
+    const k = path[0], [tx, ty] = [k % z.w, Math.floor(k / z.w)], to = center(z, tx, ty);
     const speed = Math.max((p.form ? p.hero.forms[p.form].speed : 0) || 0, p.hero.speed) * (1 + ((p.gear && p.gear.ms) || 0) / 100);
     const stepLen = Math.min(speed * 0.14 * 1.25, Math.hypot(to.x - p.x, to.y - p.y));
     const a = Math.atan2(to.y - p.y, to.x - p.x);
-    const nx = p.x + Math.cos(a) * stepLen, ny = p.y + Math.sin(a) * stepLen;
-    call(p, 'move', { x: nx, y: ny, dir: Math.cos(a) < 0 ? -1 : 1, tp: p.tpSeq });
-    if (Math.hypot(to.x - p.x, to.y - p.y) < 6) b.path.shift();
+    call(p, 'move', { x: p.x + Math.cos(a) * stepLen, y: p.y + Math.sin(a) * stepLen, dir: Math.cos(a) < 0 ? -1 : 1, tp: p.tpSeq });
+    if (Math.hypot(to.x - p.x, to.y - p.y) < 6) path.shift();
     if (Math.hypot(p.x - b.lastPos[0], p.y - b.lastPos[1]) > 4) { b.lastPos = [p.x, p.y]; b.movedAt = now; }
-    else if (now - b.movedAt > 3000) { b.skip.set(m.id, now + 20000); b.tgt = null; b.path = null; b.nextPlan = 0; } // застрял — другая цель
-    if (now - b.since > 25000 && d > range + 6) { b.skip.set(m.id, now + 15000); b.tgt = null; b.path = null; b.nextPlan = 0; } // долго не дойти
+    else if (path === b.walk && now - b.movedAt > 3000) b.walk = null; // застрял на прогулке — новая точка
   }
   return { step };
 };
