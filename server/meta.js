@@ -238,7 +238,7 @@ module.exports = function createMeta(deps) {
     const list = [];
     const B2 = require('./mobs').bal2();
     const price = (rar) => Math.round(ITEM_PRICE[rar] * F(tier) * (B2 ? 0.35 : 1));
-    const matOffer = (mat, limit = 0) => list.push({ oid: list.length, mat, price: shopPrice(mat, tier), limit: limit || I.MATS[mat].limit || 0 });
+    const matOffer = (mat, limit = 0, price = 0) => list.push({ oid: list.length, mat, price: price || shopPrice(mat, tier), limit: limit || I.MATS[mat].limit || 0 });
     if (kind === 'equip') {
       // По обычному и редкому предмету на каждый слот и два эпических на день
       // Только то, что может надеть класс героя
@@ -248,8 +248,9 @@ module.exports = function createMeta(deps) {
     } else if (kind === 'runes') {
       for (const rar of ['common', 'common', 'common', 'rare', 'rare', 'rare', 'epic']) list.push({ oid: list.length, item: I.createItem('rune', rar, tier), price: Math.round(RUNE_PRICE[rar] * F(tier) * (B2 ? 0.4 : 1)) });
     } else if (kind === 'smith') {
-      // Руду и эссенцию продают только в Эльдмире: материалы Морграта и Аэлиона — только фармом
-      if (tier === 1) { matOffer('ore1'); matOffer('ess1'); }
+      // Руду и эссенцию продают только в Эльдмире: материалы Морграта и Аэлиона — только фармом.
+      // Цена и дневной лимит — чтобы покупка не заменяла фарм целиком (руда 25 💰, до 40 в день; эссенция 60 💰, до 20 в день)
+      if (tier === 1) { matOffer('ore1', 40, 25); matOffer('ess1', 20, 60); }
       matOffer('scrollR'); matOffer('scrollE');
     } else {
       for (const m of ['potHp', 'potHp2', 'potRes', 'elxAtk', 'elxDef', 'elxAgi', 'elxMind', 'elxWind', 'elxFury', 'elxVamp']) matOffer(m); // свиток возвращения убран: в город ведёт кнопка навигации

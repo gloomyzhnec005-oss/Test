@@ -349,10 +349,11 @@ for (const [rar, [id, name, color, icon]] of Object.entries(SHARD_RAR)) {
 }
 const shardOf = (rar, t) => (SHARD_RAR[rar] && MATS[`${SHARD_RAR[rar][0]}${t}`] ? `${SHARD_RAR[rar][0]}${t}` : null); // мификов I мира не куют — их осколков нет
 // Ковка из осколков: осколки × 2 + материалы мира + золото (× мир). Успех 100%, свойства — случайные
+// Материалы — не меньше, чем даёт разбор двух вещей: ковка «съедает» всё, что дал разбор, и ещё сверху
 const SHARD_CRAFT = {
-  epic:      { shards: 2, ore: 6,  ess: 3,  core: 0, gold: 600 },
-  legendary: { shards: 2, ore: 15, ess: 8,  core: 1, gold: 2500 },
-  mythic:    { shards: 2, ore: 40, ess: 20, core: 3, gold: 10000 },
+  epic:      { shards: 2, ore: 12, ess: 6,  core: 0, gold: 600 },
+  legendary: { shards: 2, ore: 30, ess: 16, core: 2, gold: 2500 },
+  mythic:    { shards: 2, ore: 80, ess: 40, core: 5, gold: 10000 },
 };
 function shardCraftCost(rar, t) {
   const c = SHARD_CRAFT[rar];
