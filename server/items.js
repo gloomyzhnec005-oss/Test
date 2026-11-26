@@ -579,7 +579,7 @@ function findItem(pr, id) {
 // Добавить предмет: дубликат усиливает оригинал, иначе — в сумку (если сумка полна — на склад)
 function addItem(pr, item, bagSize, allowDupe = true) {
   pr.items ??= [];
-  const orig = allowDupe && item.cat !== 'bag' && !item.plan && pr.items.find((i) => !i.plan && i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < DUPE_MAX);
+  const orig = allowDupe && item.cat !== 'bag' && pr.items.find((i) => i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < DUPE_MAX);
   if (orig) { orig.dupes = (orig.dupes || 0) + 1; return { dupe: true, item: orig }; }
   // Всегда в сумку — на склад вещи переносит только сам игрок. Полная сумка проверяется до вызова (добыча продаётся,
   // покупка в лавке не проходит); награды и покупки за Stars кладутся сверх лимита, чтобы не пропасть
@@ -602,7 +602,6 @@ function mergeItems(pr, ids) {
   const items = uniq.map((id) => findItem(pr, id));
   if (items.some((i) => !i)) return { error: 'Предмет не найден' };
   if (items.some((i) => Object.values(pr.equip || {}).includes(i.id))) return { error: 'Надетые предметы нельзя соединять — сначала снимите их' };
-  if (items.some((i) => i.plan)) return { error: 'Чертёж сначала выкуйте в кузнице' };
   const { cat, rar } = items[0];
   if (items.some((i) => i.cat !== cat || i.rar !== rar)) return { error: 'Все 5 предметов должны быть одной категории и редкости' };
   const next = RARITY_ORDER[RARITY_ORDER.indexOf(rar) + 1];
@@ -634,29 +633,6 @@ const UPGRADE = {
   mythic:    { scroll: 'scrollM', ore: 80, ess: 50, core: 5, gold: 15000 }, // дорого: мифик — редкость
 };
 const SET_CRAFT = { ore: 15, ess: 10, core: 1, gold: 1500 };
-// Чертёж вещи: эпические и лучшие вещи с монстров падают чертежом — свойства уже видны, но вещь ещё надо выковать в кузнице.
-// Чертёж личный: не продаётся в Торговом доме, не уходит почтой и не выпадает при гибели. Разобрать или продать торговцу — можно.
-// Стоимость ковки — материалы мира вещи и золото (×1 / ×2,2 / ×4,5), успех 100%
-const PLAN_COST = {
-  epic:      { ore: 4,  ess: 2,  core: 0, gold: 300 },
-  legendary: { ore: 12, ess: 6,  core: 1, gold: 1500 },
-  mythic:    { ore: 30, ess: 15, core: 3, gold: 6000 },
-};
-function asPlan(it) {
-  if (it && PLAN_COST[it.rar] && it.cat !== 'bag' && it.cat !== 'rune') it.plan = 1;
-  return it;
-}
-function planView(it) {
-  const c = planCost(it);
-  return c && { ...c, txt: Object.entries(c.need).map(([k, n]) => `${(MATS[k] || {}).icon || ''} ${(MATS[k] || {}).name || k} ×${n}`).join(', ') };
-}
-function planCost(it) {
-  const c = it && it.plan && PLAN_COST[it.rar];
-  if (!c) return null;
-  const t = it.tier || 1, need = { [`ore${t}`]: c.ore, [`ess${t}`]: c.ess };
-  if (c.core) need[`core${t}`] = c.core;
-  return { need, gold: Math.round(c.gold * TIER_MULT[t]) };
-}
 function upgradeCost(it) {
   const next = RARITY_ORDER[RARITY_ORDER.indexOf(it.rar) + 1];
   if (!next || it.cat === 'rune') return null;
@@ -725,8 +701,7 @@ function itemView(it) {
   const set = sid ? { id: sid, name: SETS[sid].name, cls: SETS[sid].cls, clsName: CLASSES[SETS[sid].cls].name, heroes: CLASSES[SETS[sid].cls].heroes, bonus: SETS[sid].bonus } : null;
   return {
     id: it.id, cat: it.cat, tpl: it.tpl, rar: it.rar, tier: it.tier, dupes: it.dupes || 0, loc: it.loc || 'bag',
-    plan: !!it.plan, planCost: it.plan ? planView(it) : null, smith: it.smith || null,
-    name: (it.plan ? '📜 Чертёж: ' : '') + (it.ench ? `⚒+${it.ench} ` : '') + ((t.rarNames && t.rarNames[it.rar]) || t.name) + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.ltd ? ` «${it.ltd.name}» #${it.ltd.n}/${it.ltd.of}` : '') + (it.dupes ? ` +${it.dupes}` : ''), ltd: it.ltd || null, icon: t.icon, color: R.color, rarName: R.name, ench: it.ench || 0,
+    name: (it.ench ? `⚒+${it.ench} ` : '') + ((t.rarNames && t.rarNames[it.rar]) || t.name) + (set ? ` ${SETS[sid].short}` : TIER_NAME[it.tier]) + (it.ltd ? ` «${it.ltd.name}» #${it.ltd.n}/${it.ltd.of}` : '') + (it.dupes ? ` +${it.dupes}` : ''), ltd: it.ltd || null, icon: t.icon, color: R.color, rarName: R.name, ench: it.ench || 0,
     enchCost: it.cat !== 'rune' && it.cat !== 'bag' && (it.ench || 0) < ENCH.max ? enchCost(it) : null,
     art: it.cat === 'bag' ? `bag_${it.rar}` : t.art || null, artFallback: it.cat === 'bag' ? 'slot_bag' : null, // своя иконка сумки по редкости, пока нет — общая
     bagSlots: it.cat === 'bag' ? BAG_SLOTS[it.rar] : 0,
@@ -779,5 +754,5 @@ module.exports = {
   SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF, COMPANIONS, TREE, TREE_MAX, treeReq, treeCost, PAS_MAX, PAS_STEP, pasReq, pasCost, CAPS, BUFF_LUCK,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
-  PLAN_COST, asPlan, planCost, upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, cleanItem, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
+  upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, cleanItem, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
 };

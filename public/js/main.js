@@ -913,7 +913,7 @@
         } else {
           if (!Bag.inv()) await Bag.refresh();
           const inv = Bag.inv(), sel = new Set();
-          const items = inv.items.filter((it) => !it.bound && !it.plan && !Bag.isEquipped(it) && it.loc !== 'wh');
+          const items = inv.items.filter((it) => !it.bound && !Bag.isEquipped(it) && it.loc !== 'wh');
           body.innerHTML = `<div class="tw-banner pass"><b>💠 Передача вещей — платная, в GRAM</b><small>Текст письма — бесплатно. За вещи и материалы — 0,05 GRAM + 15% от их минимальной цены в Торговом доме (с 10 уровня). Золото — плюс 10% сверху. Сумма появится ниже, как только вы выберете вложения; списывается с GRAM-баланса при отправке. Не забранное за 30 дней вернётся вам.</small></div>
             <input class="mail-to wide-in" maxlength="16" placeholder="Ник получателя" autocomplete="off">
             <textarea class="mail-tx wide-in" maxlength="300" rows="3" placeholder="Текст письма"></textarea>

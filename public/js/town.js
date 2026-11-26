@@ -168,7 +168,7 @@ window.Town = (() => {
   // ---------- Рунная мастерская ----------
   async function runesBody(weaponId) {
     const inv = await Bag.refresh();
-    const weapons = inv.items.filter((i) => i.cat === 'weapon' && !i.plan);
+    const weapons = inv.items.filter((i) => i.cat === 'weapon');
     const box = document.createElement('div');
     if (!weapons.length) { box.innerHTML = soon('Нет оружия — руны вставляются в оружие'); return box; }
     const reload = async (id) => box.replaceWith(await runesBody(id));
@@ -262,7 +262,7 @@ window.Town = (() => {
 
   // Торговый дом: продажа между игроками за GRAM
   const TRADE_RAR = ['epic', 'legendary', 'mythic'];
-  const tradableItem = (it) => !it.plan && TRADE_RAR.includes(it.rar) && (it.cat === 'rune' || Object.hasOwn(WEAR_RU, it.cat));
+  const tradableItem = (it) => TRADE_RAR.includes(it.rar) && (it.cat === 'rune' || Object.hasOwn(WEAR_RU, it.cat));
   async function tradeHousePanel(tab = 0) {
     const r = await Bag.act('th');
     if (r.error) return toast(r.error);
@@ -991,16 +991,6 @@ window.Town = (() => {
     box.append(gridWrap, foot); draw(); quote();
     return box;
   }
-  // Чертежи: эпические и лучшие вещи с монстров падают чертежом — здесь их выковывают (успех 100%)
-  async function plansBody() {
-    const inv = await Bag.refresh();
-    const list = inv.items.filter((i) => i.plan);
-    const box = document.createElement('div');
-    box.innerHTML = `<p class="sheet-hint">Эпические, легендарные и мифические вещи с монстров падают <b>чертежом</b>: свойства уже видны, осталось выковать. Ковка — материалы мира вещи и золото, успех 100%. Чертёж личный: его не продать в Торговом доме, не передать и не потерять при гибели. Не нужен — разберите или продайте торговцу.</p>`;
-    if (!list.length) { box.insertAdjacentHTML('beforeend', '<p class="sheet-hint">Чертежей пока нет — они падают с монстров, полубоссов и боссов.</p>'); return box; }
-    box.append(Bag.grid(list, (it) => Bag.card(it, Bag.itemActions(it, { town: true, after: async () => { document.getElementById('itemCard').classList.add('hidden'); box.replaceWith(await plansBody()); } }))));
-    return box;
-  }
   // Ремонт: всё надетое разом или по одной вещи (новый баланс: −10% прочности за гибель)
   async function repairBody() {
     const inv = await Bag.refresh();
@@ -1021,7 +1011,7 @@ window.Town = (() => {
     // Из карточки вещи «В кузницу» — сразу рецепт для этой вещи
     const it = itemId && Bag.inv() && Bag.inv().items.find((i) => i.id === itemId);
     const rid = it && it.cat !== 'rune' ? `w${ctx.zone.tier}_${it.cat}` : null;
-    open('🔨 Кузница', tabs([['Рецепты', () => craftBody(ctx.zone.tier, rid, itemId)], ['📜 Чертежи', plansBody], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Разбор', () => salvageBody()], ['🔧 Ремонт', repairBody], ['Лавка кузнеца', () => shopList('smith')]]));
+    open('🔨 Кузница', tabs([['Рецепты', () => craftBody(ctx.zone.tier, rid, itemId)], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Разбор', () => salvageBody()], ['🔧 Ремонт', repairBody], ['Лавка кузнеца', () => shopList('smith')]]));
   }
 
   // ---------- Награда за вход: 7 дней подряд ----------

@@ -1642,8 +1642,3 @@ canvas.skin { object-fit: contain; }
 .ev-card.ev-loot { border-left-color: #7dff8a; }
 .mail-q { margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: rgba(120,200,255,.12); color: #bfe6ff; font-size: 13px; }
 .mail-q.warn { background: rgba(255,80,80,.15); color: #ffb0b0; }
-
-/* Чертёж вещи: блёклая иконка и свиток в углу */
-.it.plan > span { opacity: .55; filter: sepia(.7) saturate(.8); }
-.it.plan > q { position: absolute; left: 2px; bottom: 1px; font-size: 13px; quotes: none; line-height: 1; pointer-events: none; }
-.it.plan > q::before, .it.plan > q::after { content: none; }
