@@ -959,8 +959,8 @@ function academyLevel(p, pr) {
   const L = p.char.level;
   if (L >= 20 && pr.clan === ACADEMY) {
     leaveAcademy(p.uid); setClanTag(p.uid);
-    pr.gems = (pr.gems || 0) + 100;
-    p.socket.emit('chat', { sys: true, text: '🎓 Выпуск из Академии героев! +100 💎. Теперь найдите свой клан — Игра → Клан' });
+    pr.gems = (pr.gems || 0) + 200; // путь до 20 ур. вдвое дольше — награда вдвое больше
+    p.socket.emit('chat', { sys: true, text: '🎓 Выпуск из Академии героев! +200 💎. Теперь найдите свой клан — Игра → Клан' });
   }
   if (L >= 20) return;
   const day = new Date(Date.now() + 3 * 36e5).toISOString().slice(0, 10);
@@ -3481,7 +3481,7 @@ admin.setWipe((keep, opt = {}) => {
     if (np) Object.assign(np, ref);
     if (remind) np.remindOpen = true; // подписку «Напомнить об открытии» сохраняем — это не прогресс
     // GRAM-кошелёк; дата регистрации и достигнутый уровень — чтобы условия вывода (30 ур., 7 дней) не «сбросились» вайпом
-    if (gram) { np.gram = gram; np.created = old.created || np.created; if (lvl >= 15) np.wdLevel = lvl; nG++; }
+    if (gram) { np.gram = gram; np.created = old.created || np.created; if (lvl >= 20) np.wdLevel = lvl; nG++; }
     if (pays) np.payments = pays; // для возвратов и проверки оплат после обнуления
   }
   for (const [id, c] of Object.entries(clans)) {

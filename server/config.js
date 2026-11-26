@@ -35,6 +35,12 @@ module.exports = {
       2: { rare: 62, epic: 32, legendary: 5.5, mythic: 0.4 },
       3: { rare: 45, epic: 45, legendary: 9, mythic: 1 },
     },
+    // Мировые боссы (раз в день, вещи свободные — их можно продать): легендарки и мифики примерно вдвое реже, чем у боссов данжей
+    world: {
+      1: { rare: 66, epic: 31, legendary: 2.8, mythic: 0.2 },
+      2: { rare: 50, epic: 44, legendary: 5.3, mythic: 0.7 },
+      3: { rare: 35, epic: 55, legendary: 8.5, mythic: 1.5 },
+    },
     boss: {
       1: { rare: 70, epic: 25, legendary: 4.6, mythic: 0.4 },
       2: { rare: 50, epic: 38, legendary: 10.5, mythic: 1.5 },

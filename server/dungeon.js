@@ -1167,7 +1167,7 @@ module.exports = function createDungeons(d) {
       const place = top.indexOf(uid) + 1, share = Math.round((dmg / total) * 100);
       const gold = Math.round(400 * m.tier * (0.5 + Math.min(1, part * 4)));
       const items = [];
-      for (let i = 0; i < 2 + (part > 0.15 ? 1 : 0); i++) items.push(d.rollItem(m.tier, C.DROPS.boss[m.tier], null, heroId));
+      for (let i = 0; i < 2 + (part > 0.15 ? 1 : 0); i++) items.push(d.rollItem(m.tier, C.DROPS.world[m.tier], null, heroId)); // вещи свободные — шансы ниже, чем у боссов данжей
       // 3% — легендарная сумка, из них каждая 6-я — мифическая «Бездонная сума»
       if (d.createBag && Math.random() < 0.03) items.push(d.createBag(Math.random() < 0.15 ? 'mythic' : 'legendary', m.tier));
       const mats = {};
