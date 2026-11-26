@@ -2036,7 +2036,7 @@ function leaveParty(p) {
 // Белый (мирный) → напал на белого → розовый на 35 с (после последнего удара). Убил белого → красный (карма):
 // 30 мин за каждое убийство, до 3 ч; карма уходит только пока герой в игре (выйти и переждать нельзя).
 // Выпадение при гибели от игрока: с белого — 25% вещей из сумки, с розового — 50% из сумки (надетое у них не падает),
-// с красного — вся сумка и 1 надетая вещь. Вещи достаются убийце. Привязанные (мифические) не выпадают. Группа друг друга не бьёт
+// с красного — вся сумка и 1 надетая вещь. Вещи достаются убийце. Мифические — только в 3-м мире (и привязанные тоже). Группа друг друга не бьёт
 const PK = { flagMs: 60e3 };
 // Карма — очки, как в Lineage 2: убийство мирного (и розового — если убийца уже красный) даёт 60 + 30 × (прежние такие убийства),
 // не больше 1500 за раз. Смерть смывает часть: от игрока — карму одного убийства, от монстров — треть (друзья/клан/группа не смывают).
@@ -2131,7 +2131,10 @@ function pkFriends(a, b) {
 function pkDrop(victim, vs, killer) {
   const vpr = getProfile(victim.uid), [bagK, eqN] = PK_DROP[vs];
   const eqIds = new Set(Object.values(vpr.equip || {}).filter(Boolean));
-  const ok = (it) => !it.bound && it.cat !== 'bag';
+  // Мифические вещи выпадают только в опасном данже 3-го мира (Аэлион) — даже привязанные; в первых двух мирах — никогда,
+  // чтобы слабые бойцы не теряли мифики. Остальные привязанные вещи не выпадают
+  const t3 = ((world.byId.get(victim.zone) || {}).tier || 1) >= 3;
+  const ok = (it) => it.cat !== 'bag' && (it.rar === 'mythic' ? t3 : !it.bound);
   const bag = (vpr.items || []).filter((it) => ok(it) && !eqIds.has(it.id) && it.loc !== 'wh');
   const worn = (vpr.items || []).filter((it) => ok(it) && eqIds.has(it.id));
   const pick = (arr, n) => { const out = []; while (n-- > 0 && arr.length) out.push(arr.splice(Math.floor(Math.random() * arr.length), 1)[0]); return out; };
@@ -2143,7 +2146,7 @@ function pkDrop(victim, vs, killer) {
     for (const sl of Object.keys(vpr.equip || {})) if (vpr.equip[sl] === it.id) vpr.equip[sl] = null;
     I.detach(vpr, it);
     vpr.items = vpr.items.filter((x) => x !== it);
-    delete it.loc;
+    delete it.loc; delete it.bound; // выпавшая вещь отвязывается — новый хозяин привяжет её, когда наденет
     const a = Math.random() * Math.PI * 2, r = 12 + Math.random() * 36;
     let x = victim.x + Math.cos(a) * r, y = victim.y + Math.sin(a) * r;
     if (world.isSolidAt(x, y)) { x = victim.x; y = victim.y; }
