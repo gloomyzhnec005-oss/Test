@@ -1218,6 +1218,14 @@
         draw(); b.classList.remove('hidden'); towerTm = setInterval(draw, 500);
         hudToast(`Этаж ${d.floor}!`);
       });
+      // Опасный данж: мешок добычи (вещи и материалы, добытые здесь; при гибели часть выпадет)
+      socket.on('sack', (d) => {
+        const b = $('waveBadge');
+        if (!d) { if (b.dataset.sack) { b.classList.add('hidden'); delete b.dataset.sack; } return; }
+        b.dataset.sack = '1'; b.classList.remove('warn');
+        b.textContent = `🎒 Мешок: ${d.items} вещ. · ${d.mats} мат.`;
+        b.classList.remove('hidden');
+      });
       socket.on('survival', (d) => {
         const b = $('waveBadge');
         b.textContent = `💀 Волна ${d.wave}${d.boss ? ' · ДРАКОН!' : ''}`;

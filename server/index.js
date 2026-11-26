@@ -1841,6 +1841,11 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
     if (zKind === 'pvp' && !target.match && !inCastle) pvpKill(target);
     if (isPkZone(target.zone)) { // опасный данж: выпадение вещей и карма
       const byPlayer = Date.now() - (target.lastPvpAt || 0) < 8000 && players.get(target.lastPvpBy);
+      { // мешок добычи: белый — 30%, розовый — 50%, красный — всё
+        const vs = pkState(target);
+        const lostS = sackDrop(target, vs, byPlayer && byPlayer !== target ? byPlayer : null);
+        if (lostS.length) target.socket.emit('chat', { sys: true, text: `🎒 Из мешка добычи выпало (${Math.round(SACK_DROP[vs] * 100)}%): ${lostS.join(', ')}. Лежит на земле 30 минут` });
+      }
       if (byPlayer) pkOnKill(target);
       else if (pkState(target) === 'red') { karmaDeath(target, 1 / 3); const lost = pkDrop(target, 'red', null); if (lost.length) target.socket.emit('chat', { sys: true, text: `💀 Красный погиб — на землю выпало: ${lost.join(', ')}. Вещи лежат 30 минут` }); }
     }
@@ -2171,7 +2176,10 @@ function pkDrop(victim, vs, killer) {
 function groundList(zid, now) {
   if (!zid || !isPkZone(zid)) return undefined;
   const out = [];
-  for (const g of groundLoot.values()) if (g.zone === zid) { const v = I.itemView(g.item); out.push([g.id, Math.round(g.x), Math.round(g.y), v.color, v.name, g.owner && now < g.ownerUntil ? g.owner : 0]); }
+  for (const g of groundLoot.values()) if (g.zone === zid) {
+    const v = g.mat ? { color: (I.MATS[g.mat.id] || {}).color || '#e8d49a', name: `${(I.MATS[g.mat.id] || {}).icon || ''} ${(I.MATS[g.mat.id] || {}).name || g.mat.id} ×${g.mat.n}` } : I.itemView(g.item);
+    out.push([g.id, Math.round(g.x), Math.round(g.y), v.color, v.name, g.owner && now < g.ownerUntil ? g.owner : 0]);
+  }
   return out;
 }
 function pickupGround(p, id) {
@@ -2180,8 +2188,26 @@ function pickupGround(p, id) {
   if (Math.hypot(g.x - p.x, g.y - p.y) > 140) return { error: 'Подойдите ближе' };
   if (g.owner && g.owner !== p.uid && Date.now() < g.ownerUntil) return { error: `Ещё ${Math.ceil((g.ownerUntil - Date.now()) / 1000)} с это может подобрать только победитель` };
   const pr = getProfile(p.uid);
+  if (g.mat) { // материалы из мешка добычи
+    groundLoot.delete(id);
+    I.addMat(pr, g.mat.id, g.mat.n);
+    if (isPkZone(p.zone)) { (pr.sackMats ??= {})[g.mat.id] = (pr.sackMats[g.mat.id] || 0) + g.mat.n; pr.sackOn = 1; sackSend(p); }
+    const M = I.MATS[g.mat.id] || {};
+    fx.push({ t: 'loot', x: g.x, y: g.y, to: p.id, name: `${M.icon || ''} ×${g.mat.n}`, color: M.color || '#e8d49a' });
+    saveProfiles();
+    return { toast: `Подобрано: ${M.name || g.mat.id} ×${g.mat.n}` };
+  }
   if ((pr.items || []).filter((i) => i.loc !== 'wh').length >= meta.bagSize(pr)) return { error: 'Сумка полна — освободите место' };
   groundLoot.delete(id);
+  if (g.sack) { // вещь из чужого мешка добычи — личная для подобравшего (передать «договорной» смертью нельзя); своя — снова в мешке
+    if (g.from !== p.uid) { g.item.bound = 1; g.item.loot = 1; }
+    g.item.sack = 1; pr.sackOn = 1;
+    g.item.loc = 'bag'; pr.items.push(g.item);
+    const v = I.itemView(g.item);
+    fx.push({ t: 'loot', x: g.x, y: g.y, to: p.id, name: `${v.icon} ${v.name}`, color: v.color });
+    sackSend(p); saveProfiles();
+    return { toast: `Подобрано: ${v.name}${g.from !== p.uid ? ' · 🔒 личная' : ''}` };
+  }
   // Чужая вещь с земли — «трофей»: 7 дней её нельзя отправить почтой и положить в хранилище клана (продавать и терять при смерти — можно)
   if (g.from && g.from !== p.uid) g.item.trophy = Date.now() + TROPHY_MS; else delete g.item.trophy; // продавать в Торговом доме — можно
   g.item.loc = 'bag'; pr.items.push(g.item);
@@ -2191,12 +2217,68 @@ function pickupGround(p, id) {
   return { toast: `Подобрано: ${v.name}` };
 }
 setInterval(() => { const now = Date.now(); for (const [id, g] of groundLoot) if (now > g.until) groundLoot.delete(id); }, 10000);
+// Мешок добычи опасного данжа: всё, что выпало там (вещи и материалы), «в мешке», пока герой не выйдет из данжа.
+// При гибели в данже из мешка выпадает: белый — 30%, розовый — 50%, красный — всё (сверх обычных правил для сумки).
+// Чужое из мешка, подобранное с земли, — личное для подобравшего. Вышел из данжа — мешок «вынесен», добыча обычная
+const SACK_DROP = { white: 0.3, pink: 0.5, red: 1 };
+const SACK_MAT_KINDS = new Set(['mat', 'scroll', 'blueprint', 'shard']); // зелья и эликсиры в мешок не идут
+function sackInfo(pr) {
+  if (!pr.sackOn) return null;
+  const items = (pr.items || []).filter((i) => i.sack).length;
+  const mats = Object.values(pr.sackMats || {}).reduce((a, n) => a + n, 0);
+  return items || mats ? { items, mats } : null;
+}
+function sackSend(p) { try { p.socket.emit('sack', sackInfo(getProfile(p.uid))); } catch (e) { /* нет связи */ } }
+function sackClear(p, pr, say) {
+  const s = sackInfo(pr);
+  for (const it of pr.items || []) delete it.sack;
+  delete pr.sackMats; delete pr.sackOn;
+  if (p) { p.socket.emit('sack', null); if (say && s) p.socket.emit('chat', { sys: true, text: `🎒 Мешок добычи в безопасности: ${s.items} вещ., ${s.mats} материалов — теперь это обычная добыча` }); }
+}
+function sackDrop(victim, vs, killer) {
+  const pr = getProfile(victim.uid);
+  if (!pr.sackOn || (killer && pkFriends(killer, victim))) return [];
+  const k = SACK_DROP[vs] || SACK_DROP.white, eq = new Set(Object.values(pr.equip || {}).filter(Boolean)), names = [];
+  const place = (g) => {
+    const a = Math.random() * Math.PI * 2, r = 12 + Math.random() * 40;
+    let x = victim.x + Math.cos(a) * r, y = victim.y + Math.sin(a) * r;
+    if (world.isSolidAt(x, y)) { x = victim.x; y = victim.y; }
+    groundLoot.set(groundSeq, { id: groundSeq++, zone: victim.zone, x, y, from: victim.uid, owner: killer ? killer.uid : null, ownerUntil: Date.now() + 60e3, until: Date.now() + 30 * 60e3, sack: true, ...g });
+  };
+  const items = (pr.items || []).filter((it) => it.sack && !eq.has(it.id) && it.loc !== 'wh');
+  let n = k >= 1 ? items.length : Math.floor(items.length * k + Math.random()); // 30% от 1 вещи — с шансом 30%, а не никогда
+  while (n-- > 0 && items.length) {
+    const it = items.splice(Math.floor(Math.random() * items.length), 1)[0];
+    I.detach(pr, it);
+    pr.items = pr.items.filter((x) => x !== it);
+    delete it.loc; delete it.sack;
+    place({ item: it });
+    names.push(I.itemView(it).name);
+  }
+  for (const [id, cnt] of Object.entries(pr.sackMats || {})) {
+    const have = Math.min(cnt, (pr.mats || {})[id] || 0);
+    const m = k >= 1 ? have : Math.min(have, Math.floor(have * k + Math.random()));
+    if (m > 0 && I.takeMats(pr, { [id]: m })) { pr.sackMats[id] = cnt - m; place({ mat: { id, n: m } }); names.push(`${(I.MATS[id] || {}).name || id} ×${m}`); }
+  }
+  sackSend(victim);
+  if (names.length) { refreshPlayer(victim); saveProfiles(); }
+  return names;
+}
+// Вышел из опасного данжа (портал, город, телепорт, перезаход не в данже) — мешок вынесен
+setInterval(() => {
+  for (const p of players.values()) {
+    if (p.offline && !p.socket) continue;
+    const pr = getProfile(p.uid);
+    if (pr.sackOn && !isPkZone(p.zone) && !p.dead) sackClear(p, pr, true);
+  }
+}, 2000);
 // Карма — очки (см. KARMA): со временем не уходит, отмывается монстрами (karmaWash)
 
-// Опасный данж: опыт, золото и добыча ×6, в автобое ×3 (автобойный штраф ×0,6 там не действует — вместо него половина рейта)
+// Опасный данж: золото и добыча ×8, опыт ×3,5; в автобое вдвое меньше (автобойный штраф ×0,6 там не действует).
+// Добыча там «в мешке», пока не вынесешь (см. мешок добычи выше) — риск окупается
 const isPkZone = (zid) => { const z = world.byId.get(zid); return !!(z && z.pk); };
-const pkRate = (p) => (isPkZone(p.zone) ? (p.autofarm ? 3 : 6) : 1); // золото и добыча
-const pkXpRate = (p) => (isPkZone(p.zone) ? (p.autofarm ? 1.5 : 3) : 1); // опыт: ×3, в автобое ×1,5
+const pkRate = (p) => (isPkZone(p.zone) ? (p.autofarm ? 4 : 8) : 1); // золото и добыча
+const pkXpRate = (p) => (isPkZone(p.zone) ? (p.autofarm ? 1.75 : 3.5) : 1); // опыт: ×3,5, в автобое ×1,75
 function xpBonusK(p) {
   if (!MOBX.bal2() || !isPkZone(p.zone)) return pkXpRate(p) * (p.autofarm && MOBX.bal2() ? 0.6 : 1); // бонус группы — только в опасном данже
   let other = 0, clan = 0;
@@ -2289,11 +2371,11 @@ function lootFor(o, m, tier, boss, at) {
     for (const it of drop.items) giveLoot(o, pr, I.bindLoot(it), at);
   }
 }
-// Новый баланс — редкости добычи: легендарные с обычных монстров в 10 раз реже (с полубоссов и боссов — в 3 раза),
-// мифические — только с полубоссов, боссов, мировых боссов и крафта
+// Новый баланс — редкости добычи: легендарные с обычных монстров в 10 раз реже (с полубоссов, боссов и редких «жёлтых»
+// монстров — в 3 раза: жёлтые — джекпот, за ними стоит охотиться), мифические — только с полубоссов, боссов, мировых боссов и крафта
 function dropW2(w, rank) {
   const boss = rank === 'boss' || rank === 'mini';
-  return { ...w, legendary: (w.legendary || 0) / (boss ? 3 : 10), mythic: boss ? w.mythic || 0 : 0 };
+  return { ...w, legendary: (w.legendary || 0) / (boss || rank === 'rare' ? 3 : 10), mythic: boss ? w.mythic || 0 : 0 };
 }
 // Спутник в добычу — очень редко: обычный (босс данжа 0,5%, мировой босс 1%), редкий — только с мирового босса (0,2%).
 // Выпадает тот, которого у игрока ещё нет
@@ -2311,15 +2393,19 @@ function companionDrop(o, chance, rare = false) {
 // Выдать стопку материалов: всплывающая надпись, в чат — только ценное (свитки, чертежи, редкие материалы)
 function giveMats(o, pr, mats, at) {
   const names = [];
+  const inPk = isPkZone(o.zone);
   for (const [id, n] of Object.entries(mats)) {
     I.addMat(pr, id, n);
+    if (inPk && SACK_MAT_KINDS.has((I.MATS[id] || {}).kind)) { (pr.sackMats ??= {})[id] = (pr.sackMats[id] || 0) + n; pr.sackOn = 1; }
     const M = I.MATS[id];
     names.push(`${M.icon}${n > 1 ? '×' + n : ''}`);
     if (['scroll', 'blueprint'].includes(M.kind) || id.startsWith('core')) o.socket.emit('chat', { sys: true, text: `Добыча: ${M.icon} ${M.name}${n > 1 ? ' ×' + n : ''}` });
   }
   if (names.length && at) fx.push({ t: 'loot', x: at.x, y: at.y + 12, to: o.id, name: names.join(' '), color: '#e8d49a' });
+  if (inPk && names.length) sackSend(o);
 }
 function giveLoot(o, pr, item, at) {
+  if (isPkZone(o.zone) && item.cat !== 'bag') { item.sack = 1; pr.sackOn = 1; setTimeout(() => sackSend(o), 0); } // опасный данж — в мешок добычи
   // Сумка полна и это не дубликат (дубликат усиливает вещь, места не занимает) — вещь продаётся торговцу сама
   const full = pr.items.filter((i) => i.loc !== 'wh').length >= meta.bagSize(pr);
   const dupe = pr.items.some((i) => i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < I.DUPE_MAX);
