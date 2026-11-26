@@ -2088,7 +2088,7 @@ function pkOnKill(victim) {
     kpr.karma = (kpr.karma || 0) + add; kpr.karmaV = 2; kpr.karmaLast = add; kpr.pkCount = (kpr.pkCount || 0) + 1; kpr.pkZone = killer.zone; markDirty(killer);
     if (killer.autofarm) setAutofarm(killer, false); // красному автобой недоступен
     killer.socket.emit('chat', { sys: true, text: `🩸 Вы убили ${vs === 'pink' ? 'розового' : 'мирного'} игрока: карма +${add} (всего ${kpr.karma}, убийств мирных: ${kpr.pkCount}). Вы «красный»: из данжа не выйти, при гибели теряете всю сумку и 1 надетую вещь. Отмыть карму — охотой на монстров (вручную, без автобоя) или смертью: от игрока — одно убийство, от монстров — треть` });
-    if (!was) evCast({ ev: 'pk', title: `🩸 Новый убийца: ${killer.name}`, text: `${(world.byId.get(killer.zone) || {}).name || 'Опасный данж'} · он красный — победителю достанется вся его сумка` });
+    // Убийство в опасном данже не объявляется на весь мир: кто красный и где он — игроки узнают сами
   }
   const lost = pkDrop(victim, vs, killer);
   victim.socket.emit('chat', { sys: true, text: lost.length ? `💀 Вас убил ${killer.name}. На землю выпало: ${lost.join(', ')}` : `💀 Вас убил ${killer.name}. На этот раз вещи уцелели` });
@@ -2326,7 +2326,7 @@ function giveLoot(o, pr, item, at) {
       const v = I.itemView(res.item);
       if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}`, color: v.color });
       o.socket.emit('chat', { sys: true, ev: 'loot', text: `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
-      if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', title: `🔴 Мифическая добыча: ${v.icon} ${v.name}`, text: `${o.name} · ${(world.byId.get(o.zone) || {}).name || ''}` });
+      if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', title: `🔴 Мифическая добыча: ${v.icon} ${v.name}`, text: `Досталась игроку ${o.name}` });
       return v;
     }
     const v0 = I.itemView(item);
@@ -2341,7 +2341,7 @@ function giveLoot(o, pr, item, at) {
   if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}${res.dupe ? ' ⇧' : ''}`, color: v.color });
   o.socket.emit('chat', { sys: true, ev: 'loot', text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
   // «События»: всем — только мифическая находка
-  if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', title: `🔴 Мифическая добыча: ${v.icon} ${v.name}`, text: `${o.name} · ${(world.byId.get(o.zone) || {}).name || ''}` });
+  if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', title: `🔴 Мифическая добыча: ${v.icon} ${v.name}`, text: `Досталась игроку ${o.name}` });
   if (res.dupe && Object.values(pr.equip || {}).includes(res.item.id)) refreshPlayer(o);
   return v;
 }
