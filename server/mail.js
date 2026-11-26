@@ -23,6 +23,7 @@ module.exports = function createMail({ I, Trade, getProfile, profilesFn, notifyU
       const it = I.findItem(pr, id);
       if (!it) return { error: 'Предмет не найден' };
       if (it.bound) return { error: 'Привязанную вещь нельзя отправить' };
+      if ((it.trophy || 0) > Date.now()) return { error: 'Трофей из опасного данжа — отправить можно через 7 дней после добычи' };
       if (isEquipped(pr, it.id)) return { error: 'Сначала снимите предмет' };
       items.push(it);
     }
@@ -66,6 +67,7 @@ module.exports = function createMail({ I, Trade, getProfile, profilesFn, notifyU
     for (const it of q.items) delete it.loc;
     box(tp).unshift({ id: 'm' + (seq++).toString(36), from: p.uid, fromName: p.name, at: Date.now(), text, items: q.items, mat: q.mat, gold: q.gold });
     pr.mailSent++;
+    (pr.mailTo ??= {})[to] = Date.now(); // для защиты от сговора в опасном данже
     save();
     const att = q.items.length || q.mat || q.gold;
     notifyUid(to, `✉️ Письмо от ${p.name}${att ? ' с вложением' : ''} — меню → Почта`);

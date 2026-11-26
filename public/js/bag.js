@@ -122,6 +122,7 @@ window.Bag = (() => {
       ${it.classes ? `<div class="ic-cls ${fitsClass(it) ? 'ok' : 'bad'}">${fitsClass(it) ? '✓' : '✕'} Для классов: ${clsNames(it)}${it.armor ? ` · ${it.armor}` : ''}</div>` : ''}
       ${it.reqLevel > 1 ? `<div class="ic-cls ${fitsLevel(it) ? 'ok' : 'bad'}">${fitsLevel(it) ? '✓' : '✕'} Требуемый уровень: ${it.reqLevel}${fitsLevel(it) ? '' : ` (у героя ${inv.hero.level})`}</div>` : ''}
       ${it.bound ? '<div class="ic-cls bad">🔒 Привязана к вам — продать или передать нельзя</div>' : ''}
+      ${it.trophy ? `<div class="ic-cls bad">🏴 Трофей из опасного данжа: продать, отправить или передать — через ${Math.ceil((it.trophy - Date.now()) / 864e5)} дн.</div>` : ''}
       ${it.dur !== null && it.dur !== undefined ? `<div class="ic-cls ${it.dur > 30 ? 'ok' : 'bad'}">🔧 Прочность: ${it.dur}%${it.dur <= 0 ? ' — сломана, не даёт статов' : ''}</div>` : ''}
       ${setBlock(it)}
       ${it.cat === 'bag' ? `<div class="ic-sec">Сумка</div><div class="ic-stat">🎒 Вместимость инвентаря +${it.bagSlots} ячеек</div>` : ''}

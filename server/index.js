@@ -1016,6 +1016,7 @@ function clanAct(p, d) {
     if (!it) return { error: 'Предмет не найден' };
     if (Object.values(pr.equip || {}).includes(it.id)) return { error: 'Сначала снимите предмет' };
     if (it.bound) return { error: 'Привязанную вещь нельзя передать' };
+    if ((it.trophy || 0) > Date.now()) return { error: 'Трофей из опасного данжа — передать можно через 7 дней после добычи' };
     if (it.cat === 'bag') return { error: 'Сумки в хранилище не кладут' };
     mine.vault ??= [];
     if (mine.vault.length >= CLAN.vault) return { error: `Хранилище клана заполнено (${CLAN.vault})` };
@@ -2083,13 +2084,23 @@ setInterval(() => {
 const PK_DROP = { white: [0.25, 1], pink: [0.5, 2], red: [1, 3] };
 const groundLoot = new Map();
 let groundSeq = 1;
+const TROPHY_MS = 7 * 864e5;
+function pkFriends(a, b) {
+  const pa = getProfile(a.uid), pb = getProfile(b.uid), wk = Date.now() - 7 * 864e5;
+  if ((pa.friends || []).includes(b.uid) || (pb.friends || []).includes(a.uid)) return true;
+  const ca = clanOf(a.uid); if (ca && !ca.system && ca.members.includes(b.uid)) return true;
+  if (a.party && a.party === b.party) return true;
+  return ((pa.mailTo || {})[b.uid] || 0) > wk || ((pb.mailTo || {})[a.uid] || 0) > wk;
+}
 function pkDrop(victim, vs, killer) {
   const vpr = getProfile(victim.uid), [bagK, eqN] = PK_DROP[vs];
   const eqIds = new Set(Object.values(vpr.equip || {}).filter(Boolean));
-  const ok = (it) => !it.bound && it.cat !== 'bag';
+  const ok = (it) => !it.bound && it.cat !== 'bag' && !((it.trophy || 0) > Date.now()); // трофей (7 дней) повторно не выпадает
   const bag = (vpr.items || []).filter((it) => ok(it) && !eqIds.has(it.id) && it.loc !== 'wh');
   const worn = (vpr.items || []).filter((it) => ok(it) && eqIds.has(it.id));
   const pick = (arr, n) => { const out = []; while (n-- > 0 && arr.length) out.push(arr.splice(Math.floor(Math.random() * arr.length), 1)[0]); return out; };
+  // Сговор (перенос вещей «в обход рынка»): друзья, соклановцы, одна группа или переписка почтой за 7 дней — вещи не падают
+  if (killer && pkFriends(killer, victim)) return [];
   const drop = [...pick(bag, Math.round(bag.length * bagK)), ...pick(worn, eqN)];
   const names = [];
   for (const it of drop) {
@@ -2100,7 +2111,7 @@ function pkDrop(victim, vs, killer) {
     const a = Math.random() * Math.PI * 2, r = 12 + Math.random() * 36;
     let x = victim.x + Math.cos(a) * r, y = victim.y + Math.sin(a) * r;
     if (world.isSolidAt(x, y)) { x = victim.x; y = victim.y; }
-    const g = { id: groundSeq++, zone: victim.zone, x, y, item: it, owner: killer ? killer.uid : null, ownerUntil: Date.now() + 60e3, until: Date.now() + 30 * 60e3 };
+    const g = { id: groundSeq++, zone: victim.zone, x, y, item: it, from: victim.uid, owner: killer ? killer.uid : null, ownerUntil: Date.now() + 60e3, until: Date.now() + 30 * 60e3 };
     groundLoot.set(g.id, g);
     names.push(I.itemView(it).name);
   }
@@ -2121,6 +2132,8 @@ function pickupGround(p, id) {
   const pr = getProfile(p.uid);
   if ((pr.items || []).filter((i) => i.loc !== 'wh').length >= meta.bagSize(pr)) return { error: 'Сумка полна — освободите место' };
   groundLoot.delete(id);
+  // Чужая вещь с земли — «трофей»: 7 дней её нельзя продать, отправить почтой, положить в хранилище клана и она не выпадает снова
+  if (g.from && g.from !== p.uid) g.item.trophy = Date.now() + TROPHY_MS; else delete g.item.trophy;
   g.item.loc = 'bag'; pr.items.push(g.item);
   const v = I.itemView(g.item);
   fx.push({ t: 'loot', x: g.x, y: g.y, to: p.id, name: `${v.icon} ${v.name}`, color: v.color });

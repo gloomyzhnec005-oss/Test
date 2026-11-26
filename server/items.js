@@ -709,7 +709,7 @@ function itemView(it) {
     classes: classesFor(it), // какие классы могут носить (null — все)
     reqLevel: reqLevel(it), // с какого уровня героя можно надеть
     armor: ARMOR_TYPE[it.cat] && ARMOR_TYPE[it.cat][it.tpl] ? ARMOR_NAMES[ARMOR_TYPE[it.cat][it.tpl]] : null,
-    dur: it.dur ?? null, bound: !!it.bound, repairCost: repairCost(it), // прочность (новый баланс) и привязка мифических
+    dur: it.dur ?? null, bound: !!it.bound, trophy: (it.trophy || 0) > Date.now() ? it.trophy : 0, repairCost: repairCost(it), // прочность (новый баланс) и привязка мифических
     runes: (it.runes || []).map(itemView), sell: Math.round(R.sell * TIER_MULT[it.tier] * (1 + 0.2 * (it.dupes || 0)) * (set ? 1.5 : 1) * (it.cat === 'bag' ? 4 : 1)),
   };
 }
