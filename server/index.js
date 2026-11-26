@@ -1674,7 +1674,13 @@ function damageMonster(p, m, raw, opt = {}) {
     const diff = p.char.level - (m.level || 1);
     const baseXp = m.xp * (diff > 4 ? Math.max(0.1, 1 - 0.15 * (diff - 4)) : 1);
     const xpF = baseXp * rw.xp * xpBonusK(p), xp = Math.floor(xpF) + (Math.random() < xpF % 1 ? 1 : 0); // дробный опыт — случайным округлением
-    const gold = Math.round((baseXp / 3 + 1) * (0.5 + Math.random()) * rw.gold * (MOBX.bal2() ? 0.25 : 1) * pkRate(p)); // +1: на первых уровнях хоть немного золота; новый баланс — золота вчетверо меньше
+    // Золото с монстра растёт вместе с ценами мира (зелья, ремонт ×1 / ×2,2 / ×4,5): (2 + 0,1 × уровень) × множитель мира
+    // × ранг (синий ×3, жёлтый ×6, полубосс ×15…). Ур. 5 — ~2–3, ур. 25 — ~10, ур. 40 — ~27, ур. 50 — ~31 за обычного.
+    // Монстры намного ниже уровнем — меньше (как и опыт); бонусы золота, опасный данж — сверху
+    const lowK = diff > 4 ? Math.max(0.1, 1 - 0.15 * (diff - 4)) : 1;
+    const gold = MOBX.bal2()
+      ? Math.round((2 + 0.1 * (m.level || 1)) * (I.TIER_MULT[m.tier || 1] || 1) * ((MOBX.RANK[m.rank] || {}).xp || 1) * lowK * (0.5 + Math.random()) * rw.gold * pkRate(p))
+      : Math.round((baseXp / 3 + 1) * (0.5 + Math.random()) * rw.gold * pkRate(p));
     fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp, gold, by: p.id, contract: !!rw.contract });
     monsters.delete(m.id);
     corpses.push({ x: m.x, y: m.y, t: Date.now(), type: m.type, zone: m.zone, level: m.level, maxHp: m.maxHp, dmg: m.dmg, speed: m.speed });
