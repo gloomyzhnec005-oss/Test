@@ -23,6 +23,7 @@ module.exports = function createMail({ I, Trade, getProfile, profilesFn, notifyU
       const it = I.findItem(pr, id);
       if (!it) return { error: 'Предмет не найден' };
       if (it.bound) return { error: 'Привязанную вещь нельзя отправить' };
+      if (it.plan) return { error: 'Чертёж личный — выкуйте вещь, потом отправляйте' };
       if ((it.trophy || 0) > Date.now()) return { error: 'Трофей из опасного данжа — отправить можно через 7 дней после добычи' };
       if (isEquipped(pr, it.id)) return { error: 'Сначала снимите предмет' };
       items.push(it);

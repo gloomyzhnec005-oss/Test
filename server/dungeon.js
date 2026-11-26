@@ -846,8 +846,8 @@ module.exports = function createDungeons(d) {
       const first = boss && !h.dg.pk && !pr.dungeonClears[key];
       if (boss) pr.dungeonClears[key] = (pr.dungeonClears[key] || 0) + 1;
       p.socket.emit('chat', { sys: true, text: `${boss ? '🏆 Босс' : '⭐ Полубосс'} «${m.name || MOBS[m.type].name}» повержен! Ваш вклад ${Math.round(part * 100)}% · +${gold} 💰${first ? ' · первая победа над боссом данжа' : ''}` });
-      if (boss) d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId), m);
-      if (first) { d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первая победа над боссом данжа: +160 самоцветов' }); }
+      if (boss) d.giveLoot(p, pr, d.asPlan(d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId)), m);
+      if (first) { d.giveLoot(p, pr, d.asPlan(d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId)), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первая победа над боссом данжа: +160 самоцветов' }); }
       d.markDirty(p);
     }
     if (boss && !h.dg.pk) d.broadcast({ ev: 'boss', title: `🏆 ${m.name || MOBS[m.type].name} повержен`, text: `Данж «${h.dg.name}» · следующий босс в ${hhmm(nextBossAt(Date.now() + 60000))}` });
@@ -940,7 +940,7 @@ module.exports = function createDungeons(d) {
       pr.survivalBest = Math.max(pr.survivalBest || 0, s.wave);
       d.quest(o.uid, 'survival', s.wave, { town: s.z.town });
       o.socket.emit('chat', { sys: true, text: `Волна ${s.wave} пройдена! +${gold} 💰 · рекорд: ${pr.survivalBest}` });
-      if (s.wave % 10 === 0 || Math.random() < 0.1) d.giveLoot(o, pr, d.rollItem(z.tier, s.wave % 10 === 0 ? C.DROPS.boss[z.tier] : C.DROPS.weights[z.tier], null, o.heroId), o);
+      if (s.wave % 10 === 0 || Math.random() < 0.1) d.giveLoot(o, pr, d.asPlan(d.rollItem(z.tier, s.wave % 10 === 0 ? C.DROPS.boss[z.tier] : C.DROPS.weights[z.tier], null, o.heroId)), o);
       d.markDirty(o);
     }
   }

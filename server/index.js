@@ -806,7 +806,7 @@ const D = createDungeons({
   quest: (...a) => Q.track(...a),
   giveLoot: (...a) => giveLoot(...a),
   giveMats: (...a) => giveMats(...a), rollMats: (...a) => Loot.rollMats(...a), mail: (uid, o) => Mail.system(uid, o),
-  rollItem: (...a) => I.rollItem(...a), createBag: (...a) => I.createBag(...a),
+  rollItem: (...a) => I.rollItem(...a), asPlan: (it) => I.asPlan(it), createBag: (...a) => I.createBag(...a),
   corpses: () => corpses,
   removeCorpse: (c) => { corpses = corpses.filter((x) => x !== c); },
   broadcast: (t) => evCast(typeof t === 'string' ? { text: t } : t),
@@ -1020,6 +1020,7 @@ function clanAct(p, d) {
     if (!it) return { error: 'Предмет не найден' };
     if (Object.values(pr.equip || {}).includes(it.id)) return { error: 'Сначала снимите предмет' };
     if (it.bound) return { error: 'Привязанную вещь нельзя передать' };
+    if (it.plan) return { error: 'Чертёж личный — выкуйте вещь, потом передавайте' };
     if ((it.trophy || 0) > Date.now()) return { error: 'Трофей из опасного данжа — передать можно через 7 дней после добычи' };
     if (it.cat === 'bag') return { error: 'Сумки в хранилище не кладут' };
     mine.vault ??= [];
@@ -2126,7 +2127,7 @@ setInterval(() => {
 }, 3000);
 // Выпадение (вещи падают на землю у тела, лежат 30 мин; 60 с подобрать может только убийца, потом — любой):
 // белый — 25% вещей из сумки, надетое не падает; розовый — 50% из сумки, надетое не падает; красный — вся сумка и 1 надетая.
-// Привязанные (мифические) и сумки не выпадают
+// Привязанные (мифические), сумки и чертежи не выпадают
 const PK_DROP = { white: [0.25, 0], pink: [0.5, 0], red: [1, 1] };
 const groundLoot = new Map();
 let groundSeq = 1;
@@ -2144,7 +2145,7 @@ function pkDrop(victim, vs, killer) {
   // Мифические вещи выпадают только в опасном данже 3-го мира (Аэлион) — даже привязанные; в первых двух мирах — никогда,
   // чтобы слабые бойцы не теряли мифики. Остальные привязанные вещи не выпадают
   const t3 = ((world.byId.get(victim.zone) || {}).tier || 1) >= 3;
-  const ok = (it) => it.cat !== 'bag' && (it.rar === 'mythic' ? t3 : !it.bound);
+  const ok = (it) => it.cat !== 'bag' && !it.plan && (it.rar === 'mythic' ? t3 : !it.bound); // чертежи не выпадают никогда
   const bag = (vpr.items || []).filter((it) => ok(it) && !eqIds.has(it.id) && it.loc !== 'wh');
   const worn = (vpr.items || []).filter((it) => ok(it) && eqIds.has(it.id));
   const pick = (arr, n) => { const out = []; while (n-- > 0 && arr.length) out.push(arr.splice(Math.floor(Math.random() * arr.length), 1)[0]); return out; };
@@ -2276,7 +2277,7 @@ function lootFor(o, m, tier, boss, at) {
     const B2 = MOBX.bal2(), pk = pkRate(o), dropK = (B2 ? 0.25 : 1) * pk; // новый баланс: вещей и материалов вчетверо меньше; опасный данж ×6 (автобой ×3)
     const rolls = m.rank === 'boss' ? (B2 ? 1 + (Math.random() < 0.5 ? 1 : 0) : 2) + (pk > 1 ? 1 : 0) : m.rank === 'mini' ? 1 + (pk > 1 ? 1 : 0) : Math.random() < Math.min(0.9, C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult * dropK) ? 1 : 0;
     const wt = m.rank === 'boss' ? C.DROPS.boss[tier] : m.rank === 'mini' ? C.DROPS.mini[tier] : C.DROPS.weights[tier];
-    for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.rollItem(tier, B2 ? dropW2(wt, m.rank) : wt, null, o.heroId), at); // 75% — под класс героя
+    for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.asPlan(I.rollItem(tier, B2 ? dropW2(wt, m.rank) : wt, null, o.heroId)), at); // 75% — под класс героя; эпик+ — чертежом
     // Сумки — редкость: босс 3% (эпическая), полубосс 1% (редкая, 20% — эпическая)
     if (boss && Math.random() < (m.rank === 'boss' ? 0.03 : 0.01) * luck) giveLoot(o, pr, I.createBag(m.rank === 'boss' || Math.random() < 0.2 ? 'epic' : 'rare', tier), at);
     // Материалы, свитки, чертежи и вещи комплектов данжа (server/loot.js)
@@ -2285,7 +2286,7 @@ function lootFor(o, m, tier, boss, at) {
     if (m.rank === 'boss') companionDrop(o, 0.005);
     const drop = Loot.rollMats(m, tier, dungeon, luck * (m.lootMult ?? 1) * S.dropMult * dropK);
     giveMats(o, pr, drop.mats, at);
-    for (const it of drop.items) giveLoot(o, pr, it, at);
+    for (const it of drop.items) giveLoot(o, pr, I.asPlan(it), at);
   }
 }
 // Новый баланс — редкости добычи: легендарные с обычных монстров в 10 раз реже (с полубоссов и боссов — в 3 раза),
@@ -2352,7 +2353,7 @@ function giveLoot(o, pr, item, at) {
   Econ.item(item.rar, 'drop');
   const v = I.itemView(res.item);
   if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}${res.dupe ? ' ⇧' : ''}`, color: v.color });
-  o.socket.emit('chat', { sys: true, ev: 'loot', text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
+  o.socket.emit('chat', { sys: true, ev: 'loot', text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}${v.plan ? ' — выковать в кузнице (вкладка «Чертежи»)' : ''}` });
   // «События»: всем — только мифическая находка
   if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', title: `🔴 Мифическая добыча: ${v.icon} ${v.name}`, text: `Досталась игроку ${o.name}` });
   if (res.dupe && Object.values(pr.equip || {}).includes(res.item.id)) refreshPlayer(o);

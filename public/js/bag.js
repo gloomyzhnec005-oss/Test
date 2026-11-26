@@ -43,8 +43,8 @@ window.Bag = (() => {
   const fitsHero = (it) => fitsClass(it) && fitsLevel(it);
   const clsPlain = (it) => (it.classes || []).map((c) => (inv && inv.classNames && inv.classNames[c]) || c).join(', ');
   const clsNames = (it) => (it.classes || []).map((c) => `<img class="ui-ic" src="assets/ui/cls_${c}.webp" alt="">${String((inv && inv.classNames && inv.classNames[c]) || c).replace(/^[^\p{L}]+/u, '')}`).join(', '); // значки классов (КЛ-1) вместо эмодзи
-  const cell = (it, extra = '') => `<button class="it ${extra} ${!/other/.test(extra) && !fitsHero(it) ? 'nofit' : ''} ${it.set ? 'set' : ''} ${it.rar ? 'fr-' + it.rar : ''}" data-id="${it.id}" style="--rc:${it.color}">
-      <span>${art(it)}</span>${it.dupes ? `<em title="Усилен дубликатами: +${it.dupes * 5}% к статам">★${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}${isEquipped(it) ? '<i class="eq-tag">✔ надето</i>' : ''}${it.runes && it.runes.length ? `<b>${it.runes.map(mini).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}</button>`;
+  const cell = (it, extra = '') => `<button class="it ${extra} ${!/other/.test(extra) && !fitsHero(it) ? 'nofit' : ''} ${it.set ? 'set' : ''} ${it.plan ? 'plan' : ''} ${it.rar ? 'fr-' + it.rar : ''}" data-id="${it.id}" style="--rc:${it.color}">
+      <span>${art(it)}</span>${it.dupes ? `<em title="Усилен дубликатами: +${it.dupes * 5}% к статам">★${it.dupes}</em>` : it.n > 1 ? `<em>×${it.n}</em>` : ''}${isEquipped(it) ? '<i class="eq-tag">✔ надето</i>' : ''}${it.runes && it.runes.length ? `<b>${it.runes.map(mini).join('')}</b>` : ''}${it.set ? '<s>◆</s>' : ''}${it.plan ? '<q title="Чертёж — выкуйте в кузнице">📜</q>' : ''}</button>`;
   function grid(items, onTap, opts = {}) {
     const box = document.createElement('div');
     box.className = 'it-grid';
@@ -121,6 +121,8 @@ window.Bag = (() => {
         <small>${it.rarName} · ${inv.cats[it.cat]} · мир ${ROMAN[it.tier]}${it.dupes ? ` · дубликаты +${it.dupes * 5}%` : ''}${it.ench ? ` · заточка +${it.ench * 4}%` : ''}</small></div></div>
       ${it.classes ? `<div class="ic-cls ${fitsClass(it) ? 'ok' : 'bad'}">${fitsClass(it) ? '✓' : '✕'} Для классов: ${clsNames(it)}${it.armor ? ` · ${it.armor}` : ''}</div>` : ''}
       ${it.reqLevel > 1 ? `<div class="ic-cls ${fitsLevel(it) ? 'ok' : 'bad'}">${fitsLevel(it) ? '✓' : '✕'} Требуемый уровень: ${it.reqLevel}${fitsLevel(it) ? '' : ` (у героя ${inv.hero.level})`}</div>` : ''}
+      ${it.plan ? `<div class="ic-cls ok">📜 Чертёж: вещь ещё не выкована — свойства ниже уже такие, какими будут. Ковка в кузнице: ${it.planCost.gold.toLocaleString('ru-RU')} 💰, ${it.planCost.txt}. Чертёж личный: не продаётся в Торговом доме, не передаётся и не выпадает при гибели</div>` : ''}
+      ${it.smith ? `<div class="ic-cls">⚒️ Выковал: ${String(it.smith).replace(/[&<>"]/g, "")}</div>` : ''}
       ${it.bound ? '<div class="ic-cls bad">🔒 Привязана к вам — продать или передать нельзя</div>' : ''}
       ${it.trophy ? `<div class="ic-cls bad">🏴 Трофей из опасного данжа: отправить почтой или передать — через ${Math.ceil((it.trophy - Date.now()) / 864e5)} дн.</div>` : ''}
       ${it.dur !== null && it.dur !== undefined ? `<div class="ic-cls ${it.dur > 30 ? 'ok' : 'bad'}">🔧 Прочность: ${it.dur}%${it.dur <= 0 ? ' — сломана, не даёт статов' : ''}</div>` : ''}
@@ -142,6 +144,12 @@ window.Bag = (() => {
   function itemActions(it, ctx = {}) {
     const acts = [];
     const run = async (op, data, after) => { const r = await act(op, data); toast(r.error || r.toast || 'Готово'); await refresh(); if (after) after(r); return !r.error; };
+    if (it.plan) { // чертёж: выковать (успех 100%), разобрать или продать торговцу
+      const c = it.planCost;
+      acts.push([`⚒️ Выковать · ${c.gold.toLocaleString('ru-RU')} 💰`, () => { if (confirm(`Выковать «${it.name.replace('📜 Чертёж: ', '')}»?\nЦена: ${c.gold.toLocaleString('ru-RU')} 💰, ${c.txt}\nУспех — 100%, вещь выйдет точно такой, как в чертеже.`)) run('planForge', { id: it.id }, ctx.after); }]);
+      if (ctx.town) acts.push([`Продать торговцу · ${it.sell} 💰`, () => run('sell', { id: it.id }, ctx.after), 'warn']);
+      return acts;
+    }
     // Руна: вставить в надетое оружие сразу или выбрать оружие в рунной мастерской
     if (it.cat === 'rune') {
       const wpn = inv.items.find((i) => i.id === inv.equip.weapon);
@@ -212,8 +220,8 @@ window.Bag = (() => {
   const SIDE = { left: ['helm', 'armor', 'cloak', 'gloves', 'belt', 'boots'], right: ['weapon', 'amulet', 'earring', 'ring', 'ring2'] };
   let heroSel = null;
   const worn = (s) => inv.items.find((i) => i.id === inv.equip[s]);
-  const fits = (s) => inv.items.filter((i) => i.cat === slotCat(s) && i.loc !== 'wh' && !isEquipped(i) && fitsHero(i)); // только своего класса
-  const unfit = (s) => inv.items.filter((i) => i.cat === slotCat(s) && i.loc !== 'wh' && !isEquipped(i) && !fitsHero(i)).length;
+  const fits = (s) => inv.items.filter((i) => i.cat === slotCat(s) && i.loc !== 'wh' && !i.plan && !isEquipped(i) && fitsHero(i)); // только своего класса
+  const unfit = (s) => inv.items.filter((i) => i.cat === slotCat(s) && i.loc !== 'wh' && !i.plan && !isEquipped(i) && !fitsHero(i)).length;
   function slotBtn(s) {
     const it = worn(s);
     return `<button class="pd-slot ${it ? 'full fr-' + it.rar : ''} ${it && !fitsHero(it) ? 'nofit' : ''} ${s === heroSel ? 'on' : ''}" data-s="${s}" style="--rc:${it ? it.color : '#5a4830'}">
@@ -401,7 +409,7 @@ window.Bag = (() => {
     const sel = new Set();
     const draw = () => {
       const first = inv.items.find((i) => sel.has(i.id));
-      const items = inv.items.filter((i) => i.rar !== 'mythic' && i.rar !== 'legendary' && i.cat !== 'bag' && !isEquipped(i) && (!first || (i.cat === first.cat && i.rar === first.rar))); // надетое и легендарное не соединяется
+      const items = inv.items.filter((i) => i.rar !== 'mythic' && i.rar !== 'legendary' && i.cat !== 'bag' && !i.plan && !isEquipped(i) && (!first || (i.cat === first.cat && i.rar === first.rar))); // надетое и легендарное не соединяется
       const R = inv.rarities, RO = inv.rarOrder;
       box.innerHTML = `<p class="sheet-hint">Выберите 5 предметов одной категории и редкости → 1 предмет следующей редкости.
         Из всех атрибутов пяти предметов случайно останутся 3, остальные пропадут. Базовые статы — по новой редкости (не суммируются). Надетые вещи здесь не показываются — сначала снимите их. Легендарные в мифик не соединяются — мифики только с мировых боссов, из ларцов и призыва.</p>

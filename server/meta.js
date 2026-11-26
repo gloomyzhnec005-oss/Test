@@ -468,6 +468,7 @@ module.exports = function createMeta(deps) {
       if ((pr.karma || 0) > 0) return { error: '🔴 Пока вы красный, снимать и менять надетые вещи нельзя' };
       const it = I.findItem(pr, d.id);
       if (!it || !I.SLOTS[it.cat]) return { error: 'Этот предмет нельзя надеть' };
+      if (it.plan) return { error: '📜 Это чертёж — сначала выкуйте вещь в кузнице' };
       if (!I.canWear(it, p.heroId)) { // класс героя: «Лучник не носит посох»
         const names = (I.classesFor(it) || []).map((c) => I.CLASSES[c].name).join(', ');
         return { error: `${C.HEROES[p.heroId].name} не может это надеть — только для: ${names}` };
@@ -519,7 +520,7 @@ module.exports = function createMeta(deps) {
       // Каждая вещь — это 1 + дубликаты (★) копий: 5 копий одной категории и редкости → 1 вещь следующей редкости.
       // Не трогаем надетое, склад, комплектные, заточенные, с рунами и тиражные
       const eq = new Set(Object.values(pr.equip || {}));
-      const ok = (i) => i.loc !== 'wh' && !eq.has(i.id) && !['bag', 'rune', 'mat'].includes(i.cat) && !I.setIdOf(i) && !(i.ench > 0) && !(i.runes && i.runes.length) && !i.ltd && !i.locked;
+      const ok = (i) => i.loc !== 'wh' && !eq.has(i.id) && !['bag', 'rune', 'mat'].includes(i.cat) && !I.setIdOf(i) && !(i.ench > 0) && !(i.runes && i.runes.length) && !i.ltd && !i.locked && !i.plan;
       const ORDER = ['common', 'rare', 'epic'];
       const made = { rare: 0, epic: 0, legendary: 0 }; let used = 0, stars = 0;
       if (d.preview) {
@@ -572,7 +573,7 @@ module.exports = function createMeta(deps) {
     // ---------- Кузница: рецепты мира (что получится и что для этого нужно) ----------
     recipes(p, d, pr) {
       const t = [1, 2, 3].includes(+d.tier) ? +d.tier : tierOf(p), here = tierOf(p) === t, cls = I.classOf(p.heroId);
-      const free = (pr.items || []).filter((it) => it.loc !== 'wh' && !equipped(pr, it.id) && it.cat !== 'rune');
+      const free = (pr.items || []).filter((it) => it.loc !== 'wh' && !equipped(pr, it.id) && it.cat !== 'rune' && !it.plan);
       return { tier: t, here, title: I.WORLD_CRAFT[t].title, gold: pr.gold, stones: (pr.mats || {}).luckStone || 0, stone: { ...I.LUCK_STONE, ...I.matView('luckStone') }, cls, clsName: I.CLASSES[cls] && I.CLASSES[cls].name, list: I.worldRecipes(t).map((r) => {
         // Подходящие вещи: этого слота, нужной редкости и мира, не надеты; первой — самая «простая» (без усиления и рун)
         const items = r.needItem ? free.filter((it) => it.cat === r.needItem.cat && it.rar === r.needItem.rar && it.tier === r.needItem.tier)
@@ -592,6 +593,7 @@ module.exports = function createMeta(deps) {
         it = I.findItem(pr, d.item);
         if (!it || it.cat !== r.needItem.cat || it.rar !== r.needItem.rar || it.tier !== r.needItem.tier || it.loc === 'wh') return { error: `Нужен предмет: ${I.SLOT_NAMES[r.slot]} (${I.ITEM_RARITIES[r.needItem.rar].name.toLowerCase()}) этого мира` };
         if (equipped(pr, it.id)) return { error: 'Снимите предмет, прежде чем перековать его' };
+        if (it.plan) return { error: 'Чертёж сначала выкуйте' };
       }
       if (pr.gold < r.gold) return { error: `Нужно ${r.gold} золота` };
       if (!Object.entries(r.mats).every(([k, n]) => ((pr.mats || {})[k] || 0) >= n)) return { error: 'Не хватает материалов' };
@@ -612,6 +614,7 @@ module.exports = function createMeta(deps) {
     craftInfo(p, d, pr) {
       const it = I.findItem(pr, d.id);
       if (!it) return { error: 'Предмет не найден' };
+      if (it.plan) { const c = I.planCost(it); return { plan: { ...c, have: Object.fromEntries(Object.keys(c.need).map((k) => [k, (pr.mats || {})[k] || 0])), names: Object.fromEntries(Object.keys(c.need).map((k) => [k, matName(k, 1)])) }, salvage: Object.entries(I.salvage(it, true)).map(([k, n]) => matName(k, n)).join(', ') }; }
       const up = I.upgradeCost(it);
       const bps = Object.keys(pr.mats || {}).filter((m) => I.MATS[m] && I.MATS[m].kind === 'blueprint' && I.MATS[m].tier === it.tier);
       const canSet = it.cat !== 'rune' && I.RARITY_ORDER.indexOf(it.rar) >= 2 && !I.setIdOf(it);
@@ -622,6 +625,7 @@ module.exports = function createMeta(deps) {
     upgrade(p, d, pr) {
       const it = I.findItem(pr, d.id);
       if (!it) return { error: 'Предмет не найден' };
+      if (it.plan) return { error: 'Чертёж сначала выкуйте' };
       const up = I.upgradeCost(it);
       if (!up) return { error: it.rar === 'legendary' && it.tier < 2 ? 'Мифические вещи куются только из вещей второго и третьего мира' : 'Этот предмет нельзя улучшить' };
       if (pr.gold < up.gold) return { error: `Нужно ${up.gold} золота` };
@@ -638,6 +642,7 @@ module.exports = function createMeta(deps) {
       if (it.cat === 'rune' || I.RARITY_ORDER.indexOf(it.rar) < 2) return { error: 'Нужен эпический или лучший предмет' };
       if (it.tier !== bp.tier) return { error: 'Предмет и чертёж должны быть одного мира' };
       if (I.setIdOf(it)) return { error: 'Это уже вещь комплекта' };
+      if (it.plan) return { error: 'Чертёж сначала выкуйте' };
       const c = I.setCraftCost(it, bp.set);
       if (pr.gold < c.gold) return { error: `Нужно ${c.gold} золота` };
       if (!I.takeMats(pr, c.need)) return { error: 'Не хватает материалов' };
@@ -646,10 +651,23 @@ module.exports = function createMeta(deps) {
       refreshPlayer(p);
       return { result: I.itemView(it), toast: `🗺️ Создано: ${I.itemView(it).name}` };
     },
+    // Ковка по чертежу: материалы мира вещи + золото, успех 100%. Вещь выходит такой, какой была видна в чертеже
+    planForge(p, d, pr) {
+      const it = I.findItem(pr, d.id);
+      if (!it || !it.plan) return { error: 'Чертёж не найден' };
+      const c = I.planCost(it);
+      if ((pr.gold || 0) < c.gold) return { error: `Нужно ${c.gold.toLocaleString('ru-RU')} 💰` };
+      if (!I.takeMats(pr, c.need)) return { error: `Не хватает: ${Object.entries(c.need).filter(([k, n]) => ((pr.mats || {})[k] || 0) < n).map(([k, n]) => matName(k, n)).join(', ')}` };
+      pr.gold -= c.gold;
+      delete it.plan;
+      it.smith = p.name; // имя мастера — в карточке вещи
+      return { result: I.itemView(it), toast: `⚒️ Выковано: ${I.itemView(it).name} (${I.ITEM_RARITIES[it.rar].name})` };
+    },
     // Заточка вещи (кузница): цена — I.enchCost, шанс падает с +4; с +7 неудача снижает заточку на 1
     enchant(p, d, pr) {
       const it = I.findItem(pr, d.id);
       if (!it || it.cat === 'rune' || it.cat === 'bag' || !I.WEAR_CATS.includes(it.cat)) return { error: 'Заточить можно только снаряжение' };
+      if (it.plan) return { error: 'Чертёж сначала выкуйте' };
       const L = it.ench || 0;
       if (L >= I.ENCH.max) return { error: `Максимальная заточка +${I.ENCH.max}` };
       const c = I.enchCost(it), luck = !!d.luck && L >= 3;
@@ -745,6 +763,7 @@ module.exports = function createMeta(deps) {
     socket(p, d, pr) {
       const w = I.findItem(pr, d.weapon), rune = I.findItem(pr, d.rune);
       if (!w || w.cat !== 'weapon') return { error: 'Выберите оружие' };
+      if (w.plan) return { error: 'Чертёж сначала выкуйте' };
       if (!rune || rune.cat !== 'rune') return { error: 'Выберите руну' };
       w.runes ??= [];
       if (w.runes.length >= I.ITEM_RARITIES[w.rar].sockets) return { error: 'Все гнёзда заняты' };
