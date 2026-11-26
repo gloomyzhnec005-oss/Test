@@ -1262,10 +1262,12 @@ function deathPenalty(p) {
   pr.buffs = {}; // эликсиры сгорают при гибели
   // Новый баланс: надетые вещи теряют 10% прочности (0 — вещь сломана и не даёт статов до ремонта в кузнице)
   let broke = 0;
+  // Опасный данж с пустой сумкой (всё ценное оставили на складе) — надетое изнашивается вдвое сильнее
+  const wearK = pkz && p.bagEmptyAtDeath ? 2 : 1;
   if (MOBX.bal2()) for (const id of Object.values(pr.equip || {})) {
     const it = id && I.findItem(pr, id);
     if (!it || it.cat === 'bag') continue;
-    const was = it.dur ?? 100; it.dur = Math.max(0, Math.round((was - 10 * (1 - Coll.k(pr, 'dur'))) * 10) / 10); // Рыцари в коллекции — износ меньше
+    const was = it.dur ?? 100; it.dur = Math.max(0, Math.round((was - 10 * wearK * (1 - Coll.k(pr, 'dur'))) * 10) / 10); // Рыцари в коллекции — износ меньше
     if (was > 0 && it.dur === 0) broke++;
   }
   p.gear = I.gearStats(pr, p.heroId); p.buffSig = '';
@@ -1676,6 +1678,7 @@ function damageMonster(p, m, raw, opt = {}) {
     // Каждый шаг награды — отдельно: ошибка в одном (например, в пассивке героя) не отменяет остальные
     const safe = (what, fn) => { try { fn(); } catch (e) { console.error('kill reward', what, m.type, e); } };
     safe('xp', () => grantXp(p, xp, gold));
+    safe('karma', () => karmaWash(p, m));
     safe('share', () => shareKill(p, m, xp));
     safe('loot', () => dropLoot(p, m));
     if (ps && ps.onKill) safe('passive', () => ps.onKill(skillCtx, p, Date.now(), m));
@@ -1820,6 +1823,8 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
     if (m) m.target = null;
     fx.push({ t: 'pdeath', target: target.id });
     const zKind = (world.byId.get(target.zone) || {}).kind;
+    // Сумка пуста в момент гибели (до выпадения) — в опасном данже надетое изнашивается вдвое (deathPenalty)
+    { const tpr = getProfile(target.uid), eq = new Set(Object.values(tpr.equip || {}).filter(Boolean)); target.bagEmptyAtDeath = !(tpr.items || []).some((it) => it.loc !== 'wh' && !eq.has(it.id) && it.cat !== 'bag'); }
     const inCastle = Castle.isCastle(target.zone);
     if (inCastle) target.castleRes = Castle.onDeath(target);
     if (zKind === 'pvp' && !target.match && !inCastle) pvpKill(target);
@@ -1862,13 +1867,11 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
         victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });
         return;
       }
-      // Красный в опасном данже возрождается у входа в этот же данж: карма уменьшается на четверть, но не меньше 15 мин —
-      // «отмыть» её, договорившись умирать друг от друга, не выйдет
+      // Красный в опасном данже возрождается у входа в этот же данж; смерть карму не снимает — только охота на монстров
       const vpr0 = getProfile(victim.uid);
       if (vz.pk && (vpr0.karma || 0) > 0) {
-        vpr0.karma = Math.max(15 * 60e3, Math.round(vpr0.karma * 0.75));
         victim.x = vz.spawn.x; victim.y = vz.spawn.y;
-        victim.socket.emit('chat', { sys: true, text: `🔴 Вы красный — возрождение у входа в данж. Карма: ещё ${Math.ceil(vpr0.karma / 60000)} мин` });
+        victim.socket.emit('chat', { sys: true, text: `🔴 Вы красный — возрождение у входа в данж. Карма: ${vpr0.karma} — отмывается охотой на монстров` });
         victim.socket.emit('correct', { x: victim.x, y: victim.y, respawn: true });
         return;
       }
@@ -2033,7 +2036,22 @@ function leaveParty(p) {
 // 30 мин за каждое убийство, до 3 ч; карма уходит только пока герой в игре (выйти и переждать нельзя).
 // Выпадение при гибели от игрока: с белого — 25% вещей из сумки, с розового — 50% из сумки (надетое у них не падает),
 // с красного — вся сумка и 1 надетая вещь. Вещи достаются убийце. Привязанные (мифические) не выпадают. Группа друг друга не бьёт
-const PK = { flagMs: 60e3, redMs: 30 * 60e3, redMax: 3 * 36e5 };
+const PK = { flagMs: 60e3 };
+// Карма — очки, как в Lineage 2: убийство мирного даёт 40 + 20 × (сколько мирных вы уже убили) очков (не больше 1000 за раз).
+// Отмывается только монстрами: обычный −1, синий/жёлтый −2, полубосс −5, босс −15; монстры намного ниже уровнем (на 10+) не считаются.
+// Смерть карму не снимает (договориться «умирать друг от друга» бесполезно). Пока карма > 0 — «красный» и из опасного данжа не выйти
+const KARMA = { base: 40, perPk: 20, max: 1000, wash: { normal: 1, magic: 2, rare: 2, mini: 5, boss: 15, world: 15 } };
+const karmaAdd = (pr) => Math.min(KARMA.max, KARMA.base + KARMA.perPk * (pr.pkCount || 0));
+// Старая карма (миллисекунды) → очки: минута = очко
+setImmediate(() => { for (const pr of Object.values(profiles)) if (pr.karma > 0 && pr.karmaV !== 2) { pr.karma = Math.ceil(pr.karma / 60000); pr.karmaV = 2; } });
+function karmaWash(p, m) {
+  const pr = getProfile(p.uid);
+  if (!(pr.karma > 0) || !m || m.pvpOf || (m.level || 1) < p.char.level - 10) return;
+  pr.karma = Math.max(0, pr.karma - (KARMA.wash[m.rank] || 1)); pr.karmaV = 2;
+  if (!pr.karma) { p.pkFlagUntil = Date.now() + PK.flagMs; p.socket.emit('chat', { sys: true, text: '🕊️ Карма очищена — ещё 60 с вы «розовый», потом снова мирный' }); }
+  else if (pr.karma % 10 === 0) p.socket.emit('chat', { sys: true, text: `🔴 Карма: ${pr.karma} — продолжайте охоту на монстров` });
+  markDirty(p);
+}
 const pkState = (p) => ((getProfile(p.uid).karma || 0) > 0 ? 'red' : (p.pkFlagUntil || 0) > Date.now() ? 'pink' : 'white');
 function pkOnHit(p, victim) {
   if (!isPkZone(p.zone) || !isPkZone(victim.zone)) return;
@@ -2050,8 +2068,9 @@ function pkOnKill(victim) {
   const kpr = getProfile(killer.uid), vpr = getProfile(victim.uid);
   if (vs === 'white') { // убил мирного — карма
     const was = (kpr.karma || 0) > 0;
-    kpr.karma = Math.min(PK.redMax, (kpr.karma || 0) + PK.redMs); kpr.pkZone = killer.zone; markDirty(killer);
-    killer.socket.emit('chat', { sys: true, text: `🩸 Вы убили мирного игрока — вы «красный» ещё ${Math.ceil(kpr.karma / 60000)} мин (уходит, только пока вы в игре). При гибели теряете всю сумку и 1 надетую вещь!` });
+    const add = karmaAdd(kpr);
+    kpr.karma = (kpr.karma || 0) + add; kpr.karmaV = 2; kpr.pkCount = (kpr.pkCount || 0) + 1; kpr.pkZone = killer.zone; markDirty(killer);
+    killer.socket.emit('chat', { sys: true, text: `🩸 Вы убили мирного игрока: карма +${add} (всего ${kpr.karma}, убийств мирных: ${kpr.pkCount}). Вы «красный»: из данжа не выйти, при гибели теряете всю сумку и 1 надетую вещь. Отмыть карму можно только охотой на монстров — чем больше убийств, тем дольше` });
     if (!was) evCast({ ev: 'boss', text: `🩸 ${killer.name} стал убийцей в опасном данже — его можно наказать!` });
   }
   const lost = pkDrop(victim, vs, killer);
@@ -2095,7 +2114,7 @@ function pkFriends(a, b) {
 function pkDrop(victim, vs, killer) {
   const vpr = getProfile(victim.uid), [bagK, eqN] = PK_DROP[vs];
   const eqIds = new Set(Object.values(vpr.equip || {}).filter(Boolean));
-  const ok = (it) => !it.bound && it.cat !== 'bag' && !((it.trophy || 0) > Date.now()); // трофей (7 дней) повторно не выпадает
+  const ok = (it) => !it.bound && it.cat !== 'bag';
   const bag = (vpr.items || []).filter((it) => ok(it) && !eqIds.has(it.id) && it.loc !== 'wh');
   const worn = (vpr.items || []).filter((it) => ok(it) && eqIds.has(it.id));
   const pick = (arr, n) => { const out = []; while (n-- > 0 && arr.length) out.push(arr.splice(Math.floor(Math.random() * arr.length), 1)[0]); return out; };
@@ -2132,7 +2151,7 @@ function pickupGround(p, id) {
   const pr = getProfile(p.uid);
   if ((pr.items || []).filter((i) => i.loc !== 'wh').length >= meta.bagSize(pr)) return { error: 'Сумка полна — освободите место' };
   groundLoot.delete(id);
-  // Чужая вещь с земли — «трофей»: 7 дней её нельзя отправить почтой, положить в хранилище клана и она не выпадает снова
+  // Чужая вещь с земли — «трофей»: 7 дней её нельзя отправить почтой и положить в хранилище клана (продавать и терять при смерти — можно)
   if (g.from && g.from !== p.uid) g.item.trophy = Date.now() + TROPHY_MS; else delete g.item.trophy; // продавать в Торговом доме — можно
   g.item.loc = 'bag'; pr.items.push(g.item);
   const v = I.itemView(g.item);
@@ -2141,10 +2160,7 @@ function pickupGround(p, id) {
   return { toast: `Подобрано: ${v.name}` };
 }
 setInterval(() => { const now = Date.now(); for (const [id, g] of groundLoot) if (now > g.until) groundLoot.delete(id); }, 10000);
-// Карма уходит только пока герой в игре (и в автобое без игрока — тоже: он в мире и его могут найти)
-setInterval(() => {
-  for (const p of players.values()) { const pr = getProfile(p.uid); if (pr.karma > 0) { pr.karma = Math.max(0, pr.karma - 5000); if (!pr.karma) { p.pkFlagUntil = Date.now() + PK.flagMs; p.socket.emit('chat', { sys: true, text: '🕊️ Карма очищена — ещё 60 с вы «розовый», потом снова мирный' }); markDirty(p); } } }
-}, 5000);
+// Карма — очки (см. KARMA): со временем не уходит, отмывается монстрами (karmaWash)
 
 // Опасный данж: опыт, золото и добыча ×6, в автобое ×3 (автобойный штраф ×0,6 там не действует — вместо него половина рейта)
 const isPkZone = (zid) => { const z = world.byId.get(zid); return !!(z && z.pk); };
