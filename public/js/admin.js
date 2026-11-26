@@ -207,7 +207,9 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       <div class="card"><h3>Обработанные</h3><table><tr><th>№</th><th>Игрок</th><th>GRAM</th><th>Статус</th></tr>
         ${o.done.map((w) => `<tr><td>${w.id}</td><td>${esc(w.name)}</td><td>${G(w.net)}</td><td>${w.status === 'paid' ? '✅ выплачено' + (w.tx ? ' · ' + esc(w.tx.slice(0, 12)) + '…' : '') : '↩ отклонено' + (w.reason ? ': ' + esc(w.reason) : '')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">—</td></tr>'}</table></div>
       <div class="card"><h3>Корректировка баланса</h3><small class="muted">Плюс — начислить (как пополнение, вывести нельзя), минус — списать. Например, компенсация или возврат по обращению.</small>
-        <div class="row"><input id="gAdjUid" placeholder="uid игрока (tg…)"><input id="gAdjSum" type="number" step="0.01" placeholder="GRAM, напр. 5 или -2"><input id="gAdjText" class="wide" placeholder="Причина"><button class="btn primary" id="gAdjGo">Применить</button></div></div>
+        <div class="row"><input id="gAdjUid" placeholder="uid игрока (tg…)"><input id="gAdjSum" type="number" step="0.01" placeholder="GRAM, напр. 5 или -2"><input id="gAdjText" class="wide" placeholder="Причина"><button class="btn primary" id="gAdjGo">Применить</button></div>
+        <div class="row"><input id="gRefUid" placeholder="uid игрока (tg…)"><input id="gRefAddr" class="wide" placeholder="Кошелёк (пусто — последний кошелёк игрока)"><button class="btn" id="gRefGo">↩️ Вернуть пополнения GRAM</button></div>
+        <small class="muted">Возврат: нетронутая часть пополнений игрока уходит заявкой на вывод без комиссии — выплатите её в списке заявок</small></div>
       <div class="card"><h3>Журнал GRAM (последние 200)</h3><table><tr><th>Когда (МСК)</th><th>Игрок</th><th>Что</th><th>GRAM</th></tr>
         ${o.log.map((e) => `<tr><td>${msk(e.t)}</td><td>${esc(e.name)}</td><td>${esc(GKIND[e.kind] || e.kind)}<br><small class="muted">${esc(e.text)}</small></td><td style="color:${e.a < 0 ? 'var(--red)' : 'inherit'}">${e.a ? (e.a > 0 ? '+' : '') + G(e.a) : '—'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Пока пусто</td></tr>'}</table></div>`;
     box.onclick = async (e) => {
@@ -215,6 +217,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       if (b.dataset.copy) { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Адрес скопирован'); } catch { prompt('Адрес:', b.dataset.copy); } return; }
       if (b.dataset.pay) { const tx = prompt('Хеш перевода (необязательно):', '') ?? null; if (tx === null) return; const r = await api('gramPay', { id: +b.dataset.pay, tx }); toast(r.error || r.text, !!r.error); drawGram(); }
       if (b.dataset.rej) { const reason = prompt('Причина отказа (игрок увидит):', ''); if (reason === null) return; const r = await api('gramReject', { id: +b.dataset.rej, reason }); toast(r.error || r.text, !!r.error); drawGram(); }
+      if (b.id === 'gRefGo') { if (!confirm('Вернуть игроку нетронутые пополнения GRAM?')) return; const r = await api('gramRefundDep', { uid: $('gRefUid').value.trim(), address: $('gRefAddr').value.trim() }); toast(r.error || r.text, !!r.error); if (!r.error) drawGram(); }
       if (b.id === 'gAdjGo') { const r = await api('gramAdjust', { uid: $('gAdjUid').value.trim(), gram: Number($('gAdjSum').value), text: $('gAdjText').value }); toast(r.error || r.text, !!r.error); if (!r.error) drawGram(); }
     };
   }
@@ -597,7 +600,9 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       <div class="card"><h3>🧹 Обнуление перед стартом</h3>
         <p class="muted">Удаляет всех игроков, кроме указанных: прогресс, предметы, лоты Торгового дома, кланы. <b>GRAM не трогает</b>: балансы, заявки на вывод и журнал сохраняются, замороженное в заявках на покупку возвращается на балансы, казна владык раздаётся участникам; право на вывод (30 ур., 7 дней) сохраняется. Перед удалением автоматически сохраняется снимок базы (Обзор → Снимки), из него можно восстановить. Игроки начнут заново при следующем входе.</p>
         <div class="row"><label>Оставить</label><input id="sWipeKeep" class="wide" placeholder="tg80769030 (через запятую)"></div>
-        <div class="row"><button class="btn danger" id="sWipe">Обнулить всех, кроме указанных</button></div></div>
+        <label class="switch"><input type="checkbox" id="sWipeRel"> Релиз: выдать подарки «Ветеран ЗБТ» (рамка, титул, 💎 по уровню) и самоцветы ×1,5 за оставленные вложения; выбор «вернуть/оставить» закроется. Без галочки — тестовое обнуление, наследие ЗБТ копится дальше</label>
+        <div class="row"><button class="btn danger" id="sWipe">Обнулить всех, кроме указанных</button><button class="btn" id="zbtRef">Кто просит вернуть донат</button></div>
+        <div id="zbtRefBox"></div></div>
       <div class="row"><button id="sSave" class="btn primary">Сохранить настройки</button><button id="sDisk" class="btn">Записать данные игроков на диск</button></div>`;
     $('sSave').onclick = async () => {
       if ($('sMaint').checked && !s.maintenance && !confirm('Включить техработы? Все игроки, кроме тестеров, будут отключены.')) return;
@@ -608,10 +613,19 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
     $('sWipe').onclick = async () => {
       const keep = $('sWipeKeep').value.split(/[\s,]+/).filter(Boolean);
       if (!keep.length) return toast('Укажите, кого оставить (например tg80769030)', true);
-      const word = prompt(`Будут удалены ВСЕ игроки, кроме: ${keep.join(', ')}.\nДля подтверждения введите слово ОБНУЛИТЬ`);
+      const rel = $('sWipeRel').checked;
+      const word = prompt(`${rel ? 'РЕЛИЗ: подарки ветеранам и компенсация доната.\n' : 'Тестовое обнуление.\n'}Будут удалены ВСЕ игроки, кроме: ${keep.join(', ')}.\nДля подтверждения введите слово ОБНУЛИТЬ`);
       if (word === null) return;
-      const r = await api('wipeAll', { keep, confirm: word.trim() });
+      const r = await api('wipeAll', { keep, confirm: word.trim(), release: rel });
       toast(r.error || r.text, !!r.error);
+    };
+    // Возврат доната (выбор игроков «вернуть»): платежи звёздами с кнопкой возврата
+    $('zbtRef').onclick = async () => {
+      const r = await api('zbtRefunds', {});
+      if (r.error) return;
+      $('zbtRefBox').innerHTML = r.list.length ? r.list.map((x) => `<div class="row"><b>${esc(x.name)}</b> <small>${esc(x.uid)} · ${x.stars} ⭐</small>
+        ${x.pays.map((q) => q.refunded ? `<span class="tag">возвращено ${q.amount} ⭐</span>` : `<button class="btn" data-ref="${esc(x.uid)}|${esc(q.charge)}">↩️ ${q.amount} ⭐ ${esc(q.kind || '')}</button>`).join(' ')}</div>`).join('') : '<small>Никто не просит вернуть донат</small>';
+      $('zbtRefBox').querySelectorAll('[data-ref]').forEach((b) => { b.onclick = async () => { if (!confirm('Вернуть звёзды за этот платёж?')) return; const [uid, charge] = b.dataset.ref.split('|'); await api('refund', { uid, charge }); $('zbtRef').click(); }; });
     };
     $('botcastTest').onclick = async () => { const t = $('botcastText').value.trim(); if (!t) return toast('Напишите текст', true); await api('botcast', { text: t, test: true }); };
     $('botcastAll').onclick = async () => { const t = $('botcastText').value.trim(); if (!t) return toast('Напишите текст', true); if (!confirm('Разослать это сообщение ВСЕМ игрокам от бота? Отменить будет нельзя.')) return; await api('botcast', { text: t }); setTimeout(drawSettings, 3000); };

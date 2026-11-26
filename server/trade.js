@@ -618,6 +618,22 @@ module.exports = function createTrade(deps) {
     return { text: `Баланс GRAM: ${fmt(bal(getProfile(uid)).total)}` };
   }
 
+  // Возврат пополнений (на непредвиденный случай): нетронутая часть пополнений GRAM → заявка на вывод без комиссии
+  // на кошелёк игрока; администратор выплачивает её как обычную заявку (Админка → GRAM)
+  function adminRefundDep(uid, address) {
+    const pr = getProfile(uid), g = G(pr), a = g.dep;
+    if (!(a > 0)) return { error: 'Нетронутых пополнений нет' };
+    let addr;
+    try { addr = Address.parse(String(address || g.wallet || '').trim()).toString({ bounceable: false }); } catch { return { error: 'Укажите адрес кошелька игрока' }; }
+    g.dep = 0;
+    const w = { id: st.seq++, uid, name: pr.name || uid, gross: a, fee: 0, net: a, address: addr, at: now(), status: 'wait', prio: 2, refund: true };
+    st.wd.unshift(w);
+    note(uid, 'withdraw', -a, `Возврат пополнений №${w.id}: ${fmt(a)} GRAM на ${addr.slice(0, 6)}…${addr.slice(-4)} (без комиссии)`);
+    notifyUid(uid, `↩️ Администрация оформила возврат ваших пополнений: ${fmt(a)} GRAM — выплата на кошелёк в ближайшее время`);
+    save();
+    return { text: `Заявка на возврат №${w.id}: ${fmt(a)} GRAM → ${addr} (Админка → GRAM → выплатить)` };
+  }
+
   // Старые лоты рынка и аукциона за золото — вернуть продавцам (торговля за золото убрана)
   function migrateGoldMarket(market, giveLot, refundBid) {
     let n = 0;
@@ -647,6 +663,6 @@ module.exports = function createTrade(deps) {
     save();
     return n - st.lots.length;
   }
-  return { publicStats, wipe, spendGram, grant, take, giveBack: refundTo, houseAdd, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k) && !CFG.orders[k].pass, adminView, adminPay, adminReject, adminAdjust, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
+  return { publicStats, wipe, spendGram, grant, take, giveBack: refundTo, houseAdd, nanoOf: (stars) => toNano(gramOf(stars)), act, isOp: (op) => Object.hasOwn(OPS, op), onDeposit, grantOrder, invoices, isOrder: (k) => Object.hasOwn(CFG.orders, k) && !CFG.orders[k].pass, adminView, adminPay, adminReject, adminAdjust, adminRefundDep, bal, migrateGoldMarket, CFG, fmt, gramOf, shopPrice, itemBounds, save };
 };
 module.exports.CFG = CFG;

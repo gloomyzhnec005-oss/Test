@@ -514,7 +514,11 @@ window.GameScene = class GameScene extends Phaser.Scene {
     if (this.terrainImg) { this.terrainImg.destroy(); if (this.textures.exists('terrain')) this.textures.remove('terrain'); this.terrainImg = null; }
     if (this.liveWater) { this.liveWater.objs.forEach((o) => o.destroy()); this.liveWater = null; if (this.textures.exists('watermask')) this.textures.remove('watermask'); }
     // Арена мирового босса — одна нарисованная картинка; внутренний край стен совпадает с краем проходимого круга
-    if (art && (z.kind === 'worldboss' || z.kind === 'pvp') && this.textures.exists('arena_' + z.theme)) {
+    // Замок осады (z.castle) — своя прямоугольная карта со стеной и колоннами: рисуем по клеткам, а не круглой ареной
+    if (art && z.castle && this.textures.exists('castle_' + z.theme)) {
+      this.terrainImg = this.add.image(z.ox, z.oy, 'castle_' + z.theme).setOrigin(0, 0).setDisplaySize(z.w * T, z.h * T).setDepth(0);
+      this.layer.setVisible(false);
+    } else if (art && !z.castle && (z.kind === 'worldboss' || z.kind === 'pvp') && this.textures.exists('arena_' + z.theme)) {
       const R = (Math.min(z.w, z.h) / 2 - 1) * T, size = R / 0.39;
       this.terrainImg = this.add.image(z.ox + z.w * T / 2, z.oy + z.h * T / 2, 'arena_' + z.theme).setDisplaySize(size, size).setDepth(0);
       this.layer.setVisible(false);

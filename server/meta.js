@@ -24,6 +24,7 @@ const COSMETICS = {
     diamond: { name: 'Алмазная рамка', price: 1800 }, legend: { name: 'Легендарная рамка', price: 2700 },
     obsidian: { name: 'Обсидиановая рамка', stars: 720 }, celestial: { name: 'Небесная рамка', stars: 960 }, dragon: { name: 'Драконья рамка', stars: 1200 },
     founder: { name: 'Рамка основателя', grant: true }, // только в подарок основателям (первые 3 дня после открытия) — не продаётся
+    veteran: { name: 'Рамка ветерана ЗБТ', grant: true }, // подарок участникам ЗБТ при релизе
   },
 };
 // Награда за вход 7 дней подряд: день — по Москве; пропустил день — серия начинается заново, после 7-го — по кругу
@@ -902,7 +903,7 @@ module.exports = function createMeta(deps) {
         id: t.id, name: t.name, hero: t.heroId, level: t.char.level, dupes: (pr.heroDupes || {})[t.heroId] || 0,
         power: { hp: f.hp, dmg: Math.round(f.dmg), crit: Math.round(f.crit * 100), power: f.power },
         worn, slots: I.SLOT_ORDER, slotNames: I.SLOT_NAMES, rating: a.hero ? a.rating : null,
-        heroes: (pr.heroes || []).length, me: t.id === p.id, party: t.party || null, myParty: p.party || null,
+        heroes: (pr.heroes || []).length, title: pr.title || null, me: t.id === p.id, party: t.party || null, myParty: p.party || null,
       } };
     },
 

@@ -65,6 +65,7 @@ window.WorldArt = (() => {
   function preloadArena(scene, th) {
     if (!THEMES[th] || scene.textures.exists('arena_' + th)) return false;
     scene.load.image('arena_' + th, `assets/world/arena/${th}.webp`);
+    if ((window.ART_HAS || {})['castle_' + th]) scene.load.image('castle_' + th, `assets/world/castle/${th}.webp`); // замок осады (ЗМ-3), когда будет картинка
     return true;
   }
   const SIDE_GATES = ['green', 'abyss', 'sky']; // миры, для которых уже нарисованы боковые ворота (assets/world/gates/<мир>_side_<состояние>.webp)

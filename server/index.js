@@ -2386,6 +2386,7 @@ io.on('connection', (socket) => {
       const C2 = (prj.cosm ??= { owned: [] }); if (!C2.owned.includes('frame:founder')) { C2.owned.push('frame:founder'); C2.frame = 'founder'; } // знак основателя — навсегда, не продаётся
       setTimeout(() => socket.emit('chat', { sys: true, text: '🎁 Подарок основателя: 300 💎, 2 печати призыва героев, 3 печати снаряжения, Великий эликсир опыта и Рамка основателя (больше никогда не будет в продаже). Спасибо, что вы с нами с первых дней!' }), 2500);
     }
+    if (prj.zbtGiftMsg) { const m = prj.zbtGiftMsg; delete prj.zbtGiftMsg; setTimeout(() => socket.emit('chat', { sys: true, text: m }), 3500); }
     if (prj.comeback && prj.comeback.gift) { prj.comeback.gift = false; prj.gems = (prj.gems || 0) + 50; setTimeout(() => socket.emit('chat', { sys: true, text: '💎 С возвращением! +50 самоцветов' }), 3000); }
     if (!C.HEROES[heroId] || !getProfile(uid).heroes.includes(heroId)) {
       socket.emit('error_msg', 'Сначала получите персонажа');
@@ -2654,6 +2655,7 @@ io.on('connection', (socket) => {
     if (/^mail(List|Send|Quote|Read|Take|Del)$/.test(op)) { try { const r = Mail.act(p, d, (pr) => meta.bagSize(pr)); cb(r); if (r && (r.refresh || r.toast)) refreshPlayer(p); } catch (e) { console.error('mail', e); cb({ error: 'Ошибка сервера' }); } return; }
     if (/^castle(Info|Reg|Join)$/.test(op)) { try { cb(Castle.act(p, d)); } catch (e) { console.error('castle', e); cb({ error: 'Ошибка сервера' }); } return; }
     if (op === 'towerInfo' || op === 'towerEnter') { try { cb(Tower.act(p, d)); } catch (e) { console.error('tower', e); cb({ error: 'Ошибка сервера' }); } return; }
+    if (op === 'zbtInfo' || op === 'zbtChoice') { cb(zbtAct(p, d)); return; }
     if (op === 'worldMap') { try { cb(worldMapView(p)); } catch (e) { console.error('worldMap', e); cb({ error: 'Ошибка сервера' }); } return; }
     const src = /^(quest|story)/.test(op) ? 'quests' : /^npc/.test(op) ? 'npc' : op;
     try {
@@ -3222,13 +3224,46 @@ function adminAlert(text, loud) {
   for (const id of ids) send(id, 1);
 }
 admin.setAlert(adminAlert);
+// ---------- Наследие ЗБТ (переживает все обнуления, применяется при релизе) ----------
+// pr.zbt = { lvl — лучший уровень за ЗБТ, choice — 'keep' (оставить вложения: ×1,5 самоцветами) | 'refund' (вернуть звёзды),
+//            gifted — подарки уже выданы }. Звёзды считаются по истории оплат (она тоже переживает обнуление).
+// Ветеран ЗБТ при релизе: рамка «Ветерана», титул и самоцветы по уровню: до 10 — 50, 10 — 150, 20 — 300, 30 — 600, 40 — 1000, 50 — 1500
+const ZBT = { gemsPerStar: 330 / 50, keepK: 1.5, vet: [[50, 1500], [40, 1000], [30, 600], [20, 300], [10, 150], [0, 50]] };
+const zbtStars = (pr) => (pr.payments || []).filter((x) => (x.cur || 'XTR') === 'XTR' && !x.refunded).reduce((a, x) => a + (Number(x.amount) || 0), 0);
+const zbtLvl = (pr) => Math.max((pr.zbt && pr.zbt.lvl) || 0, (pr.acct && pr.acct.level) || 0, ...Object.values(pr.chars || {}).map((c) => c.level || 0));
+const zbtVetGems = (lvl) => ZBT.vet.find(([l]) => lvl >= l)[1];
+function zbtView(p) {
+  const pr = getProfile(p.uid), z = pr.zbt || {}, stars = zbtStars(pr), lvl = zbtLvl(pr);
+  return { stars, keepGems: Math.round(stars * ZBT.gemsPerStar * ZBT.keepK), lvl, vetGems: zbtVetGems(lvl), choice: z.choice || 'keep', released: !!S.zbtReleased, gifted: !!z.gifted };
+}
+function zbtAct(p, d) {
+  if (d.op === 'zbtChoice') {
+    if (S.zbtReleased) return { error: 'Релиз уже состоялся — выбор закрыт' };
+    const pr = getProfile(p.uid); pr.zbt ??= {};
+    if (!zbtStars(pr)) return { error: 'У вас нет покупок за звёзды' };
+    pr.zbt.choice = d.choice === 'refund' ? 'refund' : 'keep'; saveProfiles();
+    admin.log('zbt', `${p.uid} ${pr.zbt.choice === 'refund' ? 'просит вернуть' : 'оставляет'} вложения (${zbtStars(pr)} ⭐)`);
+  }
+  return zbtView(p);
+}
+// Подарки релиза одному профилю (после обнуления)
+function zbtGift(np, z, stars) {
+  if (z.gifted) return;
+  z.gifted = true;
+  const gems = zbtVetGems(z.lvl || 0) + (stars && z.choice !== 'refund' ? Math.round(stars * ZBT.gemsPerStar * ZBT.keepK) : 0);
+  np.gems = (np.gems || 0) + gems;
+  const C2 = (np.cosm ??= { owned: [] }); if (!C2.owned.includes('frame:veteran')) C2.owned.push('frame:veteran'); C2.frame = C2.frame || 'veteran';
+  np.title = 'Ветеран ЗБТ';
+  np.zbtGiftMsg = `🎖️ Ветеран ЗБТ: рамка, титул и ${gems} 💎${stars && z.choice !== 'refund' ? ` (из них ${Math.round(stars * ZBT.gemsPerStar * ZBT.keepK)} — за ваши вложения ×1,5)` : ''}. Спасибо, что были с нами!`;
+}
 // Обнуление перед стартом (админка → Настройки): удаляем всех, кроме keep
-admin.setWipe((keep) => {
+admin.setWipe((keep, opt = {}) => {
   for (const o of [...players.values()]) if (!keep.has(o.uid)) {
     o.socket.emit('kicked', 'Игровой мир обновлён — войдите заново');
     clearTimeout(o.graceTimer); removePlayerG(o); try { o.socket.disconnect(true); } catch {}
   }
-  let nP = 0, nC = 0, nG = 0;
+  let nP = 0, nC = 0, nG = 0, nV = 0;
+  if (opt.release) S.zbtReleased = Date.now(); // после релиза выбор «вернуть/оставить» закрыт
   // Деньги игроков не обнуляются: сначала снимаем заявки на покупку (GRAM — на балансы), раздаём казну владык
   // участникам кланов, затем при удалении профиля переносим GRAM-кошелёк (балансы, адрес, журнал, итоги) и историю оплат
   const lots = Trade.wipe(keep);
@@ -3240,12 +3275,15 @@ admin.setWipe((keep) => {
   for (const uid of Object.keys(profiles)) if (!keep.has(uid)) {
     const old = profiles[uid], remind = old.remindOpen, gram = old.gram, pays = old.payments;
     const lvl = Math.max(old.wdLevel || 0, ...Object.values(old.chars || {}).map((c) => c.level || 0));
+    // Наследие ЗБТ: лучший уровень за все обнуления, выбор по вложениям; при релизе — подарки
+    const zbt = /^tg\d+$/.test(uid) && (old.zbt || lvl > 1 || zbtStars(old)) ? { ...(old.zbt || {}), lvl: zbtLvl(old) } : null;
     // Приглашения переживают обнуление: кто кого пригласил, список друзей, заработанное с них и источник визита.
     // Флаги «друг дошёл до 10/20 уровня» тоже — награда за одного друга не выдаётся дважды
     const REF_KEEP = ['refBy', 'refAt', 'refs', 'refN', 'refGram', 'refL10', 'refL20', 'tgInfo'];
     const ref = Object.fromEntries(REF_KEEP.filter((k) => old[k] !== undefined).map((k) => [k, old[k]]));
     delete profiles[uid]; nP++;
-    const np = (remind || gram || pays || Object.keys(ref).length) ? getProfile(uid) : null;
+    const np = (remind || gram || pays || zbt || Object.keys(ref).length) ? getProfile(uid) : null;
+    if (zbt) { np.zbt = zbt; if (opt.release) { zbtGift(np, zbt, zbtStars(old)); nV++; } }
     if (np) Object.assign(np, ref);
     if (remind) np.remindOpen = true; // подписку «Напомнить об открытии» сохраняем — это не прогресс
     // GRAM-кошелёк; дата регистрации и достигнутый уровень — чтобы условия вывода (30 ур., 7 дней) не «сбросились» вайпом
@@ -3258,7 +3296,8 @@ admin.setWipe((keep) => {
     if (!c.system && !keep.has(c.leader)) c.leader = c.members[0];
   }
   saveProfiles(); saveClans(); Ranks.reset();
-  return { players: nP, clans: nC, lots, gram: nG };
+  if (opt.release) admin.saveSettings();
+  return { players: nP, clans: nC, lots, gram: nG, vets: nV };
 });
 
 if (!store.db) process.on('SIGINT', () => { saveProfiles(); process.exit(0); });

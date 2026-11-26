@@ -461,9 +461,14 @@ module.exports = function createAdmin(ctx) {
     let snap = '';
     if (store.db) { const s = await store.snapshot('prewipe'); snap = ` · снимок №${s.id} сохранён`; }
     else { try { store.backup(['players.json', 'clans.json', 'gram.json']); snap = ' · бэкап файлов сохранён'; } catch {} }
-    const r = wipeFn(new Set(keep));
-    return { text: `Удалено игроков: ${r.players}, кланов: ${r.clans}, лотов: ${r.lots}. GRAM-кошельков сохранено: ${r.gram || 0}. Оставлены: ${keep.join(', ')}${snap}` };
+    const r = wipeFn(new Set(keep), { release: !!d.release });
+    return { text: `Удалено игроков: ${r.players}, кланов: ${r.clans}, лотов: ${r.lots}. GRAM-кошельков сохранено: ${r.gram || 0}. Оставлены: ${keep.join(', ')}${snap}${d.release ? ` · Ветеранам ЗБТ выданы подарки: ${r.vets || 0}` : ''}` };
   }, () => 'обнуление игроков'));
+  // Кто выбрал «вернуть донат» (наследие ЗБТ) — с платежами звёздами для кнопки возврата
+  r.post('/zbtRefunds', act(() => ({ list: Object.entries(ctx.profiles).filter(([, pr]) => pr.zbt && pr.zbt.choice === 'refund').map(([uid, pr]) => ({ uid, name: pr.nick || pr.name || uid,
+    stars: (pr.payments || []).filter((x) => (x.cur || 'XTR') === 'XTR').reduce((a, x) => a + (Number(x.amount) || 0), 0),
+    pays: (pr.payments || []).filter((x) => (x.cur || 'XTR') === 'XTR' && x.charge).map((x) => ({ amount: x.amount, kind: x.kind, charge: x.charge, refunded: !!x.refunded })) })) })));
+  r.post('/gramRefundDep', act((d) => (ctx.profiles[d.uid] ? ctx.trade.adminRefundDep(d.uid, d.address) : { error: 'Игрок не найден' }), (d) => `возврат пополнений GRAM ${d.uid}`));
   r.post('/snapshots', aact(async () => ({ db: store.db, list: await store.listSnapshots() })));
   r.post('/snapshotNow', aact(async () => {
     if (!store.db) return { error: 'Снимки в базе доступны только с Postgres — используйте «Скачать всё»' };

@@ -679,7 +679,7 @@
         const bySlot = Object.fromEntries(pl.worn.map((it) => [it.slot, it]));
         const inMyParty = pl.party && pl.party === pl.myParty;
         box.innerHTML = `<div class="pp-head"><div class="pp-art"></div><div class="pp-info">
-            <b class="pp-name"></b><small>${H.name || pl.hero}${H.title ? ` · ${H.title}` : ''}</small>
+            <b class="pp-name"></b>${pl.title ? `<small class="pp-title">🎖️ ${pl.title}</small>` : ''}<small>${H.name || pl.hero}${H.title ? ` · ${H.title}` : ''}</small>
             <small>Уровень ${pl.level} · ${'★'.repeat(Math.min(pl.dupes, 5)) || '☆'}${pl.dupes > 5 ? '+' + (pl.dupes - 5) : ''}${pl.rating ? ` · 🏟️ ${pl.rating}` : ''}</small></div></div>
           <div class="pd-power"><span class="pw">Сила <b>${P.power}</b></span><span>❤️ ${P.hp}</span><span>⚔️ ${P.dmg}</span><span>🎯 ${P.crit}%</span></div>
           <div class="ic-sec">Снаряжение</div>
@@ -927,6 +927,21 @@
         Town.open('✉️ Почта', box);
       };
       window.openMail = openMail;
+      // ---------- Наследие ЗБТ: подарок ветерана по уровню и выбор по вложениям (вернуть звёзды или оставить ×1,5 самоцветами) ----------
+      const openZbt = async () => {
+        const r = await Bag.act('zbtInfo');
+        if (!r || r.error) { Town.toast((r && r.error) || 'Нет связи'); return; }
+        const box = document.createElement('div');
+        box.innerHTML = `<p class="sheet-hint">Спасибо, что тестируете игру! Перед релизом мир обнулится, а участники ЗБТ получат подарки.</p>
+          <div class="tw-banner pass"><b>🎖️ Ветеран ЗБТ</b><small>Рамка, титул и ${r.vetGems} 💎 за ваш уровень на ЗБТ (${r.lvl}). Больше уровень — больше самоцветов: 10 — 150, 20 — 300, 30 — 600, 40 — 1000, 50 — 1500</small></div>
+          ${r.stars ? `<div class="ic-sec">Ваши вложения: ${r.stars} ⭐</div>
+            <div class="tw-ev ${r.choice === 'keep' ? 'new' : ''}"><div><b>💎 Оставить в игре</b><small>После релиза — ${r.keepGems} 💎 (в 1,5 раза больше вложенного)</small></div>${r.released ? '' : `<button class="l2-btn sm ${r.choice === 'keep' ? 'on' : ''}" data-c="keep">${r.choice === 'keep' ? '✓ Выбрано' : 'Выбрать'}</button>`}</div>
+            <div class="tw-ev ${r.choice === 'refund' ? 'new' : ''}"><div><b>↩️ Вернуть звёзды</b><small>Звёзды вернутся на ваш счёт Telegram, самоцветы за них не начисляются</small></div>${r.released ? '' : `<button class="l2-btn sm ${r.choice === 'refund' ? 'on' : ''}" data-c="refund">${r.choice === 'refund' ? '✓ Выбрано' : 'Выбрать'}</button>`}</div>
+            ${r.released ? '<small>Релиз состоялся — выбор закрыт</small>' : '<small>Выбор можно менять до релиза</small>'}` : ''}`;
+        box.onclick = async (e) => { const b = e.target.closest('[data-c]'); if (!b) return; const x = await Bag.act('zbtChoice', { choice: b.dataset.c }); if (x.error) Town.toast(x.error); Town.close(); openZbt(); };
+        Town.open('🎖️ Наследие ЗБТ', box);
+      };
+      window.openZbt = openZbt;
       // ---------- Умения: авто по перезарядке, порядок и выбор для автобоя (своя настройка у каждого героя) ----------
       const openSkillCfg = () => {
         const sc = window.gameScene, heroId = sc && sc.me && sc.me.data.hero;
@@ -1385,6 +1400,7 @@
               ['events', 'Награда за вход', 'Каждый день, 7 дней подряд', () => Town.openPlace('login')],
               ['pass', 'Сезонные ордена', 'Награды сезона и бонусы', () => Town.openPlace('pass')],
               ['party', 'Пригласить друга', 'Подарки и вам, и другу', () => openInvite()],
+              ...((window.GameLinks || {}).zbt ? [['pass', 'Наследие ЗБТ', 'Подарок ветерана и ваши вложения', () => openZbt()]] : []),
             ]],
             ['💬 Общение', [
               ['events', 'Почта', 'Письма и посылки игрокам', () => openMail()],

@@ -92,9 +92,12 @@ function stepTo(ctx, pet, x, y, speed, dt) {
   return d;
 }
 
+// Ближайший монстр. Двойники героев (pvpOf — цели PvP в опасных данжах и на аренах) сами звери не выбирают:
+// иначе зверь «бил» двойника своего же хозяина (он стоит в той же точке) и не трогал монстров. Игроков — только по приказу
 function nearestMonster(ctx, x, y, r) {
   let best = null, bd = r;
   for (const m of ctx.monsters.values()) {
+    if (m.pvpOf) continue;
     const d = Math.hypot(m.x - x, m.y - y);
     if (d < bd) { bd = d; best = m; }
   }
@@ -129,7 +132,7 @@ function updatePets(ctx, owner, now, dt) {
     if (pet.sicTarget && now < pet.sicUntil && ctx.monsters.has(pet.sicTarget.id)) target = pet.sicTarget;
     else {
       pet.sicTarget = null;
-      if (pet.target && ctx.monsters.has(pet.target.id) && Math.hypot(pet.target.x - owner.x, pet.target.y - owner.y) < LEASH) target = pet.target;
+      if (pet.target && ctx.monsters.has(pet.target.id) && pet.target.pvpOf !== owner.id && Math.hypot(pet.target.x - owner.x, pet.target.y - owner.y) < LEASH) target = pet.target;
       else target = nearestMonster(ctx, owner.x, owner.y, AGGRO);
     }
     // Хозяин отступает — звери бросают бой и бегут за ним (приказ натравливания держит дольше)
