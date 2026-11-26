@@ -278,7 +278,7 @@ module.exports = function createTrade(deps) {
         fee: CFG.fee - ((o && o.fee) || 0), wFee: wFeeOf(pr), holdDays: CFG.holdDays, wMin: toNano(CFG.wMin), depMin: CFG.depMin,
         wLevel: CFG.wLevel, wAgeDays: CFG.wAgeDays, level: tw ? Math.max(CFG.wLevel, maxLevel(pr)) : maxLevel(pr), ageDays: tw ? Math.max(CFG.wAgeDays, Math.floor((now() - (pr.created || now())) / 864e5)) : Math.floor((now() - (pr.created || now())) / 864e5),
         order: o ? { ...o, until: deps.passEnds ? (deps.passTier(pr) >= 5 ? deps.passEnds() : pr.tOrder.until) : 0 } : null, wd: mine,
-        orders: deps.passOrders ? deps.passOrders(pr).map((x) => ({ ...x, gram: gramOf(x.cost) })) : [],
+        orders: deps.passOrders ? deps.passOrders(pr).map((x) => ({ ...x, gram: gramOf(x.cost / (deps.starK || 1)) })) : [], // GRAM — от базовой цены (без наценки на ⭐)
         zbtCredit: pr.zbtCredit || 0, zbtCreditGram: toNano(gramOf(pr.zbtCredit || 0)),
       } };
     },

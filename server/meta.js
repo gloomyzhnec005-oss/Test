@@ -175,6 +175,21 @@ function simulate(a, b) {
   return { win, aHp: Math.max(0, Math.round(a.hp)), bHp: Math.max(0, Math.round(b.hp)), time: log[0] || 60000 };
 }
 
+// ---------- Наценка на звёзды ----------
+// Telegram оставляет разработчику ~65% цены звезды. Товары за ⭐ дороже в STAR_K раз, а оплата в GRAM/TON считается
+// от базовой цены (⭐ / STAR_K) — выручка с обеих оплат почти одинаковая, а GRAM для игрока на треть дешевле и приходит сразу.
+// Цены, которые и так только в GRAM (внешний вид, Рынок, взносы), не трогаем.
+const STAR_K = Number(process.env.STAR_K) || 1.5;
+const starPrice = (n) => { const v = n * STAR_K; return v < 60 ? Math.round(v) : Math.round(v / 10) * 10 - 1; }; // красивые цены: 74, 149, 229…
+if (STAR_K !== 1) {
+  SHOP.itemSpin.price = starPrice(SHOP.itemSpin.price); SHOP.itemSpin.price10 = starPrice(SHOP.itemSpin.price10);
+  for (const g of Object.values(SHOP.gems)) g.amount = starPrice(g.amount);
+  for (const t of SHOP.passTiers) t.price = starPrice(t.price);
+  SHOP.sub.price = starPrice(SHOP.sub.price);
+  for (const u of WH_UPGRADES) if (u.stars) u.stars = starPrice(u.stars);
+  { const C = require('./config'); C.GACHA.spinPrice = starPrice(C.GACHA.spinPrice); C.GACHA.spin10Price = starPrice(C.GACHA.spin10Price);
+    for (const b of C.LOBBY_BACKGROUNDS) if (b.price > 0) b.price = starPrice(b.price); }
+}
 module.exports = function createMeta(deps) {
   const { C, getProfile, saveProfiles, players, refreshPlayer, notifyUid, profiles } = deps;
   let market = { lots: [], auctions: [], seq: 1 };
@@ -1097,7 +1112,7 @@ module.exports = function createMeta(deps) {
     return true;
   }
   // Ларцы за Stars: попадают в сумку, открываются там (мир — по месту открытия)
-  const CHESTS = {
+  const CHESTS_BASE = {
     bagEpic: { n: 1, amount: 199, bag: 'epic', title: 'Рюкзак искателя', description: 'Эпическая сумка: +20 ячеек инвентаря' },
     bagLegend: { n: 1, amount: 499, bag: 'legendary', title: 'Сума гномьего торговца', description: 'Легендарная сумка: +35 ячеек инвентаря' },
     kitSmith: { n: 1, amount: 49, title: 'Сундук кузнеца', description: '30 руды, 15 эссенции и 2 свитка мастера' },
@@ -1115,6 +1130,7 @@ module.exports = function createMeta(deps) {
     elxHero: { n: 1, amount: 69, elixir: true, title: 'Эликсир героя', description: '+15% урона и здоровья, +5% крита, +10% скорости атаки на 1 час' },
     elxTitan: { n: 1, amount: 59, elixir: true, title: 'Эликсир титана', description: '+15% защиты, +25% здоровья, 2% вампиризма на 1 час' },
   };
+  const CHESTS = Object.fromEntries(Object.entries(CHESTS_BASE).map(([k, c]) => [k, { ...c, amount: starPrice(c.amount) }])); // цены за ⭐ — с наценкой
   CHESTS.chestSet5.mat = 'chestSet';
   CHESTS.elxXp2x5.mat = 'elxXp2';
   const INVOICES = {
@@ -1131,3 +1147,4 @@ module.exports = function createMeta(deps) {
   return { cosmLook, powerOf, canBuy, handle, addPassXp, passOf, passTier, passReady, passInvoice, isSub, bagSize, whSize, onPaid, INVOICES, SHOP, reward, grant: (pr, item) => I.addItem(pr, item, bagSize(pr)) };
 };
 module.exports.simulate = simulate;
+module.exports.STAR_K = STAR_K;

@@ -559,6 +559,7 @@ function buildInvoice(who, item, bgId, to) {
   return { invoice, stars: invoice.prices[0].amount };
 }
 const FIRST_BUY_OFF = 0.5;
+const STAR_K = require('./meta').STAR_K; // наценка на звёзды (server/meta.js): GRAM/TON и кредит ЗБТ считаются от цены ⭐ / STAR_K
 
 // ---------- Оплата в TON (server/ton.js): заказ → перевод из кошелька игрока → проверка в блокчейне ----------
 const ton = require('./ton')({ store, onPaid: (payload, info) => onPaid(payload, info), onDeposit: (uid, nano, hash) => Trade.onDeposit(uid, nano, hash), log: (k, t) => admin.log(k, t) });
@@ -584,7 +585,7 @@ app.post('/api/ton/quote', (req, res) => {
   if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   const inv = buildInvoice(who, req.body.item, req.body.bgId, req.body.to);
   if (inv.error) return res.status(400).json({ error: inv.error });
-  res.json({ title: inv.invoice.title, stars: inv.stars, ton: ton.tonPrice(inv.stars) });
+  res.json({ title: inv.invoice.title, stars: inv.stars, base: Math.ceil(inv.stars / STAR_K), ton: ton.tonPrice(inv.stars / STAR_K) }); // GRAM/TON — от базовой цены (без наценки на звёзды)
 });
 app.post('/api/ton/order', (req, res) => {
   if (!ton.enabled()) return res.status(400).json({ error: 'Оплата в GRAM выключена' });
@@ -592,7 +593,7 @@ app.post('/api/ton/order', (req, res) => {
   if (!who) return res.status(403).json({ error: 'Покупки доступны только в Telegram' });
   const inv = buildInvoice(who, req.body.item, req.body.bgId, req.body.to);
   if (inv.error) return res.status(400).json({ error: inv.error });
-  res.json(ton.createOrder(who.uid, inv.invoice.payload, inv.stars, inv.invoice.title));
+  res.json(ton.createOrder(who.uid, inv.invoice.payload, inv.stars / STAR_K, inv.invoice.title));
 });
 // Пополнение GRAM-баланса: адрес кошелька игры и личный комментарий игрока (перевод с ним зачисляется на баланс)
 app.post('/api/gram/deposit', (req, res) => {
@@ -773,6 +774,7 @@ const Trade = require('./trade')({
   I, store, getProfile, profiles: () => profiles, notifyUid: (uid, t) => notifyUid(uid, t), saveProfiles: () => saveProfiles(),
   bagSize: (pr) => meta.bagSize(pr), isSub: (pr) => meta.isSub(pr), tierOf: (p) => p.zoneTier || 1, classOf: (h) => I.classOf(h),
   rate: () => ton.rate(), Econ, log: (k, t) => admin.log(k, t), quest: (...a) => Q.track(...a), onHouse: (uid, amount, house, city) => refHouse(uid, amount, house, city),
+  starK: require('./meta').STAR_K,
   cityOf: (p) => { const z = world.byId.get(p.zone); return z ? (z.kind === 'town' ? z.id : z.town || 'town1') : 'town1'; }, cityName: (id) => (world.byId.get(id) || {}).name || id,
   liab: () => Object.values(clans).reduce((x, c) => x + (c.reignPool || 0), 0) + (typeof Castle !== 'undefined' ? Castle.liab() : 0) + (Arena && Arena.glOwed ? Arena.glOwed() : 0), // казна владык и взносы лиги — ещё не выплачены broadcast: (t) => evCast({ text: t }), alertAdmins: (t, loud) => adminAlert(t, loud),
   // Торговые ордена — ступени сезонных орденов после Чемпиона: цена — доплата до них с учётом купленного
@@ -3284,7 +3286,7 @@ admin.setAlert(adminAlert);
 const ZBT = { gemsPerStar: 330 / 50, keepK: 1.5, vet: [[50, 500], [40, 350], [30, 250], [20, 150], [10, 100], [0, 50]] };
 // Вложения в ⭐: звёзды и TON (по курсу) — накопительно (журнал оплат хранит только 50 последних), плюс GRAM, потраченные в игре
 const starsOf = (x) => ((x.cur || 'XTR') === 'XTR' ? Number(x.amount) || 0 : x.cur === 'TON' ? (Number(x.amount) || 0) / Math.max(1e-9, ton.rate()) : 0);
-function donAdd(pr, info) { if (pr.donStars === undefined) pr.donStars = (pr.payments || []).slice(0, -1).filter((x) => !x.refunded).reduce((a, x) => a + starsOf(x), 0); pr.donStars += starsOf({ cur: info.currency || 'XTR', amount: info.amount }); }
+function donAdd(pr, info) { if (pr.donStars === undefined) pr.donStars = (pr.payments || []).slice(0, -1).filter((x) => !x.refunded).reduce((a, x) => a + starsOf(x), 0); pr.donStars += starsOf({ cur: info.currency || 'XTR', amount: info.amount }) / ((info.currency || 'XTR') === 'XTR' ? STAR_K : 1); }
 const zbtStars = (pr) => Math.round(pr.donStars !== undefined ? pr.donStars : (pr.payments || []).filter((x) => !x.refunded).reduce((a, x) => a + starsOf(x), 0));
 const zbtGramStars = (pr) => { const T = (pr.gram || {}).tot || {}; return Math.round(Math.min(T.spent || 0, T.dep || 0) / 1e9 / Math.max(1e-9, ton.rate())); }; // пополненные GRAM, потраченные в игре, — в ⭐ (заработанные в игре не считаются)
 const zbtLvl = (pr) => Math.max((pr.zbt && pr.zbt.lvl) || 0, (pr.acct && pr.acct.level) || 0, ...Object.values(pr.chars || {}).map((c) => c.level || 0));
@@ -3301,7 +3303,7 @@ function zbtPay(p, d) {
   if (!(pr.zbtCredit > 0)) return { error: 'Кредита ЗБТ нет' };
   const r = buildInvoice({ uid: p.uid }, String(d.item || ''), d.bgId);
   if (r.error) return r;
-  const need = r.stars;
+  const need = Math.ceil(r.stars / STAR_K); // кредит — в базовых ⭐ (как GRAM), без наценки Telegram
   if (pr.zbtCredit < need) return { error: `Кредита ЗБТ не хватает: нужно ${need} ⭐, осталось ${Math.floor(pr.zbtCredit)} ⭐` };
   pr.zbtCredit = Math.round((pr.zbtCredit - need) * 100) / 100;
   onPaid(r.invoice.payload, { amount: need, currency: 'ZBT', charge: 'zbt' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) });
