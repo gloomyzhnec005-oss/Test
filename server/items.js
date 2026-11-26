@@ -619,11 +619,13 @@ function detach(pr, it) {
 
 // Соединение: 5 предметов одной категории и редкости → 1 предмет следующей редкости
 function mergeItems(pr, ids) {
-  const uniq = [...new Set(ids)];
+  if (!Array.isArray(ids)) return { error: 'Нужно ровно 5 предметов' };
+  const uniq = [...new Set(ids.map(String))];
   if (uniq.length !== 5) return { error: 'Нужно ровно 5 предметов' };
   const items = uniq.map((id) => findItem(pr, id));
   if (items.some((i) => !i)) return { error: 'Предмет не найден' };
   if (items.some((i) => Object.values(pr.equip || {}).includes(i.id))) return { error: 'Надетые предметы нельзя соединять — сначала снимите их' };
+  if (items.some((i) => i.sack)) return { error: SACK_MSG };
   const { cat, rar } = items[0];
   if (items.some((i) => i.cat !== cat || i.rar !== rar)) return { error: 'Все 5 предметов должны быть одной категории и редкости' };
   const next = RARITY_ORDER[RARITY_ORDER.indexOf(rar) + 1];
@@ -661,6 +663,10 @@ function bindLoot(it) {
   if (it && SHARD_RAR[it.rar] && it.cat !== 'bag') { it.bound = 1; it.loot = 1; }
   return it;
 }
+// Мешок добычи опасного данжа: пока не вынесли — не продать, не передать, не разобрать и не соединить
+const SACK_MSG = '🎒 Это в мешке добычи — сначала вынесите его из опасного данжа';
+const inSack = (pr, it) => !!(it && it.sack);
+const sackMat = (pr, id) => !!(pr && pr.sackOn && ((pr.sackMats || {})[id] || 0) > 0);
 // Личная руна в оружии: такое оружие не продать и не передать, пока руну не извлекут
 const boundRune = (it) => (it.runes || []).some((r) => r.bound);
 function upgradeCost(it) {
@@ -786,5 +792,5 @@ module.exports = {
   SKILL_UP, skillUpCost, skillMul, buffLuck, ELIXIR_OF, COMPANIONS, TREE, TREE_MAX, treeReq, treeCost, PAS_MAX, PAS_STEP, pasReq, pasCost, CAPS, BUFF_LUCK,
   CLASSES, CLASS_ORDER, classOf, SETS, setIdOf, MATS, BUFF_STATS, UPGRADE, SET_CRAFT,
   createItem, createSetItem, rollItem, rollRarity, rollAttrs, itemStats, gearStats, setState, findItem, addItem, detach, mergeItems,
-  boundRune, SHARD_CRAFT, shardOf, shardCraftCost, bindLoot, upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, cleanItem, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
+  SACK_MSG, inSack, sackMat, boundRune, SHARD_CRAFT, shardOf, shardCraftCost, bindLoot, upgradeCost, setCraftCost, salvage, addMat, takeMats, matView, matPrice, migrate, cleanItem, itemView, plainTpls, classesFor, canWear, CLASS_GEAR, reqLevel, heroLevel, usable, BAG_SLOTS, createBag,
 };

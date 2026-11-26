@@ -1022,6 +1022,7 @@ function clanAct(p, d) {
     if (Object.values(pr.equip || {}).includes(it.id)) return { error: 'Сначала снимите предмет' };
     if (it.bound) return { error: 'Привязанную вещь нельзя передать' };
     if (I.boundRune(it)) return { error: 'В оружии личная руна — извлеките её, чтобы передать оружие' };
+    if (I.inSack(pr, it)) return { error: I.SACK_MSG };
     if ((it.trophy || 0) > Date.now()) return { error: 'Трофей из опасного данжа — передать можно через 7 дней после добычи' };
     if (it.cat === 'bag') return { error: 'Сумки в хранилище не кладут' };
     mine.vault ??= [];
@@ -2957,6 +2958,14 @@ io.on('connection', (socket) => {
       clearTimeout(p.graceTimer); p.graceTimer = null;
       return;
     }
+    // Мирный с непустым мешком добычи вышел из опасного данжа — тело остаётся ещё 60 с (выход — не способ спасти мешок)
+    if (!p.dead && isPkZone(p.zone) && sackInfo(getProfile(p.uid)) && !p.match) {
+      p.offline = true; p.autofarm = false;
+      p.socket = offlineSocket(socket);
+      clearTimeout(p.graceTimer);
+      p.graceTimer = setTimeout(() => { if (players.get(socket.id) === p && p.offline) removePlayer(socket, p); }, 60e3);
+      return;
+    }
     // Обрыв связи (не выход из игры): герой ждёт в мире, пока игрок не переподключится
     if (reason !== 'client namespace disconnect' && reason !== 'server namespace disconnect' && !p.match) {
       p.offline = true; p.autofarm = false;
@@ -3461,6 +3470,8 @@ admin.setWipe((keep, opt = {}) => {
   // Деньги игроков не обнуляются: сначала снимаем заявки на покупку (GRAM — на балансы), раздаём казну владык
   // участникам кланов, затем при удалении профиля переносим GRAM-кошелёк (балансы, адрес, журнал, итоги) и историю оплат
   const lots = Trade.wipe(keep);
+  try { Castle.wipe(keep); } catch (e) { console.error('wipe castle', e); } // казна замков — участникам, взносы за осаду — назад
+  try { Arena.glWipe(); } catch (e) { console.error('wipe gram league', e); } // взносы GRAM-лиги недели — назад
   for (const c of Object.values(clans)) if (c.reignPool > 0 && (c.members || []).length) {
     const each = Math.floor(c.reignPool / c.members.length);
     for (const u of c.members) Trade.grant(u, each, 'reign', `Казна владык [${c.tag}]: выплата перед обнулением игры`);

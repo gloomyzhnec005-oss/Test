@@ -520,7 +520,7 @@ module.exports = function createMeta(deps) {
       // Каждая вещь — это 1 + дубликаты (★) копий: 5 копий одной категории и редкости → 1 вещь следующей редкости.
       // Не трогаем надетое, склад, комплектные, заточенные, с рунами и тиражные
       const eq = new Set(Object.values(pr.equip || {}));
-      const ok = (i) => i.loc !== 'wh' && !eq.has(i.id) && !['bag', 'rune', 'mat'].includes(i.cat) && !I.setIdOf(i) && !(i.ench > 0) && !(i.runes && i.runes.length) && !i.ltd && !i.locked;
+      const ok = (i) => i.loc !== 'wh' && !eq.has(i.id) && !['bag', 'rune', 'mat'].includes(i.cat) && !I.setIdOf(i) && !(i.ench > 0) && !(i.runes && i.runes.length) && !i.ltd && !i.locked && !i.sack;
       const ORDER = ['common', 'rare', 'epic'];
       const made = { rare: 0, epic: 0, legendary: 0 }; let used = 0, stars = 0;
       if (d.preview) {
@@ -708,6 +708,7 @@ module.exports = function createMeta(deps) {
     salvage(p, d, pr) {
       const it = I.findItem(pr, d.id);
       if (!it || equipped(pr, it.id)) return { error: 'Снимите предмет перед разбором' };
+      if (I.inSack(pr, it)) return { error: I.SACK_MSG };
       const out = I.salvage(it);
       I.detach(pr, it);
       pr.items = pr.items.filter((i) => i !== it);
@@ -718,7 +719,7 @@ module.exports = function createMeta(deps) {
     // Разбор нескольких вещей сразу: quote — только показать, что выйдет (ядро у легендарных — с шансом 30%)
     salvageMany(p, d, pr) {
       const ids = [...new Set((Array.isArray(d.ids) ? d.ids : []).map(String))].slice(0, 200);
-      const list = ids.map((id) => I.findItem(pr, id)).filter((it) => it && !equipped(pr, it.id) && it.loc !== 'wh');
+      const list = ids.map((id) => I.findItem(pr, id)).filter((it) => it && !equipped(pr, it.id) && it.loc !== 'wh' && !it.sack); // мешок добычи — не разбирается
       if (!list.length) return { error: 'Выберите вещи для разбора' };
       if (d.quote) {
         const sure = {}; let coreChance = 0;
@@ -774,6 +775,7 @@ module.exports = function createMeta(deps) {
       const m = I.MATS[d.mat], n = Math.floor(Number(d.n) || 1);
       if (!m || !(n > 0) || ((pr.mats || {})[d.mat] || 0) < n) return { error: 'Не хватает' };
       if (!m.buy) return { error: 'Торговец это не покупает' };
+      if (I.sackMat(pr, d.mat)) return { error: I.SACK_MSG };
       const v = Math.round(m.buy * (m.tier ? 1 : F(tierOf(p)))) * n;
       I.takeMats(pr, { [d.mat]: n });
       pr.gold += v;
@@ -835,6 +837,7 @@ module.exports = function createMeta(deps) {
     sell(p, d, pr) {
       const it = I.findItem(pr, d.id);
       if (!it || equipped(pr, it.id)) return { error: 'Снимите предмет перед продажей' };
+      if (I.inSack(pr, it)) return { error: I.SACK_MSG };
       const v = I.itemView(it).sell;
       I.detach(pr, it);
       pr.items = pr.items.filter((i) => i !== it);

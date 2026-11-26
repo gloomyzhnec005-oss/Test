@@ -180,7 +180,7 @@ module.exports = function createTrade(deps) {
     const runes = (it.runes || []).reduce((s, r) => s + shopPrice('rune', r.rar, r.tier), 0);
     return { min: Math.ceil((base + runes) * CFG.minK / 1e7) * 1e7, max: Math.floor((base + runes) * CFG.maxK / 1e7) * 1e7 };
   }
-  function matMinStars(id) { if (id.startsWith('bp_')) { const m = I.MATS[id]; return CFG.bpMinStars * ((m && m.tier) || 1); } return CFG.matMinStars[id] || 0; }
+  function matMinStars(id) { if (typeof id !== 'string' || !Object.hasOwn(I.MATS, id)) return 0; if (id.startsWith('bp_')) { const m = I.MATS[id]; return CFG.bpMinStars * ((m && m.tier) || 1); } return CFG.matMinStars[id] || 0; }
   function matBounds(id, n) { const s = matMinStars(id) * n, min = toNano(gramOf(s)); return { min, max: min / CFG.minK * CFG.maxK }; }
   function tradable(it) {
     if (!it) return 'Предмет не найден';
@@ -188,6 +188,7 @@ module.exports = function createTrade(deps) {
     if (!RAR_OK.includes(it.rar)) return 'Продавать можно вещи и руны от эпических';
     if (it.bound) return 'Вещь привязана к владельцу — её нельзя продать или передать';
     if (I.boundRune(it)) return 'В оружии личная руна — извлеките её, чтобы продать оружие';
+    if (I.inSack(null, it)) return I.SACK_MSG;
     return '';
   }
 
@@ -410,6 +411,7 @@ module.exports = function createTrade(deps) {
       if (d.mat) {
         const n = Math.floor(Number(d.n) || 0);
         if (!(n > 0) || !matMinStars(d.mat)) return { error: 'Этот материал в Торговом доме не продаётся' };
+        if (I.sackMat(pr, d.mat)) return { error: I.SACK_MSG };
         const b = matBounds(d.mat, n);
         if (price < b.min) return { error: `Цена не ниже ${fmt(b.min)} GRAM` };
         if (price > b.max) return { error: `Цена не выше ${fmt(b.max)} GRAM` };

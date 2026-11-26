@@ -24,6 +24,7 @@ module.exports = function createMail({ I, Trade, getProfile, profilesFn, notifyU
       if (!it) return { error: 'Предмет не найден' };
       if (it.bound) return { error: 'Привязанную вещь нельзя отправить' };
       if (I.boundRune(it)) return { error: 'В оружии личная руна — извлеките её, чтобы отправить оружие' };
+      if (I.inSack(pr, it)) return { error: I.SACK_MSG };
       if ((it.trophy || 0) > Date.now()) return { error: 'Трофей из опасного данжа — отправить можно через 7 дней после добычи' };
       if (isEquipped(pr, it.id)) return { error: 'Сначала снимите предмет' };
       items.push(it);
@@ -33,6 +34,7 @@ module.exports = function createMail({ I, Trade, getProfile, profilesFn, notifyU
       const n = Math.floor(Number(d.n) || 0);
       if (!I.MATS[d.mat] || !(n > 0)) return { error: 'Укажите материал и количество' };
       if (I.MATS[d.mat].personal) return { error: 'Осколки личные — их нельзя отправить' };
+      if (I.sackMat(pr, d.mat)) return { error: I.SACK_MSG };
       if (((pr.mats || {})[d.mat] || 0) < n) return { error: 'Не хватает материалов' };
       mat = { id: d.mat, n };
     }

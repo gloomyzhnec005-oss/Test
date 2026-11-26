@@ -352,5 +352,14 @@ module.exports = function createArena(d) {
   }
   // Взносы ещё не подведённых недель — обязательство перед игроками (призы или возврат)
   const glOwed = () => Object.values(tour.gl).filter((L) => !L.done).reduce((x, L) => x + Object.keys(L.entrants).length * GL.fee * 1e9, 0);
-  return { join, leave, info, tourInfo, addPoints, sameTeam, holdsDeath, matches, MODES, glJoin, settle, glOwed };
+  // Обнуление игры: очки участников стираются — взносы GRAM-лиги текущей (не разыгранной) недели вернуть
+  function glWipe() {
+    for (const [wk, L] of Object.entries(tour.gl)) {
+      if (L.done) continue;
+      L.done = true;
+      for (const uid of Object.keys(L.entrants)) d.gram.giveBack(uid, L.entrants[uid].parts, `Обнуление игры: GRAM-лига ${wk} отменена — взнос возвращён`);
+    }
+    saveTour();
+  }
+  return { join, leave, info, tourInfo, addPoints, sameTeam, holdsDeath, matches, MODES, glJoin, settle, glOwed, glWipe };
 };

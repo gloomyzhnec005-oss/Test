@@ -1185,8 +1185,9 @@
         const bs = d.boss ? (d.boss.alive ? '👑 здесь!' : d.boss.in < 36e5 ? `👑 ${mins(d.boss.in)} мин` : `👑 в ${at(d.boss.at)}`) : '';
         if (d.pk) { // опасный данж: игроков не видно, коротко — сколько полубоссов и боссов живы
           const L = d.minis || [], boss = L.filter((m) => m.name.startsWith('👑')), mini = L.filter((m) => !m.name.startsWith('👑'));
-          b.textContent = `☠️ PvP · ⭐ ${mini.filter((m) => m.alive).length}/${mini.length} · 👑 ${boss.filter((m) => m.alive).length}/${boss.length}`;
-        } else b.textContent = `👥 ${d.online} · ${mi} · ${bs}`;
+          b.dataset.pkBase = `☠️ PvP · ⭐ ${mini.filter((m) => m.alive).length}/${mini.length} · 👑 ${boss.filter((m) => m.alive).length}/${boss.length}`;
+          b.textContent = b.dataset.pkBase + (b.dataset.sackTxt ? ` · ${b.dataset.sackTxt}` : ''); // мешок добычи — в той же строке
+        } else { b.dataset.pkBase = ''; b.textContent = `👥 ${d.online} · ${mi} · ${bs}`; }
         b.classList.remove('hidden');
       });
       // Арена: очередь, ход боя и итог
@@ -1221,9 +1222,11 @@
       // Опасный данж: мешок добычи (вещи и материалы, добытые здесь; при гибели часть выпадет)
       socket.on('sack', (d) => {
         const b = $('waveBadge');
+        b.dataset.sackTxt = d ? `🎒 Мешок: ${d.items} вещ. · ${d.mats} мат.` : '';
+        if (b.dataset.pkBase) { b.textContent = b.dataset.pkBase + (b.dataset.sackTxt ? ` · ${b.dataset.sackTxt}` : ''); return; } // строка опасного данжа + мешок
         if (!d) { if (b.dataset.sack) { b.classList.add('hidden'); delete b.dataset.sack; } return; }
         b.dataset.sack = '1'; b.classList.remove('warn');
-        b.textContent = `🎒 Мешок: ${d.items} вещ. · ${d.mats} мат.`;
+        b.textContent = b.dataset.sackTxt;
         b.classList.remove('hidden');
       });
       socket.on('survival', (d) => {

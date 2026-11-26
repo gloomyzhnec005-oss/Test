@@ -94,8 +94,9 @@ module.exports = function createCastle(dep) {
     if (run || Date.now() > start - SIEGE.regCloseMin * 60e3) return { error: 'Заявки на эту осаду закрыты' };
     if (st[t].reg.length >= SIEGE.maxAtk) return { error: `На этот замок уже ${SIEGE.maxAtk} заявок` };
     const nano = feeNano(t);
-    if (!Trade.spendGram(p.uid, nano, `Взнос за осаду замка ${world.byId.get(t).name}`)) return { error: `Не хватает GRAM: взнос ${fmt(nano)}` };
-    st[t].reg.push({ clan: cl.id, at: Date.now() }); save();
+    const parts = Trade.spendGram(p.uid, nano, `Взнос за осаду замка ${world.byId.get(t).name}`);
+    if (!parts) return { error: `Не хватает GRAM: взнос ${fmt(nano)}` };
+    st[t].reg.push({ clan: cl.id, at: Date.now(), by: p.uid, parts }); save(); // parts — чтобы вернуть взнос при обнулении
     for (const u of cl.members) notifyUid(u, `🏰 Клан подал заявку на осаду замка ${world.byId.get(t).name} — суббота, 20:00 МСК. Ваш ход — ${st[t].reg.length}-й`);
     return { toast: `🏰 Заявка подана: ${world.byId.get(t).name}, ход ${st[t].reg.length}` };
   }
@@ -261,5 +262,17 @@ module.exports = function createCastle(dep) {
     return { error: 'Неизвестное действие' };
   }
   setInterval(() => { try { tick(); } catch (e) { console.error('castle tick', e); } }, 1000);
-  return { act, onDeal, crystalK, crystalDown, onDeath, sameSide, sideOf, liab, startSiege, SIEGE, st, isCastle: (zid) => !!(zid && zid.startsWith('castle_')) };
+  // Обнуление игры: казну раздать клану-владельцу (как в субботу), заявки снять со взносом обратно, замки — ничьи
+  function wipe(keep) {
+    for (const t of TOWNS) {
+      const c = st[t];
+      try { payout(t); } catch (e) { console.error('castle wipe payout', e); }
+      for (const r of c.reg) if (r.by && r.parts) Trade.giveBack(r.by, r.parts, `Обнуление игры: заявка на осаду замка ${world.byId.get(t).name} снята — взнос возвращён`);
+      c.reg = [];
+      const cl = c.owner && clans()[c.owner];
+      if (!cl || !cl.members.some((u) => keep.has(u))) { c.owner = null; c.since = 0; }
+    }
+    run = null; save();
+  }
+  return { wipe, act, onDeal, crystalK, crystalDown, onDeath, sameSide, sideOf, liab, startSiege, SIEGE, st, isCastle: (zid) => !!(zid && zid.startsWith('castle_')) };
 };
