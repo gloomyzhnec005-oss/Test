@@ -296,6 +296,7 @@
   });
   let passReadyN = 0; // сколько наград сезона можно забрать
   function setStats(s) {
+    if (s.zc !== undefined) window.ZBT_CREDIT = s.zc; // кредит ЗБТ — для оплаты в магазине
     if (s.passReady !== undefined) { passReadyN = s.passReady; const pb = document.querySelector('[data-nav="play"]'); if (pb) pb.classList.toggle('pass-ready', passReadyN > 0); }
     if (s.fx) { const now = Date.now(); fxList = s.fx.map((e) => ({ ...e, end: e.l > 0 ? now + e.l * 1000 : 0 })); drawFx(); }
     if (s.passTier !== undefined) passTier = s.passTier;
@@ -947,10 +948,12 @@
         const box = document.createElement('div');
         box.innerHTML = `<p class="sheet-hint">Спасибо, что тестируете игру! Перед релизом мир обнулится, а участники ЗБТ получат подарки.</p>
           <div class="tw-banner pass"><b>🎖️ Ветеран ЗБТ</b><small>Рамка, титул и ${r.vetGems} 💎 за ваш уровень на ЗБТ (${r.lvl}). Больше уровень — больше самоцветов: до 10 — 50, 10 — 100, 20 — 150, 30 — 250, 40 — 350, 50 — 500</small></div>
-          ${r.stars ? `<div class="ic-sec">Ваши вложения: ${r.stars} ⭐</div>
-            <div class="tw-ev ${r.choice === 'keep' ? 'new' : ''}"><div><b>💎 Оставить в игре</b><small>После релиза — ${r.keepGems} 💎 (в 1,5 раза больше вложенного)</small></div>${r.released ? '' : `<button class="l2-btn sm ${r.choice === 'keep' ? 'on' : ''}" data-c="keep">${r.choice === 'keep' ? '✓ Выбрано' : 'Выбрать'}</button>`}</div>
-            <div class="tw-ev ${r.choice === 'refund' ? 'new' : ''}"><div><b>↩️ Вернуть звёзды</b><small>Звёзды вернутся на ваш счёт Telegram, самоцветы за них не начисляются</small></div>${r.released ? '' : `<button class="l2-btn sm ${r.choice === 'refund' ? 'on' : ''}" data-c="refund">${r.choice === 'refund' ? '✓ Выбрано' : 'Выбрать'}</button>`}</div>
-            ${r.released ? '<small>Релиз состоялся — выбор закрыт</small>' : '<small>Выбор можно менять до релиза</small>'}` : ''}`;
+          ${r.stars || r.gramStars ? `<div class="ic-sec">Ваши вложения на ЗБТ</div>
+            <div class="pd-power"><span>⭐ звёзды и TON: <b>${r.stars}</b></span><span>💠 GRAM в игре: <b>≈ ${r.gramStars} ⭐</b></span></div>
+            <div class="tw-banner pass"><b>🎟️ Кредит ЗБТ: ${r.gifted ? `осталось ${r.credit} ⭐ из ${r.creditGot}` : `${r.credit} ⭐ после релиза`}</b><small>Все ваши вложения ×1,5. Платите кредитом за любые покупки у игры — в магазине (ордена, ларцы, эликсиры, самоцветы, сумки, склад) и на Рынке. Не работает только в Торговом доме: вещи других игроков — за GRAM. Кончится кредит — оплата как у всех.</small></div>
+            ${r.stars ? `<div class="tw-ev ${r.choice === 'keep' ? 'new' : ''}"><div><b>🎟️ Оставить в игре</b><small>Звёзды войдут в кредит ×1,5</small></div>${r.released ? '' : `<button class="l2-btn sm ${r.choice === 'keep' ? 'on' : ''}" data-c="keep">${r.choice === 'keep' ? '✓ Выбрано' : 'Выбрать'}</button>`}</div>
+            <div class="tw-ev ${r.choice === 'refund' ? 'new' : ''}"><div><b>↩️ Вернуть звёзды</b><small>Звёзды вернутся на счёт Telegram и в кредит не войдут</small></div>${r.released ? '' : `<button class="l2-btn sm ${r.choice === 'refund' ? 'on' : ''}" data-c="refund">${r.choice === 'refund' ? '✓ Выбрано' : 'Выбрать'}</button>`}</div>` : ''}
+            ${r.released ? '<small>Релиз состоялся — выбор закрыт</small>' : '<small>Выбор можно менять до релиза. Донат до релиза тоже войдёт в кредит ×1,5</small>'}` : ''}`;
         box.onclick = async (e) => { const b = e.target.closest('[data-c]'); if (!b) return; const x = await Bag.act('zbtChoice', { choice: b.dataset.c }); if (x.error) Town.toast(x.error); Town.close(); openZbt(); };
         Town.open('🎖️ Наследие ЗБТ', box);
       };
@@ -1413,7 +1416,7 @@
               ['events', 'Награда за вход', 'Каждый день, 7 дней подряд', () => Town.openPlace('login')],
               ['pass', 'Сезонные ордена', 'Награды сезона и бонусы', () => Town.openPlace('pass')],
               ['party', 'Пригласить друга', 'Подарки и вам, и другу', () => openInvite()],
-              ...((window.GameLinks || {}).zbt ? [['pass', 'Наследие ЗБТ', 'Подарок ветерана и ваши вложения', () => openZbt()]] : []),
+              ...((window.GameLinks || {}).zbt || (window.ZBT_CREDIT || 0) > 0 ? [['pass', 'Наследие ЗБТ', 'Подарок ветерана и кредит ЗБТ', () => openZbt()]] : []),
             ]],
             ['💬 Общение', [
               ['events', 'Почта', 'Письма и посылки игрокам', () => openMail()],

@@ -93,9 +93,11 @@ window.Pay = (() => {
     return new Promise((res) => {
       const m = document.createElement('div');
       m.className = 'pay-modal';
+      const cr = Math.floor(window.ZBT_CREDIT || 0); // кредит ЗБТ (вложения тестеров ×1,5) — третьим способом, пока есть
       m.innerHTML = `<div class="pay-box"><b class="pay-title"></b><small>Выберите способ оплаты</small>
+        ${cr > 0 ? `<button class="l2-btn pay-opt zbt" data-m="zbt" ${cr < stars ? 'disabled' : ''}>🎟️ Кредит ЗБТ · ${stars} ⭐ <small>(осталось ${cr})</small></button>` : ''}
         <button class="l2-btn pay-opt" data-m="stars">⭐ Telegram Stars · ${stars}</button>
-        <button class="l2-btn pay-opt ton" data-m="ton">💎 GRAM · ${ton}</button>
+        ${ton ? `<button class="l2-btn pay-opt ton" data-m="ton">💎 GRAM · ${ton}</button>` : ''}
         <div class="pay-wallet hidden"><span></span><button data-m="switch">Сменить кошелёк</button></div>
         <button class="pay-cancel" data-m="">Отмена</button></div>`;
       m.querySelector('.pay-title').textContent = title;
@@ -133,10 +135,16 @@ window.Pay = (() => {
     if (!(await zbtOk())) return;
     giftTo = to || null;
     const ti = await tonInfo();
-    if (!ti.enabled) return payStars(item, bgId, onPaid, toast);
+    const cr = !giftTo && (window.ZBT_CREDIT || 0) > 0; // кредитом ЗБТ — только себе
+    if (!ti.enabled && !cr) return payStars(item, bgId, onPaid, toast);
     const q = await api('/api/ton/quote', { item, bgId, to: giftTo });
-    if (!q.ok) return payStars(item, bgId, onPaid, toast); // TON для этого товара недоступен — обычная оплата
-    const how = await choose(q.data.title, q.data.stars, q.data.ton);
+    if (!q.ok && !cr) return payStars(item, bgId, onPaid, toast); // TON для этого товара недоступен — обычная оплата
+    const how = await choose(q.ok ? q.data.title : 'Покупка', q.ok ? q.data.stars : 0, ti.enabled && q.ok ? q.data.ton : null);
+    if (how === 'zbt') {
+      const r = await new Promise((ok) => window.gameScene ? window.gameScene.net.emit('act', { op: 'zbtPay', item, bgId }, ok) : ok({ error: 'Войдите в игру, чтобы оплатить кредитом ЗБТ' }));
+      if (r.credit !== undefined) window.ZBT_CREDIT = r.credit;
+      toast(r.error || r.toast); if (!r.error && onPaid) onPaid(); return;
+    }
     if (how === 'stars') return payStars(item, bgId, onPaid, toast);
     if (how === 'ton') return payTon(item, bgId, onPaid, toast);
     if (how === 'switch') { // отключить прошлый кошелёк и сразу оплатить новым

@@ -126,9 +126,16 @@ module.exports = function createTrade(deps) {
     note(uid, kind, a, text, wdBack);
   }
   // Списать: сначала пополненные, затем ещё удерживаемые продажи, затем доступные к выводу
+  // Кредит ЗБТ (pr.zbtCredit, в ⭐): вложения тестеров ×1,5 после релиза. Покупки у игры (kind 'shop': Рынок, тираж,
+  // внешний вид, почта, взнос осады) сначала оплачиваются им; Торговый дом, заявки, турнир и вывод — только GRAM
   function spend(uid, a, kind, text) {
     const pr = getProfile(uid), g = G(pr), b = bal(pr);
-    if (b.total < a) return false;
+    const per = rate() * NANO;
+    const credit = kind === 'shop' && (pr.zbtCredit || 0) > 0 && per > 0 ? Math.min(a, Math.floor(pr.zbtCredit * per)) : 0;
+    if (b.total < a - credit) return false;
+    if (credit) pr.zbtCredit = Math.max(0, Math.round((pr.zbtCredit - credit / per) * 100) / 100);
+    a -= credit;
+    if (!a) { note(uid, kind, 0, `${text} · оплачено кредитом ЗБТ (${fmt(credit)} GRAM)`); return { dep: 0, earn: [], credit }; }
     if (!['admin', 'escrow', 'tour'].includes(kind) && deps.quest) try { deps.quest(uid, 'purchase', 1); } catch { /* задание — не главное */ } // покупка за GRAM — «Покровитель» (заявка — при исполнении)
     let left = a;
     const take = Math.min(g.dep, left); g.dep -= take; left -= take;
@@ -137,7 +144,8 @@ module.exports = function createTrade(deps) {
     g.earn.sort((x, y) => (x.at <= t) - (y.at <= t) || y.at - x.at); // сначала удерживаемые (новые первыми), потом созревшие
     for (const c of g.earn) { if (!left) break; const k = Math.min(c.a, left); c.a -= k; left -= k; parts.earn.push({ a: k, at: c.at }); }
     g.earn = g.earn.filter((c) => c.a > 0);
-    note(uid, kind, -a, text);
+    note(uid, kind, -a, credit ? `${text} · ещё ${fmt(credit)} GRAM — кредитом ЗБТ` : text);
+    parts.credit = credit;
     return parts;
   }
   // Покупка за GRAM принесла игре доход house (вся цена на Рынке, комиссия в Торговом доме) — для реферальной доли
@@ -271,6 +279,7 @@ module.exports = function createTrade(deps) {
         wLevel: CFG.wLevel, wAgeDays: CFG.wAgeDays, level: tw ? Math.max(CFG.wLevel, maxLevel(pr)) : maxLevel(pr), ageDays: tw ? Math.max(CFG.wAgeDays, Math.floor((now() - (pr.created || now())) / 864e5)) : Math.floor((now() - (pr.created || now())) / 864e5),
         order: o ? { ...o, until: deps.passEnds ? (deps.passTier(pr) >= 5 ? deps.passEnds() : pr.tOrder.until) : 0 } : null, wd: mine,
         orders: deps.passOrders ? deps.passOrders(pr).map((x) => ({ ...x, gram: gramOf(x.cost) })) : [],
+        zbtCredit: pr.zbtCredit || 0, zbtCreditGram: toNano(gramOf(pr.zbtCredit || 0)),
       } };
     },
     // Поиск получателя подарка или перевода: по нику (от 2 букв) или ID вида tg123…
@@ -336,9 +345,10 @@ module.exports = function createTrade(deps) {
       const price = shopPrice(cat, rar, tier, set);
       const it = I.createItem(cat, rar, tier, tpl);
       const name = I.itemView(it).name;
-      if (!spend(p.uid, price, 'shop', `Рынок: ${name}`)) return { error: `Нужно ${fmt(price)} GRAM — пополните баланс`, needGram: true };
+      const paid = spend(p.uid, price, 'shop', `Рынок: ${name}`);
+      if (!paid) return { error: `Нужно ${fmt(price)} GRAM — пополните баланс`, needGram: true };
       I.addItem(pr, it, bagSize(pr), false);
-      onHouse(p.uid, price, price); // вся цена — доход игры
+      onHouse(p.uid, price, price - (paid.credit || 0)); // вся цена — доход игры (часть, оплаченная кредитом ЗБТ, — не доход)
       save();
       return { toast: `Куплено: ${name} за ${fmt(price)} GRAM`, refresh: true };
     },
@@ -362,10 +372,11 @@ module.exports = function createTrade(deps) {
       const it = I.createItem(cat, 'mythic', tier, (fit.length ? fit : tpls)[Math.floor(Math.random() * (fit.length || tpls.length))], cls);
       it.ltd = { id: L.id, name: L.name, n: sold + 1, of: L.of };
       const name = I.itemView(it).name;
-      if (!spend(p.uid, price, 'shop', `Рынок: ${name}`)) return { error: `Нужно ${fmt(price)} GRAM — пополните баланс`, needGram: true };
+      const paid = spend(p.uid, price, 'shop', `Рынок: ${name}`);
+      if (!paid) return { error: `Нужно ${fmt(price)} GRAM — пополните баланс`, needGram: true };
       st.ltd[L.id] = sold + 1; pr.ltdBuys[L.id] = (pr.ltdBuys[L.id] || 0) + 1;
       I.addItem(pr, it, bagSize(pr), false);
-      onHouse(p.uid, price, price);
+      onHouse(p.uid, price, price - (paid.credit || 0));
       save();
       if (deps.broadcast && (sold + 1) % 10 === 0) deps.broadcast(`⭐ Тираж «${L.name}»: продано ${sold + 1} из ${L.of}`);
       return { toast: `Куплено: ${name}`, refresh: true };
@@ -652,7 +663,7 @@ module.exports = function createTrade(deps) {
   }
 
   // Списать GRAM за покупку вне торговли (внешний вид): сначала пополненные, затем деньги с продаж
-  const spendGram = (uid, nano, text) => { const ok = spend(uid, nano, 'shop', text); if (ok) { onHouse(uid, nano, nano); save(); } return ok; };
+  const spendGram = (uid, nano, text) => { const ok = spend(uid, nano, 'shop', text); if (ok) { onHouse(uid, nano, nano - (ok.credit || 0)); save(); } return ok; };
   // Начислить игроку GRAM (реферальная доля, призы): к выводу — через срок удержания, как деньги с продаж
   // Взнос (турнир): списать с возможностью вернуть туда же (parts) — без реферальной доли и заданий
   const take = (uid, nano, text) => { const parts = spend(uid, nano, 'tour', text); if (parts) save(); return parts; };
