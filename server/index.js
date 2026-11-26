@@ -2031,8 +2031,8 @@ function leaveParty(p) {
 // ---------- Опасный данж: PvP с выпадением вещей ----------
 // Белый (мирный) → напал на белого → розовый на 35 с (после последнего удара). Убил белого → красный (карма):
 // 30 мин за каждое убийство, до 3 ч; карма уходит только пока герой в игре (выйти и переждать нельзя).
-// Выпадение при гибели от игрока: с белого — 25% шанс 1 вещь из сумки, с розового — 50% шанс 2 вещи из сумки,
-// с красного — всегда 3 надетые вещи. Вещи достаются убийце. Привязанные (мифические) не выпадают. Группа друг друга не бьёт
+// Выпадение при гибели от игрока: с белого — 25% вещей из сумки, с розового — 50% из сумки (надетое у них не падает),
+// с красного — вся сумка и 1 надетая вещь. Вещи достаются убийце. Привязанные (мифические) не выпадают. Группа друг друга не бьёт
 const PK = { flagMs: 60e3, redMs: 30 * 60e3, redMax: 3 * 36e5 };
 const pkState = (p) => ((getProfile(p.uid).karma || 0) > 0 ? 'red' : (p.pkFlagUntil || 0) > Date.now() ? 'pink' : 'white');
 function pkOnHit(p, victim) {
@@ -2040,7 +2040,7 @@ function pkOnHit(p, victim) {
   if (pkState(victim) === 'white' && pkState(p) !== 'red') {
     const was = (p.pkFlagUntil || 0) > Date.now();
     p.pkFlagUntil = Date.now() + PK.flagMs; markDirty(p);
-    if (!was) p.socket.emit('skillFail', '🩷 Вы напали на мирного игрока — 60 с вы «розовый»: вас можно бить без кармы, телепорт и выход из данжа закрыты; при гибели выпадает половина сумки и 2 надетые вещи');
+    if (!was) p.socket.emit('skillFail', '🩷 Вы напали на мирного игрока — 60 с вы «розовый»: вас можно бить без кармы, телепорт и выход из данжа закрыты; при гибели выпадает половина сумки');
   }
 }
 function pkOnKill(victim) {
@@ -2051,7 +2051,7 @@ function pkOnKill(victim) {
   if (vs === 'white') { // убил мирного — карма
     const was = (kpr.karma || 0) > 0;
     kpr.karma = Math.min(PK.redMax, (kpr.karma || 0) + PK.redMs); kpr.pkZone = killer.zone; markDirty(killer);
-    killer.socket.emit('chat', { sys: true, text: `🩸 Вы убили мирного игрока — вы «красный» ещё ${Math.ceil(kpr.karma / 60000)} мин (уходит, только пока вы в игре). При гибели теряете 3 надетые вещи!` });
+    killer.socket.emit('chat', { sys: true, text: `🩸 Вы убили мирного игрока — вы «красный» ещё ${Math.ceil(kpr.karma / 60000)} мин (уходит, только пока вы в игре). При гибели теряете всю сумку и 1 надетую вещь!` });
     if (!was) evCast({ ev: 'boss', text: `🩸 ${killer.name} стал убийцей в опасном данже — его можно наказать!` });
   }
   const lost = pkDrop(victim, vs, killer);
@@ -2079,9 +2079,9 @@ setInterval(() => {
   }
 }, 3000);
 // Выпадение (вещи падают на землю у тела, лежат 30 мин; 60 с подобрать может только убийца, потом — любой):
-// белый — 25% вещей из сумки и 1 надетая; розовый — 50% из сумки и 2 надетые; красный — вся сумка и 3 надетые.
+// белый — 25% вещей из сумки, надетое не падает; розовый — 50% из сумки, надетое не падает; красный — вся сумка и 1 надетая.
 // Привязанные (мифические) и сумки не выпадают
-const PK_DROP = { white: [0.25, 1], pink: [0.5, 2], red: [1, 3] };
+const PK_DROP = { white: [0.25, 0], pink: [0.5, 0], red: [1, 1] };
 const groundLoot = new Map();
 let groundSeq = 1;
 const TROPHY_MS = 7 * 864e5;
@@ -2132,8 +2132,8 @@ function pickupGround(p, id) {
   const pr = getProfile(p.uid);
   if ((pr.items || []).filter((i) => i.loc !== 'wh').length >= meta.bagSize(pr)) return { error: 'Сумка полна — освободите место' };
   groundLoot.delete(id);
-  // Чужая вещь с земли — «трофей»: 7 дней её нельзя продать, отправить почтой, положить в хранилище клана и она не выпадает снова
-  if (g.from && g.from !== p.uid) g.item.trophy = Date.now() + TROPHY_MS; else delete g.item.trophy;
+  // Чужая вещь с земли — «трофей»: 7 дней её нельзя отправить почтой, положить в хранилище клана и она не выпадает снова
+  if (g.from && g.from !== p.uid) g.item.trophy = Date.now() + TROPHY_MS; else delete g.item.trophy; // продавать в Торговом доме — можно
   g.item.loc = 'bag'; pr.items.push(g.item);
   const v = I.itemView(g.item);
   fx.push({ t: 'loot', x: g.x, y: g.y, to: p.id, name: `${v.icon} ${v.name}`, color: v.color });
