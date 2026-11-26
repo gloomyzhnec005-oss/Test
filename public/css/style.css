@@ -1647,3 +1647,8 @@ canvas.skin { object-fit: contain; }
 .sh-row .cr-need { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 8px; }
 .sh-slot { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .sh-cls { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.up-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.up-head .up-cell { width: 56px; flex: none; }
+.up-head b { display: block; font-size: 15px; }
+.up-head small { color: #c9b48a; font-size: 12px; }

@@ -179,24 +179,8 @@ window.Bag = (() => {
     if (ctx.town && !isEquipped(it)) {
       acts.push([`Продать торговцу · ${it.sell} 💰`, () => run('sell', { id: it.id }, ctx.after), 'warn']);
     }
-    // Кузница: улучшить редкость (100%) или сделать вещью комплекта по чертежу — варианты с ценой
-    if (ctx.town && it.cat !== 'rune' && it.cat !== 'bag') acts.push(['⚒️ Улучшить', async () => {
-      const r = await act('craftInfo', { id: it.id });
-      if (r.error) { toast(r.error); return false; }
-      const cost = (c) => Object.keys(c.need).map((k) => `${c.names[k]} ${c.have[k]}/${c.need[k]}`).join(', ') + ` · ${c.gold.toLocaleString('ru-RU')} 💰`;
-      const opts = [];
-      if (r.up) opts.push([`⬆️ Улучшить до «${r.up.nextName}» · ${r.up.gold.toLocaleString('ru-RU')} 💰`, () => {
-        if (!confirm(`Улучшить «${it.name}» до редкости «${r.up.nextName}»?\nНужно: ${cost(r.up)}\nУспех — 100%, случайные свойства выпадут заново.${it.bound ? '\nВещь останется личной.' : ''}`)) return false;
-        return run('upgrade', { id: it.id }, ctx.after);
-      }]);
-      for (const s of r.sets || []) opts.push([`🗺️ Комплект «${s.name}» · ${s.gold.toLocaleString('ru-RU')} 💰`, () => {
-        if (!confirm(`Сделать «${it.name}» вещью комплекта «${s.name}»?\nНужно: ${cost(s)}\nСлот, редкость и свойства сохранятся.`)) return false;
-        return run('setCraft', { id: it.id, bp: s.bp }, ctx.after);
-      }]);
-      if (!opts.length) { toast(it.rar === 'mythic' ? 'Выше мифической редкости нет' : it.rar === 'legendary' && it.tier < 2 ? 'Мифические вещи куются только из вещей второго и третьего мира' : 'Эту вещь улучшить нельзя'); return false; }
-      setTimeout(() => card(it, opts), 0);
-      return false;
-    }]);
+    // Кузница: улучшить редкость или сделать вещью комплекта — во вкладке «Улучшение» с этой вещью
+    if (ctx.town && it.cat !== 'rune' && it.cat !== 'bag') acts.push(['⚒️ Улучшить в кузнице', () => { setTimeout(() => Town.openPlace('smith', it.id), 50); }]);
     return acts;
   }
 

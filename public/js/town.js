@@ -991,6 +991,43 @@ window.Town = (() => {
     box.append(gridWrap, foot); draw(); quote();
     return box;
   }
+  // Улучшение вещи: выбрать вещь → следующая редкость (успех 100%) или вещь комплекта по чертежу
+  let upSel = null;
+  async function upgradeBody(itemId) {
+    const inv = await Bag.refresh();
+    const items = inv.items.filter((i) => i.loc !== 'wh' && i.cat !== 'rune' && i.cat !== 'bag');
+    if (itemId) upSel = itemId;
+    const box = document.createElement('div');
+    box.innerHTML = '<p class="sheet-hint">Выберите вещь: поднимите её редкость (успех 100%, случайные свойства выпадут заново) или, если есть чертёж комплекта этого мира, сделайте её вещью комплекта. Личная вещь после улучшения остаётся личной.</p>';
+    if (!items.length) { box.insertAdjacentHTML('beforeend', soon('Нет вещей для улучшения')); return box; }
+    let it = items.find((i) => i.id === upSel);
+    if (!it) { it = items.find((i) => Bag.isEquipped(i)) || items[0]; upSel = it.id; }
+    const reload = async () => box.replaceWith(await upgradeBody());
+    const r = await Bag.act('craftInfo', { id: it.id });
+    const need = (cells, gold) => cells.map((m) => `<div class="cr-slot ${m.have >= m.need ? 'ok' : 'no'}"><div class="cr-cell">${Bag.cell({ ...m, n: 1 })}</div><small>${m.name} <b>${m.have}/${m.need}</b></small></div>`).join('')
+      + `<div class="cr-slot ${inv.gold >= gold ? 'ok' : 'no'}"><div class="cr-cell"><button class="it" style="--rc:#d4a63c"><span><img class="it-art" src="assets/ui/ic_coin.webp" alt=""></span></button></div><small>Золото <b>${gold.toLocaleString('ru-RU')}</b></small></div>`;
+    const panel = document.createElement('div');
+    if (r.error) panel.innerHTML = soon(r.error);
+    else {
+      const up = r.up;
+      panel.innerHTML = `<div class="sh-row"><div class="up-head"><div class="up-cell">${Bag.cell(it)}</div><div><b style="color:${it.color}">${it.name}</b><small>${it.rarName}</small></div></div>
+        ${up ? `<div class="ic-sec">⬆️ → <b style="color:${up.nextColor}">${up.nextName}</b> · успех 100%</div><div class="cr-need">${need(up.cells, up.gold)}</div>
+          <button type="button" class="l2-btn wide" data-up="1" ${up.cells.every((m) => m.have >= m.need) && inv.gold >= up.gold ? '' : 'disabled'}>⬆️ Улучшить до «${up.nextName}»</button>` : `<p class="sheet-hint">${r.why}</p>`}</div>
+        ${(r.sets || []).map((s, i) => `<div class="sh-row"><div class="ic-sec">🗺️ ${s.name} · слот, редкость и свойства сохранятся</div><div class="cr-need">${need(s.cells, s.gold)}</div>
+          <button type="button" class="l2-btn wide" data-set="${i}" ${s.cells.every((m) => m.have >= m.need) && inv.gold >= s.gold ? '' : 'disabled'}>🗺️ Сделать вещью комплекта</button></div>`).join('')}`;
+      panel.onclick = async (e) => {
+        const b = e.target.closest('button[data-up], button[data-set]'); if (!b || b.disabled) return;
+        const res = b.dataset.up ? await Bag.act('upgrade', { id: it.id }) : await Bag.act('setCraft', { id: it.id, bp: r.sets[+b.dataset.set].bp });
+        toast(res.error || res.toast);
+        if (!res.error && window.Sfx) Sfx.play('reward');
+        reload();
+      };
+    }
+    box.append(panel);
+    box.insertAdjacentHTML('beforeend', '<div class="ic-sec">Ваши вещи</div>');
+    box.append(Bag.grid(items, (x) => { upSel = x.id; reload(); }, { selected: new Set([it.id]) }));
+    return box;
+  }
   // Ковка из осколков: осколки остаются от разбора эпических и лучших вещей; новая вещь — любого слота и класса, свободная
   let shSel = { cls: null, slot: 'weapon' };
   async function shardBody() {
@@ -1039,10 +1076,8 @@ window.Town = (() => {
     return box;
   }
   function smithPanel(itemId) {
-    // Из карточки вещи «В кузницу» — сразу рецепт для этой вещи
-    const it = itemId && Bag.inv() && Bag.inv().items.find((i) => i.id === itemId);
-    const rid = it && it.cat !== 'rune' ? `w${ctx.zone.tier}_${it.cat}` : null;
-    open('🔨 Кузница', tabs([['Рецепты', () => craftBody(ctx.zone.tier, rid, itemId)], ['🔮 Из осколков', shardBody], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Разбор', () => salvageBody()], ['🔧 Ремонт', repairBody], ['Лавка кузнеца', () => shopList('smith')]]));
+    // Из карточки вещи «⚒️ Улучшить» — сразу вкладка улучшения с этой вещью
+    open('🔨 Кузница', tabs([['⬆️ Улучшение', () => upgradeBody(itemId)], ['Реликвии', () => craftBody(ctx.zone.tier)], ['🔮 Из осколков', shardBody], ['Соединение 5 → 1', () => Bag.mergeTab()], ['Разбор', () => salvageBody()], ['🔧 Ремонт', repairBody], ['Лавка кузнеца', () => shopList('smith')]]));
   }
 
   // ---------- Награда за вход: 7 дней подряд ----------

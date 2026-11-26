@@ -646,8 +646,10 @@ module.exports = function createMeta(deps) {
       const up = I.upgradeCost(it);
       const bps = Object.keys(pr.mats || {}).filter((m) => I.MATS[m] && I.MATS[m].kind === 'blueprint' && I.MATS[m].tier === it.tier);
       const canSet = it.cat !== 'rune' && I.RARITY_ORDER.indexOf(it.rar) >= 2 && !I.setIdOf(it);
-      return { up: up && { ...up, nextName: I.ITEM_RARITIES[up.next].name, have: Object.fromEntries(Object.keys(up.need).map((k) => [k, (pr.mats || {})[k] || 0])), names: Object.fromEntries(Object.keys(up.need).map((k) => [k, matName(k, 1)])) },
-        sets: canSet ? bps.map((bp) => { const c = I.setCraftCost(it, I.MATS[bp].set); return { bp, name: I.SETS[I.MATS[bp].set].name, ...c, have: Object.fromEntries(Object.keys(c.need).map((k) => [k, (pr.mats || {})[k] || 0])), names: Object.fromEntries(Object.keys(c.need).map((k) => [k, matName(k, 1)])) }; }) : [],
+      const cells = (need) => Object.entries(need).map(([k, n]) => ({ ...I.matView(k, n), need: n, have: (pr.mats || {})[k] || 0 }));
+      const why = !up ? (it.rar === 'mythic' ? 'Выше мифической редкости нет' : it.rar === 'legendary' && it.tier < 2 ? 'Мифические вещи куются только из вещей второго и третьего мира' : 'Эту вещь улучшить нельзя') : '';
+      return { why, up: up && { ...up, cells: cells(up.need), nextName: I.ITEM_RARITIES[up.next].name, nextColor: I.ITEM_RARITIES[up.next].color, have: Object.fromEntries(Object.keys(up.need).map((k) => [k, (pr.mats || {})[k] || 0])), names: Object.fromEntries(Object.keys(up.need).map((k) => [k, matName(k, 1)])) },
+        sets: canSet ? bps.map((bp) => { const c = I.setCraftCost(it, I.MATS[bp].set); return { bp, name: I.SETS[I.MATS[bp].set].name, ...c, cells: cells(c.need), have: Object.fromEntries(Object.keys(c.need).map((k) => [k, (pr.mats || {})[k] || 0])), names: Object.fromEntries(Object.keys(c.need).map((k) => [k, matName(k, 1)])) }; }) : [],
         salvage: Object.entries(I.salvage({ ...it, rar: it.rar })).map(([k, n]) => matName(k, n)).join(', ') };
     },
     upgrade(p, d, pr) {
