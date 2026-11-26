@@ -1831,7 +1831,7 @@ function hurtPlayer(target, raw, m, now, viaVow = false) {
     if (isPkZone(target.zone)) { // опасный данж: выпадение вещей и карма
       const byPlayer = Date.now() - (target.lastPvpAt || 0) < 8000 && players.get(target.lastPvpBy);
       if (byPlayer) pkOnKill(target);
-      else if (pkState(target) === 'red') { const lost = pkDrop(target, 'red', null); if (lost.length) target.socket.emit('chat', { sys: true, text: `💀 Красный погиб — на землю выпало: ${lost.join(', ')}. Вещи лежат 30 минут` }); }
+      else if (pkState(target) === 'red') { karmaDeath(target, 1 / 3); const lost = pkDrop(target, 'red', null); if (lost.length) target.socket.emit('chat', { sys: true, text: `💀 Красный погиб — на землю выпало: ${lost.join(', ')}. Вещи лежат 30 минут` }); }
     }
     if (zKind !== 'pvp' && zKind !== 'survival' && !target.match) deathPenalty(target);
     // Гибель союзника рядом усиливает Талмиру
@@ -1929,6 +1929,7 @@ function setAutofarm(p, on) {
     if (afUsed(pr) >= lim) return `Автобой на сегодня закончился (${lim / 60e3} мин). Больше времени — с сезонным орденом`;
   }
   if (on && (world.byId.get(p.zone) || {}).kind !== 'dungeon') return 'Автобой работает только в данжах';
+  if (on && (pr.karma || 0) > 0) return '🔴 Красному автобой недоступен — отмывайте карму сами';
   if (on && !p.autofarm) p.afTick = Date.now();
   p.autofarm = !!on;
   p.socket.emit('autofarm', p.autofarm);
@@ -2037,13 +2038,24 @@ function leaveParty(p) {
 // Выпадение при гибели от игрока: с белого — 25% вещей из сумки, с розового — 50% из сумки (надетое у них не падает),
 // с красного — вся сумка и 1 надетая вещь. Вещи достаются убийце. Привязанные (мифические) не выпадают. Группа друг друга не бьёт
 const PK = { flagMs: 60e3 };
-// Карма — очки, как в Lineage 2: убийство мирного даёт 40 + 20 × (сколько мирных вы уже убили) очков (не больше 1000 за раз).
+// Карма — очки, как в Lineage 2: убийство мирного (и розового — если убийца уже красный) даёт 60 + 30 × (прежние такие убийства),
+// не больше 1500 за раз. Смерть смывает часть: от игрока — карму одного убийства, от монстров — треть (друзья/клан/группа не смывают).
+// Автобой красному недоступен — отмывать монстрами только вручную. Пока красный — снимать и менять надетое нельзя.
 // Отмывается только монстрами: обычный −1, синий/жёлтый −2, полубосс −5, босс −15; монстры намного ниже уровнем (на 10+) не считаются.
 // Смерть карму не снимает (договориться «умирать друг от друга» бесполезно). Пока карма > 0 — «красный» и из опасного данжа не выйти
-const KARMA = { base: 40, perPk: 20, max: 1000, wash: { normal: 1, magic: 2, rare: 2, mini: 5, boss: 15, world: 15 } };
+const KARMA = { base: 60, perPk: 30, max: 1500, wash: { normal: 1, magic: 2, rare: 2, mini: 5, boss: 15, world: 15 } };
 const karmaAdd = (pr) => Math.min(KARMA.max, KARMA.base + KARMA.perPk * (pr.pkCount || 0));
 // Старая карма (миллисекунды) → очки: минута = очко
 setImmediate(() => { for (const pr of Object.values(profiles)) if (pr.karma > 0 && pr.karmaV !== 2) { pr.karma = Math.ceil(pr.karma / 60000); pr.karmaV = 2; } });
+// Смерть красного: k = 1 — от игрока (карма одного убийства), 1/3 — от монстров
+function karmaDeath(p, k) {
+  const pr = getProfile(p.uid);
+  if (!(pr.karma > 0)) return;
+  const v = Math.round((pr.karmaLast || Math.min(pr.karma, KARMA.base)) * k);
+  pr.karma = Math.max(0, pr.karma - v);
+  if (!pr.karma) { p.pkFlagUntil = Date.now() + PK.flagMs; p.socket.emit('chat', { sys: true, text: '🕊️ Карма очищена смертью — ещё 60 с вы «розовый», потом снова мирный' }); }
+  else p.socket.emit('chat', { sys: true, text: `🔴 Смерть смыла ${v} кармы — осталось ${pr.karma}` });
+}
 function karmaWash(p, m) {
   const pr = getProfile(p.uid);
   if (!(pr.karma > 0) || !m || m.pvpOf || (m.level || 1) < p.char.level - 10) return;
@@ -2055,10 +2067,11 @@ function karmaWash(p, m) {
 const pkState = (p) => ((getProfile(p.uid).karma || 0) > 0 ? 'red' : (p.pkFlagUntil || 0) > Date.now() ? 'pink' : 'white');
 function pkOnHit(p, victim) {
   if (!isPkZone(p.zone) || !isPkZone(victim.zone)) return;
-  if (pkState(victim) === 'white' && pkState(p) !== 'red') {
+  const vs = pkState(victim);
+  if ((vs === 'white' || vs === 'red') && pkState(p) !== 'red') { // напал на мирного или на красного — розовый
     const was = (p.pkFlagUntil || 0) > Date.now();
     p.pkFlagUntil = Date.now() + PK.flagMs; markDirty(p);
-    if (!was) p.socket.emit('skillFail', '🩷 Вы напали на мирного игрока — 60 с вы «розовый»: вас можно бить без кармы, телепорт и выход из данжа закрыты; при гибели выпадает половина сумки');
+    if (!was) p.socket.emit('skillFail', (vs === 'red' ? '🩷 Вы напали на красного' : '🩷 Вы напали на мирного игрока') + ' — 60 с вы «розовый»: вас можно бить без кармы, телепорт и выход из данжа закрыты; при гибели выпадает половина сумки');
   }
 }
 function pkOnKill(victim) {
@@ -2066,11 +2079,15 @@ function pkOnKill(victim) {
   if (!killer || killer === victim || !isPkZone(killer.zone)) return;
   const vs = pkState(victim) === 'red' ? 'red' : (victim.pkFlagUntil || 0) > Date.now() ? 'pink' : 'white';
   const kpr = getProfile(killer.uid), vpr = getProfile(victim.uid);
-  if (vs === 'white') { // убил мирного — карма
-    const was = (kpr.karma || 0) > 0;
+  const killerRed = (kpr.karma || 0) > 0;
+  // Карма красного, павшего от игрока, — минус одно убийство (не от друзей/клана/группы — иначе «отмывали» бы договорной смертью)
+  if (vs === 'red' && !pkFriends(killer, victim)) karmaDeath(victim, 1);
+  if (vs === 'white' || (vs === 'pink' && killerRed)) { // убил мирного (или красный убил розового) — карма
+    const was = killerRed;
     const add = karmaAdd(kpr);
-    kpr.karma = (kpr.karma || 0) + add; kpr.karmaV = 2; kpr.pkCount = (kpr.pkCount || 0) + 1; kpr.pkZone = killer.zone; markDirty(killer);
-    killer.socket.emit('chat', { sys: true, text: `🩸 Вы убили мирного игрока: карма +${add} (всего ${kpr.karma}, убийств мирных: ${kpr.pkCount}). Вы «красный»: из данжа не выйти, при гибели теряете всю сумку и 1 надетую вещь. Отмыть карму можно только охотой на монстров — чем больше убийств, тем дольше` });
+    kpr.karma = (kpr.karma || 0) + add; kpr.karmaV = 2; kpr.karmaLast = add; kpr.pkCount = (kpr.pkCount || 0) + 1; kpr.pkZone = killer.zone; markDirty(killer);
+    if (killer.autofarm) setAutofarm(killer, false); // красному автобой недоступен
+    killer.socket.emit('chat', { sys: true, text: `🩸 Вы убили ${vs === 'pink' ? 'розового' : 'мирного'} игрока: карма +${add} (всего ${kpr.karma}, убийств мирных: ${kpr.pkCount}). Вы «красный»: из данжа не выйти, при гибели теряете всю сумку и 1 надетую вещь. Отмыть карму — охотой на монстров (вручную, без автобоя) или смертью: от игрока — одно убийство, от монстров — треть` });
     if (!was) evCast({ ev: 'boss', text: `🩸 ${killer.name} стал убийцей в опасном данже — его можно наказать!` });
   }
   const lost = pkDrop(victim, vs, killer);

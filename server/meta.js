@@ -450,6 +450,7 @@ module.exports = function createMeta(deps) {
     },
 
     equip(p, d, pr) {
+      if ((pr.karma || 0) > 0) return { error: '🔴 Пока вы красный, снимать и менять надетые вещи нельзя' };
       const it = I.findItem(pr, d.id);
       if (!it || !I.SLOTS[it.cat]) return { error: 'Этот предмет нельзя надеть' };
       if (!I.canWear(it, p.heroId)) { // класс героя: «Лучник не носит посох»
@@ -487,6 +488,7 @@ module.exports = function createMeta(deps) {
       return { toast: `🔧 Починено: ${need.length} · −${cost} 💰`, gold: pr.gold };
     },
     unequip(p, d, pr) {
+      if ((pr.karma || 0) > 0) return { error: '🔴 Пока вы красный, снимать и менять надетые вещи нельзя' };
       if (!pr.equip?.[d.slot]) return { error: 'Слот пуст' };
       if (d.slot === 'bag' && inBagCount(pr) > bagSize(pr) - bagBonus(pr)) {
         return { error: `Без сумки вещи не поместятся: освободите ${inBagCount(pr) - (bagSize(pr) - bagBonus(pr))} ячеек` };
