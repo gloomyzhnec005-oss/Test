@@ -461,6 +461,11 @@ module.exports = function createAdmin(ctx) {
     let snap = '';
     if (store.db) { const s = await store.snapshot('prewipe'); snap = ` · снимок №${s.id} сохранён`; }
     else { try { store.backup(['players.json', 'clans.json', 'gram.json']); snap = ' · бэкап файлов сохранён'; } catch {} }
+    // Релиз: после него вернуть звёзды уже нельзя — сначала обработайте все просьбы «Вернуть звёзды»
+    if (d.release) {
+      const pend = Object.entries(ctx.profiles).filter(([, pr]) => pr.zbt && pr.zbt.choice === 'refund' && (pr.payments || []).some((x) => (x.cur || 'XTR') === 'XTR' && x.charge && !x.refunded && !/^(dev|zbt)/.test(x.charge)));
+      if (pend.length) return { error: `Сначала верните звёзды: ${pend.length} игрок(ов) просят возврат (кнопка «Кто просит вернуть донат»). После релиза вернуть уже нельзя` };
+    }
     const r = wipeFn(new Set(keep), { release: !!d.release });
     return { text: `Удалено игроков: ${r.players}, кланов: ${r.clans}, лотов: ${r.lots}. GRAM-кошельков сохранено: ${r.gram || 0}. Оставлены: ${keep.join(', ')}${snap}${d.release ? ` · Ветеранам ЗБТ выданы подарки: ${r.vets || 0}` : ''}` };
   }, () => 'обнуление игроков'));
