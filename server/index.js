@@ -366,7 +366,7 @@ app.post('/api/gacha/spin', (req, res) => {
   const nm = cleanName(pr.nick || pr.name || who.name) || 'Герой';
   for (const x of r.results) if (x.isNew && x.rar === 'mythic') {
     const h = C.HEROES[x.hero];
-    if (h) evCast({ ev: 'hero', text: `🌟 ${nm} призвал мифического героя: ${h.name}!` });
+    if (h) evCast({ ev: 'hero', title: `🌟 Мифический герой: ${h.name}`, text: `${nm} призвал его в Алтаре призыва` });
   }
   saveProfiles();
   const one = r.results[0];
@@ -468,7 +468,7 @@ setInterval(() => {
     const left = b.at - now, end = b.at + b.min * 60e3;
     for (const m of [60, 30, 15, 5, 1]) if (left <= m * 60e3 && left > 0 && !(b.warned || []).includes(m)) {
       (b.warned ??= []).push(m);
-      evCast({ text: `🔧 Через ${m} мин (в ${fmtHM(b.at)} МСК) — технический перерыв на ${b.min} мин. Закончите бой и выйдите в город.` });
+      evCast({ ev: 'admin', title: `🔧 Перерыв в ${fmtHM(b.at)} МСК`, text: `Через ${m} мин, на ${b.min} мин. Закончите бой и выйдите в город` });
       io.emit('brk', launchInfo().brk);
     }
     if (now >= b.at && now < end && !S.maintenance) {
@@ -801,11 +801,11 @@ const D = createDungeons({
   addPassXp: (pr, n) => meta.addPassXp(pr, n),
   quest: (...a) => Q.track(...a),
   giveLoot: (...a) => giveLoot(...a),
-  giveMats: (...a) => giveMats(...a), rollMats: (...a) => Loot.rollMats(...a),
+  giveMats: (...a) => giveMats(...a), rollMats: (...a) => Loot.rollMats(...a), mail: (uid, o) => Mail.system(uid, o),
   rollItem: (...a) => I.rollItem(...a), createBag: (...a) => I.createBag(...a),
   corpses: () => corpses,
   removeCorpse: (c) => { corpses = corpses.filter((x) => x !== c); },
-  broadcast: (text) => evCast({ text }),
+  broadcast: (t) => evCast(typeof t === 'string' ? { text: t } : t),
   // Отбрасывание героя (таран, воздушный удар)
   knockPlayer(p, dx, dy, distPx) {
     const l = Math.hypot(dx, dy) || 1;
@@ -837,7 +837,7 @@ const Arena = require('./arena')({
   moveToZone: (...a) => moveToZone(...a), getProfile: (uid) => getProfile(uid), partyMembers: (p) => partyMembers(p),
   revive: (p) => revivePlayer(p), addPassXp: (pr, n) => meta.addPassXp(pr, n), quest: (...a) => Q.track(...a),
   statsFor: (...a) => statsFor(...a), profiles: () => profiles, markDirty: (p) => markDirty(p),
-  store, notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => evCast({ text: t }), save: () => saveProfiles(),
+  store, notifyUid: (uid, t) => notifyUid(uid, t), broadcast: (t) => evCast(typeof t === 'string' ? { text: t } : t), save: () => saveProfiles(),
   get gram() { return Trade; }, // GRAM-лига турнира: взносы и призы
 });
 // ---------- Кланы (data/clans.json): название, тег, глава, участники, история кланового чата ----------
@@ -893,7 +893,7 @@ setInterval(() => {
     best.reignUntil = (w + 1) * 7 * 864e5 + Date.UTC(2024, 0, 1) - 3 * 36e5;
     best.reigns = (best.reigns || 0) + 1;
     for (const uid of best.members) { const pr = getProfile(uid); pr.gems = (pr.gems || 0) + 100; notifyUid(uid, `👑 Ваш клан [${best.tag}] победил в войне кланов! +100 💎 и +10% опыта и золота всю неделю`); }
-    evCast({ text: `👑 Война кланов: победил клан [${best.tag}] ${best.name} (${best.war.pts} очков) — владыки недели!` });
+    evCast({ title: `👑 Владыки недели: [${best.tag}] ${best.name}`, text: `Победа в войне кланов (${best.war.pts} очков) · +10% опыта и золота всему клану на неделю` });
     saveClans(); saveProfiles();
   }
   try { store.writeJSON('clanwar.json', warState); } catch (e) { console.error('clanwar save', e.message); }
@@ -1207,7 +1207,7 @@ const Ranks = (() => {
     const prev = state.week; state.week = w;
     const rows = Object.entries(profiles).filter(([, pr]) => pr.wbWeek && pr.wbWeek.w === prev).sort((a, b) => b[1].wbWeek.dmg - a[1].wbWeek.dmg).slice(0, 3);
     rows.forEach(([uid, pr], i) => { pr.gems = (pr.gems || 0) + PRIZE[i]; notifyUid(uid, `🏆 Рейтинг недели «Мировые боссы»: ${i + 1} место! +${PRIZE[i]} 💎`); });
-    if (rows.length) evCast({ text: `🏆 Итоги недели по мировым боссам: ${rows.map(([uid, pr], i) => `${['🥇', '🥈', '🥉'][i]} ${pr.name || 'Герой'}`).join(' · ')}` });
+    if (rows.length) evCast({ ev: 'boss', title: '🏆 Охотники недели на мировых боссов', text: rows.map(([uid, pr], i) => `${['🥇', '🥈', '🥉'][i]} ${pr.name || 'Герой'}`).join(' · ') });
     try { store.writeJSON('ranks.json', state); } catch (e) { console.error('ranks save', e.message); }
     saveProfiles(); cache = null;
   }, 60e3);
@@ -1992,7 +1992,7 @@ function grantXp(p, amount, gold, shared = false) {
     if (p.pets) rescalePets(p);
     p.res = p.resMax;
     fx.push({ t: 'levelup', id: p.id, x: p.x, y: p.y, lvl: p.char.level });
-    if (p.char.level >= 30 && p.char.level % 10 === 0) evCast({ ev: 'level', text: `${p.name} (${p.hero.name}) достиг ${p.char.level} уровня!` }); // только вехи
+    if (p.char.level >= 30 && p.char.level % 10 === 0) evCast({ ev: 'level', title: `⬆️ ${p.name} — ${p.char.level} уровень`, text: `${p.hero.name} · новая веха` }); // только вехи
     academyLevel(p, pr); // Академия: выпуск на 20 ур., награда наставникам
     // Новичку на 10 уровне — гарантированная эпическая вещь под класс (один раз на аккаунт)
     if (p.char.level >= 10 && !pr.gift10) {
@@ -2088,7 +2088,7 @@ function pkOnKill(victim) {
     kpr.karma = (kpr.karma || 0) + add; kpr.karmaV = 2; kpr.karmaLast = add; kpr.pkCount = (kpr.pkCount || 0) + 1; kpr.pkZone = killer.zone; markDirty(killer);
     if (killer.autofarm) setAutofarm(killer, false); // красному автобой недоступен
     killer.socket.emit('chat', { sys: true, text: `🩸 Вы убили ${vs === 'pink' ? 'розового' : 'мирного'} игрока: карма +${add} (всего ${kpr.karma}, убийств мирных: ${kpr.pkCount}). Вы «красный»: из данжа не выйти, при гибели теряете всю сумку и 1 надетую вещь. Отмыть карму — охотой на монстров (вручную, без автобоя) или смертью: от игрока — одно убийство, от монстров — треть` });
-    if (!was) evCast({ ev: 'boss', text: `🩸 ${killer.name} стал убийцей в опасном данже — его можно наказать!` });
+    if (!was) evCast({ ev: 'pk', title: `🩸 Новый убийца: ${killer.name}`, text: `${(world.byId.get(killer.zone) || {}).name || 'Опасный данж'} · он красный — победителю достанется вся его сумка` });
   }
   const lost = pkDrop(victim, vs, killer);
   victim.socket.emit('chat', { sys: true, text: lost.length ? `💀 Вас убил ${killer.name}. На землю выпало: ${lost.join(', ')}` : `💀 Вас убил ${killer.name}. На этот раз вещи уцелели` });
@@ -2291,7 +2291,7 @@ function companionDrop(o, chance, rare = false) {
   const [id, c] = pool[Math.floor(Math.random() * pool.length)];
   C2.owned.push(id); if (!C2.active) { C2.active = id; o.cp = id; refreshPlayer(o); }
   o.socket.emit('chat', { sys: true, text: `🐾 Новый спутник: ${c.name}! Выбрать — «Герой» → «Спутники»` });
-  evCast({ text: `🐾 ${o.name} нашёл спутника «${c.name}»!` });
+  evCast({ ev: 'myth', title: `🐾 Спутник: ${c.name}`, text: `${o.name} нашёл его в бою` });
   markDirty(o);
 }
 // Выдать стопку материалов: всплывающая надпись, в чат — только ценное (свитки, чертежи, редкие материалы)
@@ -2326,7 +2326,7 @@ function giveLoot(o, pr, item, at) {
       const v = I.itemView(res.item);
       if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}`, color: v.color });
       o.socket.emit('chat', { sys: true, ev: 'loot', text: `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
-      if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', text: `🔴 ${o.name} добыл ${v.icon} ${v.name} · ${v.rarName}!` });
+      if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', title: `🔴 Мифическая добыча: ${v.icon} ${v.name}`, text: `${o.name} · ${(world.byId.get(o.zone) || {}).name || ''}` });
       return v;
     }
     const v0 = I.itemView(item);
@@ -2341,7 +2341,7 @@ function giveLoot(o, pr, item, at) {
   if (at) fx.push({ t: 'loot', x: at.x, y: at.y, to: o.id, name: `${v.icon} ${v.name}${res.dupe ? ' ⇧' : ''}`, color: v.color });
   o.socket.emit('chat', { sys: true, ev: 'loot', text: res.dupe ? `Дубликат! ${v.icon} ${v.name} — оригинал усилен на 5%` : `Добыча: ${v.icon} ${v.name} · ${v.rarName}` });
   // «События»: всем — только мифическая находка
-  if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', text: `🔴 ${o.name} добыл ${v.icon} ${v.name} · ${v.rarName}!` });
+  if (!res.dupe && item.rar === 'mythic') evCast({ ev: 'myth', title: `🔴 Мифическая добыча: ${v.icon} ${v.name}`, text: `${o.name} · ${(world.byId.get(o.zone) || {}).name || ''}` });
   if (res.dupe && Object.values(pr.equip || {}).includes(res.item.id)) refreshPlayer(o);
   return v;
 }

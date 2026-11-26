@@ -590,7 +590,7 @@ module.exports = function createAdmin(ctx) {
   r.post('/broadcast', act((d) => {
     const text = String(d.text || '').trim().slice(0, 300);
     if (!text) return { error: 'Пустое сообщение' };
-    if (ctx.evCast) ctx.evCast({ text: `📢 ${text}` }); else ctx.io.emit('chat', { sys: true, text: `📢 ${text}` }); // в ленту «Событий» — видно и тем, кто зайдёт позже
+    if (ctx.evCast) ctx.evCast({ ev: 'admin', title: '📢 Объявление', text }); else ctx.io.emit('chat', { sys: true, text: `📢 ${text}` }); // в ленту «Событий» — видно и тем, кто зайдёт позже
     return { text: 'Объявление отправлено' };
   }, (d) => `объявление «${String(d.text || '').slice(0, 60)}»`));
   let botcastFn = null;

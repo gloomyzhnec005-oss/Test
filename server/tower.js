@@ -64,7 +64,7 @@ module.exports = function createTower(dep) {
     if (f % 2 === 0) { I.addMat(pr, 'dust', 1); got.push('1 пыль'); }
     if (f % 5 === 0) { I.addMat(pr, `core${tier}`, 1); got.push('ядро'); }
     if (f % 10 === 0) { pr.gems = (pr.gems || 0) + 30; got.push('30 💎'); }
-    if (f % 25 === 0) evCast({ ev: 'boss', text: `🗼 ${o.name} поднялся на ${f} этаж Бесконечной башни!` });
+    if (f % 25 === 0) evCast({ ev: 'tower', title: `🗼 Башня: ${f} этаж`, text: `${o.name} поднялся выше всех своих прежних попыток` });
     return ` Новый рекорд: ${got.join(', ')}`;
   }
   function end(R, why) {

@@ -731,7 +731,7 @@ module.exports = function createDungeons(d) {
         b.warned = true;
         if (announced.warn !== b.at) {
           announced.warn = b.at;
-          d.broadcast(`👑 Через ${Math.max(1, Math.round((b.at - now) / 60000))} мин (в ${hhmm(b.at)}) в данжах появятся боссы! Награда — всем, кто сражался.`);
+          d.broadcast({ ev: 'boss', title: `👑 Боссы данжей — в ${hhmm(b.at)}`, text: `Через ${Math.max(1, Math.round((b.at - now) / 60000))} мин во всех данжах. Соберите группу: награда — каждому, кто бился` });
           if (d.push) d.push('boss', `👑 В ${hhmm(b.at)} в данжах появятся боссы! Соберите группу — награда всем, кто сражался.`);
         }
       }
@@ -740,7 +740,7 @@ module.exports = function createDungeons(d) {
         m.scaledFor = 1;
         m.room = b.ri;
         b.id = m.id; m.hall = h.z.id;
-        if (announced.spawn !== b.at) { announced.spawn = b.at; d.broadcast('👑 Боссы данжей появились! Заходите в порталы своего мира.'); }
+        if (announced.spawn !== b.at) { announced.spawn = b.at; d.broadcast({ ev: 'boss', title: '👑 Боссы данжей появились', text: 'Ворота боссов открыты во всех данжах — заходите в порталы своего мира' }); }
         tellHall(h, `👑 Босс «${m.name || MOBS[b.type].name}» ждёт`);
         h.sentAt = 0;
       }
@@ -850,7 +850,7 @@ module.exports = function createDungeons(d) {
       if (first) { d.giveLoot(p, pr, d.rollItem(h.z.tier, C.DROPS.boss[h.z.tier], null, p.heroId), p); pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: '💎 Первая победа над боссом данжа: +160 самоцветов' }); }
       d.markDirty(p);
     }
-    if (boss && !h.dg.pk) d.broadcast(`🏆 Босс «${m.name || MOBS[m.type].name}» в данже «${h.dg.name}» повержен! Следующий — в ${hhmm(nextBossAt(Date.now() + 60000))}.`);
+    if (boss && !h.dg.pk) d.broadcast({ ev: 'boss', title: `🏆 ${m.name || MOBS[m.type].name} повержен`, text: `Данж «${h.dg.name}» · следующий босс в ${hhmm(nextBossAt(Date.now() + 60000))}` });
     if (boss && h.dg.pk) tellHall(h, `🏆 Босс «${m.name || MOBS[m.type].name}» повержен — вернётся через ${Math.round(PK_BOSS_RESPAWN / 60000)} мин`);
     setImmediate(() => { tickHall(h, Date.now()); sendHall(h); });
   }
@@ -967,7 +967,7 @@ module.exports = function createDungeons(d) {
     m.wbPhase = 0; m.markAt = Date.now() + 20000;
     m.scaledFor = n;
     st.bossId = m.id; st.spawnAt = Date.now(); st.warned = false;
-    d.broadcast(`👹 Мировой босс «${MOBS[type].name}» появился в мире ${world.byId.get(town).name}! Портал — на юге города.`);
+    d.broadcast({ ev: 'boss', title: `👹 Мировой босс: ${MOBS[type].name}`, text: `${world.byId.get(town).name} · портал на юге города · ${Math.round(WB_STAY / 3600e3)} ч на победу, награда — всем на почту` });
     if (d.push) d.push('wb', `👹 Мировой босс «${MOBS[type].name}» появился в мире ${world.byId.get(town).name}! Нужна команда — заходите.`, (pr) => d.maxHeroLevel(pr) >= st.cfg.lv - 5);
   }
   // Здоровье мирового босса: рассчитано на 10 героев своего уровня; больше 10 — ещё +8% за каждого
@@ -1153,34 +1153,37 @@ module.exports = function createDungeons(d) {
     const top = Object.entries(m.contrib).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([uid]) => uid);
     const core = `core${m.tier}`;
     const TOP_MATS = (place) => (place === 1 ? { [core]: 4, scrollM: 1, luckStone: 2, dust: 12, skillCrystal: 2 } : place <= 3 ? { [core]: 3, scrollL: 1, luckStone: 1, dust: 8, skillCrystal: 1 } : { [core]: 2, scrollL: place <= 5 ? 1 : 0, luckStone: 1, dust: 4 });
-    for (const p of players.values()) {
-      const place = top.indexOf(p.uid) + 1;
-      if (place) {
-        const mats = Object.fromEntries(Object.entries(TOP_MATS(place)).filter(([k, n]) => n > 0 && I.MATS[k]));
-        d.giveMats(p, d.getProfile(p.uid), mats, m);
-        p.socket.emit('chat', { sys: true, text: `🏆 ${place} место по урону по мировому боссу! Редкие ресурсы: ${Object.entries(mats).map(([k, n]) => `${I.MATS[k].icon} ${I.MATS[k].name}${n > 1 ? ' ×' + n : ''}`).join(', ')}` });
-      }
-    }
     for (const uid of Object.keys(m.contrib)) if (d.quest) d.quest(uid, 'worldPart', 1, { town }); // участие — для заданий у NPC
-    if (top.length) d.broadcast(`🏆 Лучшие по урону: ${top.slice(0, 3).map((uid, i) => `${['🥇', '🥈', '🥉'][i]} ${d.getProfile(uid).name || 'Герой'}`).join(' · ')}`);
     // Рейтинг недели «Мировые боссы»: урон всех участников (server/index.js → рейтинги)
     if (d.wbWeek) for (const [uid, dmg] of Object.entries(m.contrib)) d.wbWeek(uid, dmg);
-    for (const p of players.values()) {
-      const part = (m.contrib[p.uid] || 0) / m.maxHp;
-      if (part < 0.01) continue;
-      const pr = d.getProfile(p.uid);
+    // Награды — письмом на почту (меню → Почта → «Забрать»): видно, что и за что получено, ничего не теряется в чате,
+    // и награду получают все участники с вкладом от 1%, даже если уже вышли из логова или из игры
+    const bossName = MOBS[m.type].name;
+    for (const [uid, dmg] of Object.entries(m.contrib)) {
+      const part = dmg / m.maxHp;
+      if (part < 0.01 || !/^(tg|guest)/.test(uid)) continue;
+      const pr = d.getProfile(uid), p = [...players.values()].find((o) => o.uid === uid) || null;
+      const heroId = p ? p.heroId : (pr.heroes || [])[0];
+      const place = top.indexOf(uid) + 1, share = Math.round((dmg / total) * 100);
       const gold = Math.round(400 * m.tier * (0.5 + Math.min(1, part * 4)));
-      pr.gold += gold;
+      const items = [];
+      for (let i = 0; i < 2 + (part > 0.15 ? 1 : 0); i++) items.push(d.rollItem(m.tier, C.DROPS.boss[m.tier], null, heroId));
+      // 3% — легендарная сумка, из них каждая 6-я — мифическая «Бездонная сума»
+      if (d.createBag && Math.random() < 0.03) items.push(d.createBag(Math.random() < 0.15 ? 'mythic' : 'legendary', m.tier));
+      const mats = {};
+      const addM = (o) => { for (const [k, n] of Object.entries(o || {})) if (n > 0 && I.MATS[k]) mats[k] = (mats[k] || 0) + n; };
+      addM(d.rollMats({ rank: 'world' }, m.tier, null).mats); // материалы, свитки и чертёж
+      if (place) addM(TOP_MATS(place));
       d.addPassXp(pr, 40);
-      p.socket.emit('chat', { sys: true, text: `👹 Мировой босс повержен! Ваш вклад ${Math.round((m.contrib[p.uid] / total) * 100)}% · +${gold} 💰` });
-      for (let i = 0; i < 2 + (part > 0.15 ? 1 : 0); i++) d.giveLoot(p, pr, d.rollItem(m.tier, C.DROPS.boss[m.tier], null, p.heroId), m);
-      // Мировой босс: 3% — легендарная сумка, из них каждая 6-я — мифическая «Бездонная сума»
-      if (d.createBag && Math.random() < 0.03) d.giveLoot(p, pr, d.createBag(Math.random() < 0.15 ? 'mythic' : 'legendary', m.tier), m);
-      d.giveMats(p, pr, d.rollMats({ rank: 'world' }, m.tier, null).mats, m); // материалы, свитки и чертёж
-      if (d.companionDrop) { d.companionDrop(p, 0.01); d.companionDrop(p, 0.002, true); } // обычный 1%, редкий 0,2%
-      d.markDirty(p);
+      if (p && d.companionDrop) { d.companionDrop(p, 0.01); d.companionDrop(p, 0.002, true); } // спутник — сразу (обычный 1%, редкий 0,2%)
+      const lines = [`Ваш вклад: ${share}% урона${place ? ` · ${place} место${place <= 3 ? ' ' + ['🥇', '🥈', '🥉'][place - 1] : ''}` : ''}.`,
+        place ? `За место в топ-10 — редкие ресурсы (ядра мира, свитки, камни удачи).` : 'Попадите в топ-10 по урону — получите ещё и редкие ресурсы.',
+        'Заберите награду кнопкой «Забрать».'];
+      if (d.mail) d.mail(uid, { fromName: `👹 ${bossName}`, title: `Награда за мирового босса`, text: lines.join('\n'), items, mats, gold });
+      if (p) { p.socket.emit('chat', { sys: true, ev: 'mail', text: `📬 Награда за «${bossName}» — на почте: ${gold} 💰, ${items.length} вещи и ресурсы${place ? ` · ${place} место по урону` : ''}. Меню → Почта` }); d.markDirty(p); }
+      else d.notifyUid(uid, `📬 Мировой босс «${bossName}» повержен — ваша награда ждёт на почте (${share}% урона)`);
     }
-    d.broadcast(`👹 Мировой босс «${MOBS[m.type].name}» повержен! Следующий — завтра в ${wbTimeText()} МСК.`);
+    d.broadcast({ ev: 'boss', title: `👹 ${MOBS[m.type].name} повержен!`, text: `${top.length ? top.slice(0, 3).map((uid, i) => `${['🥇', '🥈', '🥉'][i]} ${d.getProfile(uid).name || 'Герой'}`).join(' · ') + ' · ' : ''}награды — на почте у всех участников · следующий завтра в ${wbTimeText()} МСК` });
   }
   function worldBossInfo(town) {
     const st = wbState[town];
@@ -1223,12 +1226,12 @@ module.exports = function createDungeons(d) {
       if (b && st.spawnAt && now - st.spawnAt > WB_STAY) {
         for (const o of monsters.values()) if (o.wbOf === b.id) monsters.delete(o.id);
         monsters.delete(b.id); st.bossId = null; st.nextAt = nextWbAt(now); st.homeAt = now + 15000;
-        d.broadcast(`👹 Мировой босс «${MOBS[b.type].name}» ушёл из мира ${world.byId.get(town).name} — не успели. Он вернётся завтра в ${wbTimeText()} МСК.`);
+        d.broadcast({ ev: 'boss', title: `👹 ${MOBS[b.type].name} ушёл`, text: `${world.byId.get(town).name} · не успели победить · вернётся завтра в ${wbTimeText()} МСК` });
       }
       // Предупреждение за 15 минут (одно на все миры)
       if (!st.bossId && !st.warned && st.nextAt - now <= WB_WARN && st.nextAt > now) {
         st.warned = true;
-        if (wbWarnedFor !== st.nextAt) { wbWarnedFor = st.nextAt; d.broadcast(`👹 Через ${Math.max(1, Math.round((st.nextAt - now) / 60000))} мин (в ${wbTimeText()} МСК) появятся мировые боссы! Собирайте команду — порталы на юге городов.`); }
+        if (wbWarnedFor !== st.nextAt) { wbWarnedFor = st.nextAt; d.broadcast({ ev: 'boss', title: `👹 Мировые боссы — в ${wbTimeText()} МСК`, text: `Через ${Math.max(1, Math.round((st.nextAt - now) / 60000))} мин во всех мирах · порталы на юге городов · собирайте команду` }); }
       }
       if (!st.bossId && now >= st.nextAt) spawnWorldBoss(town, now);
       // Рейтинг урона — каждому в логове раз в секунду

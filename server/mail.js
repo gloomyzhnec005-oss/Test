@@ -91,7 +91,8 @@ module.exports = function createMail({ I, Trade, getProfile, profilesFn, notifyU
   function list(p) {
     const pr = getProfile(p.uid);
     expire(pr);
-    return { mail: box(pr).map((m) => ({ id: m.id, from: m.fromName, at: m.at, text: m.text, read: !!m.read, items: (m.items || []).map(view), mat: m.mat ? { ...m.mat, name: (I.MATS[m.mat.id] || {}).name || m.mat.id } : null, gold: m.gold || 0, got: !!m.got })), unread: box(pr).filter((m) => !m.read).length };
+    const matList = (m) => [...(m.mat ? [[m.mat.id, m.mat.n]] : []), ...Object.entries(m.mats || {})].map(([id, n]) => ({ id, n, name: (I.MATS[id] || {}).name || id, icon: (I.MATS[id] || {}).icon || '📦' }));
+    return { mail: box(pr).map((m) => ({ id: m.id, from: m.fromName, sys: !!m.sys, title: m.title || null, at: m.at, text: m.text, read: !!m.read, items: (m.items || []).map(view), mats: matList(m), gold: m.gold || 0, gems: m.gems || 0, got: !!m.got })), unread: box(pr).filter((m) => !m.read).length };
   }
 
   function act(p, d, bagSize) {
@@ -108,18 +109,27 @@ module.exports = function createMail({ I, Trade, getProfile, profilesFn, notifyU
       if ((m.items || []).length && bagN + m.items.length > bagSize(pr)) return { error: 'Освободите место в сумке' };
       for (const it of m.items || []) I.addItem(pr, it, bagSize(pr), false);
       if (m.mat) I.addMat(pr, m.mat.id, m.mat.n);
+      for (const [id, n] of Object.entries(m.mats || {})) I.addMat(pr, id, n);
       if (m.gold) pr.gold = (pr.gold || 0) + m.gold;
-      m.got = true; m.read = true; m.items = []; m.mat = null; m.gold = 0;
+      if (m.gems) pr.gems = (pr.gems || 0) + m.gems;
+      m.got = true; m.read = true; m.items = []; m.mat = null; m.mats = null; m.gold = 0; m.gems = 0;
       save();
       return { toast: '📦 Вложения забраны', refresh: true, ...list(p) };
     }
     if (d.op === 'mailDel') {
-      if (!m.got && ((m.items || []).length || m.mat || m.gold)) return { error: 'Сначала заберите вложения' };
+      if (!m.got && ((m.items || []).length || m.mat || Object.keys(m.mats || {}).length || m.gold || m.gems)) return { error: 'Сначала заберите вложения' };
       pr.mail = box(pr).filter((x) => x !== m); save();
       return list(p);
     }
     return { error: 'Неизвестное действие' };
   }
   const unread = (pr) => box(pr).filter((m) => !m.read).length;
-  return { act, unread };
+  // Письмо от игры (награды мирового босса и т.п.): вложения — вещи, материалы, золото, самоцветы; ящик не ограничен
+  function system(uid, { fromName, title, text, items = [], mats = {}, gold = 0, gems = 0 }) {
+    const pr = getProfile(uid);
+    for (const it of items) delete it.loc;
+    box(pr).unshift({ id: 'm' + (seq++).toString(36), from: null, sys: true, fromName: fromName || 'Игра', title, at: Date.now(), text: String(text || '').slice(0, 600), items, mats, gold, gems });
+    save();
+  }
+  return { act, unread, system };
 };

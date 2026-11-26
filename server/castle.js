@@ -140,7 +140,7 @@ module.exports = function createCastle(dep) {
       const queue = st[t].reg.map((r) => r.clan).filter((id) => clans()[id]);
       st[t].reg = [];
       run.towns[t] = { queue, i: -1, slotStart: 0, side: {}, lives: {}, crystal: null, guards: [], defender: st[t].owner && clans()[st[t].owner] ? st[t].owner : null, done: !queue.length };
-      if (queue.length) evCast({ ev: 'boss', text: `🏰 Осада замка ${world.byId.get(t).name}: ${queue.length} клан(ов) в очереди. Защищает ${tag(run.towns[t].defender)}` });
+      if (queue.length) evCast({ ev: 'castle', title: `🏰 Осада замка ${world.byId.get(t).name}`, text: `Защищает ${tag(run.towns[t].defender)} · кланов в очереди: ${queue.length}` });
     }
     for (const t of TOWNS) if (!run.towns[t].done) nextSlot(t, now);
     if (TOWNS.every((x) => run.towns[x].done)) run = null;
@@ -163,7 +163,7 @@ module.exports = function createCastle(dep) {
     if (R.crystal) monsters.delete(R.crystal);
     for (const id of R.guards || []) monsters.delete(id);
     for (const o of inZone(t)) kick(o, null);
-    if (R.queue.length) evCast({ ev: 'boss', text: `🏰 Осада замка ${world.byId.get(t).name} окончена: замок держит ${tag(st[t].owner)}` });
+    if (R.queue.length) evCast({ ev: 'castle', title: `🏰 Осада ${world.byId.get(t).name} окончена`, text: `Замок держит ${tag(st[t].owner)} — казна замка его клану до следующей субботы` });
     if (TOWNS.every((x) => run.towns[x] && run.towns[x].done)) run = null;
   }
   // Кристалл разбит: замок — нападающим, они встают на защиту
@@ -175,7 +175,7 @@ module.exports = function createCastle(dep) {
     st[t].owner = atk; st[t].since = Date.now();
     st[t].log.unshift({ at: Date.now(), text: `${tag(atk)} взял замок` }); st[t].log = st[t].log.slice(0, 20);
     R.defender = atk; save();
-    evCast({ ev: 'boss', text: `🏰 ${tag(atk)} захватил замок ${world.byId.get(t).name}!` });
+    evCast({ ev: 'castle', title: `🏰 Замок ${world.byId.get(t).name} взят!`, text: `${tag(atk)} разбил кристалл и теперь защищает замок` });
     nextSlot(t, Date.now());
   }
   function tick(now = Date.now()) {
@@ -191,7 +191,7 @@ module.exports = function createCastle(dep) {
       const atkIn = inZone(t).filter((o) => R.side[o.uid] === 'atk');
       const anyAtkLives = Object.entries(R.side).some(([u, s]) => s === 'atk' && (R.lives[u] || 0) > 0);
       if (now > slotEnd || (now > R.slotStart + SIEGE.prepMs + 60e3 && Object.keys(R.side).some((u) => R.side[u] === 'atk') && !atkIn.length && !anyAtkLives)) {
-        if (!R.won) evCast({ ev: 'boss', text: `🛡️ Замок ${world.byId.get(t).name} устоял против ${tag(R.queue[R.i])}` });
+        if (!R.won) evCast({ ev: 'castle', title: `🛡️ Замок ${world.byId.get(t).name} устоял`, text: `Атака ${tag(R.queue[R.i])} отбита` });
         nextSlot(t, now);
         continue;
       }

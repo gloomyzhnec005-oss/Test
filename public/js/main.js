@@ -98,12 +98,14 @@
   // Фильтр чата «События»: что показывать (выбор хранится на телефоне). Объявления админа и перерывы видны всегда
   const EV_CATS = [
     ['myth', '🔴 Мифические вещи'], ['hero', '🌟 Мифические герои'], ['boss', '👹 Боссы'],
-    ['level', '⬆️ Уровни 30, 40, 50…'], ['loot', '🎒 Моя добыча'], ['other', '📜 Прочее'],
+    ['war', '🏰 Осады, PvP, башня'], ['level', '⬆️ Уровни 30, 40, 50…'], ['loot', '🎒 Моя добыча'], ['other', '📜 Прочее'],
   ];
   const EV_OFF_DEF = ['loot']; // своя добыча — по желанию
   let evOff;
   try { evOff = new Set(JSON.parse(localStorage.getItem('evOff') || 'null') || EV_OFF_DEF); } catch { evOff = new Set(EV_OFF_DEF); }
   function evCat(msg) {
+    if (msg.ev === 'castle' || msg.ev === 'pk' || msg.ev === 'tower') return 'war';
+    if (msg.ev === 'mail') return 'loot';
     if (msg.ev) return msg.ev;
     const t = msg.text || '';
     if (/^[📢🔧]/u.test(t)) return 'admin';
@@ -135,6 +137,14 @@
     if (full) { div.dataset.ch = chOf(msg); if (!evShown(msg)) div.dataset.evoff = evCat(msg); else if (msg.sys) div.dataset.ev = evCat(msg); if (msg.sid && socket && msg.sid === socket.id) div.classList.add('mine'); }
     if (msg.ch && msg.ch !== 'talk' && !msg.sys) div.classList.add('ch-' + msg.ch);
     if (full) { const t = document.createElement('small'); t.textContent = hhmm(msg.t); div.append(t); }
+    // Событие с заголовком — карточкой: что случилось (жирным) и подробности (кто, где, что дальше); полоска — цвет типа
+    if (msg.sys && msg.title) {
+      div.classList.add('ev-card', 'ev-' + evCat(msg));
+      const b = document.createElement('b'); b.textContent = window.I18N ? I18N.tr(msg.title) : msg.title;
+      const sm = document.createElement('span'); sm.textContent = window.I18N ? I18N.tr(msg.text || '') : msg.text || '';
+      div.append(b, sm);
+      return div;
+    }
     if (msg.sys) { div.append(msg.text); return div; }
     const b = document.createElement('b');
     const tagP = !full && msg.ch === 'party' ? '[Группа] ' : !full && msg.ch === 'clan' ? `[${msg.tag || 'Клан'}] ` : '';
@@ -884,11 +894,12 @@
           const r = await Bag.act('mailList');
           if (r.error) { Town.toast(r.error); return; }
           if (!Bag.inv()) await Bag.refresh();
-          body.innerHTML = r.mail.length ? r.mail.map((m) => `<div class="tw-ev mail ${m.read ? '' : 'new'}" data-id="${m.id}"><div>
-              <b>${m.read ? '✉️' : '📩'} ${esc(m.from)}</b><small>${new Date(m.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small>
+          const has = (m) => m.items.length || m.mats.length || m.gold || m.gems;
+          body.innerHTML = r.mail.length ? r.mail.map((m) => `<div class="tw-ev mail ${m.read ? '' : 'new'} ${m.sys ? 'sys' : ''}" data-id="${m.id}"><div>
+              <b>${m.sys ? '🎁' : m.read ? '✉️' : '📩'} ${esc(m.title || m.from)}</b><small>${m.title ? esc(m.from) + ' · ' : ''}${new Date(m.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small>
               ${m.text ? `<p class="mail-text">${esc(m.text)}</p>` : ''}
-              ${m.items.length || m.mat || m.gold ? `<div class="mail-att">${m.items.map((it) => Bag.cell(it, 'other')).join('')}${m.mat ? `<span class="wm-c">📦 ${esc(m.mat.name || m.mat.id)} ×${m.mat.n}</span>` : ''}${m.gold ? `<span class="wm-c">💰 ${m.gold}</span>` : ''}</div>` : ''}
-            </div><div class="btn-row">${(m.items.length || m.mat || m.gold) && !m.got ? '<button class="l2-btn sm" data-op="mailTake">📦 Забрать</button>' : ''}<button class="l2-btn sm" data-op="mailDel">🗑</button></div></div>`).join('')
+              ${has(m) ? `<div class="mail-att">${m.gold ? `<span class="wm-c">💰 ${m.gold.toLocaleString('ru-RU')}</span>` : ''}${m.gems ? `<span class="wm-c">💎 ${m.gems}</span>` : ''}${m.mats.map((x) => `<span class="wm-c">${x.icon} ${esc(x.name)} ×${x.n}</span>`).join('')}${m.items.map((it) => Bag.cell(it, 'other')).join('')}</div>` : m.got ? '<small class="ok">✓ Забрано</small>' : ''}
+            </div><div class="btn-row">${has(m) && !m.got ? '<button class="l2-btn sm" data-op="mailTake">📦 Забрать</button>' : ''}<button class="l2-btn sm" data-op="mailDel">🗑</button></div></div>`).join('')
             : '<div class="tw-soon">Писем нет</div>';
           for (const m of r.mail) if (!m.read) Bag.act('mailRead', { id: m.id });
           body.onclick = async (e) => {
