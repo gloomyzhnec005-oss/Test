@@ -186,7 +186,8 @@ app.use((req, res, next) => {
 // Ссылка: https://t.me/<бот>/<приложение>?startapp=r<код>, код — Telegram ID в 36-ричной записи.
 // Новичок по ссылке: +100 💎 и 1 печать призыва героя. Пригласившему: друг достиг 10 ур. — 100 💎, 20 ур. — 100 💎 и 2 призыва
 // снаряжения; с каждой покупки друга — самоцветы на 10% её стоимости (навсегда). Считается только для новых аккаунтов.
-const REF = { newGems: 100, newSpins: 1, l10: { gems: 100 }, l20: { gems: 100, itemSpins: 2 }, share: 0.1, gemsPerStar: 330 / 50 };
+const REF = { newGems: 100, newSpins: 1, l10: { gems: 200 }, l20: { gems: 200, itemSpins: 4 }, // за 10 и 20 ур. приглашённого — удвоено вместе с длиной уровней
+  share: 0.1, gemsPerStar: 330 / 50 };
 const refCode = (uid) => (/^tg\d+$/.test(uid) ? 'r' + Number(uid.slice(2)).toString(36) : null);
 const refUid = (code) => (/^r[0-9a-z]{1,14}$/.test(code || '') ? 'tg' + parseInt(code.slice(1), 36) : null);
 // При запуске: кто уже пришёл по чьей-то ссылке, но не был засчитан (ошибка до открытия) — засчитать сейчас
@@ -2017,7 +2018,7 @@ function grantXp(p, amount, gold, shared = false) {
       p.socket.emit('chat', { sys: true, text: `🎁 10 уровень! Подарок новичку: ${v ? v.name : 'эпическая вещь'}` });
     }
     // Каждые 10 уровней героя — самоцветы (на один призыв)
-    if (p.char.level % 10 === 0 && (!MOBX.bal2() || p.char.level <= 30)) { pr.gems = (pr.gems || 0) + 160; p.socket.emit('chat', { sys: true, text: `💎 ${p.hero.name} — ${p.char.level} уровень: +160 самоцветов` }); }
+    if (p.char.level % 10 === 0 && (!MOBX.bal2() || p.char.level <= 30)) { const lg = MOBX.bal2() ? 320 : 160; pr.gems = (pr.gems || 0) + lg; p.socket.emit('chat', { sys: true, text: `💎 ${p.hero.name} — ${p.char.level} уровень: +${lg} самоцветов` }); } // уровни вдвое длиннее — награда вдвое больше
   }
   markDirty(p);
 }
