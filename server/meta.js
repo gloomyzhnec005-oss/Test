@@ -646,7 +646,7 @@ module.exports = function createMeta(deps) {
       const up = I.upgradeCost(it);
       const bps = Object.keys(pr.mats || {}).filter((m) => I.MATS[m] && I.MATS[m].kind === 'blueprint' && I.MATS[m].tier === it.tier);
       const canSet = it.cat !== 'rune' && I.RARITY_ORDER.indexOf(it.rar) >= 2 && !I.setIdOf(it);
-      return { up: up && { ...up, have: Object.fromEntries(Object.keys(up.need).map((k) => [k, (pr.mats || {})[k] || 0])), names: Object.fromEntries(Object.keys(up.need).map((k) => [k, matName(k, 1)])) },
+      return { up: up && { ...up, nextName: I.ITEM_RARITIES[up.next].name, have: Object.fromEntries(Object.keys(up.need).map((k) => [k, (pr.mats || {})[k] || 0])), names: Object.fromEntries(Object.keys(up.need).map((k) => [k, matName(k, 1)])) },
         sets: canSet ? bps.map((bp) => { const c = I.setCraftCost(it, I.MATS[bp].set); return { bp, name: I.SETS[I.MATS[bp].set].name, ...c, have: Object.fromEntries(Object.keys(c.need).map((k) => [k, (pr.mats || {})[k] || 0])), names: Object.fromEntries(Object.keys(c.need).map((k) => [k, matName(k, 1)])) }; }) : [],
         salvage: Object.entries(I.salvage({ ...it, rar: it.rar })).map(([k, n]) => matName(k, n)).join(', ') };
     },
@@ -655,8 +655,10 @@ module.exports = function createMeta(deps) {
       if (!it) return { error: 'Предмет не найден' };
       const up = I.upgradeCost(it);
       if (!up) return { error: it.rar === 'legendary' && it.tier < 2 ? 'Мифические вещи куются только из вещей второго и третьего мира' : 'Этот предмет нельзя улучшить' };
-      if (pr.gold < up.gold) return { error: `Нужно ${up.gold} золота` };
-      if (!I.takeMats(pr, up.need)) return { error: 'Не хватает материалов или свитка' };
+      if (pr.gold < up.gold) return { error: `Нужно ${up.gold.toLocaleString('ru-RU')} 💰` };
+      const miss = Object.entries(up.need).filter(([k, n]) => ((pr.mats || {})[k] || 0) < n);
+      if (miss.length) return { error: `Не хватает: ${miss.map(([k, n]) => matName(k, n - ((pr.mats || {})[k] || 0))).join(', ')}` };
+      I.takeMats(pr, up.need);
       pr.gold -= up.gold;
       it.rar = up.next;
       it.attrs = I.rollAttrs(up.next, it.tier); // атрибуты переговариваются под новую редкость
@@ -670,8 +672,10 @@ module.exports = function createMeta(deps) {
       if (it.tier !== bp.tier) return { error: 'Предмет и чертёж должны быть одного мира' };
       if (I.setIdOf(it)) return { error: 'Это уже вещь комплекта' };
       const c = I.setCraftCost(it, bp.set);
-      if (pr.gold < c.gold) return { error: `Нужно ${c.gold} золота` };
-      if (!I.takeMats(pr, c.need)) return { error: 'Не хватает материалов' };
+      if (pr.gold < c.gold) return { error: `Нужно ${c.gold.toLocaleString('ru-RU')} 💰` };
+      const miss = Object.entries(c.need).filter(([k, n]) => ((pr.mats || {})[k] || 0) < n);
+      if (miss.length) return { error: `Не хватает: ${miss.map(([k, n]) => matName(k, n - ((pr.mats || {})[k] || 0))).join(', ')}` };
+      I.takeMats(pr, c.need);
       pr.gold -= c.gold;
       it.tpl = `set_${I.SETS[bp.set].cls}`;
       refreshPlayer(p);

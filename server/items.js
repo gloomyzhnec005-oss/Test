@@ -761,8 +761,8 @@ const RECIPE_PREFIX = { 1: 'Эльдмирская ковка', 2: 'Закалк
 function worldRecipes(tier) {
   const W = WORLD_CRAFT[tier];
   if (!W) return [];
-  const list = CRAFT_SLOTS.map((slot) => ({ id: `w${tier}_${slot}`, tier, kind: 'forge', slot, name: `${RECIPE_PREFIX[tier]}: ${SLOT_NAMES[slot].toLowerCase()}`,
-    needItem: { cat: slot, rar: W.from, tier }, rar: W.to, mats: W.mats, gold: W.gold, chance: W.chance }));
+  // Перековка (вещь → следующая редкость с шансом) убрана: редкость поднимает «Улучшение» в карточке вещи (100%)
+  const list = [];
   for (const slot of CRAFT_SLOTS) list.push({ id: `r${tier}_${slot}`, tier, kind: 'relic', slot, name: `Реликвия мира: ${SLOT_NAMES[slot].toLowerCase()}`,
     needItem: null, rar: W.relic.rar, mats: W.relic.mats, gold: W.relic.gold, chance: W.relic.chance });
   return list;
