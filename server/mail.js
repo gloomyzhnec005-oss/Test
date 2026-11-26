@@ -99,7 +99,7 @@ module.exports = function createMail({ I, Trade, getProfile, profilesFn, notifyU
     const pr = getProfile(p.uid);
     if (d.op === 'mailList') return list(p);
     if (d.op === 'mailSend') return send(p, d);
-    if (d.op === 'mailQuote') { const q = quote(pr, d); return q.error ? q : { nano: q.nano, gram: fmt(q.nano), goldFee: q.goldFee }; }
+    if (d.op === 'mailQuote') { const q = quote(pr, d); if (q.error) return q; const bal = Trade.bal(pr).total; return { nano: q.nano, gram: fmt(q.nano), goldFee: q.goldFee, bal, balTxt: fmt(bal) }; }
     const m = box(pr).find((x) => x.id === d.id);
     if (!m) return { error: 'Письмо не найдено' };
     if (d.op === 'mailRead') { m.read = true; save(); return { ok: true }; }

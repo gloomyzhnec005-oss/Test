@@ -913,20 +913,22 @@
           if (!Bag.inv()) await Bag.refresh();
           const inv = Bag.inv(), sel = new Set();
           const items = inv.items.filter((it) => !it.bound && !Bag.isEquipped(it) && it.loc !== 'wh');
-          body.innerHTML = `<p class="sheet-hint">Письмо — бесплатно. Вещи и материалы — с 10 уровня, плата в GRAM: 15% от минимальной цены в Торговом доме + 0,05. Золото — плюс 10%. Не забранное за 30 дней вернётся вам.</p>
+          body.innerHTML = `<div class="tw-banner pass"><b>💠 Передача вещей — платная, в GRAM</b><small>Текст письма — бесплатно. За вещи и материалы — 0,05 GRAM + 15% от их минимальной цены в Торговом доме (с 10 уровня). Золото — плюс 10% сверху. Сумма появится ниже, как только вы выберете вложения; списывается с GRAM-баланса при отправке. Не забранное за 30 дней вернётся вам.</small></div>
             <input class="mail-to wide-in" maxlength="16" placeholder="Ник получателя" autocomplete="off">
             <textarea class="mail-tx wide-in" maxlength="300" rows="3" placeholder="Текст письма"></textarea>
             <div class="ic-sec">Вещи (до 5)</div><div class="grid mail-items">${items.map((it) => Bag.cell(it)).join('') || '<small>Нет вещей, которые можно отправить</small>'}</div>
             <div class="btn-row"><select class="mail-mat"><option value="">Материал — нет</option>${(inv.mats || []).filter((m) => m.n > 0).map((m) => `<option value="${m.mat}">${esc(m.name)} (${m.n})</option>`).join('')}</select><input class="mail-n" type="number" min="1" placeholder="кол-во"></div>
             <div class="btn-row"><input class="mail-gold" type="number" min="0" placeholder="Золото"><button class="l2-btn" data-send>✉️ Отправить</button></div>
-            <small class="mail-q"></small>`;
+            <div class="mail-q">✉️ Отправка бесплатно</div>`;
           const grid = body.querySelector('.mail-items');
           grid.onclick = (e) => { const c = e.target.closest('.it[data-id]'); if (!c) return; const id = c.dataset.id;
             if (sel.has(id)) sel.delete(id); else if (sel.size < 5) sel.add(id); else Town.toast('Не больше 5 вещей');
             c.classList.toggle('sel', sel.has(id)); quote(); };
           const data = () => ({ to: body.querySelector('.mail-to').value.trim(), text: body.querySelector('.mail-tx').value, items: [...sel],
             mat: body.querySelector('.mail-mat').value || null, n: +body.querySelector('.mail-n').value || 0, gold: +body.querySelector('.mail-gold').value || 0 });
-          const quote = async () => { const q = await Bag.act('mailQuote', data()); body.querySelector('.mail-q').textContent = q.error ? '' : `Плата: ${q.nano ? q.gram + ' GRAM' : 'бесплатно'}${q.goldFee ? ` · золото +${q.goldFee}` : ''}`; };
+          const quote = async () => { const q = await Bag.act('mailQuote', data()); const el = body.querySelector('.mail-q');
+            el.classList.toggle('warn', !!(q.nano && q.bal < q.nano));
+            el.textContent = q.error ? q.error : `${q.nano ? `💠 К оплате: ${q.gram} GRAM (на балансе ${q.balTxt})` : '✉️ Отправка бесплатно'}${q.goldFee ? ` · 💰 плата золотом +${q.goldFee}` : ''}${q.nano && q.bal < q.nano ? ' — не хватает GRAM, пополните кошелёк' : ''}`; };
           body.querySelectorAll('.mail-mat, .mail-n, .mail-gold').forEach((el) => { el.onchange = quote; });
           body.querySelector('[data-send]').onclick = async () => {
             let x = await Bag.act('mailSend', data());

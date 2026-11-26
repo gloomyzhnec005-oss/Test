@@ -1640,3 +1640,5 @@ canvas.skin { object-fit: contain; }
 .ev-card.ev-war { border-left-color: #b86bff; } .ev-card.ev-war b { color: #d6a8ff; }
 .ev-card.ev-level { border-left-color: #6ac8ff; } .ev-card.ev-level b { color: #a8dcff; }
 .ev-card.ev-loot { border-left-color: #7dff8a; }
+.mail-q { margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: rgba(120,200,255,.12); color: #bfe6ff; font-size: 13px; }
+.mail-q.warn { background: rgba(255,80,80,.15); color: #ffb0b0; }
