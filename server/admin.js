@@ -143,6 +143,7 @@ module.exports = function createAdmin(ctx) {
       arena: pr.arena ? pr.arena.rating : 1000, banned: pr.banned || null, test: pr.test || {},
       sessions: online(uid).map(sessionView),
       payments: (pr.payments || []).slice(-15).reverse(),
+      zbt: ctx.zbtOf ? ctx.zbtOf(pr) : null,
     };
   }
 
