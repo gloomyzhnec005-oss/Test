@@ -5,6 +5,7 @@ const I = require('./items');
 // Комплекты данжа: [класс по номеру данжа, класс со сдвигом на 6] — каждый комплект мира есть в 1–2 данжах
 function dungeonSets(tier, index) {
   const C = I.CLASS_ORDER;
+  if (!Number.isInteger(index)) return C.map((c) => `${c}${tier}`); // опасный данж (dgIndex 'pk') — все комплекты своего мира
   return [...new Set([C[index % 8], C[(index + 6) % 8]])].map((c) => `${c}${tier}`);
 }
 // Какие данжи дают комплект (для подсказок в карточке предмета)

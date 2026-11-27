@@ -47,6 +47,9 @@ module.exports = function createPush({ getBot, profiles, isOnline, webAppUrl, sa
         .catch((e) => {
           // Бот заблокирован или чат удалён — больше не пишем этому игроку
           if (e && (e.code === 403 || /blocked|deactivated|chat not found/i.test(e.message || ''))) { const pr = profiles()[m.uid]; if (pr) { pr.pushBlocked = true; save(); } }
+          // Сбой сети до Telegram (обрыв соединения) — одна повторная попытка через минуту, без тревоги админу
+          else if (!m.retry && /request to .* failed|ECONNRESET|ETIMEDOUT|socket hang up|EAI_AGAIN/i.test((e && e.message) || '')) { m.retry = 1; setTimeout(() => queue.push(m), 60e3); }
+          else if (m.retry) console.warn('push: не отправлено после повтора —', e && e.message);
           else console.error('push', e && e.message);
         });
     }

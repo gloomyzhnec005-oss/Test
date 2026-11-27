@@ -2411,6 +2411,7 @@ function giveMats(o, pr, mats, at) {
     I.addMat(pr, id, n);
     if (inPk && SACK_MAT_KINDS.has((I.MATS[id] || {}).kind)) { (pr.sackMats ??= {})[id] = (pr.sackMats[id] || 0) + n; pr.sackOn = 1; }
     const M = I.MATS[id];
+    if (!M) { console.error('giveMats: неизвестный материал', id); continue; }
     names.push(`${M.icon}${n > 1 ? '×' + n : ''}`);
     if (['scroll', 'blueprint'].includes(M.kind) || id.startsWith('core')) o.socket.emit('chat', { sys: true, text: `Добыча: ${M.icon} ${M.name}${n > 1 ? ' ×' + n : ''}` });
   }
@@ -2421,7 +2422,7 @@ function giveLoot(o, pr, item, at) {
   if (isPkZone(o.zone) && item.cat !== 'bag') { item.sack = 1; pr.sackOn = 1; setTimeout(() => sackSend(o), 0); } // опасный данж — в мешок добычи
   // Сумка полна и это не дубликат (дубликат усиливает вещь, места не занимает) — вещь продаётся торговцу сама
   const full = pr.items.filter((i) => i.loc !== 'wh').length >= meta.bagSize(pr);
-  const dupe = pr.items.some((i) => i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < I.DUPE_MAX);
+  const dupe = pr.items.some((i) => !!i.bound === !!item.bound && i.cat === item.cat && i.tpl === item.tpl && i.rar === item.rar && i.tier === item.tier && (i.dupes || 0) < I.DUPE_MAX); // как в I.addItem: личная и свободная не складываются
   // Сумка полна: продаётся самая слабая простая вещь из сумки (ниже по редкости, чем новая; не надетая, без заточки,
   // рун, комплекта, тиража и привязки) — а новая ложится на её место. Если новая сама слабее всех — продаётся она
   if (full && !dupe && item.cat !== 'bag') {
