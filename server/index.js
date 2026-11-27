@@ -1684,7 +1684,7 @@ function damageMonster(p, m, raw, opt = {}) {
     // Монстры намного ниже уровнем — меньше (как и опыт); бонусы золота, опасный данж — сверху
     const lowK = diff > 4 ? Math.max(0.1, 1 - 0.15 * (diff - 4)) : 1;
     const gold = MOBX.bal2()
-      ? Math.round((2 + 0.1 * (m.level || 1)) * (I.TIER_MULT[m.tier || 1] || 1) * ((MOBX.RANK[m.rank] || {}).xp || 1) * lowK * (0.5 + Math.random()) * rw.gold * pkRate(p))
+      ? Math.round((2 + 0.1 * (m.level || 1)) * (I.TIER_MULT[m.tier || 1] || 1) * ((MOBX.RANK[m.rank] || {}).xp || 1) * lowK * (0.5 + Math.random()) * rw.gold * pkRate(p) * afGoldK(p))
       : Math.round((baseXp / 3 + 1) * (0.5 + Math.random()) * rw.gold * pkRate(p));
     fx.push({ t: 'death', target: m.id, x: m.x, y: m.y, xp, gold, by: p.id, contract: !!rw.contract });
     monsters.delete(m.id);
@@ -2282,6 +2282,9 @@ setInterval(() => {
 // Добыча там «в мешке», пока не вынесешь (см. мешок добычи выше) — риск окупается
 const isPkZone = (zid) => { const z = world.byId.get(zid); return !!(z && z.pk); };
 const pkRate = (p) => (isPkZone(p.zone) ? (p.autofarm ? 4 : 8) : 1); // золото и добыча
+// Автобой в обычных данжах: добыча ×0,6 (как опыт), золото ×0,8 (зелья автобой пьёт сам). В опасном данже — свои рейты (pkRate)
+const afLootK = (p) => (p.autofarm && !isPkZone(p.zone) ? 0.6 : 1);
+const afGoldK = (p) => (p.autofarm && !isPkZone(p.zone) ? 0.8 : 1);
 const pkXpRate = (p) => (isPkZone(p.zone) ? (p.autofarm ? 1.75 : 3.5) : 1); // опыт: ×3,5, в автобое ×1,75
 function xpBonusK(p) {
   if (!MOBX.bal2() || !isPkZone(p.zone)) return pkXpRate(p) * (p.autofarm && MOBX.bal2() ? 0.6 : 1); // бонус группы — только в опасном данже
@@ -2361,7 +2364,7 @@ function lootFor(o, m, tier, boss, at) {
     const luck = I.buffLuck(pr); // эликсиры удачи
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
     const lk = MOBX.LOOT_K(o.char.level); // прокачка с 10 ур. дольше (×1,5 / ×2) — добыча за убийство во столько же раз реже, чтобы на уровень её было столько же
-    const B2 = MOBX.bal2(), pk = pkRate(o), dropK = (B2 ? 0.25 : 1) * pk * lk; // новый баланс: вещей и материалов вчетверо меньше; опасный данж ×8 (автобой ×4)
+    const B2 = MOBX.bal2(), pk = pkRate(o), dropK = (B2 ? 0.25 : 1) * pk * lk * afLootK(o); // новый баланс: вещей и материалов вчетверо меньше; опасный данж ×8 (автобой ×4)
     const rolls = m.rank === 'boss' ? (B2 ? 1 + (Math.random() < 0.5 ? 1 : 0) : 2) + (pk > 1 ? 1 : 0) : m.rank === 'mini' ? 1 + (pk > 1 ? 1 : 0) : Math.random() < Math.min(0.9, C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult * dropK) ? 1 : 0;
     const wt = m.rank === 'boss' ? topW(C.DROPS.boss[tier], lk) : m.rank === 'mini' ? topW(C.DROPS.mini[tier], lk) : C.DROPS.weights[tier];
     for (let i = 0; i < rolls; i++) giveLoot(o, pr, I.bindLoot(I.rollItem(tier, B2 ? dropW2(wt, m.rank) : wt, null, o.heroId)), at); // 75% — под класс героя; эпик+ — личные
