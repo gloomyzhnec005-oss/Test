@@ -387,7 +387,7 @@ window.Lobby = (() => {
     box.querySelectorAll('[data-b]').forEach((b) => { b.onclick = () => { banner = b.dataset.b; openGacha(); }; });
     box.querySelectorAll('.wb-btns [data-n]').forEach((b) => { b.onclick = () => spin(+b.dataset.n); });
     box.querySelector('[data-a="hist"]').onclick = () => openSheet('📜 История призывов', histSheet());
-    box.querySelector('[data-a="glitter"]').onclick = () => openSheet('✨ Обмен осколков душ', glitterSheet());
+    box.querySelector('[data-a="glitter"]').onclick = () => openSheet('💫 Обмен осколков душ', glitterSheet());
     box.querySelector('[data-a="buy"]').onclick = () => buySpin('spin10');
     return box;
   }
@@ -403,13 +403,13 @@ window.Lobby = (() => {
 
   function glitterSheet() {
     const box = document.createElement('div'), w = W(), pr = w.glitterPrice || { hero: 10, gear: 8 };
-    box.innerHTML = `<p class="sheet-hint">Осколки душ даются за повторных героев (больше — за редких, вдвое — если дубликатов уже 10). У вас ✨ ${w.glitter || 0}</p>
-      <div class="tw-ev"><div><b>🔮 Печать призыва</b><small>${pr.hero} ✨</small></div><div class="btn-row"><button class="l2-btn" data-w="hero" data-n="1">×1</button><button class="l2-btn" data-w="hero" data-n="10">×10</button></div></div>
-      <div class="tw-ev"><div><b>🎁 Печать снаряжения</b><small>${pr.gear} ✨</small></div><div class="btn-row"><button class="l2-btn" data-w="gear" data-n="1">×1</button><button class="l2-btn" data-w="gear" data-n="10">×10</button></div></div>`;
+    box.innerHTML = `<p class="sheet-hint">Осколки душ даются за повторных героев (больше — за редких, вдвое — если дубликатов уже 10). У вас 💫 ${w.glitter || 0}</p>
+      <div class="tw-ev"><div><b>🔮 Печать призыва</b><small>${pr.hero} 💫</small></div><div class="btn-row"><button class="l2-btn" data-w="hero" data-n="1">×1</button><button class="l2-btn" data-w="hero" data-n="10">×10</button></div></div>
+      <div class="tw-ev"><div><b>🎁 Печать снаряжения</b><small>${pr.gear} 💫</small></div><div class="btn-row"><button class="l2-btn" data-w="gear" data-n="1">×1</button><button class="l2-btn" data-w="gear" data-n="10">×10</button></div></div>`;
     box.querySelectorAll('[data-w]').forEach((b) => { b.onclick = async () => {
       const { ok, data } = await api('/api/gacha/exchange', { what: b.dataset.w, n: +b.dataset.n });
       if (!ok) return toast(data.error || 'Не получилось');
-      profile = data.profile; toast('Обмен выполнен'); openSheet('✨ Обмен осколков душ', glitterSheet());
+      profile = data.profile; toast('Обмен выполнен'); openSheet('💫 Обмен осколков душ', glitterSheet());
     }; });
     const back = document.createElement('button'); back.className = 'l2-btn wide'; back.textContent = 'Назад'; back.onclick = openGacha;
     box.append(back);
@@ -610,7 +610,7 @@ window.Lobby = (() => {
     const grid = () => {
       const box = document.createElement('div');
       box.className = 'sm-overlay wish10';
-      box.innerHTML = `<div class="w10-grid">${res.map((r, i) => `<div class="w10-card" style="--rarity:${rarities[r.rar].color};--d:${i * 0.12}s" data-i="${i}"><b>${heroes[r.hero].name}</b><span>${rarities[r.rar].name}</span><em>${r.isNew ? 'Новый!' : r.dupe ? `Дубликат ★${r.dupe}` : 'Максимум'}${r.glitter ? ` · ✨${r.glitter}` : ''}</em></div>`).join('')}</div>
+      box.innerHTML = `<div class="w10-grid">${res.map((r, i) => `<div class="w10-card" style="--rarity:${rarities[r.rar].color};--d:${i * 0.12}s" data-i="${i}"><b>${heroes[r.hero].name}</b><span>${rarities[r.rar].name}</span><em>${r.isNew ? 'Новый!' : r.dupe ? `Дубликат ★${r.dupe}` : 'Максимум'}${r.glitter ? ` · 💫${r.glitter}` : ''}</em></div>`).join('')}</div>
         <button class="l2-btn spin-btn w10-ok">Готово</button>`;
       box.querySelectorAll('.w10-card').forEach((c) => c.prepend(heroCanvas(res[+c.dataset.i].hero, true)));
       $('reveal').parentElement.appendChild(box);

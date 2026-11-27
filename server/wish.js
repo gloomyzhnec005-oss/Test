@@ -111,7 +111,7 @@ module.exports = function createWish({ C, getChar, refreshUid, addPassXp, quest 
     const price = GLITTER_PRICE[what];
     n = Math.max(1, Math.min(50, Math.floor(n) || 1));
     if (!price) return { error: 'Неизвестный обмен' };
-    if (pr.glitter < price * n) return { error: `Нужно ${price * n} ✨ осколков душ` };
+    if (pr.glitter < price * n) return { error: `Нужно ${price * n} 💫 осколков душ` };
     pr.glitter -= price * n;
     if (what === 'hero') pr.paidSpins = (pr.paidSpins || 0) + n; else pr.itemSpins = (pr.itemSpins || 0) + n;
     return { ok: true };

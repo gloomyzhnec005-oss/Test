@@ -1563,7 +1563,7 @@ canvas.skin { object-fit: contain; }
 /* Кузница: массовый разбор */
 .salv-quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
 .salv-quick .l2-btn { padding: 6px 10px; font-size: 13px; }
-.salv-foot { position: sticky; bottom: 0; margin-top: 8px; padding: 8px; border-radius: 10px; background: rgba(20,14,8,.92); border: 1px solid #5a4830; display: grid; gap: 6px; font-size: 13px; }
+.salv-foot { position: sticky; bottom: 0; margin-top: 8px; padding: 8px; border-radius: 10px; background: #140e08; z-index: 10; box-shadow: 0 -6px 10px rgba(0,0,0,.5); border: 1px solid #5a4830; display: grid; gap: 6px; font-size: 13px; }
 .ic-attr.lost { opacity: .55; }
 .salv-got { display: flex; flex-wrap: wrap; gap: 8px; }
 .salv-m { display: flex; flex-direction: column; align-items: center; width: 74px; text-align: center; }
