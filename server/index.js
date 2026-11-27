@@ -3438,7 +3438,8 @@ function zbtView(p) {
   const pr = getProfile(p.uid), z = pr.zbt || {}, stars = zbtStars(pr), lvl = zbtLvl(pr);
   const gramSt = zbtGramStars(pr), credit = Math.round(((z.choice === 'refund' ? 0 : stars) + gramSt) * ZBT.keepK);
   return { stars, gramStars: gramSt, credit: pr.zbtCredit !== undefined && z.gifted ? Math.round(pr.zbtCredit) : credit, creditGot: z.gifted ? Math.round(z.creditGot || 0) : 0,
-    lvl, vetGems: zbtVetGems(lvl), choice: z.choice || 'keep', released: !!S.zbtReleased, gifted: !!z.gifted };
+    lvl, vetGems: zbtVetGems(lvl), choice: z.choice || 'keep', released: !!S.zbtReleased, gifted: !!z.gifted,
+    test: pr.zbtTest && !z.gifted ? { left: Math.floor(pr.zbtCredit || 0), got: Math.round(pr.zbtTest) } : null };
 }
 // Покупка «за звёзды» кредитом ЗБТ: та же цена и та же выдача, что у счёта Telegram (onPaid с валютой ZBT)
 function zbtPay(p, d) {

@@ -955,6 +955,9 @@
         if (!r || r.error) { Town.toast((r && r.error) || 'Нет связи'); return; }
         const box = document.createElement('div');
         box.innerHTML = `<p class="sheet-hint">Спасибо, что тестируете игру! Перед релизом мир обнулится, а участники ЗБТ получат подарки.</p>
+          ${r.test ? `<div class="tw-banner pass"><b>🎟️ Тестовый кредит: осталось ${r.test.left} ⭐ из ${r.test.got}</b><small>Ваши вложения 1 к 1 — чтобы проверить, как платить кредитом. Пропадёт при обнулении, на релизе вернётся снова ×1,5.</small></div>
+          <div class="ic-sec">Как платить кредитом</div>
+          <p class="sheet-hint">• <b>Магазин</b>: выберите покупку за ⭐ — в окне оплаты первой будет кнопка «🎟️ Кредит ЗБТ».<br>• <b>Рынок</b>: кредит списывается сам, раньше GRAM.<br>• В Торговом доме кредит не работает — там только GRAM.</p>` : ''}
           <div class="tw-banner pass"><b>🎖️ Ветеран ЗБТ</b><small>Рамка, титул и ${r.vetGems} 💎 за ваш уровень на ЗБТ (${r.lvl}). Больше уровень — больше самоцветов: до 10 — 50, 10 — 100, 20 — 150, 30 — 250, 40 — 350, 50 — 500</small></div>
           ${r.stars || r.gramStars ? `<div class="ic-sec">Ваши вложения на ЗБТ</div>
             <div class="pd-power"><span>⭐ звёзды и TON: <b>${r.stars}</b></span><span>💠 GRAM в игре: <b>≈ ${r.gramStars} ⭐</b></span></div>
