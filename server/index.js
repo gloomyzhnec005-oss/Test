@@ -3372,6 +3372,8 @@ server.listen(PORT, () => {
     onNotify: (tgId) => { const pr = profiles['tg' + tgId]; if (!pr) return null; pr.notifyOff = !pr.notifyOff; if (!pr.notifyOff) pr.pushBlocked = false; saveProfiles(); return !pr.notifyOff; } });
 });
 // Возврат Stars кнопкой в админке; игроку — сообщение от бота
+// Возврат звёзд: вычесть из вложений ЗБТ (иначе кредит выдался бы и за возвращённые деньги)
+admin.ctx.onRefund = (pr, pay) => { if (pr.donStars !== undefined) pr.donStars = Math.max(0, pr.donStars - starsOf(pay)); };
 admin.setRefund(async (tgId, charge) => {
   if (!bot) throw new Error('бот не запущен');
   await bot.telegram.callApi('refundStarPayment', { user_id: tgId, telegram_payment_charge_id: charge });
@@ -3429,12 +3431,15 @@ admin.setAlert(adminAlert);
 const ZBT = { gemsPerStar: 330 / 50, keepK: 1.5, vet: [[50, 500], [40, 350], [30, 250], [20, 150], [10, 100], [0, 50]] };
 // Вложения в ⭐: звёзды и TON (по курсу) — накопительно (журнал оплат хранит только 50 последних), плюс GRAM, потраченные в игре
 // Оплата кошельком (TON Connect) пишется как 'GRAM' (раньше — 'TON'): обе — по курсу GRAM за ⭐
-const starsOf = (x) => ((x.cur || 'XTR') === 'XTR' ? Number(x.amount) || 0 : x.cur === 'TON' || x.cur === 'GRAM' ? (Number(x.amount) || 0) / Math.max(1e-9, ton.rate()) : 0);
-function donAdd(pr, info) { if (pr.donStars === undefined) pr.donStars = (pr.payments || []).slice(0, -1).filter((x) => !x.refunded).reduce((a, x) => a + starsOf(x), 0); pr.donStars += starsOf({ cur: info.currency || 'XTR', amount: info.amount }) / ((info.currency || 'XTR') === 'XTR' ? STAR_K : 1); }
+// Звёзды Telegram — в базовых ⭐: с 26.11 19:08 UTC цена в звёздах ×STAR_K (наценка Telegram), до этого — без наценки
+const STAR_MARKUP_AT = Date.parse('2026-11-26T19:08:37Z');
+const starsOf = (x) => ((x.cur || 'XTR') === 'XTR' ? (Number(x.amount) || 0) / ((x.t || Date.now()) >= STAR_MARKUP_AT ? STAR_K : 1)
+  : x.cur === 'TON' || x.cur === 'GRAM' ? (Number(x.amount) || 0) / Math.max(1e-9, ton.rate()) : 0);
+function donAdd(pr, info) { if (pr.donStars === undefined) pr.donStars = (pr.payments || []).slice(0, -1).filter((x) => !x.refunded).reduce((a, x) => a + starsOf(x), 0); pr.donStars += starsOf({ cur: info.currency || 'XTR', amount: info.amount, t: Date.now() }); pr.donGramFix = 1; }
 const zbtStars = (pr) => Math.round(pr.donStars !== undefined ? pr.donStars : (pr.payments || []).filter((x) => !x.refunded).reduce((a, x) => a + starsOf(x), 0));
 const zbtGramStars = (pr) => { const T = (pr.gram || {}).tot || {}; return Math.round(Math.min(T.spent || 0, T.dep || 0) / 1e9 / Math.max(1e-9, ton.rate())); }; // пополненные GRAM, потраченные в игре, — в ⭐ (заработанные в игре не считаются)
 // Часть вложений звёздами Telegram — только её можно вернуть («Вернуть звёзды»); оплаты кошельком остаются в кредите
-const zbtXtr = (pr) => Math.min(zbtStars(pr), Math.round((pr.payments || []).filter((x) => (x.cur || 'XTR') === 'XTR' && !/^(dev|zbt)/.test(x.charge || '')).reduce((a, x) => a + (Number(x.amount) || 0), 0)));
+const zbtXtr = (pr) => Math.min(zbtStars(pr), Math.round((pr.payments || []).filter((x) => (x.cur || 'XTR') === 'XTR' && !/^(dev|zbt)/.test(x.charge || '')).reduce((a, x) => a + starsOf(x), 0)));
 const zbtLvl = (pr) => Math.max((pr.zbt && pr.zbt.lvl) || 0, (pr.acct && pr.acct.level) || 0, ...Object.values(pr.chars || {}).map((c) => c.level || 0));
 const zbtVetGems = (lvl) => ZBT.vet.find(([l]) => lvl >= l)[1];
 // Для админки (карточка игрока): вложения и кредит ЗБТ
@@ -3443,13 +3448,16 @@ admin.ctx.zbtOf = (pr) => ({ stars: zbtStars(pr), gramStars: zbtGramStars(pr), c
 // Исправление: оплаты кошельком ('GRAM') не попадали в счётчик вложений donStars — досчитываем один раз
 setTimeout(() => { try {
   let n = 0;
-  for (const pr of Object.values(profiles)) {
-    if (pr.donGramFix || pr.donStars === undefined) continue;
+  for (const [uid, pr] of Object.entries(profiles)) {
+    if (pr.donGramFix) continue;
+    store.touch(uid); // офлайн-профиль — тоже в ближайшую запись базы
+    pr.donGramFix = 1; // ставим всем: без счётчика вложения считаются по журналу оплат, где кошелёк уже учтён
+    if (pr.donStars === undefined) continue;
     const add = (pr.payments || []).filter((x) => x.cur === 'GRAM' && !x.refunded).reduce((a, x) => a + starsOf(x), 0);
-    pr.donGramFix = 1;
-    if (add > 0) { pr.donStars += add; n++; }
+    if (add > 0) { pr.donStars += add; n++; admin.log('zbt', `${pr.name || '?'}: оплаты кошельком досчитаны во вложения +${Math.round(add)} ⭐ (стало ${Math.round(pr.donStars)} ⭐)`); }
   }
-  if (n) { saveProfiles(); console.log(`[zbt] оплаты кошельком досчитаны во вложения: ${n} игрок(ов)`); }
+  saveProfiles();
+  if (n) { console.log(`[zbt] оплаты кошельком досчитаны во вложения: ${n} игрок(ов)`); }
 } catch (e) { console.error('zbt gram fix', e); } }, 15000);
 function zbtView(p) {
   const pr = getProfile(p.uid), z = pr.zbt || {}, stars = zbtStars(pr), lvl = zbtLvl(pr);
@@ -3523,7 +3531,7 @@ admin.setZbtTest(() => {
     if (!/^tg\d+$/.test(uid) || pr.zbtTest) continue;
     const credit = Math.round(zbtStars(pr) + zbtGramStars(pr));
     if (!(credit > 0)) continue;
-    pr.zbtCredit = (pr.zbtCredit || 0) + credit; pr.zbtTest = credit; n++; sum += credit;
+    pr.zbtCredit = (pr.zbtCredit || 0) + credit; pr.zbtTest = credit; n++; sum += credit; store.touch(uid);
     Mail.system(uid, { fromName: '🎖️ Команда Mystic Horizon', title: `🎟️ Тестовый кредит ЗБТ: ${credit} ⭐`,
       text: `Это ваши вложения 1 к 1 — для проверки, как работает кредит ЗБТ. Платите им в магазине и на Рынке (кроме Торгового дома).\n\nПри следующем обнулении тестовый кредит пропадёт. На релизе вложения вернутся снова, уже ×1,5.` });
     notifyUid(uid, `🎟️ Вам начислен тестовый кредит ЗБТ: ${credit} ⭐ — подробности в игре: меню → Почта`);
@@ -3561,7 +3569,7 @@ admin.setWipe((keep, opt = {}) => {
     const ref = Object.fromEntries(REF_KEEP.filter((k) => old[k] !== undefined).map((k) => [k, old[k]]));
     delete profiles[uid]; nP++;
     const np = (remind || gram || pays || zbt || Object.keys(ref).length) ? getProfile(uid) : null;
-    if (zbt) { zbt.xtr = zbtXtr(old); np.zbt = zbt; np.donStars = zbtStars(old); if (opt.release) { zbtGift(np, zbt, zbtStars(old), zbtGramStars(old)); nV++; } }
+    if (zbt) { zbt.xtr = zbtXtr(old); np.zbt = zbt; np.donStars = zbtStars(old); np.donGramFix = 1; if (opt.release) { zbtGift(np, zbt, zbtStars(old), zbtGramStars(old)); nV++; } }
     if (np) Object.assign(np, ref);
     if (remind) np.remindOpen = true; // подписку «Напомнить об открытии» сохраняем — это не прогресс
     // GRAM-кошелёк; дата регистрации и достигнутый уровень — чтобы условия вывода (30 ур., 7 дней) не «сбросились» вайпом

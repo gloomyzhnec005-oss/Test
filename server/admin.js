@@ -523,7 +523,7 @@ module.exports = function createAdmin(ctx) {
     if (!pay) return { error: 'Покупка не найдена' };
     if (pay.refunded) return { error: 'Уже возвращено' };
     try { await refundFn(Number(String(d.uid).slice(2)), d.charge); } catch (e) { return { error: 'Telegram отказал: ' + e.message }; }
-    pay.refunded = Date.now(); ctx.saveProfiles();
+    pay.refunded = Date.now(); if (ctx.onRefund) ctx.onRefund(pr, pay); ctx.saveProfiles();
     return { text: `Stars возвращены (${pay.amount ?? '?'} ⭐). Заберите купленное в карточке игрока.`, player: playerView(d.uid) };
   }, (d) => `возврат Stars ${d.uid} ${d.charge}`));
   const dlTokens = new Map(); // токен → { id, until }
