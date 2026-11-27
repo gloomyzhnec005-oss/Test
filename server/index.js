@@ -2360,7 +2360,7 @@ function lootFor(o, m, tier, boss, at) {
     meta.addPassXp(pr, m.rank === 'boss' ? 20 : m.rank === 'mini' ? 8 : m.rank === 'rare' ? 2 : m.rank === 'magic' ? 1 : Math.random() < 0.12 ? 1 : 0); // орден — на ~3–4 недели обычной игры, а не на пару вечеров
     const luck = I.buffLuck(pr); // эликсиры удачи
     const rankK = m.rank === 'rare' ? 5 : m.rank === 'magic' ? 2.5 : 1; // усиленные и редкие роняют чаще
-    const lk = MOBX.LOOT_K(o.char.level); // прокачка с 10 ур. вдвое дольше — добыча за убийство вдвое реже, чтобы на уровень её было столько же
+    const lk = MOBX.LOOT_K(o.char.level); // прокачка с 10 ур. дольше (×1,5 / ×2) — добыча за убийство во столько же раз реже, чтобы на уровень её было столько же
     const B2 = MOBX.bal2(), pk = pkRate(o), dropK = (B2 ? 0.25 : 1) * pk * lk; // новый баланс: вещей и материалов вчетверо меньше; опасный данж ×8 (автобой ×4)
     const rolls = m.rank === 'boss' ? (B2 ? 1 + (Math.random() < 0.5 ? 1 : 0) : 2) + (pk > 1 ? 1 : 0) : m.rank === 'mini' ? 1 + (pk > 1 ? 1 : 0) : Math.random() < Math.min(0.9, C.DROPS.chance * luck * rankK * (m.lootMult ?? 1) * S.dropMult * dropK) ? 1 : 0;
     const wt = m.rank === 'boss' ? topW(C.DROPS.boss[tier], lk) : m.rank === 'mini' ? topW(C.DROPS.mini[tier], lk) : C.DROPS.weights[tier];
