@@ -52,7 +52,7 @@ module.exports = function createAdmin(ctx) {
   // Не чаще раза в 10 минут, одним сообщением (до 5 разных ошибок, у каждой — начало текста). Повторы одной и той же ошибки не шлём.
   // Выключить: переменная ERROR_ALERTS=false. Отправку подключает index.js (setAlert) после запуска бота.
   const alertQ = [], ALERT_EVERY = 10 * 60e3;
-  let wipeFn = null;
+  let wipeFn = null, zbtTestFn = null;
   let alertFn = null, alertLast = 0, alertTotal = 0;
   const alertSeen = new Map(); // текст (без чисел) → когда последний раз отправляли: одну и ту же ошибку — не чаще раза в 6 ч
   setInterval(() => {
@@ -469,6 +469,8 @@ module.exports = function createAdmin(ctx) {
     const r = wipeFn(new Set(keep), { release: !!d.release });
     return { text: `Удалено игроков: ${r.players}, кланов: ${r.clans}, лотов: ${r.lots}. GRAM-кошельков сохранено: ${r.gram || 0}. Оставлены: ${keep.join(', ')}${snap}${d.release ? ` · Ветеранам ЗБТ выданы подарки: ${r.vets || 0}` : ''}` };
   }, () => 'обнуление игроков'));
+  // Тест ЗБТ: кредит ×1 донатерам (как при релизе, без подарков ветерана). Пропадает при следующем обнулении
+  r.post('/zbtTestCredit', act(() => (zbtTestFn ? zbtTestFn() : { error: 'Недоступно' }), () => 'тестовый кредит ЗБТ ×1'));
   // Кто выбрал «вернуть донат» (наследие ЗБТ) — с платежами звёздами для кнопки возврата
   r.post('/zbtRefunds', act(() => ({ list: Object.entries(ctx.profiles).filter(([, pr]) => pr.zbt && pr.zbt.choice === 'refund').map(([uid, pr]) => ({ uid, name: pr.nick || pr.name || uid,
     stars: (pr.payments || []).filter((x) => (x.cur || 'XTR') === 'XTR').reduce((a, x) => a + (Number(x.amount) || 0), 0),
@@ -663,5 +665,5 @@ module.exports = function createAdmin(ctx) {
 
   // Администратор ли этот игрок (Telegram ID в ADMIN_TG_IDS) — для кнопки админки в лобби
   const isAdminUid = (uid) => String(uid).startsWith('tg') && TG_IDS.includes(String(uid).slice(2));
-  return { router: r, settings, saveSettings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; }, setRefund: (fn) => { refundFn = fn; }, setWipe: (fn) => { wipeFn = fn; }, setBotcast: (fn) => { botcastFn = fn; } };
+  return { router: r, settings, saveSettings, log, ctx, isAdminUid, download, setAlert: (fn) => { alertFn = fn; }, setSendFile: (fn) => { sendFileFn = fn; }, setRefund: (fn) => { refundFn = fn; }, setWipe: (fn) => { wipeFn = fn; }, setZbtTest: (fn) => { zbtTestFn = fn; }, setBotcast: (fn) => { botcastFn = fn; } };
 };

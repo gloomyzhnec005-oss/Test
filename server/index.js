@@ -3496,6 +3496,24 @@ function zbtGift(np, z, stars, gramStars = 0) {
   np.title = 'Ветеран ЗБТ';
   np.zbtGiftMsg = `🎖️ Ветеран ЗБТ: рамка, титул и ${gems} 💎.${credit > 0 ? ` А ещё — 🎟️ кредит ЗБТ ${credit} ⭐: ваши вложения ×1,5. Платите им в магазине и на Рынке (кроме Торгового дома) — меню → Награды → Наследие ЗБТ.` : ''} Спасибо, что были с нами!`;
 }
+// Тестовый кредит ЗБТ ×1 (админка): донатерам — их вложения как кредит, чтобы проверить покупки им до релиза.
+// Подарки ветерана не выдаются, z.gifted не ставится; кредит и метка zbtTest пропадают при следующем обнулении
+admin.setZbtTest(() => {
+  if (S.zbtReleased) return { error: 'Релиз уже состоялся' };
+  let n = 0, sum = 0;
+  for (const [uid, pr] of Object.entries(profiles)) {
+    if (!/^tg\d+$/.test(uid) || pr.zbtTest) continue;
+    const credit = Math.round(zbtStars(pr) + zbtGramStars(pr));
+    if (!(credit > 0)) continue;
+    pr.zbtCredit = (pr.zbtCredit || 0) + credit; pr.zbtTest = credit; n++; sum += credit;
+    Mail.system(uid, { fromName: '🎖️ Команда Mystic Horizon', title: `🎟️ Тестовый кредит ЗБТ: ${credit} ⭐`,
+      text: `Это ваши вложения 1 к 1 — для проверки, как работает кредит ЗБТ. Платите им в магазине и на Рынке (кроме Торгового дома).\n\nПри следующем обнулении тестовый кредит пропадёт. На релизе вложения вернутся снова, уже ×1,5.` });
+    notifyUid(uid, `🎟️ Вам начислен тестовый кредит ЗБТ: ${credit} ⭐ — подробности в игре: меню → Почта`);
+    for (const o of players.values()) if (o.uid === uid) refreshPlayer(o);
+  }
+  saveProfiles();
+  return { text: `Тестовый кредит выдан: ${n} игрок(ам), всего ${sum} ⭐` };
+});
 // Обнуление перед стартом (админка → Настройки): удаляем всех, кроме keep
 admin.setWipe((keep, opt = {}) => {
   for (const o of [...players.values()]) if (!keep.has(o.uid)) {

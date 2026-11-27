@@ -605,7 +605,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
         <p class="muted">Удаляет всех игроков, кроме указанных: прогресс, предметы, лоты Торгового дома, кланы. <b>GRAM не трогает</b>: балансы, заявки на вывод и журнал сохраняются, замороженное в заявках на покупку возвращается на балансы, казна владык раздаётся участникам; право на вывод (30 ур., 7 дней) сохраняется. Перед удалением автоматически сохраняется снимок базы (Обзор → Снимки), из него можно восстановить. Игроки начнут заново при следующем входе.</p>
         <div class="row"><label>Оставить</label><input id="sWipeKeep" class="wide" placeholder="tg80769030 (через запятую)"></div>
         <label class="switch"><input type="checkbox" id="sWipeRel"> Релиз: выдать подарки «Ветеран ЗБТ» (рамка, титул, 💎 по уровню: 50/100/150/250/350/500) и самоцветы ×1,5 за оставленные вложения; выбор «вернуть/оставить» закроется. Без галочки — тестовое обнуление, наследие ЗБТ копится дальше</label>
-        <div class="row"><button class="btn danger" id="sWipe">Обнулить всех, кроме указанных</button><button class="btn" id="zbtRef">Кто просит вернуть донат</button></div>
+        <div class="row"><button class="btn danger" id="sWipe">Обнулить всех, кроме указанных</button><button class="btn" id="zbtRef">Кто просит вернуть донат</button><button class="btn" id="zbtTest">🎟️ Тестовый кредит ×1 донатерам</button></div>
         <div id="zbtRefBox"></div></div>
       <div class="row"><button id="sSave" class="btn primary">Сохранить настройки</button><button id="sDisk" class="btn">Записать данные игроков на диск</button></div>`;
     $('sSave').onclick = async () => {
@@ -622,6 +622,10 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       if (word === null) return;
       const r = await api('wipeAll', { keep, confirm: word.trim(), release: rel });
       toast(r.error || r.text, !!r.error);
+    };
+    $('zbtTest').onclick = async () => {
+      if (!confirm('Выдать донатерам тестовый кредит ЗБТ ×1 (как при релизе, но без ×1,5)? Повторно тому же игроку не выдаётся до следующего обнуления.')) return;
+      const r = await api('zbtTestCredit', {}); toast(r.error || r.text, !!r.error);
     };
     // Возврат доната (выбор игроков «вернуть»): платежи звёздами с кнопкой возврата
     $('zbtRef').onclick = async () => {
