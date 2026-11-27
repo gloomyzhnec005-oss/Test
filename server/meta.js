@@ -762,7 +762,7 @@ module.exports = function createMeta(deps) {
         pr.buffs[m.buff] = Math.max(now, pr.buffs[m.buff] || 0) + mins * 60000;
         msg = `${m.icon} ${m.name}: ещё ${mins >= 60 ? `${mins / 60} ч` : `${mins} минут`}`;
       } else if (m.kind === 'scrollTp') {
-        if (!deps.toTown(p)) return { error: 'Вы уже в городе' };
+        if (!deps.toTown(p)) return { error: /^pk_/.test(String(p.zone)) ? '☠️ Из опасного данжа — только через порталы «В город» (их 4 на карте)' : 'Вы уже в городе' };
         msg = `${m.icon} Возвращение в город`;
       } else if (m.kind === 'chest') {
         msg = `${m.icon} ${m.name}: ${openChest(p, pr, id, d)}`;

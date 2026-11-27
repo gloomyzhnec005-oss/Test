@@ -766,7 +766,7 @@ const meta = createMeta({
   statsFor: (...a) => statsFor(...a), unlockedSkills: (...a) => unlockedSkills(...a),
   gram: { nano: (s) => Trade.nanoOf(s), spend: (uid, n, t) => Trade.spendGram(uid, n, t), fmt: (n) => Trade.fmt(n) }, // внешний вид за GRAM
   // Свиток возвращения: в город текущего мира
-  toTown: (p) => { if (isPkZone(p.zone) && pkState(p) !== 'white') return false; const z = world.byId.get(p.zone); const home = z && world.byId.get(z.town || z.id); if (!home || home.id === p.zone) return false; moveToZone(p, home.id); return true; },
+  toTown: (p) => { if (isPkZone(p.zone)) return false; /* из опасного данжа — только через порталы */ const z = world.byId.get(p.zone); const home = z && world.byId.get(z.town || z.id); if (!home || home.id === p.zone) return false; moveToZone(p, home.id); return true; },
 });
 // Торговля за GRAM: баланс, Рынок (вещи игры), Торговый дом (между игроками), вывод, торговые ордена (server/trade.js)
 // Особые задания (подписка на канал/чат, партнёры) → самоцветы: server/special.js
@@ -1390,6 +1390,8 @@ function friendTpCheck(p, f) {
   const z = world.byId.get(f.zone), mz = world.byId.get(p.zone);
   if (!z || z.inst || !['town', 'dungeon'].includes(z.kind)) return `${f.name} там, куда телепорт не ведёт`;
   if (mz && ['survival', 'worldboss'].includes(mz.kind)) return 'Отсюда телепорт недоступен';
+  if (mz && mz.pk) return '☠️ Из опасного данжа — только через порталы «В город» (их 4 на карте)';
+  if (z.pk) return `${f.name} в опасном данже — туда только через портал из города`;
   if (mz && mz.inst) return 'С арены телепорт недоступен';
   if (z.kind === 'town') { const need = (world.towns.find((t) => t.id === z.id) || {}).minLevel || 1; if (p.char.level < need) return `${z.name}: нужен ${need} уровень`; }
   if (z.dg) {
@@ -2788,6 +2790,7 @@ io.on('connection', (socket) => {
     const z = world.byId.get(p.zone);
     if (z && z.kind === 'survival') return socket.emit('skillFail', 'Из данжа выживания не уйти — бой до конца');
     if (z && z.kind === 'worldboss') return socket.emit('skillFail', 'Из логова не уйти, пока жив мировой босс');
+    if (z && z.pk) return socket.emit('skillFail', '☠️ Из опасного данжа — только через порталы «В город» (их 4 на карте)'); // мешок добычи выносят ногами
     if (!z || !['dungeon', 'pvp'].includes(z.kind) || z.inst || !z.town) return socket.emit('skillFail', 'Отсюда телепорт недоступен');
     if (Date.now() - (p.lastHurt || 0) < 3000) return socket.emit('skillFail', 'Нельзя в бою — подождите 3 секунды без урона');
     if (z.pk && pkState(p) !== 'white') return socket.emit('skillFail', pkState(p) === 'red' ? '🔴 Вы красный — из опасного данжа не уйти, пока не очистится карма' : '🩷 Вы розовый — телепорт в город недоступен, пока не спадёт флаг');

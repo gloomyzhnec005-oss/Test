@@ -1403,7 +1403,7 @@
         store: () => Town.openPlace('store'),
         // Меню «Игра» по разделам: сверху — действия боя (широкие строки), ниже — плитки в 2 колонки
         play: () => {
-          const L = window.GameLinks || {}, inDg = zone && zone.kind === 'dungeon';
+          const L = window.GameLinks || {}, inDg = zone && zone.kind === 'dungeon' && !zone.pk; // из опасного данжа — только через порталы
           menuGroups('⚔️ Игра', [
             ['⚔️ Бой', [
               autofarmRow(),

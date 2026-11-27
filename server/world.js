@@ -394,8 +394,9 @@ function buildWorld() {
     return z;
   };
   // Портал выхода — у стены стартовой комнаты, подальше от проходов и от точки появления (не мешает пройти)
-  function wallSpot(m) {
-    const r = m.rooms.find((x) => x.role === 'start'), W = m.w;
+  function wallSpot(m, room = null) {
+    const r = room || m.rooms.find((x) => x.role === 'start'), W = m.w;
+    const ref = room ? { tx: room.cx, ty: room.cy } : m.spawn; // не на месте появления / не в самом центре комнаты
     const solid = (x, y) => x < 0 || y < 0 || x >= W || y >= m.h || SOLID.has(m.tiles[y * W + x]);
     if (!r) return { tx: m.spawn.tx, ty: m.spawn.ty - 2 };
     // Проходы: свободные клетки сразу за краем комнаты
@@ -413,14 +414,14 @@ function buildWorld() {
         if (needTop ? !top : !(top || side)) continue;
         if (t(x - 1, y) === T.DECO || t(x + 1, y) === T.DECO || t(x, y - 1) === T.DECO) continue; // не вплотную к украшениям
         const door = Math.min(99, ...doors.map(([dx, dy]) => Math.abs(dx - x) + Math.abs(dy - y)));
-        const sp = Math.hypot(x - m.spawn.tx, y - m.spawn.ty);
+        const sp = Math.hypot(x - ref.tx, y - ref.ty);
         if (door < minDoor || sp < 2.5) continue;
         const score = door * 2 + Math.min(sp, 6) + (top ? 3 : 0) - Math.abs(x - r.cx) * 0.3;
         if (score > bs) { bs = score; best = { tx: x, ty: y }; }
       }
       if (best) break;
     }
-    return best || { tx: m.spawn.tx, ty: m.spawn.ty - 2 };
+    return best || { tx: ref.tx, ty: ref.ty - 2 };
   }
   // Ворота комнаты босса: на каждом входе из коридора — ряд клеток сразу за стеной комнаты.
   // Закрытые ворота — непроходимые клетки (DECO); открываются, когда босс в комнате (server/dungeon.js)
@@ -459,6 +460,18 @@ function buildWorld() {
       w: m.w, h: m.h, tiles: m.tiles, spawnTile: m.spawn, town: w.id, objs: [], rooms: m.rooms, maxD: m.maxD, dg, dgIndex: 'pk', decoTiles: m.deco });
     const bt = wallSpot(m), back = z.abs(bt.tx, bt.ty);
     z.objs.push({ id: 'back', kind: 'portal', to: w.id, name: `В город ${town.name}`, icon: '🏰', x: back.x, y: back.y });
+    // Ещё 3 выхода в город — в обычных комнатах в разных концах лабиринта (подальше от входа и друг от друга).
+    // Телепорта в город из опасного данжа нет: уйти можно только через порталы (и мирным — розовым и красным выход закрыт)
+    const start = m.rooms.find((r) => r.role === 'start'), used = [start];
+    for (let k = 0; k < 3; k++) {
+      const cand = m.rooms.filter((r) => r.role === 'normal' && !used.includes(r));
+      if (!cand.length) break;
+      const dist = (r) => Math.min(...used.map((u) => Math.abs(u.cx - r.cx) + Math.abs(u.cy - r.cy)));
+      const r = cand.reduce((a, b) => (dist(b) > dist(a) ? b : a));
+      used.push(r);
+      const s = wallSpot(m, r), at = z.abs(s.tx, s.ty);
+      z.objs.push({ id: `back${k + 2}`, kind: 'portal', to: w.id, name: `В город ${town.name}`, icon: '🏰', x: at.x, y: at.y });
+    }
     z.gates = []; // боссы опасного данжа — без ворот и расписания: возрождаются сами
   });
   // Замки (осада кланов, server/castle.js): двор 36×44 — внизу лагерь нападающих, посередине стена с воротами (проход 6 клеток),
