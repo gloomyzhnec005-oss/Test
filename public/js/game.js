@@ -299,7 +299,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
     types.forEach((t) => this.makeMobAnims(t));
     for (const [mid, e] of this.monsters) {
       if (e.pvp || e.heroClone || e.mskin || !e.data || !set.has(e.data.type)) continue;
-      if (this.targetId === mid) continue; // цель не трогаем, чтобы не сбить бой — обновится позже
+      if (this.targetId === mid) continue; // цель пересоздаётся при следующем кадре состояния (см. обработку монстров)
       e.c.destroy(); this.monsters.delete(mid);
     }
   }
@@ -1135,6 +1135,12 @@ window.GameScene = class GameScene extends Phaser.Scene {
       }
       seenM.add(m.id);
       let e = this.monsters.get(m.id);
+      // Монстр появился, пока его картинка грузилась (процедурная фигура без кадров удара), а картинка уже готова —
+      // пересоздать нарисованным. Раньше цель игрока пропускалась и так и оставалась без анимации (босс в башне и т.п.).
+      // Выбранная цель не сбивается: она хранится по id, а id тот же
+      if (e && !e.mskin && !e.heroClone && !m.hs && Skins.MOBS[m.type] && this.textures.exists('mskin_' + m.type) && this.anims.exists(`mwalk_${m.type}`)) {
+        e.c.destroy(); this.monsters.delete(m.id); e = null;
+      }
       if (!e) {
         const def = this.monsterDefs[m.type];
         // Цвет имени по рангу: синий — усиленный, жёлтый — редкий, оранжевый — полубосс, красный — босс, фиолетовый — мировой
@@ -1159,6 +1165,7 @@ window.GameScene = class GameScene extends Phaser.Scene {
         e.sprite.setScale(sz);
         if (ms) {
           // Нарисованный монстр: ноги на точке позиции, полоска здоровья и имя над головой
+          this.makeMobAnims(m.type); // кадры ходьбы и удара — если ещё не созданы
           e.mskin = m.type;
           e.sprite.setFrame(ms.walk[0]).setOrigin(0.5, (ms.h - 15) / ms.h);
           const top = -((ms.body || ms.h) - 15) * sz - 3;   // body — рост без запаса под поднятое оружие
@@ -1444,6 +1451,8 @@ window.GameScene = class GameScene extends Phaser.Scene {
   // Кадры атаки нарисованного монстра (удар, выстрел, умение)
   mobSwing(m, tx) {
     if (!m || !m.mskin || m.attacking) return;
+    this.makeMobAnims(m.mskin); // кадры могли не создаться, если лист догрузился позже входа в зону
+    if (!this.anims.exists(`matk_${m.mskin}`)) return;
     if (tx != null) m.sprite.setFlipX(tx < m.c.x);
     m.attacking = true;
     m.sprite.play(`matk_${m.mskin}`);
