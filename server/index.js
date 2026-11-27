@@ -641,7 +641,7 @@ function onGiftPaid(kind, toUid, fromUid, info) {
     if (from.charges.includes(info.charge)) return true;
     from.charges.push(info.charge); if (from.charges.length > 300) from.charges.splice(0, from.charges.length - 300);
   }
-  (from.payments ??= []).push({ t: Date.now(), kind, giftTo: toUid, amount: info.amount, cur: info.currency || 'XTR', charge: info.charge });
+  (from.payments ??= []).push({ t: Date.now(), kind, giftTo: toUid, amount: info.amount, cur: info.currency || 'XTR', charge: info.charge, from: info.from || undefined });
   if (from.payments.length > 50) from.payments.splice(0, from.payments.length - 50);
   from.paidOnce = true;
   try { Q.track(fromUid, 'purchase', 1); } catch (e) { console.error('quest purchase', e); }
@@ -673,7 +673,7 @@ function onPaid(payload, info = {}) {
     if (pr.charges.length > 300) pr.charges.splice(0, pr.charges.length - 300);
   }
   // Журнал покупок игрока: нужен поддержке (/paysupport) и для возврата Stars (/refund)
-  (pr.payments ??= []).push({ t: Date.now(), kind, id: id || undefined, amount: info.amount, cur: info.currency || 'XTR', charge: info.charge });
+  (pr.payments ??= []).push({ t: Date.now(), kind, id: id || undefined, amount: info.amount, cur: info.currency || 'XTR', charge: info.charge, from: info.from || undefined });
   if (pr.payments.length > 50) pr.payments.splice(0, pr.payments.length - 50);
   pr.paidOnce = true; // скидка на первую покупку израсходована
   try { Q.track(uid, 'purchase', 1); } catch (e) { console.error('quest purchase', e); } // недельное «Покровитель»
@@ -3373,7 +3373,13 @@ server.listen(PORT, () => {
 });
 // Возврат Stars кнопкой в админке; игроку — сообщение от бота
 // Возврат звёзд: вычесть из вложений ЗБТ (иначе кредит выдался бы и за возвращённые деньги)
-admin.ctx.onRefund = (pr, pay) => { if (pr.donStars !== undefined) pr.donStars = Math.max(0, pr.donStars - starsOf(pay)); };
+admin.ctx.onRefund = (pr, pay) => {
+  const st = starsOf(pay);
+  if (pr.donStars !== undefined) pr.donStars = Math.max(0, pr.donStars - st);
+  // тестовый кредит ×1 (до релиза) был выдан и за этот платёж — снимаем его остаток на ту же сумму
+  if (pr.zbtTest && !(pr.zbt && pr.zbt.gifted)) pr.zbtCredit = Math.max(0, Math.round(((pr.zbtCredit || 0) - st) * 100) / 100);
+  return Math.round(st);
+};
 admin.setRefund(async (tgId, charge) => {
   if (!bot) throw new Error('бот не запущен');
   await bot.telegram.callApi('refundStarPayment', { user_id: tgId, telegram_payment_charge_id: charge });

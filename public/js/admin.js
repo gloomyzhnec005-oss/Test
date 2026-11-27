@@ -412,7 +412,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       </div>
       ${p.zbt ? `<div class="card"><h3>🎟️ ЗБТ</h3><div class="row"><small class="grow">Вложения: ⭐ звёзды/кошелёк <b>${p.zbt.stars}</b> · GRAM в игре ≈ <b>${p.zbt.gramStars}</b> ⭐ · выбор: ${p.zbt.choice === 'refund' ? 'вернуть' : 'оставить'}</small></div>
         <div class="row"><small class="grow">Кредит сейчас: <b>${p.zbt.credit}</b> ⭐${p.zbt.test ? ` · тестовый выдан ${p.zbt.test} ⭐` : ''}${p.zbt.gifted ? ' · подарки релиза выданы' : ''}</small></div></div>` : ''}
-      <div class="card"><h3>⭐ Покупки</h3>${(p.payments || []).length ? p.payments.map((x) => `<div class="row"><small class="grow">${new Date(x.t).toLocaleString('ru')} · ${esc(x.kind)}${x.id ? ' ' + esc(x.id) : ''} · ${x.amount ?? '?'} ${esc(x.cur || '')}${x.refunded ? ' · <b>возврат</b>' : ''}</small>${x.charge && !x.refunded && x.cur === 'XTR' ? `<button class="btn small danger" data-a="refund" data-charge="${esc(x.charge)}" data-amount="${x.amount ?? ''}">↩️ Вернуть Stars</button>` : ''}</div>`).join('') : '<small>Покупок нет</small>'}</div>
+      <div class="card"><h3>⭐ Покупки</h3>${(p.payments || []).length ? p.payments.map((x) => `<div class="row"><small class="grow">${new Date(x.t).toLocaleString('ru')} · ${esc(x.kind)}${x.id ? ' ' + esc(x.id) : ''} · ${x.amount ?? '?'} ${esc(x.cur || '')}${x.refunded ? ` · <b>возврат${x.refundManual ? ' (вручную)' : ''}</b>` : ''}${x.from ? ` · с кошелька <code>${esc(x.from)}</code>` : ''}</small>${x.charge && !x.refunded && x.cur === 'XTR' ? `<button class="btn small danger" data-a="refund" data-charge="${esc(x.charge)}" data-amount="${x.amount ?? ''}">↩️ Вернуть Stars</button>` : ''}${!x.refunded && (x.cur === 'GRAM' || x.cur === 'TON') ? `<button class="btn small danger" data-a="gramRefund" data-t="${x.t}" data-amount="${x.amount ?? ''}">✔️ GRAM вернул вручную</button>` : ''}</div>`).join('') : '<small>Покупок нет</small>'}</div>
 
       <div class="card"><h3>🦸 Герои (${p.heroes.filter((h) => h.owned).length} / ${p.heroes.length})</h3>
         <div class="row"><button class="btn" data-a="allHeroes">Выдать всех</button>
@@ -497,6 +497,11 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
         refund: async () => {
           if (!confirm(`Вернуть игроку ${b.dataset.amount || ''} ⭐ за эту покупку? Отменить возврат нельзя.`)) return;
           const r = await api('refund', { uid: cur.uid, charge: b.dataset.charge });
+          if (r.player) { cur = r.player; drawPlayer(); }
+        },
+        gramRefund: async () => {
+          if (!confirm(`Сначала переведите игроку ${b.dataset.amount || ''} GRAM с кошелька игры (Tonkeeper). Уже перевели? Отметка вычтет этот платёж из вложений ЗБТ. Отменить нельзя.`)) return;
+          const r = await api('markGramRefund', { uid: cur.uid, t: b.dataset.t });
           if (r.player) { cur = r.player; drawPlayer(); }
         },
         reset: () => confirm('Удалить ВЕСЬ прогресс игрока? Это нельзя отменить.') && edit('reset'),

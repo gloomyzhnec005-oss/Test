@@ -526,6 +526,19 @@ module.exports = function createAdmin(ctx) {
     pay.refunded = Date.now(); if (ctx.onRefund) ctx.onRefund(pr, pay); ctx.saveProfiles();
     return { text: `Stars возвращены (${pay.amount ?? '?'} ⭐). Заберите купленное в карточке игрока.`, player: playerView(d.uid) };
   }, (d) => `возврат Stars ${d.uid} ${d.charge}`));
+  // Оплата кошельком (GRAM/TON) возвращается вручную: админ сам переводит GRAM с кошелька игры, потом отмечает здесь.
+  // Отметка вычитает платёж из вложений ЗБТ (и из тестового кредита), чтобы кредит на релизе не выдался за возвращённое
+  r.post('/markGramRefund', act((d) => {
+    const pr = ctx.profiles[d.uid];
+    if (!pr) return { error: 'Игрок не найден' };
+    const pay = (pr.payments || []).find((x) => x.t === Number(d.t) && (x.cur === 'GRAM' || x.cur === 'TON'));
+    if (!pay) return { error: 'Оплата кошельком не найдена' };
+    if (pay.refunded) return { error: 'Уже отмечено как возвращённое' };
+    pay.refunded = Date.now(); pay.refundManual = true;
+    const st = ctx.onRefund ? ctx.onRefund(pr, pay) : 0;
+    store.touch(d.uid); ctx.saveProfiles();
+    return { text: `Отмечено: ${pay.amount} ${pay.cur} возвращены вручную · вложения ЗБТ −${st} ⭐. Заберите купленное в карточке игрока.`, player: playerView(d.uid) };
+  }, (d) => `ручной возврат GRAM ${d.uid} (оплата ${new Date(Number(d.t)).toISOString()})`));
   const dlTokens = new Map(); // токен → { id, until }
   r.post('/snapLink', aact(async (d) => {
     const t = crypto.randomBytes(18).toString('base64url');
