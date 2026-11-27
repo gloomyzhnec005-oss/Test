@@ -2473,6 +2473,7 @@ function walkable(ax, ay, bx, by) {
 }
 // Защита от подмены служебных имён (constructor, __proto__, toString…) в командах и запросах
 const BAD_KEYS = new Set(Object.getOwnPropertyNames(Object.prototype));
+const joinQueue = new Map(); // очередь на вход, когда сервер заполнен: uid → { at — первая попытка, seen — последняя }
 function badArg(a, depth = 0) {
   if (typeof a === 'string') return BAD_KEYS.has(a);
   if (a && typeof a === 'object' && depth < 3) {
@@ -2536,6 +2537,21 @@ io.on('connection', (socket) => {
     const isTester = !!(prj.test || {}).tester || admin.isAdminUid(uid);
     if (S.openAt > Date.now() && !isTester) return socket.emit('error_msg', `Игра откроется ${(() => { const d = new Date(S.openAt + 3 * 36e5).toISOString(); return `${d.slice(8, 10)}.${d.slice(5, 7)} в ${d.slice(11, 16)}`; })()} МСК`);
     if (S.maintenance && !isTester) return socket.emit('error_msg', S.brk ? `Технический перерыв до ${fmtHM(S.brk.at + S.brk.min * 60e3)} МСК` : 'Технические работы, зайдите позже');
+    // Очередь на вход: сервер заполнен (админка → «Предел онлайна») — игрок ждёт своей очереди, клиент сам повторяет вход.
+    // Админы и тестеры, возвращение к своему телу в опасном данже — без очереди. Порядок — по времени первой попытки
+    { const max = Number(S.maxOnline) || 0;
+      if (max > 0 && !isTester && !resume) {
+        const now = Date.now();
+        for (const [u, q] of joinQueue) if (now - q.seen > 45e3) joinQueue.delete(u); // перестал ждать — выбыл
+        if (!joinQueue.has(uid)) joinQueue.set(uid, { at: now, seen: now });
+        joinQueue.get(uid).seen = now;
+        const order = [...joinQueue.entries()].sort((a, b) => a[1].at - b[1].at).map((e) => e[0]);
+        let busy = 0; for (const o of players.values()) if (!o.offline || o.afBot) busy++; // ждущие после обрыва связи почти не нагружают — не считаем
+        const free = max - busy, pos = order.indexOf(uid) + 1;
+        if (pos > free) return socket.emit('queue', { pos: pos - Math.max(0, free), total: order.length, max });
+        joinQueue.delete(uid);
+      }
+    }
     // Подарок основателя: всем, кто вошёл в первые 3 дня после открытия (один раз на аккаунт)
     if (S.openAt && Date.now() >= S.openAt && Date.now() < S.openAt + 3 * 864e5 && !prj.founder) {
       prj.founder = Date.now();
@@ -3197,6 +3213,9 @@ setInterval(() => {
 
   // Рассылка состояния — каждой зоне только её объекты
   tickNo++;
+  // Эконом-режим (админка → Нагрузка): лёгкие кадры 5 раз в секунду вместо 10 — на треть меньше рассылки и трафика.
+  // Эффекты не теряются: копятся до следующего кадра
+  if (S.perfMode && tickNo % 4 === 3) return;
   const zIdx = (x) => Math.floor(x / ZONE_STRIDE);
   const fxZone = (f) => {
     const x = f.x ?? f.fx ?? f.tx;

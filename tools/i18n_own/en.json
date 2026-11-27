@@ -3774,6 +3774,7 @@
 "⏳ С 10 уровня каждый уровень идёт вдвое дольше — путь к 50 стал настоящим испытанием":"⏳ From level 10, each level takes twice as long: the road to 50 is a real challenge now",
 "⏳ С 10 уровня на уровень нужно вдвое больше опыта — путь к 50 стал длиннее. Добыча на уровень та же: вещи и материалы с монстров падают реже. Гибель отнимает 10% опыта уровня, а не 15%":"⏳ From level 10, each level needs twice as much XP: the road to 50 is longer. Loot per level stays the same: items and materials from monsters drop less often. Death costs 10% of the level's XP instead of 15%",
 "⏳ С 10 уровня на уровень нужно вдвое больше опыта — путь к 50 стал длиннее. Зато гибель отнимает 10% опыта уровня, а не 15%":"⏳ From level 10, each level needs twice as much XP: the road to 50 is longer. In return, death now costs 10% of the level's XP instead of 15%",
+"⏳ Сервер заполнен ({0} игроков). Вы в очереди: {1} из {2}. Вход — автоматически, не закрывайте игру":"⏳ The server is full ({0} players). You're in the queue: {1} of {2}. You'll get in automatically, don't close the game",
 "⏳ ждёт выплаты":"⏳ awaiting payout",
 "◆ Комплекты · ваш класс: {16}":"◆ Sets · your class: {16}",
 "◆ Комплекты · ваш класс: {17}":"◆ Sets · your class: {17}",

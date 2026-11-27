@@ -563,6 +563,10 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
         <div class="row"><label class="grow">Золото</label><input id="sGold" type="number" step="0.1" value="${s.goldMult}"></div>
         <div class="row"><label class="grow">Шанс добычи с обычных монстров</label><input id="sDrop" type="number" step="0.1" value="${s.dropMult}"></div>
         <p class="muted">1 — обычно, 2 — вдвое больше. Удобно для событий «двойной опыт» и для тестов.</p></div>
+      <div class="card"><h3>🛡 Нагрузка</h3>
+        <div class="row"><label class="grow">Предел онлайна (0 — без предела)</label><input id="sMaxOn" type="number" step="10" value="${s.maxOnline ?? 160}"></div>
+        <div class="row"><label><input type="checkbox" id="sPerf" ${s.perfMode ? 'checked' : ''}> <b>Эконом-режим</b>: реже рассылка состояния мира — сервер держит больше игроков, движение чуть менее плавное</label></div>
+        <p class="muted">Сверх предела игроки ждут в очереди (видят своё место, входят сами). Админы и тестеры — без очереди. Ориентир: следите за «Нагрузкой» (задержка p99 выше 50 мс — сервер не успевает).</p></div>
       <div class="card"><h3>🎛 Режимы</h3>
         <label class="switch"><input id="sFree" type="checkbox" ${s.freeSpins ? 'checked' : ''}> Бесплатные крутки героев для всех</label>
         <label class="switch"><input id="sMaint" type="checkbox" ${s.maintenance ? 'checked' : ''}> Технические работы (вход только тестерам)</label></div>
@@ -606,7 +610,7 @@ const tgLine = (t) => [PLAT[t.plat] || t.plat || '', t.lang ? `язык ${t.lang
       <div class="row"><button id="sSave" class="btn primary">Сохранить настройки</button><button id="sDisk" class="btn">Записать данные игроков на диск</button></div>`;
     $('sSave').onclick = async () => {
       if ($('sMaint').checked && !s.maintenance && !confirm('Включить техработы? Все игроки, кроме тестеров, будут отключены.')) return;
-      await api('settings', { set: { xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value, partners: $('sPartners').value, zbt: $('sZbt').checked, bal2: $('sBal2').checked, spChannel: $('sSpChannel').value, spChat: $('sSpChat').value, special: $('sSpecial').value } });
+      await api('settings', { set: { maxOnline: $('sMaxOn').value, perfMode: $('sPerf').checked, xpMult: $('sXp').value, goldMult: $('sGold').value, dropMult: $('sDrop').value, freeSpins: $('sFree').checked, maintenance: $('sMaint').checked, motd: $('sMotd').value, channel: $('sChannel').value, chat: $('sChat').value, partners: $('sPartners').value, zbt: $('sZbt').checked, bal2: $('sBal2').checked, spChannel: $('sSpChannel').value, spChat: $('sSpChat').value, special: $('sSpecial').value } });
       drawSettings();
     };
     $('sDisk').onclick = () => api('save');

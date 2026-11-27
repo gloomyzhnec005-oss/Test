@@ -561,10 +561,18 @@
     Lobby.setStatus('Подключение...');
 
     socket = io({ transports: ['websocket', 'polling'], reconnectionDelay: 400, reconnectionDelayMax: 2000 });
+    const joinData = () => ({ hero: selected, initData: tg ? tg.initData : '', guestId, guestName: name, lang: window.I18N && I18N.lang }); // язык — для уведомлений бота
+    let queueTm = 0;
     socket.on('connect', () => {
       $('netBadge').classList.add('hidden');
       if (socket.recovered) return; // связь вернулась, сессия цела — герой там же, заново входить не нужно
-      socket.emit('join', { hero: selected, initData: tg ? tg.initData : '', guestId, guestName: name, lang: window.I18N && I18N.lang }); // язык — для уведомлений бота
+      socket.emit('join', joinData());
+    });
+    // Сервер заполнен — очередь: показываем место и сами пробуем войти каждые 8 секунд
+    socket.on('queue', (q) => {
+      Lobby.setStatus(`⏳ Сервер заполнен (${q.max} игроков). Вы в очереди: ${q.pos} из ${q.total}. Вход — автоматически, не закрывайте игру`);
+      clearTimeout(queueTm);
+      queueTm = setTimeout(() => { if (socket.connected && !game) socket.emit('join', joinData()); }, 8000);
     });
     socket.on('error_msg', (m) => { Lobby.setStatus(m); Lobby.setBusy(false); socket.disconnect(); });
     // Тот же аккаунт вошёл в другой вкладке / на другом устройстве — эта сессия закрыта сервером
