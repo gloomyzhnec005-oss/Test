@@ -34,6 +34,7 @@ const store = require('./store');
 // ---------- Хранилище прогресса (server/store.js: атомарная запись, бэкапы, постоянный диск Railway) ----------
 let profiles = store.readJSON('players.json', {});
 function saveProfiles() {
+  try { for (const p of players.values()) store.touch(p.uid); } catch { /* при старте игроков ещё нет */ } // онлайн-игроки — всегда в проверке
   try { store.writeJSON('players.json', profiles); } catch (e) { console.error('save error', e.message); }
 }
 setInterval(saveProfiles, 15000);
@@ -58,6 +59,7 @@ store.startSnapshots(() => { if (global.__saveAll) global.__saveAll(); }, async 
 });
 
 function getProfile(uid) {
+  store.touch(uid); // запись в базу проверит только тронутые профили (server/store.js)
   profiles[uid] ??= {};
   const pr = profiles[uid];
   pr.chars ??= {};
@@ -700,7 +702,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' },
   connectionStateRecovery: { maxDisconnectionDuration: 2 * 60000, skipMiddlewares: true },
-  perMessageDeflate: { threshold: 1024 },
+  perMessageDeflate: { threshold: 1024, zlibDeflateOptions: { level: 1, memLevel: 8 } }, // быстрое сжатие: в разы дешевле по процессору, трафик +10–15%
   pingInterval: 8000, pingTimeout: 7000,
 });
 const GRACE_MS = 2 * 60000; // столько герой ждёт в мире после обрыва связи
@@ -3526,6 +3528,7 @@ admin.setWipe((keep, opt = {}) => {
     if (!c.system && !keep.has(c.leader)) c.leader = c.members[0];
   }
   saveProfiles(); saveClans(); Ranks.reset();
+  if (store.db) store.flushNow(true).catch((e) => console.error('[db] wipe flush', e.message)); // удалённые профили — из базы сразу, а не через 5 мин
   if (opt.release) admin.saveSettings();
   return { players: nP, clans: nC, lots, gram: nG, vets: nV };
 });

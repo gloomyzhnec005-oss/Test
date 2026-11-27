@@ -98,7 +98,7 @@ async function flushNow(all = false) {
   flushing = (async () => {
     for (const name of names) {
       try {
-        if (name === 'players.json') await flushPlayers(mem.get(name) || {});
+        if (name === 'players.json') await flushPlayers(mem.get(name) || {}, all);
         else {
           const v = mem.get(name);
           await pool.query('INSERT INTO docs (name, data, updated_at) VALUES ($1, $2, now()) ON CONFLICT (name) DO UPDATE SET data = EXCLUDED.data, updated_at = now()',
@@ -112,10 +112,19 @@ async function flushNow(all = false) {
   if (dirty.size) schedule(5000); // ошибка — повторим позже
 }
 // Игроки: только изменившиеся строки (сравниваем с тем, что уже лежит в базе), удалённые — удаляем
-async function flushPlayers(players) {
+// Кого проверять при записи: только профили, к которым обращались (touch), — не все тысячи аккаунтов каждые 1,5 с.
+// Раз в 5 минут и при остановке — полная проверка всех (страховка от изменений мимо touch)
+const touched = new Set();
+let lastFull = 0;
+function touch(uid) { touched.add(uid); }
+async function flushPlayers(players, full = false) {
+  if (Date.now() - lastFull > 5 * 60e3) full = true;
+  const keys = full ? Object.keys(players) : [...touched].filter((u) => u in players);
+  touched.clear();
+  if (full) lastFull = Date.now();
   const uids = [], datas = [];
-  for (const [uid, pr] of Object.entries(players)) {
-    const j = JSON.stringify(pr);
+  for (const uid of keys) {
+    const j = JSON.stringify(players[uid]);
     if (saved.get(uid) !== j) { uids.push(uid); datas.push(j); }
   }
   for (let i = 0; i < uids.length; i += 500) {
@@ -124,7 +133,7 @@ async function flushPlayers(players) {
       ON CONFLICT (uid) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`, [u, d]);
     u.forEach((uid, k) => saved.set(uid, d[k]));
   }
-  const gone = [...saved.keys()].filter((uid) => !(uid in players));
+  const gone = full ? [...saved.keys()].filter((uid) => !(uid in players)) : [];
   if (gone.length) { await pool.query('DELETE FROM players WHERE uid = ANY($1::text[])', [gone]); gone.forEach((u) => saved.delete(u)); }
   dbStat.players = Object.keys(players).length;
 }
@@ -336,4 +345,4 @@ if (!PERSISTENT) {
     '   Подключите Volume к сервису (Settings → Volumes, путь /app/data) — см. README, раздел «Сохранения».\n');
 } else console.log(`[store] данные: ${DIR}`);
 
-module.exports = { snapshot, listSnapshots, getSnapshot, restore, dump, startSnapshots, DIR, get PERSISTENT() { return PERSISTENT; }, file, readJSON, writeJSON, readText, writeText, backup, startBackups, info, init, flushNow, get db() { return !!pool; } };
+module.exports = { touch, snapshot, listSnapshots, getSnapshot, restore, dump, startSnapshots, DIR, get PERSISTENT() { return PERSISTENT; }, file, readJSON, writeJSON, readText, writeText, backup, startBackups, info, init, flushNow, get db() { return !!pool; } };
