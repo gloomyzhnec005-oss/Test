@@ -2015,7 +2015,7 @@ function grantXp(p, amount, gold, shared = false) {
     // Новичку на 10 уровне — гарантированная эпическая вещь под класс (один раз на аккаунт)
     if (p.char.level >= 10 && !pr.gift10) {
       pr.gift10 = Date.now();
-      const v = giveLoot(p, pr, I.rollItem(Math.min(2, p.zoneTier || 1), { epic: 1 }, null, p.heroId), p);
+      const v = giveLoot(p, pr, I.bindLoot(I.rollItem(Math.min(2, p.zoneTier || 1), { epic: 1 }, null, p.heroId)) /* личная: твинки не продают её в ТД */, p);
       p.socket.emit('chat', { sys: true, text: `🎁 10 уровень! Подарок новичку: ${v ? v.name : 'эпическая вещь'}` });
     }
     // Каждые 10 уровней героя — самоцветы (на один призыв)
