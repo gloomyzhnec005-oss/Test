@@ -94,12 +94,16 @@ function stepTo(ctx, pet, x, y, speed, dt) {
 
 // Ближайший монстр. Двойники героев (pvpOf — цели PvP в опасных данжах и на аренах) сами звери не выбирают:
 // иначе зверь «бил» двойника своего же хозяина (он стоит в той же точке) и не трогал монстров. Игроков — только по приказу
-function nearestMonster(ctx, x, y, r) {
+function nearestMonster(ctx, x, y, r, zone) {
   let best = null, bd = r;
-  for (const m of ctx.monsters.values()) {
-    if (m.pvpOf) continue;
-    const d = Math.hypot(m.x - x, m.y - y);
-    if (d < bd) { bd = d; best = m; }
+  // Монстры своей зоны (список строит игровой цикл раз в такт) — а не все монстры сервера на каждого зверя
+  const list = (zone && ctx.zoneMonsters && ctx.zoneMonsters(zone)) || ctx.monsters.values();
+  for (const m of list) {
+    if (m.pvpOf || !(m.hp > 0)) continue; // список собран в начале такта — убитых за такт пропускаем
+    const dx = m.x - x, dy = m.y - y;
+    if (dx > bd || dx < -bd || dy > bd || dy < -bd) continue; // дёшево отсечь дальних
+    const d = Math.hypot(dx, dy);
+    if (d < bd && ctx.monsters.has(m.id)) { bd = d; best = m; }
   }
   return best;
 }
@@ -133,7 +137,7 @@ function updatePets(ctx, owner, now, dt) {
     else {
       pet.sicTarget = null;
       if (pet.target && ctx.monsters.has(pet.target.id) && pet.target.pvpOf !== owner.id && Math.hypot(pet.target.x - owner.x, pet.target.y - owner.y) < LEASH) target = pet.target;
-      else target = nearestMonster(ctx, owner.x, owner.y, AGGRO);
+      else target = nearestMonster(ctx, owner.x, owner.y, AGGRO, owner.zone);
     }
     // Хозяин отступает — звери бросают бой и бегут за ним (приказ натравливания держит дольше)
     if (target && fromOwner > (pet.sicTarget ? LEASH * 1.5 : LEASH)) target = null;

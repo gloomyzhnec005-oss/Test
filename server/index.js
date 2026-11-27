@@ -1914,6 +1914,7 @@ function syncCooldowns(p, now) {
 }
 let curSkillMul = 1;
 const skillCtx = {
+  zoneMonsters: (z) => zoneMons.get(z) || [],
   moveEntity, syncCooldowns, passiveOf,
   isUndead: (m) => !!C.MONSTERS[m.type].undead,
   raiseMinion,
@@ -3017,17 +3018,26 @@ function removePlayerG(p, socket = p.socket) {
 
 // ---------- Игровой цикл ----------
 let lastTick = Date.now();
+let zoneMons = new Map(); // зона → монстры (строится в начале такта)
 setInterval(() => {
   const now = Date.now();
   const dt = (now - lastTick) / 1000;
   lastTick = now;
 
+  // Монстры по зонам на этот такт — для поиска целей зверями (server/pets.js → nearestMonster)
+  zoneMons = new Map();
+  for (const m of monsters.values()) { let a = zoneMons.get(m.zone); if (!a) zoneMons.set(m.zone, (a = [])); a.push(m); }
   // Звери-спутники
   for (const p of players.values()) if (p.pets) updatePets(skillCtx, p, now, dt);
 
   pvpSync(now);
+  // Игроки по зонам — монстр ищет цель только среди героев своей зоны (а не перебирает весь сервер каждые 50 мс)
+  const byZoneP = new Map();
+  for (const p of players.values()) { let a = byZoneP.get(p.zone); if (!a) byZoneP.set(p.zone, (a = [])); a.push(p); }
+  const NOBODY = [];
   // ИИ монстров
   for (const m of monsters.values()) {
+    const zp = byZoneP.get(m.zone) || NOBODY;
     const def = C.MONSTERS[m.type];
     const mspeed = D.curSpeed(m, now);
     // Периодический урон (корни Сильваны)
@@ -3094,15 +3104,15 @@ setInterval(() => {
     // Босс в бою потерял цель — переключается на другого героя, который его бил и ещё рядом, а не уходит лечиться
     if (!target && bigOne && m.contrib && m.hp < m.maxHp) {
       let bd = 1e9;
-      for (const p of players.values()) {
-        if (p.dead || p.zone !== m.zone || !m.contrib[p.uid] || p.stealthUntil > now || !D.inLeash(m, p)) continue;
+      for (const p of zp) {
+        if (p.dead || !m.contrib[p.uid] || p.stealthUntil > now || !D.inLeash(m, p)) continue;
         const d = Math.hypot(p.x - m.x, p.y - m.y);
         if (d < bd) { bd = d; target = p; }
       }
     }
     if (!target) {
       let best = null, bestD = m.aggro || def.aggro;
-      for (const p of players.values()) {
+      for (const p of zp) {
         if (p.dead) continue;
         if (m.ignoreUntil > now && m.ignoreId === p.id) continue; // потерял из виду (дымовая завеса)
         if (p.stealthUntil > now || p.flyUntil > now) continue; // невидимость (Кассиан), полёт (Талмира)
@@ -3252,7 +3262,7 @@ setInterval(() => {
         for (const m of Z.m) if (Math.abs(m.x - p.x) <= rx && Math.abs(m.y - p.y) <= ry || m.rank === 'world') ml.push([m.id, Math.round(m.x), Math.round(m.y), Math.ceil(m.hp)]);
         const out = { ts: now, p: pl, m: ml, fx: Z.fx };
         if (p.pendFx) { out.fx = p.pendFx.concat(Z.fx); p.pendFx = null; }
-        p.socket.volatile.emit('lt', out);
+        (S.perfMode ? p.socket.compress(false) : p.socket).volatile.emit('lt', out); // эконом-режим: без сжатия — процессор свободнее, трафик больше
       }
     }
     fx = [];
@@ -3316,7 +3326,7 @@ setInterval(() => {
     const out = { ...state, m: mOut };
     if (far) out.mm = far;
     if (p.pendFx) { out.fx = p.pendFx.concat(state.fx); p.pendFx = null; }
-    p.socket.volatile.emit('state', out);
+    (S.perfMode ? p.socket.compress(false) : p.socket).volatile.emit('state', out); // эконом-режим — без сжатия
   }
   }
   fx = [];
