@@ -89,7 +89,9 @@ module.exports = function createAfBot({ C, world, players, monsters, SOLID, getP
       b.walk = null;
       m = r.m; b.tgt = m.id; b.path = r.path; b.since = now; b.lastPos = [p.x, p.y]; b.movedAt = now;
     }
-    const range = (p.form ? p.hero.forms[p.form].range : p.hero.range) || 60;
+    // p.form — облик друида (hero.forms), но у других героев так же хранятся стихия, аспект, обет, песня: облик — только если он есть
+    const F = (p.hero.forms && p.form && p.hero.forms[p.form]) || null;
+    const range = (F ? F.range : p.hero.range) || p.hero.range || 60;
     const d = Math.hypot(m.x - p.x, m.y - p.y);
     if (d <= range + 6 && world.lineOfSight(p.x, p.y, m.x, m.y)) {
       call(p, 'attack', { targetId: m.id });
@@ -116,7 +118,7 @@ module.exports = function createAfBot({ C, world, players, monsters, SOLID, getP
   // Шаг по пути клеток (как игрок: обработчик move проверяет скорость и стены)
   function walkPath(p, z, b, path, now) {
     const k = path[0], [tx, ty] = [k % z.w, Math.floor(k / z.w)], to = center(z, tx, ty);
-    const speed = Math.max((p.form ? p.hero.forms[p.form].speed : 0) || 0, p.hero.speed) * (1 + ((p.gear && p.gear.ms) || 0) / 100);
+    const speed = Math.max(((p.hero.forms && p.form && p.hero.forms[p.form]) || {}).speed || 0, p.hero.speed) * (1 + ((p.gear && p.gear.ms) || 0) / 100);
     const stepLen = Math.min(speed * 0.14 * 1.25, Math.hypot(to.x - p.x, to.y - p.y));
     const a = Math.atan2(to.y - p.y, to.x - p.x);
     call(p, 'move', { x: p.x + Math.cos(a) * stepLen, y: p.y + Math.sin(a) * stepLen, dir: Math.cos(a) < 0 ? -1 : 1, tp: p.tpSeq });

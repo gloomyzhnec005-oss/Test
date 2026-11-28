@@ -1983,7 +1983,8 @@ setInterval(() => {
   for (const p of players.values()) {
     if (!p.afBot) continue;
     if (p.dead) { afBotEnd(p, 'герой погиб'); continue; }
-    if (AfBot.step(p, now) === 'stop') afBotEnd(p, 'герой покинул данж');
+    let r; try { r = AfBot.step(p, now); } catch (e) { console.error('afbot step', p.heroId, e); continue; } // ошибка одного бота не останавливает остальных
+    if (r === 'stop') afBotEnd(p, 'герой покинул данж');
   }
 }, 140);
 
