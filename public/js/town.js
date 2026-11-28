@@ -144,6 +144,7 @@ window.Town = (() => {
 
   // ---------- Склад ----------
   async function warehousePanel() {
+    await Pay.tonInfo(); // курс GRAM — для цен рядом со звёздами
     const inv = await Bag.refresh();
     const box = document.createElement('div');
     const move = async (it) => { const r = await Bag.act('store', { id: it.id }); toast(r.error || r.toast); warehousePanel(); };
@@ -154,7 +155,7 @@ window.Town = (() => {
     // Улучшение склада: +50 ячеек за уровень
     const nx = inv.whNext;
     box.insertAdjacentHTML('beforeend', nx
-      ? `<div class="tw-ev wh-up"><div><b>⬆️ Улучшить склад · ур. ${inv.whLvl} → ${inv.whLvl + 1}</b><small>+${nx.slots} ячеек (станет ${inv.whSize + nx.slots}) · ${nx.stars ? `${nx.stars} ⭐` : `${nx.gold.toLocaleString('ru-RU')} 💰`}${nx.gems ? ` + ${nx.gems} 💎` : ''}</small></div><button class="l2-btn" id="whUp">${nx.stars ? `${nx.stars} ⭐` : 'Улучшить'}</button></div>`
+      ? `<div class="tw-ev wh-up"><div><b>⬆️ Улучшить склад · ур. ${inv.whLvl} → ${inv.whLvl + 1}</b><small>+${nx.slots} ячеек (станет ${inv.whSize + nx.slots}) · ${nx.stars ? Pay.price(nx.stars) : `${nx.gold.toLocaleString('ru-RU')} 💰`}${nx.gems ? ` + ${nx.gems} 💎` : ''}</small></div><button class="l2-btn" id="whUp">${nx.stars ? Pay.price(nx.stars) : 'Улучшить'}</button></div>`
       : `<div class="tw-ev wh-up"><div><b>📦 Склад улучшен до максимума</b><small>Уровень ${inv.whLvl} из ${inv.whMax}</small></div></div>`);
     const up = box.querySelector('#whUp');
     if (up) up.onclick = async () => {
@@ -472,6 +473,7 @@ window.Town = (() => {
 
   // ---------- Призыв ----------
   async function gachaPanel() {
+    await Pay.tonInfo(); // курс GRAM — для цен рядом со звёздами
     const inv = await Bag.refresh();
     const box = el(`<p class="sheet-hint">Алтарь призыва · ${ctx.zone.name}</p>
       <div class="spin-wallet">
@@ -487,7 +489,7 @@ window.Town = (() => {
         <b class="ok">Отборные вещи: свойства на 25% сильнее и одно дополнительное — в лавке таких нет</b><br>
         Гарант легендарного: <b>${inv.pity} / ${inv.pityMax}</b></small>
         <div class="btn-row"><button class="l2-btn" data-n="1">Призвать ×1</button><button class="l2-btn" data-n="10">×10</button></div>
-        <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · 15 ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · 135 ⭐</button></div></div>`);
+        <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · ${Pay.price(Pay.prices().ispin || 23)}</button><button class="l2-btn" data-buy="ispin10">+10 · ${Pay.price(Pay.prices().ispin10 || 203)}</button></div></div>`);
     box.querySelector('#twHeroSpin').onclick = () => ctx.onGacha();
     box.querySelectorAll('[data-n]').forEach((b) => { b.onclick = async () => {
       const r = await Bag.act('itemSpin', { n: +b.dataset.n });
@@ -516,6 +518,7 @@ window.Town = (() => {
   // ---------- Батл-пасс ----------
   const rwText = (r) => (r.t ? r.t : r.gold ? `💰 ${r.gold}` : r.gems ? `💎 ${r.gems}` : r.heroSpins ? `🔮 печать призыва ×${r.heroSpins}` : r.itemSpins ? `🎁 печать снаряжения ×${r.itemSpins}` : r.item ? `🎁 ${{ rare: 'редкий', epic: 'эпический', legendary: 'легендарный', mythic: 'мифический' }[r.item]} предмет` : '');
   async function passPanel() {
+    await Pay.tonInfo(); // курс GRAM — для цен рядом со звёздами
     const { pass: ps } = await Bag.act('pass');
     const cur = ps.tiers.find((t) => t.tier === ps.tier);
     const box = el(`<div class="pass-head"><b>Сезон · уровень ${ps.level} / ${ps.rewards.length}</b>
@@ -530,7 +533,7 @@ window.Town = (() => {
       </div>${ps.tiers.map((t) => `<div class="order o-${t.id} ${t.owned ? 'own' : ''}">
         <div class="order-h"><span class="order-ic">${orderIc(t)}</span><b>${t.name}</b></div>
         <ul><li class="inc">Всё из «${t.tier > 1 ? ps.tiers[t.tier - 2].name : ps.freeOrder.name}»</li>${t.perks.map((p) => `<li>${p}</li>`).join('')}</ul>
-        ${t.owned ? '<span class="order-ok">✓ Открыт</span>' : `<button class="l2-btn" data-order="${t.tier}">${ps.tier ? 'Улучшить' : 'Открыть'} · ${t.cost} ⭐${t.deal ? ' · личная цена' : ''}</button>`}
+        ${t.owned ? '<span class="order-ok">✓ Открыт</span>' : `<button class="l2-btn" data-order="${t.tier}">${ps.tier ? 'Улучшить' : 'Открыть'} · ${Pay.price(t.cost)}${t.deal ? ' · личная цена' : ''}</button>`}
       </div>`).join('')}</div>`);
     const list = document.createElement('div');
     for (const r of ps.rewards) {
@@ -558,6 +561,7 @@ window.Town = (() => {
   const shopArt = (c) => (c.bag ? `../../items/bag_${{ bagEpic: 'epic', bagLegend: 'legendary' }[c.id] || 'rare'}` : SHOP_ART[c.id]); // сумки — картинка сумки
   // Подарок другу: найти игрока по нику → подарить товар магазина (платите вы, получает друг) или перевести GRAM (комиссия 10%)
   async function giftPanel(to) {
+    await Pay.tonInfo(); // курс GRAM — для цен рядом со звёздами
     const box = document.createElement('div');
     if (!to) {
       box.innerHTML = `<p class="sheet-hint">Найдите игрока по нику — подарите ему товар из магазина или переведите GRAM.</p>
@@ -589,7 +593,7 @@ window.Town = (() => {
     box.querySelector('p b').textContent = `${to.name} (ур. ${to.lvl})`;
     for (const it of items) {
       const row = el('<div class="tw-ev"><div><b></b></div><button class="l2-btn"></button></div>').firstElementChild;
-      row.querySelector('b').textContent = it.title; row.querySelector('button').textContent = `Подарить · ${it.amount} ⭐`;
+      row.querySelector('b').textContent = it.title; row.querySelector('button').textContent = `Подарить · ${Pay.price(it.amount)}`;
       row.querySelector('button').onclick = () => Pay.buy(it.id, { to: to.uid, toast, onPaid: () => toast(`🎁 Подарок отправлен: ${to.name}`) });
       box.append(row);
     }
@@ -604,35 +608,35 @@ window.Town = (() => {
     open('🎁 Подарок другу', box);
   }
   async function storePanel() {
-    const s = await Bag.act('shopInfo');
+    const [s] = await Promise.all([Bag.act('shopInfo'), Pay.tonInfo()]);
     const hrs = (ms) => { const h = Math.max(0, Math.floor(ms / 36e5)); return h >= 24 ? `${Math.floor(h / 24)} д ${h % 24} ч` : `${h} ч ${Math.floor((ms % 36e5) / 6e4)} мин`; };
     const special = `${s.starter ? `<div class="tw-banner hero offer has-art"><img class="tw-art" src="assets/ui/shop/chestSet5.webp" alt=""><b>🎁 Набор новичка · только ${hrs(s.starter.left)}</b>
-        <small>${s.starter.desc}</small><small class="ok">Выгода больше 70% — один раз на аккаунт</small><button class="l2-btn" data-buy="starter">${s.starter.amount} ⭐</button></div>` : ''}
+        <small>${s.starter.desc}</small><small class="ok">Выгода больше 70% — один раз на аккаунт</small><button class="l2-btn" data-buy="starter">${Pay.price(s.starter.amount)}</button></div>` : ''}
       ${s.card ? `<div class="tw-banner hero offer has-art"><img class="tw-art" src="assets/ui/shop/gems4.webp" alt=""><b>📅 Карта месяца</b><small>${s.card.desc}</small>
-        ${s.card.until ? `<small class="ok">Активна ещё ${hrs(s.card.until - Date.now())}</small><div class="btn-row"><button class="l2-btn" id="cardClaim" ${s.card.ready ? '' : 'disabled'}>${s.card.ready ? '💎 Забрать 100 сегодня' : 'Сегодня получено'}</button><button class="l2-btn" data-buy="card30">Продлить · ${s.card.amount} ⭐</button></div>`
-          : `<button class="l2-btn" data-buy="card30">${s.card.amount} ⭐</button>`}</div>` : ''}`;
+        ${s.card.until ? `<small class="ok">Активна ещё ${hrs(s.card.until - Date.now())}</small><div class="btn-row"><button class="l2-btn" id="cardClaim" ${s.card.ready ? '' : 'disabled'}>${s.card.ready ? '💎 Забрать 100 сегодня' : 'Сегодня получено'}</button><button class="l2-btn" data-buy="card30">Продлить · ${Pay.price(s.card.amount)}</button></div>`
+          : `<button class="l2-btn" data-buy="card30">${Pay.price(s.card.amount)}</button>`}</div>` : ''}`;
     const box = el(`${special}${s.firstBuy ? '<div class="first-buy">🎁 <b>−50% на первую покупку</b><small>Любой товар за ⭐ Stars или 💎 GRAM — за полцены. Скидка действует один раз.</small></div>' : ''}<div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/sub.webp" alt=""><b>👑 Подписка «Покровитель» · 30 дней</b>
         <small>+25% опыта и золота · 2 бесплатных призыва предметов в день · комиссия рынка 5% вместо 10% · сумка 80 ячеек · 8 боёв на арене в день</small>
         ${s.sub ? `<small class="ok">Активна до ${new Date(s.sub).toLocaleDateString('ru-RU')}</small>` : ''}
-        <button class="l2-btn" data-buy="sub">${s.sub ? 'Продлить' : 'Оформить'} · ${s.subPrice} ⭐</button></div>
+        <button class="l2-btn" data-buy="sub">${s.sub ? 'Продлить' : 'Оформить'} · ${Pay.price(s.subPrice)}</button></div>
       <div class="tw-banner hero"><b>✨ Внешний вид</b><small>Цвет имени и сияние под героем — видно всем игрокам; особые рамки портрета. За самоцветы</small><button class="l2-btn" id="openLooks">Открыть</button></div>
       <div class="tw-banner hero gems-row"><b>💎 Самоцветы · у вас ${s.gems || 0}</b><small>160 самоцветов = призыв героя, 100 = призыв снаряжения</small>
-        <div class="gem-packs">${(s.gemPacks || []).map((g) => `<button class="gem-pack" data-buy="${g.id}"><img src="assets/ui/shop/${g.id}.webp" alt=""><b>${g.gems}</b><span>${g.amount} ⭐</span></button>`).join('')}</div></div>
+        <div class="gem-packs">${(s.gemPacks || []).map((g) => `<button class="gem-pack" data-buy="${g.id}"><img src="assets/ui/shop/${g.id}.webp" alt=""><b>${g.gems}</b><span>${g.amount} ⭐</span>${Pay.gramOf(g.amount) ? `<span class="gram-p">${Pay.gramOf(g.amount).toLocaleString('ru-RU')} GRAM</span>` : ''}</button>`).join('')}</div></div>
       <div class="tw-banner hero has-art"><img class="tw-art" src="assets/ui/shop/gems4.webp" alt=""><b>🔮 Печати призыва</b><small>Призыв героев: Избранный недели и Зал героев</small>
-        <div class="btn-row"><button class="l2-btn" data-buy="spin">+1 · 25 ⭐</button><button class="l2-btn" data-buy="spin10">+10 · 225 ⭐</button></div></div>
+        <div class="btn-row"><button class="l2-btn" data-buy="spin">+1 · ${Pay.price(Pay.prices().spin || 38)}</button><button class="l2-btn" data-buy="spin10">+10 · ${Pay.price(Pay.prices().spin10 || 338)}</button></div></div>
       <div class="tw-banner items has-art"><img class="tw-art" src="assets/ui/shop/gems3.webp" alt=""><b>🎁 Печати снаряжения</b><small>Гарантированный легендарный предмет каждые 50 круток</small>
-        <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · ${s.itemSpin.price} ⭐</button><button class="l2-btn" data-buy="ispin10">+10 · ${s.itemSpin.price10} ⭐</button></div></div>
+        <div class="btn-row"><button class="l2-btn" data-buy="ispin">+1 · ${Pay.price(s.itemSpin.price)}</button><button class="l2-btn" data-buy="ispin10">+10 · ${Pay.price(s.itemSpin.price10)}</button></div></div>
       <div class="tw-banner pass has-art"><img class="tw-art" src="assets/ui/shop/pass.webp" alt=""><b>🎟️ Сезонные ордена</b>
-        <small>${s.passTiers.map((t) => `${orderIc(t, 'sm')} ${t.name} · ${t.price} ⭐`).join('<br>')}<br>Мифический предмет на 30 уровне — в Ордене Чемпиона · автобой с Золотого ордена</small>
+        <small>${s.passTiers.map((t) => `${orderIc(t, 'sm')} ${t.name} · ${Pay.price(t.price)}`).join('<br>')}<br>Мифический предмет на 30 уровне — в Ордене Чемпиона · автобой с Золотого ордена</small>
         ${s.passTier ? `<small class="ok">${orderIc(s.passTiers[s.passTier - 1], 'sm')} ${s.passTiers[s.passTier - 1].name} активен</small>` : ''}
         <button class="l2-btn" id="openOrders">${s.passTier >= 4 ? 'Награды сезона' : s.passTier ? 'Улучшить орден' : 'Выбрать орден'}</button></div>
       <div class="tw-banner items"><b>💎 GRAM-кошелёк · торговые ордена</b><small>Баланс для Рынка и Торгового дома, пополнение, вывод денег с продаж. Торговые ордена (от Купца до Вечности) — меньше комиссии и больше лотов.</small>
         <button class="l2-btn" id="openWallet">Открыть кошелёк</button></div>
       <div class="tw-banner pass"><b>⚗️ Великие эликсиры · 1 час</b><small>Намного сильнее эликсиров из лавки и действуют вместе с ними. Попадают в сумку — выпейте, когда нужно. Сгорают при гибели героя.</small></div>
       ${(s.chests || []).filter((c) => c.elixir).map((c) => `<div class="tw-banner items elx has-art"><img class="tw-art" src="assets/items/mat_${c.id === 'elxXp2x5' ? 'elxXp2' : c.id}.webp" alt=""><b>${c.title}</b><small>${c.desc}</small>
-        <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}
+        <button class="l2-btn" data-buy="${c.id}">${Pay.price(c.amount)}</button></div>`).join('')}
       ${(s.chests || []).filter((c) => !c.elixir).map((c) => `<div class="tw-banner items ${shopArt(c) ? 'has-art' : ''}">${shopArt(c) ? `<img class="tw-art" src="assets/ui/shop/${shopArt(c)}.webp" alt="">` : ''}<b>${{ kitSmith: '🧰', chestSet: '🎁', chestSet5: '🎁', chestLegend: '👑', bagEpic: '🎒', bagLegend: '🎒' }[c.id] || '🎁'} ${c.title}</b><small>${c.desc}${c.bag ? ' · надевается в слот «Сумка» на герое' : ' · открывается в сумке, награда — мира, где вы его открыли'}</small>
-        <button class="l2-btn" data-buy="${c.id}">${c.amount} ⭐</button></div>`).join('')}`);
+        <button class="l2-btn" data-buy="${c.id}">${Pay.price(c.amount)}</button></div>`).join('')}`);
     box.querySelectorAll('[data-buy]').forEach((b) => { b.onclick = () => buyStars(b.dataset.buy, storePanel); });
     box.querySelector('#openOrders').onclick = () => passPanel();
     { const gb = el('<div class="tw-banner items"><b>🎁 Подарок другу</b><small>Подарите другу самоцветы, ларцы и эликсиры или переведите GRAM</small><button class="l2-btn">Выбрать друга</button></div>').firstElementChild;

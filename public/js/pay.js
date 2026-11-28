@@ -184,5 +184,15 @@ window.Pay = (() => {
     toast('Сеть ещё не подтвердила перевод — GRAM зачислятся сами, как только он пройдёт');
   }
 
-  return { buy, tonInfo, deposit, depositInfo, walletAddress };
+  // Цена в GRAM для звёздной цены — как на сервере: базовые ⭐ (без наценки Telegram) × курс, не меньше 0,05
+  function gramOf(stars) {
+    const i = info;
+    if (!i || !i.enabled || !(i.rate > 0) || !(stars > 0)) return 0;
+    return Math.max(0.05, Math.ceil(Math.round(stars / (i.starK || 1)) * i.rate * 100) / 100);
+  }
+  // «38 ⭐ / 0,1 GRAM» — или только звёзды, если оплата GRAM выключена
+  const price = (stars) => { const g = gramOf(stars); return g ? `${stars} ⭐ / ${g.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} GRAM` : `${stars} ⭐`; };
+  const prices = () => (info && info.prices) || {};
+  tonInfo(); // заранее: окна магазина рисуют цену в GRAM сразу
+  return { buy, tonInfo, deposit, depositInfo, walletAddress, gramOf, price, prices };
 })();

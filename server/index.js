@@ -566,7 +566,9 @@ const STAR_K = require('./meta').STAR_K; // наценка на звёзды (se
 
 // ---------- Оплата в TON (server/ton.js): заказ → перевод из кошелька игрока → проверка в блокчейне ----------
 const ton = require('./ton')({ store, onPaid: (payload, info) => onPaid(payload, info), onDeposit: (uid, nano, hash) => Trade.onDeposit(uid, nano, hash), log: (k, t) => admin.log(k, t) });
-app.get('/api/ton/info', (req, res) => res.json(ton.info()));
+// Курс и наценка — чтобы игра показывала цену в GRAM рядом со звёздами (та же формула, что у счёта: ton.tonPrice(⭐ / STAR_K)),
+// и настоящие цены печатей призыва (с наценкой), а не старые из кода окна
+app.get('/api/ton/info', (req, res) => res.json({ ...ton.info(), starK: STAR_K, prices: { spin: C.GACHA.spinPrice, spin10: C.GACHA.spin10Price, ispin: meta.SHOP.itemSpin.price, ispin10: meta.SHOP.itemSpin.price10 } }));
 // Манифест TON Connect: кошелёк показывает игроку название и значок игры
 // Кошелёк скачивает его до подключения: нужен CORS (иначе вечная загрузка «Продолжите в Telegram…»),
 // а url — ровно адрес, с которого открыта игра (Railway всегда https; WEBAPP_URL — только запасной вариант)

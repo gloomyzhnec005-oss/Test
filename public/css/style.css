@@ -949,9 +949,10 @@ canvas.skin { object-fit: contain; }
 .sheet-card.l2-panel.bg-auction { background-image: linear-gradient(180deg, rgba(10,8,6,.35), rgba(10,8,6,.78) 45%, rgba(10,8,6,.92)), url(../assets/ui/bg_auction.webp); }
 .gem-packs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .gem-pack { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border-radius: 8px; border: 1px solid #a8864a; background: linear-gradient(180deg, #3a2f45, #1c1525); color: #f3e6c6; font-family: inherit; cursor: pointer; }
-.gem-pack img { width: 46px; height: 46px; object-fit: contain; }
+.gem-pack > img { width: 46px; height: 46px; object-fit: contain; }
 .gem-pack b { font-size: 14px; color: #9fd8ff; }
 .gem-pack span { font-size: 11px; }
+.gem-pack .gram-p { font-size: 10px; color: #8fd0c8; opacity: .9; }
 /* ---------- Молитвы: баннеры героев ---------- */
 .wb-tabs { margin-bottom: 8px; }
 .wb-banner { position: relative; min-height: 150px; margin-bottom: 8px; padding: 12px; border-radius: 10px; overflow: hidden; border: 1px solid #d4a63c;
