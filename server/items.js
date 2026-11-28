@@ -351,9 +351,9 @@ const shardOf = (rar, t) => (SHARD_RAR[rar] && MATS[`${SHARD_RAR[rar][0]}${t}`] 
 // Ковка из осколков: осколки × 2 + материалы мира + золото (× мир). Успех 100%, свойства — случайные
 // Материалы — не меньше, чем даёт разбор двух вещей: ковка «съедает» всё, что дал разбор, и ещё сверху
 const SHARD_CRAFT = {
-  epic:      { shards: 2, ore: 12, ess: 6,  core: 0, gold: 600 },
-  legendary: { shards: 2, ore: 30, ess: 16, core: 2, gold: 2500 },
-  mythic:    { shards: 2, ore: 80, ess: 40, core: 5, gold: 10000 },
+  epic:      { shards: 4, ore: 24,  ess: 12, core: 0,  gold: 600 },
+  legendary: { shards: 4, ore: 60,  ess: 32, core: 4,  gold: 2500 },
+  mythic:    { shards: 2, ore: 160, ess: 80, core: 10, gold: 10000 },
 };
 function shardCraftCost(rar, t) {
   const c = SHARD_CRAFT[rar];
@@ -396,9 +396,9 @@ Object.assign(MATS, {
   elxTitan: { name: 'Эликсир титана', icon: '🗿', color: '#c8b89a', kind: 'elixir', buff: 'titan', mins: 60, desc: '+15% защиты, +25% здоровья и 2% вампиризма на 1 час.', price: 0, buy: 0 },
   tpScroll: { name: 'Свиток возвращения', icon: '🌀', color: '#5fd1c8', kind: 'scrollTp', desc: 'Мгновенно переносит в город текущего мира.', price: 60, buy: 10 },
   // Платные ларцы (Telegram Stars) — открываются в сумке, мир берётся по месту открытия
-  kitSmith: { name: 'Сундук кузнеца', icon: '🧰', color: '#ffd36a', kind: 'chest', desc: '30 руды, 15 эссенции и 2 свитка мастера мира, где вы его открыли.', price: 0, buy: 0 },
+  kitSmith: { name: 'Сундук кузнеца', icon: '🧰', color: '#ffd36a', kind: 'chest', desc: '60 руды, 30 эссенции и 4 свитка мастера мира, где вы его открыли.', price: 0, buy: 0 },
   chestSet: { name: 'Ларец комплекта', icon: '🎁', color: '#ffb340', kind: 'chest', desc: 'Вещь комплекта вашего класса мира, где вы открыли ларец: эпическая, 15% легендарная, 1,5% мифическая.', price: 0, buy: 0 },
-  chestLegend: { name: 'Ларец грандмастера', icon: '👑', color: '#ff4d6a', kind: 'chest', desc: '2 свитка грандмастера и 1 редкий материал мира, где вы его открыли.', price: 0, buy: 0 },
+  chestLegend: { name: 'Ларец грандмастера', icon: '👑', color: '#ff4d6a', kind: 'chest', desc: '4 свитка грандмастера и 2 редких материала мира, где вы его открыли.', price: 0, buy: 0 },
 });
 // Бонусы эликсиров (добавляются к статам экипировки, пока действуют)
 const BUFF_STATS = { atk: { atkP: 10 }, def: { def: 8, hpP: 10 }, agi: { aspd: 10, crit: 5 }, mind: { skill: 12, cdr: 5 },
@@ -652,13 +652,15 @@ function mergeItems(pr, ids) {
 
 // ---------- Ковка ----------
 // Стоимость улучшения предмета до следующей редкости: свиток + материалы мира предмета + золото
+// Материалы ковки ×2 (28.11): свитков и ресурсов нужно вдвое больше, золото прежнее. Свиток подмастерья (вход для новичков),
+// свиток легенды и мифические осколки — самое редкое — не удваиваются
 const UPGRADE = {
-  rare:      { scroll: 'scrollR', ore: 5,  ess: 0,  core: 0, gold: 150 },
-  epic:      { scroll: 'scrollE', ore: 12, ess: 5,  core: 0, gold: 600 },
-  legendary: { scroll: 'scrollL', ore: 25, ess: 15, core: 1, gold: 2500 },
-  mythic:    { scroll: 'scrollM', ore: 80, ess: 50, core: 5, gold: 15000 }, // дорого: мифик — редкость
+  rare:      { scroll: 'scrollR', n: 1, ore: 10,  ess: 0,   core: 0,  gold: 150 },
+  epic:      { scroll: 'scrollE', n: 2, ore: 24,  ess: 10,  core: 0,  gold: 600 },
+  legendary: { scroll: 'scrollL', n: 2, ore: 50,  ess: 30,  core: 2,  gold: 2500 },
+  mythic:    { scroll: 'scrollM', n: 1, ore: 160, ess: 100, core: 10, gold: 15000 }, // дорого: мифик — редкость
 };
-const SET_CRAFT = { ore: 15, ess: 10, core: 1, gold: 1500 };
+const SET_CRAFT = { ore: 30, ess: 20, core: 2, gold: 1500 };
 // Добыча с монстров: эпические и лучшие вещи и руны — личные (привязаны к добывшему). Продать нельзя, носить, вставить и разобрать — можно
 function bindLoot(it) {
   if (it && SHARD_RAR[it.rar] && it.cat !== 'bag') { it.bound = 1; it.loot = 1; }
@@ -676,7 +678,7 @@ function upgradeCost(it) {
   const t = it.tier;
   if (next === 'mythic' && t < 2) return null; // мифические куются только из вещей второго и третьего мира
   const u = UPGRADE[next];
-  const need = { [u.scroll]: 1, [`ore${t}`]: u.ore };
+  const need = { [u.scroll]: u.n || 1, [`ore${t}`]: u.ore };
   if (u.ess) need[`ess${t}`] = u.ess;
   if (u.core) need[`core${t}`] = u.core;
   return { next, need, gold: Math.round(u.gold * TIER_MULT[t]) };
@@ -758,12 +760,12 @@ function itemView(it) {
 // Заказ на вещь: предмет этого слота + материалы мира + свиток + золото → тот же предмет следующей редкости (атрибуты заново).
 // Реликвия мира: вещь комплекта класса героя (слот на выбор) — только из материалов.
 const WORLD_CRAFT = {
-  1: { title: 'Кузница Эльдмира', from: 'common', to: 'rare', mats: { ore1: 8, ess1: 3, scrollR: 1 }, gold: 200, chance: 0.8,
-    relic: { rar: 'epic', mats: { ore1: 30, ess1: 15, core1: 2 }, gold: 1500, chance: 0.6 } },
-  2: { title: 'Горн Морграта', from: 'rare', to: 'epic', mats: { ore2: 12, ess2: 6, scrollE: 1 }, gold: 900, chance: 0.6,
-    relic: { rar: 'legendary', mats: { ore2: 40, ess2: 20, core2: 3, scrollL: 1 }, gold: 6000, chance: 0.4 } },
-  3: { title: 'Небесная наковальня Аэлиона', from: 'epic', to: 'legendary', mats: { ore3: 20, ess3: 10, core3: 1, scrollL: 1 }, gold: 4000, chance: 0.4,
-    relic: { rar: 'mythic', mats: { ore3: 60, ess3: 30, core3: 5, scrollM: 1 }, gold: 20000, chance: 0.25 } },
+  1: { title: 'Кузница Эльдмира', from: 'common', to: 'rare', mats: { ore1: 16, ess1: 6, scrollR: 1 }, gold: 200, chance: 0.8,
+    relic: { rar: 'epic', mats: { ore1: 60, ess1: 30, core1: 4 }, gold: 1500, chance: 0.6 } },
+  2: { title: 'Горн Морграта', from: 'rare', to: 'epic', mats: { ore2: 24, ess2: 12, scrollE: 2 }, gold: 900, chance: 0.6,
+    relic: { rar: 'legendary', mats: { ore2: 80, ess2: 40, core2: 6, scrollL: 2 }, gold: 6000, chance: 0.4 } },
+  3: { title: 'Небесная наковальня Аэлиона', from: 'epic', to: 'legendary', mats: { ore3: 40, ess3: 20, core3: 2, scrollL: 2 }, gold: 4000, chance: 0.4,
+    relic: { rar: 'mythic', mats: { ore3: 120, ess3: 60, core3: 10, scrollM: 1 }, gold: 20000, chance: 0.25 } },
 };
 const RECIPE_PREFIX = { 1: 'Эльдмирская ковка', 2: 'Закалка Бездны', 3: 'Небесная ковка' };
 // Все рецепты мира tier: id → { kind, slot, needItem, mats, gold, rar }

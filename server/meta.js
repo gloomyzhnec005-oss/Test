@@ -100,7 +100,8 @@ const PASS_REWARDS = Array.from({ length: SHOP.pass.levels }, (_, i) => {
   const lvl = i + 1;
   const free = lvl % 10 === 0 ? { heroSpins: 1 } : lvl % 5 === 0 ? { itemSpins: 1 } : lvl % 3 === 0 ? { gems: 80 } : { gold: 80 + lvl * 20 };
   const RARE = { 5: 'rare', 10: 'epic', 15: 'epic', 20: 'legendary', 25: 'legendary', 30: 'legendary' }; // мифик на 30-м — только Орден Чемпиона (passClaim)
-  const MATS = { 3: { scrollE: 1 }, 7: { ore: 20, ess: 10 }, 9: { scrollE: 1 }, 12: { core: 2 }, 17: { scrollE: 2 }, 21: { scrollL: 1 }, 24: { core: 3 }, 27: { scrollL: 1 }, 29: { scrollM: 1 } };
+  // Материалы ордена ×2 вместе с ковкой (28.11) — чтобы купленный орден покрывал столько же ковок, сколько раньше
+  const MATS = { 3: { scrollE: 2 }, 7: { ore: 40, ess: 20 }, 9: { scrollE: 2 }, 12: { core: 4 }, 17: { scrollE: 4 }, 21: { scrollL: 2 }, 24: { core: 6 }, 27: { scrollL: 2 }, 29: { scrollM: 1 } };
   const prem = RARE[lvl] ? { item: RARE[lvl] } : MATS[lvl] ? { mats: MATS[lvl] } : lvl % 2 ? { gold: 250 + lvl * 50 } : { itemSpins: 1 };
   return { lvl, free, prem };
 });
@@ -348,8 +349,8 @@ module.exports = function createMeta(deps) {
   // Открыть платный ларец
   function openChest(p, pr, id, d) {
     const t = tierOf(p);
-    if (id === 'kitSmith') { I.addMat(pr, `ore${t}`, 30); I.addMat(pr, `ess${t}`, 15); I.addMat(pr, 'scrollE', 2); return `${matName(`ore${t}`, 30)}, ${matName(`ess${t}`, 15)}, ${matName('scrollE', 2)}`; }
-    if (id === 'chestLegend') { I.addMat(pr, 'scrollL', 2); I.addMat(pr, `core${t}`, 1); return `${matName('scrollL', 2)}, ${matName(`core${t}`, 1)}`; }
+    if (id === 'kitSmith') { I.addMat(pr, `ore${t}`, 60); I.addMat(pr, `ess${t}`, 30); I.addMat(pr, 'scrollE', 4); return `${matName(`ore${t}`, 60)}, ${matName(`ess${t}`, 30)}, ${matName('scrollE', 4)}`; } // ×2 вместе с ковкой
+    if (id === 'chestLegend') { I.addMat(pr, 'scrollL', 4); I.addMat(pr, `core${t}`, 2); return `${matName('scrollL', 4)}, ${matName(`core${t}`, 2)}`; } // ×2 вместе с ковкой
     if (id === 'chestSet') {
       const cls = I.CLASSES[d.cls] ? d.cls : I.classOf(p.heroId);
       const roll = Math.random();
@@ -1155,10 +1156,10 @@ module.exports = function createMeta(deps) {
   const CHESTS_BASE = {
     bagEpic: { n: 1, amount: 199, bag: 'epic', title: 'Рюкзак искателя', description: 'Эпическая сумка: +20 ячеек инвентаря' },
     bagLegend: { n: 1, amount: 499, bag: 'legendary', title: 'Сума гномьего торговца', description: 'Легендарная сумка: +35 ячеек инвентаря' },
-    kitSmith: { n: 1, amount: 49, title: 'Сундук кузнеца', description: '30 руды, 15 эссенции и 2 свитка мастера' },
+    kitSmith: { n: 1, amount: 49, title: 'Сундук кузнеца', description: '60 руды, 30 эссенции и 4 свитка мастера' },
     chestSet: { n: 1, amount: 199, title: 'Ларец комплекта', description: 'Вещь комплекта вашего класса: эпическая, 15% легендарная, 1,5% мифическая' },
     chestSet5: { n: 5, amount: 899, title: 'Ларцы комплекта ×5', description: 'Пять ларцов комплекта со скидкой 10%' },
-    chestLegend: { n: 1, amount: 149, title: 'Ларец грандмастера', description: '2 свитка грандмастера и редкий материал' },
+    chestLegend: { n: 1, amount: 149, title: 'Ларец грандмастера', description: '4 свитка грандмастера и 2 редких материала' },
     // Особые предложения (своя витрина в магазине)
     starter: { special: true, amount: 99, title: 'Набор новичка', description: '300 💎, 3 печати призыва, 5 печатей снаряжения, эпическая сумка, 2 великих эликсира опыта, эликсир героя, 10 больших зелий' },
     card30: { special: true, amount: 199, title: 'Карта месяца', description: '300 💎 сразу и ещё 100 💎 каждый день 30 дней — всего 3300 💎' },
