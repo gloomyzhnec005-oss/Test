@@ -1185,6 +1185,7 @@ window.Town = (() => {
     setContext: (c) => { ctx = { ...ctx, ...c }; },
     placeImg,
     openPlace: (id, arg) => { if (!PANELS[id]) return; Promise.resolve().then(() => PANELS[id](arg)).catch((e) => { console.error(id, e); toast('Не удалось открыть — попробуйте ещё раз'); }); },
+    openSalvage: async () => open('♻️ Разбор вещей', await salvageBody()), // из сумки — где угодно
     open, close, tabs, toast, openNpc: (id) => npcPanel(id).catch((e) => { console.error('npc', e); toast('Не удалось открыть — попробуйте ещё раз'); }),
     lastTab: () => lastTabIdx,
     heroes: () => ctx.heroes,

@@ -179,6 +179,12 @@ window.Bag = (() => {
     if (ctx.town && !isEquipped(it)) {
       acts.push([`Продать торговцу · ${it.sell} 💰`, () => run('sell', { id: it.id }, ctx.after), 'warn']);
     }
+    // Разбор — где угодно (в данже тоже), чтобы при полной сумке не бегать в город. Вещи мешка добычи сервер не разберёт
+    if (!isEquipped(it) && it.cat !== 'bag') acts.push(['♻️ Разобрать на материалы', () => {
+      const big = ['epic', 'legendary', 'mythic'].includes(it.rar);
+      if (!confirm(`Разобрать «${it.name}»?${big ? '\nВещь пропадёт безвозвратно, взамен — материалы и осколок.' : ''}`)) return;
+      run('salvage', { id: it.id }, ctx.after);
+    }, 'warn']);
     // Кузница: улучшить редкость или сделать вещью комплекта — во вкладке «Улучшение» с этой вещью
     if (ctx.town && it.cat !== 'rune' && it.cat !== 'bag') acts.push(['⚒️ Улучшить в кузнице', () => { setTimeout(() => Town.openPlace('smith', it.id), 50); }]);
     return acts;
@@ -390,7 +396,8 @@ window.Bag = (() => {
       box.insertAdjacentHTML('beforeend', `<div class="inv-foot">
         <span class="gold">${ic('coins')}${inv.gold.toLocaleString('ru-RU')}</span>
         <span class="cap"><i style="width:${Math.min(100, (100 * used) / cap)}%" class="${used >= cap ? 'full' : ''}"></i><em>${used} / ${cap}</em></span>
-        <button class="l2-btn" data-sort>⇅ ${SORTS[invSort][1]}</button></div>`);
+        <button class="l2-btn" data-salv>♻️ Разбор</button><button class="l2-btn" data-sort>⇅ ${SORTS[invSort][1]}</button></div>`);
+      box.querySelector('[data-salv]').onclick = () => Town.openSalvage(); // разбор нескольких вещей — и в данже
       box.querySelector('.inv-tabs').onclick = (e) => { const b = e.target.closest('button'); if (b) { invCat = b.dataset.c; draw(); } };
       box.querySelector('[data-sort]').onclick = () => { invSort = (invSort + 1) % SORTS.length; draw(); };
     };

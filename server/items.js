@@ -396,9 +396,9 @@ Object.assign(MATS, {
   elxTitan: { name: 'Эликсир титана', icon: '🗿', color: '#c8b89a', kind: 'elixir', buff: 'titan', mins: 60, desc: '+15% защиты, +25% здоровья и 2% вампиризма на 1 час.', price: 0, buy: 0 },
   tpScroll: { name: 'Свиток возвращения', icon: '🌀', color: '#5fd1c8', kind: 'scrollTp', desc: 'Мгновенно переносит в город текущего мира.', price: 60, buy: 10 },
   // Платные ларцы (Telegram Stars) — открываются в сумке, мир берётся по месту открытия
-  kitSmith: { name: 'Сундук кузнеца', icon: '🧰', color: '#ffd36a', kind: 'chest', desc: '60 руды, 30 эссенции и 4 свитка мастера мира, где вы его открыли.', price: 0, buy: 0 },
+  kitSmith: { name: 'Сундук кузнеца', icon: '🧰', color: '#ffd36a', kind: 'chest', desc: '45 руды, 23 эссенции и 3 свитка мастера мира, где вы его открыли.', price: 0, buy: 0 },
   chestSet: { name: 'Ларец комплекта', icon: '🎁', color: '#ffb340', kind: 'chest', desc: 'Вещь комплекта вашего класса мира, где вы открыли ларец: эпическая, 15% легендарная, 1,5% мифическая.', price: 0, buy: 0 },
-  chestLegend: { name: 'Ларец грандмастера', icon: '👑', color: '#ff4d6a', kind: 'chest', desc: '4 свитка грандмастера и 2 редких материала мира, где вы его открыли.', price: 0, buy: 0 },
+  chestLegend: { name: 'Ларец грандмастера', icon: '👑', color: '#ff4d6a', kind: 'chest', desc: '3 свитка грандмастера и 2 редких материала мира, где вы его открыли.', price: 0, buy: 0 },
 });
 // Бонусы эликсиров (добавляются к статам экипировки, пока действуют)
 const BUFF_STATS = { atk: { atkP: 10 }, def: { def: 8, hpP: 10 }, agi: { aspd: 10, crit: 5 }, mind: { skill: 12, cdr: 5 },
