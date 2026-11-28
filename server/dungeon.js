@@ -902,6 +902,7 @@ module.exports = function createDungeons(d) {
     const w = Math.max(0, passed); // пройдено волн
     if (!w) { d.notifyUid(uid, '🏅 Испытание дня: ни одной волны не пройдено — попытка не засчитана, можно попробовать ещё раз'); return; }
     pr.trialDay = day; pr.trialWave = w;
+    if (tooStrong(s, uid)) { d.notifyUid(uid, `🏅 Испытание дня: пройдено волн — ${w}. Награда — только в испытании своего мира: ваш герой сильнее этого мира`); return; }
     const gems = Math.min(150, w * 6), dust = Math.floor(w / 4), crystal = w >= 20 ? 1 : 0;
     pr.gems = (pr.gems || 0) + gems;
     if (dust) I.addMat(pr, 'dust', dust);
@@ -913,10 +914,20 @@ module.exports = function createDungeons(d) {
   // Награда за прохождение — при выходе (гибель или уход), по пройденным волнам. Темп внутри волн не меняется.
   // Опыт: 1% уровня героя за волну (до 30 волн), золото — ещё столько же, сколько дали волны, материалы мира;
   // испытание дня (раз в день) — ×1,5 сверху к своим самоцветам
+  // Награда за прохождение — только в выживании своего мира: герой выше потолка мира больше чем на 3 уровня
+  // (сильный игрок в лёгком мире) её не получает — иначе 30 лёгких волн каждый день давали бы опыт и свитки даром
+  const OVER_WORLD = 3;
+  const heroLvl = (uid) => { const o = [...players.values()].find((x) => x.uid === uid); const pr = d.getProfile(uid); return o ? o.char.level : (pr.acct && pr.acct.level) || 0; };
+  const tooStrong = (s, uid) => heroLvl(uid) > TOWN_LV[s.z.town][1] + OVER_WORLD;
   function exitReward(s, uid, w, trial) {
     if (w < 1) return;
     const pr = d.getProfile(uid), k = trial ? 1.5 : 1, t = s.z.tier, W = Math.min(30, w);
     const o = [...players.values()].find((x) => x.uid === uid && !x.offline);
+    if (tooStrong(s, uid)) {
+      const msg = `🏆 Пройдено волн — ${w}. Награда за прохождение — только в выживании своего мира: ваш герой сильнее этого мира (потолок ${TOWN_LV[s.z.town][1]} ур.)`;
+      if (o) o.socket.emit('chat', { sys: true, text: msg }); else d.notifyUid(uid, msg);
+      return;
+    }
     const gold = Math.round(8 * (s.lv + 4) * (W * (W + 1) / 2) * (X.bal2() ? 0.25 : 1) * k);
     const mats = { [`ore${t}`]: Math.round(W * k), [`ess${t}`]: Math.round(Math.floor(W / 2) * k) };
     if (W >= 10) mats.scrollE = Math.round((W >= 20 ? 2 : 1) * k);
