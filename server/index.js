@@ -2577,7 +2577,7 @@ io.on('connection', (socket) => {
     if (!prj.kitGiven && !(prj.items || []).length) {
       prj.kitGiven = true;
       for (const cat of ['weapon', 'armor']) {
-        const it = I.createItem(cat, 'rare', 1, null, I.classOf(heroId));
+        const it = I.createItem(cat, 'rare', 1, null, I.classOf(heroId), true);
         I.addItem(prj, it, 999, false);
         (prj.equip ??= {})[cat] = it.id;
       }

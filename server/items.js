@@ -460,9 +460,10 @@ const rollAttrs = (rar, tier) => {
 };
 
 // cls — класс героя: 75% вещей — подходящего ему вида (чтобы добыча не была бесполезной)
-function createItem(cat, rar, tier = 1, tpl = null, cls = null) {
+// strict — только под класс (ковка, стартовый набор); без него — добыча: 75% под класс, остальное любое
+function createItem(cat, rar, tier = 1, tpl = null, cls = null, strict = false) {
   const fit = cls && !tpl && tplsForClass(cat, cls);
-  tpl = tpl || (fit && fit.length && Math.random() < 0.75 ? pick(fit) : pick(plainTpls(cat)));
+  tpl = tpl || (fit && fit.length && (strict || Math.random() < 0.75) ? pick(fit) : pick(plainTpls(cat)));
   const item = { id: newId(), cat, tpl, rar, tier, attrs: cat === 'bag' || cat === 'rune' ? [] : rollAttrs(rar, tier), dupes: 0 };
   if (cat === 'weapon') item.runes = [];
   return item;

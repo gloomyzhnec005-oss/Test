@@ -1052,7 +1052,7 @@ window.Town = (() => {
       row.innerHTML = `<div class="ic-sec" style="color:${x.color}">${x.rarName}</div>
         <div class="cr-need">${x.mats.map((m) => `<div class="cr-slot ${m.have >= m.need ? 'ok' : 'no'}"><div class="cr-cell">${Bag.cell({ ...m, n: 1 })}</div><small>${m.name} <b>${m.have}/${m.need}</b></small></div>`).join('')}
         <div class="cr-slot ${r.gold >= x.gold ? 'ok' : 'no'}"><div class="cr-cell"><button class="it" style="--rc:#d4a63c"><span><img class="it-art" src="assets/ui/ic_coin.webp" alt=""></span></button></div><small>Золото <b>${x.gold.toLocaleString('ru-RU')}</b></small></div></div>
-        <button type="button" class="l2-btn wide" ${x.ok ? '' : 'disabled'}>⚒️ Выковать: ${x.rarName.toLowerCase()} · ${(r.slots.find((s) => s.id === shSel.slot) || {}).name || ''}</button>`;
+        <button type="button" class="l2-btn wide" ${x.ok ? '' : 'disabled'}>⚒️ Выковать: ${x.rarName.toLowerCase()} · ${(r.slots.find((s) => s.id === shSel.slot) || {}).name || ''} · ${(r.classes.find((c) => c.id === shSel.cls) || {}).name || ''}</button>`;
       row.querySelector('button.l2-btn').onclick = async () => {
         const res = await Bag.act('shardCraft', { rar: x.rar, slot: shSel.slot, cls: shSel.cls });
         toast(res.error || res.toast);

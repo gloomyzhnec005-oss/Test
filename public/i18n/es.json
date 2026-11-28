@@ -3820,6 +3820,7 @@
 "⚒️ Выковал: {0}":"⚒️ Forged by: {0}",
 "⚒️ Выковано: {0} ({1}) — её можно продать":"⚒️ Forged: {0} ({1}). It can be sold",
 "⚒️ Выковать: {6} · {7}":"⚒️ Forge: {6} · {7}",
+"⚒️ Выковать: {6} · {7} · {8}":"⚒️ Forge: {6} · {7} · {8}",
 "⚒️ Добыча и кузница":"⚒️ Loot and the Forge",
 "⚒️ Лавка кузнеца Эльдмира: руда — 25 💰 (до 40 в день), пыль духов — 60 💰 (до 20 в день). Материалы снова стоит фармить":"⚒️ Eldmir smith's shop: ore costs 25 💰 (up to 40 a day), spirit dust 60 💰 (up to 20 a day). Farming materials is worth it again",
 "⚒️ Руда и пыль духов в лавке кузнеца подорожали и продаются с лимитом в день":"⚒️ Ore and spirit dust at the smith's shop cost more now and have a daily limit",

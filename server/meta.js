@@ -605,7 +605,7 @@ module.exports = function createMeta(deps) {
       if (Math.random() >= chance) return { failed: true, toast: `💥 Ковка не удалась (шанс был ${Math.round(chance * 100)}%) — материалы и золото сгорели` };
       let res;
       if (it) { it.rar = r.rar; it.attrs = I.rollAttrs(r.rar, it.tier); res = it; } // тот же предмет — следующей редкости
-      else { const out = put(pr, I.SET_SLOTS.includes(r.slot) ? I.createSetItem(I.classOf(p.heroId), r.tier, r.rar, r.slot) : I.createItem(r.slot, r.rar, r.tier, null, I.classOf(p.heroId))); if (out.error) return { error: out.error }; res = out.item; }
+      else { const out = put(pr, I.SET_SLOTS.includes(r.slot) ? I.createSetItem(I.classOf(p.heroId), r.tier, r.rar, r.slot) : I.createItem(r.slot, r.rar, r.tier, null, I.classOf(p.heroId), true)); if (out.error) return { error: out.error }; res = out.item; }
       refreshPlayer(p);
       return { result: I.itemView(res), toast: `⚒️ Создано: ${I.itemView(res).name} (${I.ITEM_RARITIES[res.rar].name})` };
     },
@@ -631,7 +631,7 @@ module.exports = function createMeta(deps) {
       if ((pr.gold || 0) < c.gold) return { error: `Нужно ${c.gold.toLocaleString('ru-RU')} 💰` };
       const miss = Object.entries(c.need).filter(([k, n]) => ((pr.mats || {})[k] || 0) < n);
       if (miss.length) return { error: `Не хватает: ${miss.map(([k, n]) => matName(k, n - ((pr.mats || {})[k] || 0))).join(', ')}` };
-      const out = put(pr, I.createItem(d.slot, d.rar, t, null, cls));
+      const out = put(pr, I.createItem(d.slot, d.rar, t, null, cls, true)); // строго под выбранный класс
       if (out.error) return { error: out.error };
       I.takeMats(pr, c.need); pr.gold -= c.gold;
       out.item.smith = p.name;
