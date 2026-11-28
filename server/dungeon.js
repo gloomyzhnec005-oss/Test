@@ -15,8 +15,30 @@ module.exports = function createDungeons(d) {
   // Полубоссы в залах данжей: втрое больше здоровья, вдвое больше урона и опыта (раньше падали слишком быстро)
   const MINI_K = { hp: 3, dmg: 2, xp: 2 };
   // ---------- Создание монстра ----------
+  // Арена (выживание, испытание дня, башня): на ней случайные камни, а край круга — скала. Монстр не должен
+  // появиться внутри камня, а летающие не уходят сквозь камни — иначе до них не добраться и волну/этаж не пройти
+  const freeNear = (c) => {
+    if (!world.isSolidAt(c.x, c.y)) return c;
+    for (let r = 16; r <= 160; r += 16) for (let a = 0; a < 16; a++) {
+      const x = c.x + Math.cos(a * Math.PI / 8) * r, y = c.y + Math.sin(a * Math.PI / 8) * r;
+      if (!world.isSolidAt(x, y)) return { x, y };
+    }
+    return c;
+  };
+  // Страховка: монстр арены оказался в камне (рывок, отбрасывание) — переносим на ближайшую свободную клетку
+  let unstuckAt = 0;
+  function unstickArena(now) {
+    if (now < unstuckAt) return;
+    unstuckAt = now + 2000;
+    for (const m of monsters.values()) {
+      const z = world.byId.get(m.zone);
+      if (!z || z.kind !== 'survival' || !world.isSolidAt(m.x, m.y)) continue;
+      const p = freeNear(m); m.x = p.x; m.y = p.y; m.homeX = p.x; m.homeY = p.y;
+    }
+  }
   function create(z, type, pos, level, opts = {}) {
     const def = MOBS[type];
+    if (z.kind === 'survival') pos = freeNear(pos);
     const rank = opts.rank || def.rank;
     const affixes = opts.affixes || [];
     const st = X.statsAt(def, level, rank, affixes);
@@ -28,7 +50,7 @@ module.exports = function createDungeons(d) {
       target: null, lastAttack: 0, abAt: Date.now() + 1500 + Math.random() * ((def.ab && def.ab.cd) || 4000),
       undead: !!def.undead, boss: rank === 'boss' || rank === 'world', mini: rank === 'mini',
       wander: null, nextWander: 0, stunUntil: 0, rootUntil: 0, dots: [], summons: 0,
-      noclip: !!def.noclip, name: opts.name || null, extra: !!opts.extra, lootMult: opts.lootMult ?? 1, owner: opts.owner || null,
+      noclip: !!def.noclip && z.kind !== 'survival', name: opts.name || null, extra: !!opts.extra, lootMult: opts.lootMult ?? 1, owner: opts.owner || null,
       inv: !!def.stealth, contrib: ['world', 'boss', 'mini'].includes(rank) ? {} : null,
     };
     if (rank === 'rare') m.name = `${def.name} · ${affixes.map((a) => AFFIXES[a].name).join(', ')}`;
@@ -1201,6 +1223,7 @@ module.exports = function createDungeons(d) {
       tickHall(h, now);
       if ((h.sentAt || 0) + 5000 < now && inZone(z.id).length) { h.sentAt = now; sendHall(h); }
     }
+    unstickArena(now);
     for (const [id, s] of survivals) {
       const inside = inZone(id);
       // Испытание дня: кто выбыл (погиб или вышел) — получает награду по достигнутой волне
