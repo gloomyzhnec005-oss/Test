@@ -801,6 +801,7 @@ const D = createDungeons({
   wbWeek: (uid, dmg) => { const pr = getProfile(uid), w = Ranks.weekNo(); if (!pr.wbWeek || pr.wbWeek.w !== w) pr.wbWeek = { w, dmg: 0, n: 0 }; pr.wbWeek.dmg += Math.round(dmg); pr.wbWeek.n += 1; },
   pushFx: (f) => fx.push(f),
   hurtPlayer: (...a) => hurtPlayer(...a),
+  grantXp: (...a) => grantXp(...a), xpForLevel: (l) => xpForLevel(l),
   hurtPet: (pet, dmg, now) => hurtPet(skillCtx, pet, dmg, now),
   markDirty: (p) => markDirty(p),
   moveEntity: (...a) => moveEntity(...a),

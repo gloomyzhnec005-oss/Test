@@ -896,10 +896,10 @@ module.exports = function createDungeons(d) {
     if (trialTop.day !== mskDayT()) { trialTop.day = mskDayT(); trialTop.list = []; }
     return { mod: k, name: M.name, desc: M.desc, done: pr.trialDay === mskDayT(), best: pr.trialDay === mskDayT() ? pr.trialWave || 0 : 0, top: trialTop.list.slice(0, 10) };
   }
-  function rewardTrial(s, uid) {
+  function rewardTrial(s, uid, passed) {
     const pr = d.getProfile(uid), day = mskDayT();
     if (pr.trialDay === day) return; // награда — раз в день
-    const w = Math.max(0, s.wave - 1); // пройдено волн
+    const w = Math.max(0, passed); // пройдено волн
     if (!w) { d.notifyUid(uid, '🏅 Испытание дня: ни одной волны не пройдено — попытка не засчитана, можно попробовать ещё раз'); return; }
     pr.trialDay = day; pr.trialWave = w;
     const gems = Math.min(150, w * 6), dust = Math.floor(w / 4), crystal = w >= 20 ? 1 : 0;
@@ -909,6 +909,26 @@ module.exports = function createDungeons(d) {
     if (trialTop.day !== day) { trialTop.day = day; trialTop.list = []; }
     trialTop.list.push({ name: pr.name || 'Герой', wave: w }); trialTop.list.sort((a, b) => b.wave - a.wave); trialTop.list.length = Math.min(trialTop.list.length, 20);
     d.notifyUid(uid, `🏅 Испытание дня: пройдено волн — ${w}. Награда: 💎 ${gems}${dust ? ` · ✨ волшебная пыль ×${dust}` : ''}${crystal ? ' · 💠 кристалл мастерства' : ''}. Новое испытание — завтра`);
+  }
+  // Награда за прохождение — при выходе (гибель или уход), по пройденным волнам. Темп внутри волн не меняется.
+  // Опыт: 1% уровня героя за волну (до 30 волн), золото — ещё столько же, сколько дали волны, материалы мира;
+  // испытание дня (раз в день) — ×1,5 сверху к своим самоцветам
+  function exitReward(s, uid, w, trial) {
+    if (w < 1) return;
+    const pr = d.getProfile(uid), k = trial ? 1.5 : 1, t = s.z.tier, W = Math.min(30, w);
+    const o = [...players.values()].find((x) => x.uid === uid && !x.offline);
+    const gold = Math.round(8 * (s.lv + 4) * (W * (W + 1) / 2) * (X.bal2() ? 0.25 : 1) * k);
+    const mats = { [`ore${t}`]: Math.round(W * k), [`ess${t}`]: Math.round(Math.floor(W / 2) * k) };
+    if (W >= 10) mats.scrollE = Math.round((W >= 20 ? 2 : 1) * k);
+    if (W >= 20) mats[`core${t}`] = Math.round(k);
+    if (W >= 30) mats.scrollL = 1;
+    for (const [m, n] of Object.entries(mats)) if (n > 0) I.addMat(pr, m, n);
+    let xp = 0;
+    if (o && d.grantXp) { xp = Math.round(d.xpForLevel(o.char.level) * 0.01 * W * k); d.grantXp(o, xp, 0, true); }
+    pr.gold = (pr.gold || 0) + gold;
+    const txt = Object.entries(mats).filter(([, n]) => n > 0).map(([m, n]) => `${(I.MATS[m] || {}).icon || ''}${n > 1 ? '×' + n : ''}`).join(' ');
+    const msg = `🏆 ${trial ? 'Испытание дня' : 'Выживание'}: пройдено волн — ${w}. Награда за прохождение: ${xp ? `✨ ${xp.toLocaleString('ru-RU')} опыта · ` : ''}💰 ${gold.toLocaleString('ru-RU')} · ${txt}`;
+    if (o) { o.socket.emit('chat', { sys: true, text: msg }); d.markDirty(o); } else d.notifyUid(uid, msg);
   }
   function startSurvival(p, trial = false) {
     const town = world.byId.get(p.zone);
@@ -946,7 +966,9 @@ module.exports = function createDungeons(d) {
     if (w % 5 === 0) {
       const dg = dgs[Math.min(dgs.length - 1, w / 5 - 1)];
       const big = w % 10 === 0 ? dg.boss : dg.minis[0];
-      const bm = create(z, big, { x: c.x, y: c.y - 9 * C.TILE }, lv + 1, { rank: w % 10 === 0 ? 'boss' : 'mini', aggro: 2000, hpMult: (1 + 0.5 * (inside - 1)) * (w % 10 === 0 ? 1500 / 450 : 1) }); // босс выживания — прежней силы (боссы данжей ослаблены в mobs.js)
+      // Босс (каждая 10-я волна) — как босс данжа на столько же героев (соло ~2–3 мин, группа — крепче по числу игроков);
+      // раньше был ×3,3 сверх группы — соло ~30 мин. Полубосс (5-я, 15-я…) — как был
+      const bm = create(z, big, { x: c.x, y: c.y - 9 * C.TILE }, lv + 1, { rank: w % 10 === 0 ? 'boss' : 'mini', aggro: 2000, hpMult: w % 10 === 0 ? bossHpMult(inside) * 1.2 : 1 + 0.5 * (inside - 1) }); // босс выживания — прежней силы (боссы данжей ослаблены в mobs.js)
       if (mod) mod.apply(bm);
     }
   }
@@ -1227,7 +1249,13 @@ module.exports = function createDungeons(d) {
     for (const [id, s] of survivals) {
       const inside = inZone(id);
       // Испытание дня: кто выбыл (погиб или вышел) — получает награду по достигнутой волне
-      if (s.mod) for (const uid of s.members) if (!s.rewarded.has(uid) && !inside.some((o) => o.uid === uid)) { s.rewarded.add(uid); rewardTrial(s, uid); }
+      // Кто выбыл (погиб или вышел) — награда за прохождение по пройденным волнам; в испытании дня — ещё и самоцветы
+      for (const uid of s.members) if (!s.rewarded.has(uid) && !inside.some((o) => o.uid === uid)) {
+        s.rewarded.add(uid);
+        const passed = Math.max(0, s.cleared ? s.wave : s.wave - 1);
+        if (s.mod) rewardTrial(s, uid, passed);
+        try { exitReward(s, uid, passed, !!s.mod); } catch (e) { console.error('survival exit reward', e); }
+      }
       if (!inside.length) {
         for (const m of monsters.values()) if (m.zone === id) monsters.delete(m.id);
         survivals.delete(id); world.removeZone(s.z); continue;
